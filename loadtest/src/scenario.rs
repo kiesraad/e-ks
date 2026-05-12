@@ -59,6 +59,7 @@ pub async fn run_session(
     // 4. Browse around (realism: a user doesn't only POST).
     client.get("persons:list", "/persons").await?;
     client.get("political-group:get", "/political-group").await?;
+    client.get("audit-log:get", "/audit-log").await?;
     client.get("candidate-lists:list", "/candidate-lists").await?;
 
     // 5. Create each person + their address. The user navigates to the form
@@ -82,6 +83,20 @@ pub async fn run_session(
             }
         }
     }
+    // edit a field on every complete person we created
+    eprintln!("persons count: {}", persons.len());
+
+    for row in persons {
+        eprintln!("creating person: {}", row.geslachtsnaam);
+        let (person_id, _complete) = create_person(client, &csrf, row, suffix).await
+        .map_err(|e| { eprintln!("create_person failed: {e}"); e })?;
+        eprintln!("editing person: {person_id}");
+        let new_last_name = format!("{} {}", unique_last_name(&row.geslachtsnaam, suffix), "aangepast");
+        edit_person(client, &csrf, &person_id, &new_last_name).await?;
+        eprintln!(" {new_last_name} with id {person_id}");
+    }
+
+
 
     // 6. Update the political group's display name + legal name.
     update_political_group(client, &csrf, suffix).await?;
@@ -182,6 +197,28 @@ async fn create_person(
         .expect_redirect("update address")?;
     client.follow("persons:list", after_address).await?;
     Ok((person_id, complete))
+}
+
+async fn edit_person(
+    client: &mut Client,
+    csrf: &str,
+    person_id: &str,
+    new_last_name: &str,
+) -> Result<()> {
+    let path = format!("/persons/{person_id}/update");
+    client.get("person-edit:get", &path).await?;
+
+    let form: Vec<(&str, &str)> = vec![
+        ("csrf_token", csrf),
+        ("last_name", new_last_name),
+    ];
+    let next = client
+        .post("person-edit:post", &path, &form)
+        .await?
+        .expect_redirect("edit person last name")?;
+
+    client.follow("persons:list", next).await?;
+    Ok(())
 }
 
 async fn delete_candidate(
@@ -380,6 +417,32 @@ async fn create_substitute_submitter(
         .post("substitute-submitter:create:post", path, &form)
         .await?
         .expect_redirect("create substitute submitter")?;
+    client.follow("list-submitter:view", next).await?;
+
+    // let substitute_submitter_id = parse_substitute_submitter_id(&address_path).ok_or_else(|| {
+    //     anyhow::anyhow!("could not extract substitute_submitter_id from redirect: {address_path}")
+    // })?;
+
+    Ok(())
+}
+
+async fn delete_substitute_submitter(
+    client: &mut Client,
+    csrf: &str,
+    submitter_id: &str,
+) -> Result<()> {
+    let path = format!("/political-group/substitute-submitters/{}/delete", submitter_id);
+    client.get("substitute-submitter:delete:get", &path).await?;
+
+    let form: Vec<(&str, &str)> = vec![
+        ("csrf_token", csrf),
+    ];
+
+    let next = client
+        .post("substitute-submitter:delete:post", &path, &form)
+        .await?
+        .expect_redirect("delete substitute submitter")?;
+
     client.follow("list-submitter:view", next).await?;
     Ok(())
 }
