@@ -83,7 +83,7 @@ pub async fn run_session(
             }
         }
     }
-    // edit a field on every complete person we created
+    // edit a field on every complete person created
     eprintln!("persons count: {}", persons.len());
 
     for row in persons {
