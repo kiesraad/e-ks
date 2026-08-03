@@ -22,8 +22,9 @@ run, 10 edits, 3 reorders, EK27, `nl` documents, base URL
 
 The server has to be built with the `dev-features` feature (it is on by
 default): the real login is DigiD/TVS SAML, which a load test can't drive, so
-each session logs in through `/dev/login` instead. Pass `--eks-key` if the
-server runs with `EKS_KEY` set, otherwise every request answers 401.
+each session logs in through `/dev/login` instead. If the server runs with
+`EKS_KEY` set, pass `--eks-key` (or export `EKS_KEY`), otherwise every request
+answers 401.
 
 ## What each session does
 

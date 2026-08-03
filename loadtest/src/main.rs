@@ -59,7 +59,7 @@ struct Args {
 
     /// Value for the `x-eks-key` header. Only needed when the server runs with
     /// `EKS_KEY` set; without it every request answers 401.
-    #[arg(long)]
+    #[arg(long, env = "EKS_KEY")]
     eks_key: Option<String>,
 
     /// Per-request HTTP timeout in seconds. The documents zip renders one H9
