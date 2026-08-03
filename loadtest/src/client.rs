@@ -1,11 +1,29 @@
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, bail};
-use reqwest::{StatusCode, redirect::Policy};
+use reqwest::{
+    StatusCode,
+    header::{HeaderMap, HeaderName, HeaderValue},
+    redirect::Policy,
+};
 use serde::Serialize;
 use url::Url;
 
 use crate::metrics::{Metric, Reporter};
+
+/// Header the app's `eks_key_middleware` gates every route on when
+/// `EKS_KEY` is configured (it exists so only the CDN can reach the server).
+const EKS_KEY_HEADER: &str = "x-eks-key";
+
+/// Header carrying the CSRF token for JSON requests, mirroring the browser's
+/// `fetch` calls: `auth::csrf_guard` only reads a token from an urlencoded body
+/// or from this header, never from a JSON payload.
+const CSRF_HEADER: &str = "x-csrf-token";
+
+/// The session is pinned to the User-Agent that created it
+/// (`session_middleware::reject_on_user_agent_mismatch`), so every request in a
+/// session has to send the same one.
+const USER_AGENT: &str = "eks-loadtest/1.0";
 
 pub struct Client {
     http: reqwest::Client,
@@ -15,11 +33,30 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new(base: Url, reporter: Reporter, timeout: Duration) -> Result<Self> {
+    pub fn new(
+        base: Url,
+        reporter: Reporter,
+        timeout: Duration,
+        eks_key: Option<&str>,
+    ) -> Result<Self> {
+        let mut headers = HeaderMap::new();
+        // The global `CsrfLayer` rejects cross-site POSTs on fetch metadata. A
+        // request with neither header passes as "not a browser", but sending
+        // what a browser sends keeps the test honest.
+        headers.insert("sec-fetch-site", HeaderValue::from_static("same-origin"));
+        if let Some(key) = eks_key {
+            headers.insert(
+                HeaderName::from_static(EKS_KEY_HEADER),
+                HeaderValue::from_str(key).context("eks key is not a valid header value")?,
+            );
+        }
+
         let http = reqwest::Client::builder()
             .cookie_store(true)
             .redirect(Policy::none())
             .timeout(timeout)
+            .user_agent(USER_AGENT)
+            .default_headers(headers)
             .build()?;
         Ok(Self {
             http,
@@ -121,13 +158,38 @@ impl Client {
         form: &F,
     ) -> Result<PostOutcome> {
         let body = serde_urlencoded::to_string(form).context("encode form")?;
-        self.post_raw(label, path, "application/x-www-form-urlencoded", body)
+        self.post_raw(label, path, "application/x-www-form-urlencoded", body, None)
             .await
     }
 
+    /// POST a form along with a `Referer`, for the endpoints that redirect back
+    /// to the page the user came from (e.g. `/hide-download-warning`).
+    pub async fn post_with_referer<F: Serialize + ?Sized>(
+        &mut self,
+        label: &'static str,
+        path: &str,
+        form: &F,
+        referer: &str,
+    ) -> Result<PostOutcome> {
+        let body = serde_urlencoded::to_string(form).context("encode form")?;
+        let referer = self
+            .base
+            .join(referer)
+            .with_context(|| format!("join referer {referer}"))?
+            .to_string();
+        self.post_raw(
+            label,
+            path,
+            "application/x-www-form-urlencoded",
+            body,
+            Some(referer),
+        )
+        .await
+    }
+
     /// POST a JSON payload. Used for the few endpoints (e.g. reorder) that take
-    /// `application/json` instead of an HTML form. CSRF token, if needed, must
-    /// be inside the payload itself.
+    /// `application/json` instead of an HTML form; those carry the CSRF token in
+    /// the `x-csrf-token` header, which [`Client::post_raw`] adds.
     pub async fn post_json<P: Serialize + ?Sized>(
         &mut self,
         label: &'static str,
@@ -135,7 +197,8 @@ impl Client {
         payload: &P,
     ) -> Result<PostOutcome> {
         let body = serde_json::to_string(payload).context("encode json")?;
-        self.post_raw(label, path, "application/json", body).await
+        self.post_raw(label, path, "application/json", body, None)
+            .await
     }
 
     async fn post_raw(
@@ -144,16 +207,26 @@ impl Client {
         path: &str,
         content_type: &'static str,
         body: String,
+        referer: Option<String>,
     ) -> Result<PostOutcome> {
         let url = self.base.join(path).with_context(|| format!("join {path}"))?;
         let started = Instant::now();
-        let response = self
+        let mut request = self
             .http
             .post(url)
             .header(reqwest::header::CONTENT_TYPE, content_type)
-            .body(body)
-            .send()
-            .await?;
+            .body(body);
+        if let Some(referer) = referer {
+            request = request.header(reqwest::header::REFERER, referer);
+        }
+        // Only JSON requests use the header; form POSTs carry the token in the
+        // body, exactly like the browser does.
+        if content_type == "application/json"
+            && let Some(csrf) = self.csrf.as_deref()
+        {
+            request = request.header(CSRF_HEADER, csrf);
+        }
+        let response = request.send().await?;
         let status = response.status();
         let location = response
             .headers()

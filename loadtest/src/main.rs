@@ -48,10 +48,24 @@ struct Args {
     #[arg(long, default_value_t = 3)]
     reorders: usize,
 
-    /// Per-request HTTP timeout in seconds. The H9 zip endpoint renders one
-    /// PDF per candidate via Typst, so under heavy concurrency it can take
-    /// well over a minute — bump this if you see "send failed after X.Xs"
-    /// errors on `download:h9` or `download:h1`.
+    /// How many of the created persons to go back and edit afterwards.
+    #[arg(long, default_value_t = 10)]
+    edits: usize,
+
+    /// Locale of the documents zip: `nl`, or `fry` for elections that allow a
+    /// Frisian export.
+    #[arg(long, default_value = "nl")]
+    locale: String,
+
+    /// Value for the `x-eks-key` header. Only needed when the server runs with
+    /// `EKS_KEY` set; without it every request answers 401.
+    #[arg(long)]
+    eks_key: Option<String>,
+
+    /// Per-request HTTP timeout in seconds. The documents zip renders one H9
+    /// PDF per candidate via Typst, so under heavy concurrency it can take well
+    /// over a minute — bump this if you see "send failed after X.Xs" errors on
+    /// `download:documents`.
     #[arg(long, default_value_t = 300)]
     timeout_secs: u64,
 }
@@ -79,17 +93,21 @@ async fn main() -> Result<()> {
         election: Box::leak(args.election.into_boxed_str()),
         load_fixtures_via_form: args.load_fixtures,
         reorders: args.reorders,
+        edits: args.edits,
+        locale: Box::leak(args.locale.into_boxed_str()),
     });
     let persons = Arc::new(persons);
 
     let started = std::time::Instant::now();
     let args_timeout_secs = args.timeout_secs;
+    let eks_key = Arc::new(args.eks_key);
     let mut tasks: JoinSet<Result<()>> = JoinSet::new();
     for user in 0..args.users {
         let base = base.clone();
         let reporter = reporter.clone();
         let scenario = scenario.clone();
         let persons = persons.clone();
+        let eks_key = eks_key.clone();
         let runs = args.runs_per_user;
         tasks.spawn(async move {
             for run in 0..runs {
@@ -105,6 +123,7 @@ async fn main() -> Result<()> {
                     base.clone(),
                     reporter.clone(),
                     Duration::from_secs(args_timeout_secs),
+                    eks_key.as_deref(),
                 )?;
                 if let Err(err) = run_session(&mut client, &persons, &suffix, &scenario).await {
                     eprintln!("user={user} run={run}: {err:#}");

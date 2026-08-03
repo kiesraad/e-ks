@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2024"
 publish = false
 
+# Deliberately outside the root workspace: the load test is a standalone tool
+# with its own lockfile, so a `cargo build` at the root doesn't pull it in.
+[workspace]
+
 [dependencies]
 tokio = { version = "1.52", features = ["full"] }
 reqwest = { version = "0.13", default-features = false, features = ["cookies", "rustls", "webpki-roots"] }
