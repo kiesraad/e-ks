@@ -55,6 +55,7 @@ mod tests {
             pending_omission_count: pending,
             actionable_omission_count: actionable,
             first_candidate_name: None,
+            candidate_list_districts: Default::default(),
         }
     }
 

@@ -300,6 +300,125 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn recovery_candidate_list_page_decides_a_multi_list_omission_per_list() {
+        use crate::ElectoralDistrict;
+
+        let store = CsbStore::new_for_test();
+        let stream_id = store.stream_id;
+
+        let mut lists = Vec::new();
+        for district in [ElectoralDistrict::Groningen, ElectoralDistrict::Utrecht] {
+            let list_id = CandidateListId::new();
+            let mut list = sample_candidate_list(list_id);
+            list.electoral_districts = vec![district];
+            store.add_candidate_list(list);
+            lists.push(list_id);
+        }
+
+        Omission::new(
+            OmissionCategory::CandidateList(lists.clone()),
+            "Too many candidates".parse().unwrap(),
+            "The list holds more candidates than allowed."
+                .parse()
+                .unwrap(),
+            None,
+        )
+        .create(&store)
+        .await
+        .unwrap();
+
+        let response = candidate_list(
+            CsbRecoveryCandidateListPath {
+                stream_id,
+                list_id: lists[0],
+            },
+            CsbContext::new_test(),
+            store,
+        )
+        .await
+        .unwrap()
+        .into_response();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response_body_string(response).await;
+        // The page decides its own list only; the other list has its own page.
+        assert_eq!(body.matches(r#"name="candidate_list""#).count(), 1);
+        assert!(body.contains(&format!(r#"value="{}""#, lists[0])));
+        assert!(!body.contains(&format!(r#"value="{}""#, lists[1])));
+        assert!(!body.contains("omission-part-table"));
+    }
+
+    #[tokio::test]
+    async fn recovery_candidate_page_decides_a_multi_list_omission_per_list() {
+        use crate::ElectoralDistrict;
+
+        let store = CsbStore::new_for_test();
+        let stream_id = store.stream_id;
+
+        let person = sample_person(PersonId::new());
+        let person_id = person.id;
+        store.add_person(person);
+
+        let mut lists = Vec::new();
+        for district in [ElectoralDistrict::Groningen, ElectoralDistrict::Utrecht] {
+            let list_id = CandidateListId::new();
+            let mut list = sample_candidate_list(list_id);
+            list.electoral_districts = vec![district];
+            list.candidates = vec![person_id];
+            store.add_candidate_list(list);
+            lists.push(list_id);
+        }
+
+        let candidate_omission = |title: &str, lists: Vec<CandidateListId>| {
+            Omission::new(
+                OmissionCategory::Candidate {
+                    person: person_id,
+                    lists,
+                },
+                title.parse().unwrap(),
+                "The document is missing.".parse().unwrap(),
+                None,
+            )
+        };
+        candidate_omission("Missing consent", lists.clone())
+            .create(&store)
+            .await
+            .unwrap();
+        // Reported on the other list only; the page says so.
+        candidate_omission("Missing identity document", vec![lists[1]])
+            .create(&store)
+            .await
+            .unwrap();
+
+        let response = candidate(
+            CsbRecoveryCandidatePath {
+                stream_id,
+                list_id: lists[0],
+                person_id,
+            },
+            CsbContext::new_test(),
+            store,
+        )
+        .await
+        .unwrap()
+        .into_response();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response_body_string(response).await;
+        // The candidate's omissions on every list, each naming its list: one
+        // decision per list for the shared one...
+        assert!(body.contains("Missing consent"));
+        assert_eq!(body.matches(r#"name="candidate_list""#).count(), 2);
+        assert!(body.contains(&format!(r#"value="{}""#, lists[0])));
+        assert!(body.contains(&format!(r#"value="{}""#, lists[1])));
+        assert!(body.contains("1. Groningen"));
+        // ...and the other list's own omission decided as a whole, but named.
+        assert!(body.contains("Missing identity document"));
+        assert!(body.contains("Candidate list"));
+        assert_eq!(body.matches("7. Utrecht").count(), 2);
+    }
+
+    #[tokio::test]
     async fn recovery_general_information_hides_correction_links() {
         let store = CsbStore::new_for_test();
         store.set_political_group(sample_political_group());

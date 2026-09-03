@@ -73,6 +73,7 @@ mod tests {
             pending_omission_count: 0,
             actionable_omission_count: 0,
             first_candidate_name: None,
+            candidate_list_districts: Default::default(),
         }]);
 
         let response = overview(
@@ -104,6 +105,7 @@ mod tests {
             pending_omission_count: 0,
             actionable_omission_count: 0,
             first_candidate_name: None,
+            candidate_list_districts: Default::default(),
         }]);
 
         let response = overview(
@@ -134,6 +136,7 @@ mod tests {
             pending_omission_count: 0,
             actionable_omission_count: 0,
             first_candidate_name: None,
+            candidate_list_districts: Default::default(),
         }]);
 
         let response = overview(
@@ -166,6 +169,7 @@ mod tests {
             restoration_count: 0,
             omission_count: 0,
             first_candidate_name: None,
+            candidate_list_districts: Default::default(),
         }]);
 
         let response = overview(
@@ -197,6 +201,7 @@ mod tests {
             restoration_count: 0, /* omission count should be used and > 0 */
             omission_count: 3,
             first_candidate_name: None,
+            candidate_list_districts: Default::default(),
         }]);
 
         let response = overview(

@@ -81,17 +81,7 @@
 }
 
 .political-group-table {
-  table-layout: fixed;
-
   thead {
-    tr {
-      background-color: var(--gray-25);
-    }
-
-    th {
-      font-weight: var(--font-weight-bold);
-    }
-
     th:nth-child(2) {
       width: 20rem;
     }
@@ -104,6 +94,21 @@
 
     th:nth-child(4) {
       width: 2rem;
+    }
+  }
+}
+
+.political-group-table,
+.political-group-recovery-table {
+  table-layout: fixed;
+
+  thead {
+    tr {
+      background-color: var(--gray-25);
+    }
+
+    th {
+      font-weight: var(--font-weight-bold);
     }
   }
 

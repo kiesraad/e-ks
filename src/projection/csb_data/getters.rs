@@ -101,21 +101,28 @@ impl CsbStream {
 
     /// The number of omissions that still need a recovered / not-recovered
     /// decision in the "Herstelde lijsten" phase.
+    /// The recovery decisions still to be made, counted per district for the
+    /// declarations of support (see [`Omission::decision_count`]).
     pub fn get_pending_omission_count(&self) -> usize {
         let data = self.data.read();
 
-        data.omissions.values().filter(|o| o.is_pending()).count()
+        data.omissions
+            .values()
+            .filter(|o| o.is_pending())
+            .map(|o| o.decision_count(&self.election))
+            .sum()
     }
 
-    /// The number of omissions that can be assessed in the "Herstelde lijsten"
-    /// phase (irreparable omissions cannot).
+    /// The recovery decisions to be made at all (irreparable omissions cannot
+    /// be assessed), counted like [`Self::get_pending_omission_count`].
     pub fn get_actionable_omission_count(&self) -> usize {
         let data = self.data.read();
 
         data.omissions
             .values()
             .filter(|o| o.is_actionable())
-            .count()
+            .map(|o| o.decision_count(&self.election))
+            .sum()
     }
 
     /// Whether the candidate is scrapped from this list: an unresolved omission
@@ -209,9 +216,7 @@ impl CsbStream {
     }
 
     /// The districts scrapped by unresolved declarations-of-support omissions,
-    /// in the election's district order. An omission without districts covers
-    /// all of the election's districts (matching the convention of
-    /// `format_districts`).
+    /// in the election's district order.
     pub fn get_scrapped_districts(&self) -> Vec<ElectoralDistrict> {
         let data = self.data.read();
 
@@ -219,17 +224,8 @@ impl CsbStream {
             .omissions
             .values()
             .filter(|o| o.is_unresolved())
-            .filter_map(|o| match &o.category {
-                OmissionCategory::DeclarationsOfSupport(districts) => Some(districts),
-                _ => None,
-            })
-            .flat_map(|districts| {
-                if districts.is_empty() {
-                    self.election.electoral_districts().to_vec()
-                } else {
-                    districts.clone()
-                }
-            })
+            .flat_map(|o| o.electoral_districts(&self.election))
+            .copied()
             .collect();
 
         self.election
@@ -270,13 +266,17 @@ impl CsbStream {
     }
 
     pub fn get_candidate_omissions(&self, person_id: PersonId) -> Vec<Omission> {
-        let data = self.data.read();
-
-        data.omissions
+        let mut omissions: Vec<Omission> = self
+            .data
+            .read()
+            .omissions
             .values()
             .filter(|o| matches!(&o.category, OmissionCategory::Candidate { person, .. } if *person == person_id))
             .cloned()
-            .collect()
+            .collect();
+
+        omissions.sort_by_key(|omission| self.district_order(omission));
+        omissions
     }
 
     /// Whether a candidate has omissions for a specific list
@@ -311,9 +311,9 @@ impl CsbStream {
             return Err(AppError::GenericNotFound);
         }
 
-        let data = self.data.read();
-
-        Ok(data
+        let mut omissions: Vec<Omission> = self
+            .data
+            .read()
             .omissions
             .values()
             .filter(|o| {
@@ -321,7 +321,10 @@ impl CsbStream {
                     if lists.contains(&list_id))
             })
             .cloned()
-            .collect())
+            .collect();
+
+        omissions.sort_by_key(|omission| self.district_order(omission));
+        Ok(omissions)
     }
 
     /// Returns if the candidate list or any of its candidates has omissions
@@ -360,12 +363,44 @@ impl CsbStream {
     }
 
     pub fn get_all_declarations_of_support_omissions(&self) -> Vec<Omission> {
-        let data = self.data.read();
-
-        data.omissions
+        let mut omissions: Vec<Omission> = self
+            .data
+            .read()
+            .omissions
             .values()
             .filter(|o| matches!(o.category, OmissionCategory::DeclarationsOfSupport(_)))
             .cloned()
+            .collect();
+
+        omissions.sort_by_key(|omission| self.district_order(omission));
+        omissions
+    }
+
+    /// Sort key putting omissions in the election's district order, so the
+    /// parts of a split stay together and in place.
+    pub(crate) fn district_order(&self, omission: &Omission) -> (usize, OmissionId) {
+        let order = self.election.electoral_districts();
+        let first = self
+            .omission_districts(omission)
+            .first()
+            .and_then(|district| order.iter().position(|d| d == district))
+            .unwrap_or(usize::MAX);
+
+        (first, omission.id)
+    }
+
+    /// The districts an omission touches, directly or through its lists.
+    fn omission_districts(&self, omission: &Omission) -> Vec<ElectoralDistrict> {
+        let districts = omission.electoral_districts(&self.election);
+        if !districts.is_empty() {
+            return districts.to_vec();
+        }
+
+        omission
+            .candidate_lists()
+            .iter()
+            .filter_map(|list_id| self.get_candidate_list(*list_id, WithCorrections::All))
+            .flat_map(|list| list.electoral_districts)
             .collect()
     }
 

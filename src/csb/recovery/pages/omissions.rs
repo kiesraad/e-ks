@@ -143,7 +143,7 @@ mod tests {
         .create(&store)
         .await
         .unwrap();
-        // A political group omission is not district-scoped, so it names none.
+        // Not district-scoped, so it names none.
         sample_omission(OmissionCategory::PoliticalGroup)
             .create(&store)
             .await
@@ -160,11 +160,61 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
-        // Only the districts the omission was reported for are listed.
-        assert_eq!(body.matches("Electoral districts").count(), 1);
+        // Only the reported districts are named, each with its own decision.
         assert!(body.contains("1. Groningen"));
         assert!(body.contains("2. Frysl"));
         assert!(!body.contains("Utrecht"));
+        assert_eq!(
+            body.matches(r#"name="electoral_district""#).count(),
+            2,
+            "one decision per district"
+        );
+    }
+
+    #[tokio::test]
+    async fn candidate_list_omissions_name_their_list() {
+        use crate::{
+            ElectoralDistrict, structs::candidate_lists::CandidateListId,
+            test_utils::sample_candidate_list,
+        };
+
+        let store = CsbStore::new_for_test();
+        let stream_id = store.stream_id;
+        let mut lists = Vec::new();
+        for district in [ElectoralDistrict::Groningen, ElectoralDistrict::Utrecht] {
+            let mut list = sample_candidate_list(CandidateListId::new());
+            list.electoral_districts = vec![district];
+            lists.push(list.id);
+            store.add_candidate_list(list);
+        }
+        Omission::new(
+            OmissionCategory::CandidateList(vec![lists[1]]),
+            "Too many candidates".parse().unwrap(),
+            "The list holds more candidates than allowed."
+                .parse()
+                .unwrap(),
+            None,
+        )
+        .create(&store)
+        .await
+        .unwrap();
+
+        let response = omissions(
+            CsbRecoveryOmissionsPath { stream_id },
+            CsbContext::new_test(),
+            store,
+        )
+        .await
+        .unwrap()
+        .into_response();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response_body_string(response).await;
+        // Decided as a whole, but the reader is told which list it is about.
+        assert!(body.contains("Candidate list"));
+        assert!(body.contains("7. Utrecht"));
+        assert!(!body.contains("Groningen"));
+        assert!(!body.contains("omission-part-table"));
     }
 
     #[tokio::test]
