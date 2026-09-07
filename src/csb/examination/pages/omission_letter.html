@@ -1,0 +1,83 @@
+{% extends "csb/components/layout.html" %}
+{% import "csb/components/restorations.html" as restorations %}
+{% block breadcrumbs %}
+  {{ breadcrumb(crate::csb::examination::CsbExaminationOverviewPath, "csb.examination") }}
+  {{ breadcrumb(CsbFinishExaminationPath, "csb.finish_examination.title") }}
+  {{ breadcrumb(political_group.omission_letter_path() , political_group.csb_appellation(), is_translatable=false) }}
+{% endblock %}
+{% block page_title %}
+  {{ political_group.csb_appellation() }}
+{% endblock %}
+{% block page_sub_title %}
+  <span class="subtitle">{{ "csb.omission_letter.explanation"|trans }}</span>
+{% endblock %}
+{% block header_action %}
+  <div class="header-buttons">
+    <a href="{{ CsbFinishExaminationPath }}" class="button secondary">{{ "action.back"|trans }}</a>
+  </div>
+{% endblock %}
+{% block content %}
+  <div class="examination-panels">
+    <div class="examination-panel">
+      <div class="examination-panel-header">
+        <div>
+          <h2 class="h3">{{ "csb.omission_letter.title"|trans }}</h2>
+          <p>{{ "csb.omission_letter.download_note"|trans }}</p>
+        </div>
+      </div>
+      <div class="examination-strip">
+        <a href="{{ political_group.omission_letter_docx_path() }}"
+           class="button secondary icon-download">{{ "csb.finish_examination.download_word"|trans }}</a>
+        <a href="{{ political_group.omission_letter_pdf_path() }}"
+           class="button primary icon-download">{{ "csb.finish_examination.download_pdf"|trans }}</a>
+      </div>
+    </div>
+    <div class="examination-panel">
+      <div class="examination-panel-header">
+        <div>
+          <h2 class="h3">
+            <span class="omission-icon" aria-hidden="true"></span>
+            {{ "csb.omission_letter.omissions_title"|trans }}
+          </h2>
+          <p>{{ "csb.omission_letter.omissions_explanation"|trans }}</p>
+        </div>
+      </div>
+      {% if omission_count == 0 %}
+        <p class="font-italic">{{ "csb.omission.overview.no_omissions"|trans }}</p>
+      {% else %}
+        {% if !all_omissions.general.is_empty() %}
+          <h3 class="examination-panel-group">{{ "common.general_information"|trans }}</h3>
+          <ul class="omission-status-list">
+            {% for view in all_omissions.general %}
+              {{ restorations::omission_row(political_group, view.omission) }}
+            {% endfor %}
+          </ul>
+        {% endif %}
+        {% if !all_omissions.declarations_of_support.is_empty() %}
+          <h3 class="examination-panel-group">{{ "csb.declarations_of_support.title"|trans }}</h3>
+          <ul class="omission-status-list">
+            {% for view in all_omissions.declarations_of_support %}
+              {{ restorations::omission_row(political_group, view.omission) }}
+            {% endfor %}
+          </ul>
+        {% endif %}
+        {% if !all_omissions.candidate_lists.is_empty() %}
+          <h3 class="examination-panel-group">{{ "candidate_list.title_plural"|trans }}</h3>
+          <ul class="omission-status-list">
+            {% for view in all_omissions.candidate_lists %}
+              {{ restorations::omission_row(political_group, view.omission) }}
+            {% endfor %}
+          </ul>
+        {% endif %}
+        {% for candidate in all_omissions.candidates %}
+          <h3 class="examination-panel-group">{{ candidate.person.name.display() }}</h3>
+          <ul class="omission-status-list">
+            {% for view in candidate.omissions %}
+              {{ restorations::omission_row(political_group, view.omission) }}
+            {% endfor %}
+          </ul>
+        {% endfor %}
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

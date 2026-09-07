@@ -100,8 +100,9 @@
 
 .political-group-table {
   thead {
+    /* Fits "Onderzoek afgerond" and "Verzuimen toegevoegd" side by side. */
     th:nth-child(2) {
-      width: 20rem;
+      width: 24rem;
     }
 
     /* Wide enough for the longest BRP state ("Controle niet afgerond"), which
@@ -124,6 +125,12 @@
     padding: var(--space-2) var(--space-4);
   }
 
+  .status-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
   .status {
     display: inline-block;
     border-radius: var(--rounded-xl);
@@ -131,11 +138,18 @@
     width: fit-content;
     padding: var(--space-1) var(--space-2);
     font-size: var(--font-size-sm);
+    white-space: nowrap;
 
     &.in-progress {
       border-color: var(--blue-200);
       background-color: var(--blue-100);
       color: var(--blue-700);
+    }
+
+    &.finished {
+      border-color: var(--green-200);
+      background-color: var(--green-100);
+      color: var(--green-700);
     }
 
     &.approved {
@@ -501,10 +515,6 @@
 }
 
 .csb-phase-illustration-4 {
-  background-image: url("../icons/csb-phase-4.svg");
-}
-
-.csb-phase-illustration-5 {
   background-image: url("../icons/csb-phase-4.svg");
 }
 

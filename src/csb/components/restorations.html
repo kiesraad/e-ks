@@ -142,6 +142,28 @@
     {{ status_control(political_group, omission, redirect, districts, lists, scope_list) }}
   </li>
 {% endmacro status_row %}
+{# One omission read-only, as it goes into the omission letter: the finding
+   with the districts and lists it applies to and the note the letter adds,
+   without any decision control. #}
+{% macro omission_row(political_group, omission) %}
+  {% let election = "election"|election_value %}
+  {% let districts = omission.electoral_districts(election) %}
+  {% let lists = omission.candidate_lists() %}
+  <li class="omission-status-row">
+    <div class="omission-status-text">
+      <span class="restoration-tag{% if !omission.recoverable %} restoration-tag-unrecoverable{% endif %}">{{ omission.title }}</span>
+      {{ districts_line(districts) }}
+      {{ lists_line(political_group, lists) }}
+      <p>{{ omission.description }}</p>
+      {% if let Some(help_text) = omission.help_text() %}
+        <p>
+          <strong>{{ "csb.omission.overview.help_text"|trans }}:</strong>
+          {{ help_text }}
+        </p>
+      {% endif %}
+    </div>
+  </li>
+{% endmacro omission_row %}
 {% macro status_panel(political_group, title, explanation, omissions, redirect, scope_list="") %}
   <div class="examination-panel">
     <div class="examination-panel-header">

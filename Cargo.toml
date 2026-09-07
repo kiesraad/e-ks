@@ -90,7 +90,7 @@ serde-saphyr = { version = "1.0.0", default-features = false, features = ["deser
 
 # tweedegolf
 memory-serve = "2.1.0"
-textris-pdf = { version = "0.10.1", features = ["docx"] }
+textris-pdf = { version = "0.10.3", features = ["docx"] }
 bagatel = "0.8.3"
 
 # kiesraad

@@ -73,6 +73,7 @@ finish_examination:
   download_note: Download hier alle verzuimbrieven als Word en PDF in één ZIP
   download_pdf: Download PDF
   download_word: Download Word
+  download_zip: Download ZIP
   hearing_details: Zitting details
   i1_note: Onderzoek ingeleverde kandidatenlijsten. Maak het formulier aan van verslag van het onderzoek naar de kandidatenlijsten
   i1_title: I 1 Proces-verbaal
@@ -149,8 +150,6 @@ index:
   phase_3:
     title: Herstelde lijsten
   phase_4:
-    title: Lijstnummering
-  phase_5:
     title: Vaststellen kandidatenlijsten
 list:
   add_text: Voeg verzuimen toe voor deze kandidatenlijst
@@ -175,6 +174,7 @@ omission:
     applies_to: "Dit verzuim geldt voor:"
     description_label: I 1 verzuim toevoegen
     edit_heading: Type of bewerk hier het verzuim
+    help_text_hint: Alleen bij een herstelbaar verzuim. Onherstelbare verzuimen komen niet in de verzuimbrief.
     help_text_label: Verzuimbriefnotitie toevoegen
     placeholder_warning: De tekst bevat nog niet ingevulde placeholders.
     presets_heading: Gebruik deze verzuimen als sjabloon (optioneel)
@@ -196,6 +196,12 @@ omission:
     candidate: "Verzuimen {}"
     candidate_list: Verzuimen kandidatenlijst
     general: Verzuimen basisgegevens
+omission_letter:
+  download_note: Download de verzuimbrief voor deze politieke groepering als Word- of PDF-bestand.
+  explanation: In de verzuimbrief staan alle verzuimen die bij deze politieke groepering zijn vastgesteld.
+  omissions_explanation: "Alle vastgestelde verzuimen van deze politieke groepering, zoals ze in de verzuimbrief staan."
+  omissions_title: Verzuimen in de brief
+  title: Verzuimbrief
 paper_corrections:
   added: Papieren correctie toegevoegd
   banner: "U corrigeert {}. Neem alleen correcties over die met de hand op de ingeleverde papieren documenten zijn geschreven, verder niets."
