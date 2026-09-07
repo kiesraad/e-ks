@@ -51,6 +51,10 @@ impl CsbStream {
                     path: general_path(political_group),
                     omission,
                 }),
+                OmissionCategory::Appellation => general.push(OmissionWithPath {
+                    path: appellation_path(political_group),
+                    omission,
+                }),
                 OmissionCategory::CandidateList(ref lists) => {
                     let list_id = lists.first().ok_or(AppError::InternalServerError)?;
                     candidate_lists.push(OmissionWithPath {
@@ -105,6 +109,18 @@ fn general_path(political_group: &CsbPoliticalGroup) -> String {
             ))
             .to_string(),
         CsbPhase::Recovery => political_group.general_information_path(),
+    }
+}
+
+fn appellation_path(political_group: &CsbPoliticalGroup) -> String {
+    match political_group.mode {
+        CsbPhase::Examination => political_group
+            .manage_appellation_omissions_path()
+            .with_query_params(QueryParamState::redirect_to(
+                political_group.all_restorations_path(),
+            ))
+            .to_string(),
+        CsbPhase::Recovery => political_group.general_information_path(), // TODO maybe group_path()???
     }
 }
 

@@ -17,6 +17,13 @@ use crate::{
     },
 };
 
+// constants to use for `as_str` and `from_str` implementations of `OmissionType`
+const POLITICAL_GROUP: &str = "political-group";
+const CANDIDATE_LIST: &str = "candidate-list";
+const DECLARATION_OF_SUPPORT: &str = "declarations-of-support";
+const CANDIDATE: &str = "candidate";
+const APPELLATION: &str = "appellation";
+
 id_newtype!(pub struct OmissionId);
 
 constrained_strings! {
@@ -34,6 +41,7 @@ constrained_strings! {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OmissionType {
     PoliticalGroup,
+    Appellation,
     CandidateList,
     DeclarationsOfSupport,
     Candidate,
@@ -42,10 +50,11 @@ pub enum OmissionType {
 impl OmissionType {
     fn as_str(self) -> &'static str {
         match self {
-            OmissionType::PoliticalGroup => "political-group",
-            OmissionType::CandidateList => "candidate-list",
-            OmissionType::DeclarationsOfSupport => "declarations-of-support",
-            OmissionType::Candidate => "candidate",
+            OmissionType::PoliticalGroup => POLITICAL_GROUP,
+            OmissionType::CandidateList => CANDIDATE_LIST,
+            OmissionType::DeclarationsOfSupport => DECLARATION_OF_SUPPORT,
+            OmissionType::Candidate => CANDIDATE,
+            OmissionType::Appellation => APPELLATION,
         }
     }
 
@@ -63,10 +72,11 @@ impl FromStr for OmissionType {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "political-group" => Ok(OmissionType::PoliticalGroup),
-            "candidate-list" => Ok(OmissionType::CandidateList),
-            "declarations-of-support" => Ok(OmissionType::DeclarationsOfSupport),
-            "candidate" => Ok(OmissionType::Candidate),
+            POLITICAL_GROUP => Ok(OmissionType::PoliticalGroup),
+            APPELLATION => Ok(OmissionType::Appellation),
+            CANDIDATE_LIST => Ok(OmissionType::CandidateList),
+            DECLARATION_OF_SUPPORT => Ok(OmissionType::DeclarationsOfSupport),
+            CANDIDATE => Ok(OmissionType::Candidate),
             _ => Err(ValidationError::InvalidValue),
         }
     }
@@ -96,6 +106,8 @@ pub enum OmissionCategory {
     /// or problems with authorised agent and/or statutory name (H 3-1 / H 3-2)
     #[default]
     PoliticalGroup,
+    /// For omissions specifically having to do with the appellation
+    Appellation,
     /// Omissions scoped to one or more specific candidate lists.
     CandidateList(Vec<CandidateListId>),
     /// Missing or incorrect "ondersteuningsverklaringen" (H 4), per district.
@@ -120,6 +132,7 @@ impl OmissionCategory {
     ) -> Self {
         match omission_type {
             OmissionType::PoliticalGroup => OmissionCategory::PoliticalGroup,
+            OmissionType::Appellation => OmissionCategory::Appellation,
             OmissionType::CandidateList => OmissionCategory::CandidateList(lists),
             OmissionType::DeclarationsOfSupport => {
                 unreachable!(
@@ -216,6 +229,7 @@ impl Omission {
         match &self.category {
             OmissionCategory::DeclarationsOfSupport(districts) => districts,
             OmissionCategory::PoliticalGroup
+            | OmissionCategory::Appellation
             | OmissionCategory::CandidateList(_)
             | OmissionCategory::Candidate { .. } => &[],
         }

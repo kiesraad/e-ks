@@ -20,6 +20,7 @@ use crate::{
     structs::{
         candidate_lists::CandidateListId,
         csb::{OmissionCategory, OmissionType},
+        list_designation::ListDesignation,
         persons::PersonId,
     },
     trans,
@@ -114,6 +115,25 @@ impl OmissionTarget {
             .csb_appellation(first_candidate.as_ref());
         let first_part = match self.omission_type {
             OmissionType::PoliticalGroup => trans!("common.general_information", locale),
+            OmissionType::Appellation => {
+                match store
+                    .get_political_group(WithCorrections::All)
+                    .list_designation
+                {
+                    Some(ListDesignation::Standalone) | None => {
+                        trans!("political_group.appellation", locale)
+                    }
+                    Some(ListDesignation::Combined) => {
+                        trans!("political_group.appellation_combined", locale)
+                    }
+                    Some(ListDesignation::Blank) => {
+                        // the user can still get to the add/overview omission page via
+                        // all restorations. Users shouldn't apply paper corrections
+                        // after adding omissions, but we cannot guarantee this.
+                        trans!("csb.appellation.title", locale)
+                    }
+                }
+            }
             OmissionType::CandidateList => trans!("candidate_list.title_single", locale),
             OmissionType::DeclarationsOfSupport => {
                 trans!("csb.declarations_of_support.title", locale)
@@ -335,7 +355,7 @@ mod tests {
         let response = add_omission(
             CsbAddOmissionPath {
                 stream_id,
-                omission_type: OmissionType::PoliticalGroup,
+                omission_type: OmissionType::Appellation,
                 reference: stream_id.into(),
             },
             CsbContext::new_test(),
@@ -378,7 +398,7 @@ mod tests {
         // add-omission form active by default and the overview on its own route.
         assert!(body.contains("steps-nav"));
         assert!(body.contains(&format!(
-            "/csb/examination/{stream_id}/omission/political-group/{stream_id}/overview"
+            "/csb/examination/{stream_id}/omission/appellation/{stream_id}/overview"
         )));
         assert!(body.contains(">Overview</a>"));
     }

@@ -259,6 +259,16 @@ impl CsbStream {
             .collect()
     }
 
+    pub fn get_appellation_omissions(&self) -> Vec<Omission> {
+        let data = self.data.read();
+
+        data.omissions
+            .values()
+            .filter(|o| matches!(o.category, OmissionCategory::Appellation))
+            .cloned()
+            .collect()
+    }
+
     pub fn get_political_group_csb_corrections_count(&self) -> usize {
         let data = self.data.read();
 

@@ -256,6 +256,25 @@ impl CsbPoliticalGroup {
         }
     }
 
+    /// Path to the dialog that adds a appellation (political group level) omission.
+    pub fn add_appellation_omission_path(&self) -> impl TypedPath {
+        CsbAddOmissionPath {
+            stream_id: self.stream_id,
+            omission_type: OmissionType::Appellation,
+            reference: self.stream_id.into(),
+        }
+    }
+
+    /// Path to the overview page listing the appellation (political group level)
+    /// omissions already added.
+    pub fn manage_appellation_omissions_path(&self) -> impl TypedPath {
+        CsbOmissionOverviewPath {
+            stream_id: self.stream_id,
+            omission_type: OmissionType::Appellation,
+            reference: self.stream_id.into(),
+        }
+    }
+
     /// Path to the add-omission dialog for declarations of support.
     pub fn add_declarations_of_support_omission_path(&self) -> impl TypedPath {
         CsbAddOmissionPath {

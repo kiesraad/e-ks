@@ -10,6 +10,9 @@ all_restorations:
   omissions_explanation: All created omissions are displayed here.
   omissions_title: Omissions overview
   title: Omissions and corrections
+appellation:
+  instruction: Report problems with the appellation
+  title: Appellation
 auth:
   button:
     github: Sign in with GitHub

@@ -108,6 +108,35 @@
         {% endif %}
       {% endif %}
     </div>
+    {% if political_group.political_group.list_designation != Some(crate::structs::list_designation::ListDesignation::Blank) %}
+      <div class="examination-panel">
+        <div class="examination-panel-header">
+          <div>
+            <h2 class="h3">{{ "csb.appellation.title"|trans }}</h2>
+            <p>{{ "csb.appellation.instruction"|trans }}</p>
+          </div>
+          {% if political_group.mode.is_examination() %}
+            <a class="button secondary icon-plus-end"
+               href="{{ political_group.add_appellation_omission_path() }}">{{ "csb.omission.action.add"|trans }}</a>
+          {% endif %}
+        </div>
+        {% if political_group.mode.is_examination() %}
+          {{ restorations::omission_strip(political_group.manage_appellation_omissions_path() , appellation_omissions.as_slice()) }}
+        {% else %}
+          {% if appellation_omissions.is_empty() %}
+            <div class="restoration-strip restoration-strip-omission">
+              <span class="restoration-strip-empty">{{ "csb.omission.overview.no_omissions"|trans }}</span>
+            </div>
+          {% else %}
+            <ul class="omission-status-list">
+              {% for omission in appellation_omissions %}
+                {{ restorations::status_row(political_group, omission, "", political_group.group_path() ) }}
+              {% endfor %}
+            </ul>
+          {% endif %}
+        {% endif %}
+      </div>
+    {% endif %}
     <div class="examination-panel">
       <h2 class="h3">{{ "csb.examination"|trans }}</h2>
       <div class="cards cards-candidate-lists">

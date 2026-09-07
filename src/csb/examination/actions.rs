@@ -130,7 +130,9 @@ impl OmissionCategory {
         election: &ElectionConfig,
     ) -> Result<String, AppError> {
         match self {
-            OmissionCategory::PoliticalGroup => Ok(ALL_DISTRICTS.to_string()),
+            OmissionCategory::PoliticalGroup | OmissionCategory::Appellation => {
+                Ok(ALL_DISTRICTS.to_string())
+            }
             OmissionCategory::CandidateList(lists) | OmissionCategory::Candidate { lists, .. } => {
                 let mut districts: Vec<ElectoralDistrict> = Vec::new();
                 for id in lists {
