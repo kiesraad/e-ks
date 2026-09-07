@@ -150,12 +150,12 @@ impl BrpClient {
             };
 
             let findings = match matched.as_slice() {
-                [brp_person] => findings_for(person, brp_person),
-                [..] if matched.len() > 1 => vec![BrpFinding::BsnNotUnique],
                 // Nobody to compare against yet: a burgerservicenummer that is
                 // missing or wrong should still not leave the candidate
                 // unchecked, so their other details are searched on.
-                _ => self.findings_without_a_bsn_match(person).await?,
+                [] => self.findings_without_a_bsn_match(person).await?,
+                [brp_person] => findings_for(person, brp_person),
+                _ => vec![BrpFinding::BsnNotUnique],
             };
 
             results.push((person.id, findings));

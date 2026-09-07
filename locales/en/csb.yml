@@ -27,11 +27,11 @@ brp:
   correct: Correct
   errors: Errors
   finding:
-    bsn_matched_by_personal_details: "The candidate's other personal details match exactly one person in the BRP, with citizen service number {}. The data below was compared against that person."
-    bsn_missing: "No citizen service number was recorded, so this candidate could not be looked up in the BRP."
-    bsn_none_confirmed: "This candidate is recorded as having no citizen service number, so they could not be looked up in the BRP."
-    bsn_not_unique: More than one person in the BRP has this citizen service number.
-    bsn_unknown: No person in the BRP has this citizen service number.
+    bsn_matched_by_personal_details: "The candidate's other personal details match exactly one person in the BRP, with social security number {}. The data below was compared against that person."
+    bsn_missing: "No social security number was recorded, so this candidate could not be looked up in the BRP."
+    bsn_none_confirmed: "This candidate is recorded as having no social security number, so they could not be looked up in the BRP."
+    bsn_not_unique: More than one person in the BRP has this social security number.
+    bsn_unknown: No person in the BRP has this social security number.
     deceased: "The BRP records this candidate as deceased on {}."
     deceased_date_unknown: "The BRP records this candidate as deceased, without a full date of death."
     excluded_from_suffrage: The BRP records this candidate as excluded from the right to vote.

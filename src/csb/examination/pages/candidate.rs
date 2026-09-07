@@ -38,16 +38,7 @@ struct CsbCandidateTemplate {
     details: PaperCorrectedPersonDetails,
     position: PaperCorrected,
     candidate_omissions: Vec<Omission>,
-    /// What the BRP check found, per row of the details table.
-    brp: CandidateBrpFindings,
-    /// Whether this candidate has been checked at all, which is what decides
-    /// whether a re-check is offered.
-    brp_state: BrpCheckState,
-    /// Whether a sweep is under way. While it is, the candidate is waiting for
-    /// its turn rather than for a check of their own.
-    brp_running: bool,
-    /// Why the BRP data may be incomplete, if the check did not finish.
-    brp_incomplete: Option<String>,
+    brp: CandidateBrp,
     is_scrapped: bool,
     recovery_position: Option<usize>,
     scrapped_districts: Vec<ElectoralDistrict>,
@@ -56,9 +47,15 @@ struct CsbCandidateTemplate {
 
 /// What the candidate page shows about the BRP check.
 struct CandidateBrp {
+    /// What the BRP check found, per row of the details table.
     findings: CandidateBrpFindings,
+    /// Whether this candidate has been checked at all, which is what decides
+    /// whether a re-check is offered.
     state: BrpCheckState,
+    /// Whether a sweep is under way. While it is, the candidate is waiting for
+    /// its turn rather than for a check of their own.
     running: bool,
+    /// Why the BRP data may be incomplete, if the check did not finish.
     incomplete: Option<String>,
 }
 
@@ -143,10 +140,7 @@ pub(in crate::csb) async fn render(
             details,
             position,
             candidate_omissions,
-            brp: brp.findings,
-            brp_state: brp.state,
-            brp_running: brp.running,
-            brp_incomplete: brp.incomplete,
+            brp,
             is_scrapped: store.is_candidate_scrapped(person_id, list_id),
             recovery_position: store.get_recovery_position(list_id, person_id),
             scrapped_districts,

@@ -38,8 +38,9 @@ pub(crate) struct CorrectionDisplay {
     pub(crate) field_type: CorrectionFieldType,
 }
 
-/// The three value strings needed for the correction overlay, extracted from
-/// the three data projections.
+/// The value strings needed for the correction overlay: the imported,
+/// paper-corrected and CSB-corrected values from the three data projections,
+/// plus what the BRP holds for the field when that differs.
 pub(crate) struct FieldValues {
     imported: String,
     paper_corrected: Option<String>,

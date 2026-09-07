@@ -70,7 +70,7 @@
     </div>
     {% let examining = political_group.mode.is_examination() %}
     {% if examining %}
-      {% if let Some(reason) = brp_incomplete %}
+      {% if let Some(reason) = brp.incomplete %}
         <div class="restoration-strip">
           <ul class="restoration-tags">
             <li>
@@ -78,9 +78,9 @@
             </li>
           </ul>
         </div>
-        {% if brp_state.is_not_checked() %}
+        {% if brp.state.is_not_checked() %}
           <div class="examination-panel-actions">
-            {% if brp_running %}
+            {% if brp.running %}
               <a class="button secondary"
                  href="{{ political_group.candidate_path(list_id, candidate.id) }}">{{ "csb.brp.refresh"|trans }}</a>
             {% else %}
@@ -97,19 +97,19 @@
     <table class="detail-table">
       {{ paper_corrected::columns_head("person.personal_details"|trans) }}
       <tbody>
-        {{ paper_corrected::maybe_brp_editable_data_row("person.fields.initials"|trans, details.initials, brp.initials.as_slice() , political_group.correction_person_path(candidate.id, crate::csb::examination::structs::CandidateCorrectionField::Initials, list_id) , examining) }}
+        {{ paper_corrected::maybe_brp_editable_data_row("person.fields.initials"|trans, details.initials, brp.findings.initials.as_slice() , political_group.correction_person_path(candidate.id, crate::csb::examination::structs::CandidateCorrectionField::Initials, list_id) , examining) }}
         {{ paper_corrected::data_row("person.fields.first_name"|trans, details.first_name) }}
-        {{ paper_corrected::maybe_brp_editable_data_row("person.fields.last_name_prefix"|trans, details.last_name_prefix, brp.last_name_prefix.as_slice() , political_group.correction_person_path(candidate.id, crate::csb::examination::structs::CandidateCorrectionField::LastNamePrefix, list_id) , examining) }}
-        {{ paper_corrected::maybe_brp_editable_data_row("person.fields.last_name"|trans, details.last_name, brp.last_name.as_slice() , political_group.correction_person_path(candidate.id, crate::csb::examination::structs::CandidateCorrectionField::LastName, list_id) , examining) }}
-        {{ paper_corrected::maybe_brp_data_row("person.fields.gender"|trans, details.gender, brp.gender.as_slice() , examining) }}
-        {{ paper_corrected::maybe_brp_editable_data_row("person.fields.date_of_birth"|trans, details.date_of_birth, brp.date_of_birth.as_slice() , political_group.correction_person_path(candidate.id, crate::csb::examination::structs::CandidateCorrectionField::DateOfBirth, list_id) , examining) }}
-        {{ paper_corrected::maybe_brp_data_row("person.fields.bsn"|trans, details.bsn, brp.bsn.as_slice() , examining) }}
-        {{ paper_corrected::maybe_brp_editable_data_row("person.fields.place_of_residence"|trans, details.place_of_residence, brp.place_of_residence.as_slice() , political_group.correction_person_path(candidate.id, crate::csb::examination::structs::CandidateCorrectionField::PlaceOfResidence, list_id) , examining) }}
+        {{ paper_corrected::maybe_brp_editable_data_row("person.fields.last_name_prefix"|trans, details.last_name_prefix, brp.findings.last_name_prefix.as_slice() , political_group.correction_person_path(candidate.id, crate::csb::examination::structs::CandidateCorrectionField::LastNamePrefix, list_id) , examining) }}
+        {{ paper_corrected::maybe_brp_editable_data_row("person.fields.last_name"|trans, details.last_name, brp.findings.last_name.as_slice() , political_group.correction_person_path(candidate.id, crate::csb::examination::structs::CandidateCorrectionField::LastName, list_id) , examining) }}
+        {{ paper_corrected::maybe_brp_data_row("person.fields.gender"|trans, details.gender, brp.findings.gender.as_slice() , examining) }}
+        {{ paper_corrected::maybe_brp_editable_data_row("person.fields.date_of_birth"|trans, details.date_of_birth, brp.findings.date_of_birth.as_slice() , political_group.correction_person_path(candidate.id, crate::csb::examination::structs::CandidateCorrectionField::DateOfBirth, list_id) , examining) }}
+        {{ paper_corrected::maybe_brp_data_row("person.fields.bsn"|trans, details.bsn, brp.findings.bsn.as_slice() , examining) }}
+        {{ paper_corrected::maybe_brp_editable_data_row("person.fields.place_of_residence"|trans, details.place_of_residence, brp.findings.place_of_residence.as_slice() , political_group.correction_person_path(candidate.id, crate::csb::examination::structs::CandidateCorrectionField::PlaceOfResidence, list_id) , examining) }}
       </tbody>
-      {% if examining && !brp.candidate.is_empty() %}
+      {% if examining && !brp.findings.candidate.is_empty() %}
         <tbody>
           <tr>
-            <td colspan="2">{{ paper_corrected::brp_findings(brp.candidate.as_slice() ) }}</td>
+            <td colspan="2">{{ paper_corrected::brp_findings(brp.findings.candidate.as_slice() ) }}</td>
             <td></td>
           </tr>
         </tbody>
