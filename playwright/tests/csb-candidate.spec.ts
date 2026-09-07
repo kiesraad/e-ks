@@ -27,6 +27,11 @@ test.describe("check candidate and add corrections and omissions", async () => {
     await candidatePage.linkInitials.click();
     await correctionsPage.addCorrection("Z.");
     await expect(candidatePage.textCorrectedInitials).toHaveText("Z.");
+    await candidatePage.linkLastNamePrefix.click();
+    await correctionsPage.addCorrection("van der");
+    await expect(candidatePage.textCorrectedLastNamePrefix).toHaveText(
+      "van der",
+    );
     await candidatePage.linkLastName.click();
     await correctionsPage.addCorrection("Pereboom");
     await expect(candidatePage.textCorrectedLastName).toHaveText("Pereboom");

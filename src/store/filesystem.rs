@@ -24,7 +24,7 @@ use tokio::{
 };
 
 use super::{
-    EncryptedEvent, EventHash, Store, StoreData, StreamMeta, chain_hash, event_aad,
+    EncryptedEvent, EventHash, Replay, Store, StoreData, StreamMeta, chain_hash, event_aad,
     persistence::NewStream,
 };
 use crate::{
@@ -50,11 +50,14 @@ pub async fn init_local(dir: &Path) -> Result<(), AppError> {
     fs::create_dir_all(dir).await.map_err(AppError::ServerError)
 }
 
+/// Replay the stream file into `store`, returning the last event id present in
+/// the file (which is ahead of the projection when the replay was truncated;
+/// see [`Replay`]) alongside the replay outcome.
 pub async fn replay_from_file<D>(
     store: &Store<D>,
     dir: &Path,
     cipher: &EventCipher,
-) -> Result<usize, AppError>
+) -> Result<(usize, Replay), AppError>
 where
     D: StoreData,
     D::Event: DeserializeOwned,
@@ -64,9 +67,19 @@ where
     let last_file_id = frames.iter().map(|f| f.event_id).max().unwrap_or(0);
 
     let mut data = store.data.write();
-    super::apply_encrypted_events(&mut *data, cipher, frames)?;
+    let replay = super::apply_encrypted_events(&mut *data, cipher, frames)?;
 
-    Ok(last_file_id)
+    if let Some(event_id) = replay.truncated_at {
+        tracing::error!(
+            stream_id = %store.stream_id,
+            election = %store.election.stable_id(),
+            event_id,
+            "stream file is only partially readable by this build; \
+             serving the projection as of the preceding event"
+        );
+    }
+
+    Ok((last_file_id, replay))
 }
 
 /// List the elections that have persisted events under the given stream.
@@ -437,6 +450,53 @@ mod tests {
         }
     }
 
+    /// The same event after a field was added to it: what this build expects to
+    /// decode when the stored bytes predate the change.
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    struct WiderTestEvent {
+        label: String,
+        extra: u32,
+    }
+
+    impl Event for WiderTestEvent {
+        fn category(&self) -> &'static str {
+            "test_event"
+        }
+
+        fn key(&self) -> &'static str {
+            "test_event"
+        }
+
+        fn description(&self, _locale: crate::Locale) -> String {
+            self.label.to_string()
+        }
+
+        fn details(&self) -> String {
+            self.label.to_string()
+        }
+    }
+
+    #[derive(Default)]
+    struct WiderTestData {
+        events: Vec<StoreEvent<WiderTestEvent>>,
+    }
+
+    impl StoreData for WiderTestData {
+        type Event = WiderTestEvent;
+
+        fn apply(&mut self, event: StoreEvent<Self::Event>) {
+            self.events.push(event);
+        }
+
+        fn events(&self) -> &[StoreEvent<Self::Event>] {
+            &self.events
+        }
+
+        fn scope() -> Scope {
+            Scope::PoliticalGroup
+        }
+    }
+
     #[test]
     fn test_event_trait_impl() {
         let event = TestEvent {
@@ -488,7 +548,11 @@ mod tests {
     }
 
     /// A store wired to the local backend, as the registry would build it.
-    fn local_store(dir: &Path, stream_id: StreamId, cipher: &EventCipher) -> Store<TestData> {
+    fn local_store_for<D: StoreData>(
+        dir: &Path,
+        stream_id: StreamId,
+        cipher: &EventCipher,
+    ) -> Store<D> {
         Store {
             stream_id,
             election: TEST_ELECTION,
@@ -496,8 +560,12 @@ mod tests {
                 dir: dir.to_path_buf(),
                 cipher: Box::new(cipher.clone()),
             },
-            data: Arc::new(RwLock::new(TestData::default())),
+            data: Arc::new(RwLock::new(D::default())),
         }
+    }
+
+    fn local_store(dir: &Path, stream_id: StreamId, cipher: &EventCipher) -> Store<TestData> {
+        local_store_for(dir, stream_id, cipher)
     }
 
     #[tokio::test]
@@ -598,6 +666,67 @@ mod tests {
             .expect_err("tampering must be detected");
         assert!(matches!(err, AppError::EventDecodeError(_)));
         assert!(fresh.data.read().events.is_empty());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn an_event_this_build_cannot_decode_truncates_the_replay() -> Result<(), AppError> {
+        let dir = temp_dir().await;
+        init_local(&dir).await?;
+
+        let stream_id = StreamId::new();
+        let cipher = test_cipher();
+        let path = stream_path(&dir, stream_id, TEST_ELECTION);
+
+        // Event 1 matches this build's event type; event 2 was written before
+        // `extra` was added to it, so its payload decodes short.
+        let created_at = Utc::now();
+        let hash1 = append_event(
+            &path,
+            &cipher,
+            1,
+            created_at,
+            &WiderTestEvent {
+                label: "kept".to_string(),
+                extra: 7,
+            },
+            &GENESIS_HASH,
+        )
+        .await?;
+        let hash2 = append_event(
+            &path,
+            &cipher,
+            2,
+            created_at,
+            &TestEvent {
+                label: "unreadable".to_string(),
+            },
+            &hash1,
+        )
+        .await?;
+
+        let store: Store<WiderTestData> = local_store_for(&dir, stream_id, &cipher);
+        let (last_file_id, replay) = replay_from_file(&store, &dir, &cipher).await?;
+
+        assert_eq!(last_file_id, 2);
+        assert_eq!(replay.truncated_at, Some(2));
+        // The chain tip is the last stored event, not the last applied one.
+        assert_eq!(replay.chain_tip, hash2);
+        assert_eq!(store.data.read().last_event_id(), 1);
+        assert_eq!(store.data.read().last_event_hash(), hash1);
+
+        // Reading degraded gracefully, but appending must not: the new event
+        // would sit behind the gap and never be applied again.
+        let err = store
+            .update(WiderTestEvent {
+                label: "rejected".to_string(),
+                extra: 1,
+            })
+            .await
+            .expect_err("appending to a truncated stream must fail");
+        assert!(matches!(err, AppError::EventDecodeError(_)));
+        assert_eq!(read_frames(&path).await?.len(), 2);
 
         Ok(())
     }

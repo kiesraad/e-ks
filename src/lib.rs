@@ -157,6 +157,6 @@ pub(crate) use view::{Context, filters};
 #[cfg(test)]
 mod test_support;
 #[cfg(test)]
-pub(crate) use test_support::test_utils;
+pub(crate) use test_support::{brp_stub, test_utils};
 
 pub(crate) use store::{StreamId, crypto};

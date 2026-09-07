@@ -36,6 +36,8 @@ pub use house_number_addition::HouseNumberAddition;
 pub use initials::Initials;
 pub use last_name::LastName;
 pub use last_name_prefix::LastNamePrefix;
+#[cfg(feature = "fixtures")]
+pub use last_name_prefix::split_last_name_prefix;
 pub use locality::Locality;
 pub use name::FullName;
 pub use place_of_residence::PlaceOfResidence;

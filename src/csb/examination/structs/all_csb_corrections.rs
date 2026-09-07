@@ -88,6 +88,10 @@ impl CsbStream {
                     PersonCorrection::Initials(initials) => {
                         (CandidateCorrectionField::Initials, initials.to_string())
                     }
+                    PersonCorrection::LastNamePrefix(prefix) => (
+                        CandidateCorrectionField::LastNamePrefix,
+                        prefix.as_ref().map(ToString::to_string).unwrap_or_default(),
+                    ),
                     PersonCorrection::LastName(last_name) => {
                         (CandidateCorrectionField::LastName, last_name.to_string())
                     }
@@ -487,10 +491,9 @@ mod tests {
         Ok(())
     }
 
-    /// The overview shows the same last name as the candidate detail page and
-    /// the correction overlay, which all include the prefix.
+    /// Each row shows only its own value, as the candidate page does.
     #[tokio::test]
-    async fn get_all_corrections_last_name_includes_the_prefix() -> Result<(), AppError> {
+    async fn get_all_corrections_keeps_the_prefix_apart() -> Result<(), AppError> {
         let store = CsbStore::new_for_test();
 
         let person_id = PersonId::new();
@@ -507,13 +510,25 @@ mod tests {
             PersonCorrection::LastName(LastName::from_str("Smit").unwrap()),
         )
         .await?;
+        correct(&store, person_id, PersonCorrection::LastNamePrefix(None)).await?;
 
         let corrections = all_corrections(&store);
-        let correction = &corrections.candidates[0].corrections[0];
+        let corrections = &corrections.candidates[0].corrections;
 
-        assert_eq!(correction.corrected.imported, "van Dijk");
-        assert_eq!(correction.corrected.corrected, "van Dijk");
-        assert_eq!(correction.corrected.csb_corrected, Some("Smit".to_string()));
+        let prefix = corrections
+            .iter()
+            .find(|c| c.label == "Voorvoegsel")
+            .expect("the prefix correction");
+        assert_eq!(prefix.corrected.imported, "van");
+        assert_eq!(prefix.corrected.csb_corrected, Some(String::new()));
+
+        let last_name = corrections
+            .iter()
+            .find(|c| c.label == "Achternaam")
+            .expect("the last name correction");
+        assert_eq!(last_name.corrected.imported, "Dijk");
+        assert_eq!(last_name.corrected.corrected, "Dijk");
+        assert_eq!(last_name.corrected.csb_corrected, Some("Smit".to_string()));
 
         Ok(())
     }

@@ -4,6 +4,7 @@ use crate::{
     AppError, Config, ElectionConfig, IdDeriver, PendingRequestStore, SessionStore, StreamId,
     projection::{CsbMainStore, CsbMainStoreData, CsbStoreData, CsbStream, PgStoreData},
     store::{Store, StoreRegistry},
+    structs::brp::BrpClient,
 };
 
 /// What a request needs from whatever state the router was built with.
@@ -30,6 +31,9 @@ pub trait AppRequestState: Clone + Send + Sync + 'static {
 
     /// Registry for the single global CSB main stream.
     fn csb_main_store_registry(&self) -> &StoreRegistry<CsbMainStoreData>;
+
+    /// Client used to verify candidates against the BRP.
+    fn brp_client(&self) -> &BrpClient;
 
     /// Fetch (or create) the CSB store for a (stream, election).
     fn csb_store_for_stream(

@@ -31,6 +31,8 @@ struct CsbCorrectionTemplate {
     imported_value: String,
     /// The paper-corrected value, shown only when it differs from the imported
     paper_corrected_value: Option<String>,
+    /// What the BRP holds for this field, when it differs
+    brp_value: Option<String>,
     field_type: CorrectionFieldType,
     form: FormData<CorrectionForm>,
 }
@@ -104,7 +106,7 @@ pub async fn person_correction(
     let close_action = return_path(&political_group, path.person_id, list_query.list);
     let locale = context.session.locale;
 
-    let field_values = FieldValues::for_person(&store, path.person_id, path.field);
+    let field_values = FieldValues::for_person(&store, path.person_id, path.field, locale);
     let value = field_values.prefill();
     Ok(render_correction(
         context,
@@ -135,7 +137,7 @@ pub async fn person_correction_submit(
             context,
             query,
             close_action,
-            FieldValues::for_person(&store, path.person_id, path.field)
+            FieldValues::for_person(&store, path.person_id, path.field, locale)
                 .into_person_display(path.field, locale),
             FormData::new_with_errors(form, vec![("value".to_string(), err)]),
         )),
@@ -165,6 +167,7 @@ fn render_correction(
             label: display.label,
             imported_value: display.imported_value,
             paper_corrected_value: display.paper_corrected_value,
+            brp_value: display.brp_value,
             field_type: display.field_type,
             form,
         },
@@ -186,6 +189,79 @@ mod tests {
             response_body_string, sample_candidate_list, sample_person, sample_political_group,
         },
     };
+
+    #[tokio::test]
+    async fn the_brp_value_is_offered_while_correcting_the_field_it_belongs_to() {
+        use crate::{
+            CsbAction,
+            structs::brp::{BrpFinding, BrpValue},
+        };
+
+        let store = crate::CsbStore::new_for_test();
+        let stream_id = store.stream_id;
+        let person = sample_person(PersonId::new());
+        let person_id = person.id;
+        store.add_person(person);
+        store
+            .update(CsbAction::BrpPersonChecked {
+                person: person_id,
+                findings: vec![BrpFinding::Mismatch {
+                    brp_value: BrpValue::PlaceOfResidence("Amsterdam".parse().unwrap()),
+                }],
+            })
+            .await
+            .unwrap();
+
+        let response = person_correction(
+            CsbPersonCorrectionPath {
+                stream_id,
+                person_id,
+                field: CandidateCorrectionField::PlaceOfResidence,
+            },
+            CsbContext::new_test(),
+            store,
+            Query(QueryParamState::default()),
+            Query(OmissionListQuery::default()),
+        )
+        .await
+        .unwrap()
+        .into_response();
+
+        let body = response_body_string(response).await;
+        // Named next to the imported value, and offered as the placeholder so
+        // it is still there once the pre-filled value is cleared.
+        assert!(body.contains("Value in the BRP"), "{body}");
+        assert!(body.contains(r#"placeholder="Amsterdam""#), "{body}");
+        // The field keeps its own current value as the prefill.
+        assert!(body.contains(r#"value="Juinen""#));
+    }
+
+    #[tokio::test]
+    async fn a_field_the_brp_agrees_on_gets_no_suggestion() {
+        let store = crate::CsbStore::new_for_test();
+        let stream_id = store.stream_id;
+        let person = sample_person(PersonId::new());
+        let person_id = person.id;
+        store.add_person(person);
+
+        let response = person_correction(
+            CsbPersonCorrectionPath {
+                stream_id,
+                person_id,
+                field: CandidateCorrectionField::PlaceOfResidence,
+            },
+            CsbContext::new_test(),
+            store,
+            Query(QueryParamState::default()),
+            Query(OmissionListQuery::default()),
+        )
+        .await
+        .unwrap()
+        .into_response();
+
+        let body = response_body_string(response).await;
+        assert!(!body.contains("Value in the BRP"));
+    }
 
     #[tokio::test]
     async fn appellation_correction_renders_overlay() {

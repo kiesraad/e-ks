@@ -2,12 +2,14 @@ use axum::{extract::FromRequestParts, http::request::Parts};
 
 use crate::{
     AppError, AppRequestState, CsbStream, StreamId,
+    csb::examination::structs::BrpCheckState,
     structs::{common::FullName, csb::CsbPhase, political_groups::PoliticalGroup},
 };
 
 pub struct CsbPoliticalGroup {
     pub political_group: PoliticalGroup,
     pub stream_id: StreamId,
+    pub brp: BrpCheckState,
     /// The phase the group is rendered for; drives which links and actions the
     /// shared examination templates render (see the path helpers in `paths.rs`).
     pub mode: CsbPhase,
@@ -26,6 +28,7 @@ impl CsbPoliticalGroup {
         Self {
             political_group: store.get_political_group(crate::projection::WithCorrections::All),
             stream_id: store.stream_id,
+            brp: BrpCheckState::for_political_group(store),
             mode: CsbPhase::Examination,
             is_examination_finished: store.is_examination_finished(),
             is_deleted: store.is_deleted(),
@@ -152,6 +155,7 @@ mod tests {
                 ..Default::default()
             },
             stream_id: StreamId::new(),
+            brp: BrpCheckState::NotChecked,
             mode: CsbPhase::Examination,
             is_examination_finished: false,
             is_deleted: false,
@@ -174,6 +178,7 @@ mod tests {
                 ..Default::default()
             },
             stream_id: StreamId::new(),
+            brp: BrpCheckState::NotChecked,
             mode: CsbPhase::Examination,
             is_examination_finished: false,
             is_deleted: false,
@@ -200,6 +205,7 @@ mod tests {
                 ..Default::default()
             },
             stream_id: StreamId::new(),
+            brp: BrpCheckState::NotChecked,
             mode: CsbPhase::Examination,
             is_examination_finished: false,
             is_deleted: false,

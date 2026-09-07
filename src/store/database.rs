@@ -5,7 +5,7 @@ use chrono::{DateTime, Utc};
 use serde::{Serialize, de::DeserializeOwned};
 
 use super::{
-    Store, StoreData, StoreEvent, StreamMeta, chain_hash, event_aad, persistence::NewStream,
+    Replay, Store, StoreData, StoreEvent, StreamMeta, chain_hash, event_aad, persistence::NewStream,
 };
 use crate::{
     AppError, ElectionConfig, Scope, StreamId,
@@ -370,17 +370,22 @@ where
 {
     let mut tx = pool.begin().await?;
 
-    let last_id = match catch_up(store, &mut tx, cipher).await {
-        Ok(id) => id,
+    let (last_id, replay) = match catch_up(store, &mut tx, cipher).await {
+        Ok(caught_up) => caught_up,
         Err(err) => {
             tx.rollback().await?;
             return Err(err);
         }
     };
 
+    if let Err(err) = replay.reject_append(store.stream_id) {
+        tx.rollback().await?;
+        return Err(err);
+    }
+
     let next_id = last_id + 1;
     let created_at = Utc::now();
-    let prev_hash = store.data.read().last_event_hash();
+    let prev_hash = replay.chain_tip;
 
     let hash = match insert_event(
         store, cipher, next_id, created_at, &event, &prev_hash, &mut tx,
@@ -402,11 +407,14 @@ where
 }
 
 /// Bring the in-memory store up to date by replaying missing events.
+///
+/// Returns the stream's stored last event id (ahead of the projection when the
+/// replay was truncated; see [`Replay`]) alongside the replay outcome.
 async fn catch_up<D>(
     store: &Store<D>,
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     cipher: &EventCipher,
-) -> Result<usize, AppError>
+) -> Result<(usize, Replay), AppError>
 where
     D: StoreData,
     D::Event: DeserializeOwned,
@@ -440,7 +448,7 @@ where
     .await?;
 
     let mut data = store.data.write();
-    super::apply_encrypted_events(
+    let replay = super::apply_encrypted_events(
         &mut *data,
         cipher,
         missing.into_iter().map(|e| EncryptedEvent {
@@ -451,7 +459,17 @@ where
         }),
     )?;
 
-    Ok(stream_last_id as usize)
+    if let Some(event_id) = replay.truncated_at {
+        tracing::error!(
+            stream_id = %store.stream_id,
+            election = %election_id,
+            event_id,
+            "stream is only partially readable by this build; \
+             serving the projection as of the preceding event"
+        );
+    }
+
+    Ok((stream_last_id as usize, replay))
 }
 
 /// Encrypt `payload`, insert the event row within an open transaction, bump

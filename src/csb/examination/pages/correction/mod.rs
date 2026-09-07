@@ -7,7 +7,7 @@ use crate::{
     form::ValidationError,
     structs::{
         candidate_lists::CandidateListId,
-        common::{DateOfBirth, Initials, LastName, PlaceOfResidence},
+        common::{DateOfBirth, Initials, LastName, LastNamePrefix, PlaceOfResidence},
         csb::PersonCorrection,
         persons::PersonId,
     },
@@ -57,6 +57,13 @@ fn parse_person_correction(
         CandidateCorrectionField::Initials => {
             value.parse::<Initials>().map(PersonCorrection::Initials)
         }
+        // Empty clears the prefix rather than failing to parse.
+        CandidateCorrectionField::LastNamePrefix => match value.trim() {
+            "" => Ok(PersonCorrection::LastNamePrefix(None)),
+            prefix => prefix
+                .parse::<LastNamePrefix>()
+                .map(|prefix| PersonCorrection::LastNamePrefix(Some(prefix))),
+        },
         CandidateCorrectionField::LastName => {
             value.parse::<LastName>().map(PersonCorrection::LastName)
         }

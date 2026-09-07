@@ -1,0 +1,52 @@
+{% extends "csb/components/layout.html" %}
+{% import "pg/common/components/macros.html" as macros %}
+{% import "csb/components/restorations.html" as restorations %}
+{% block breadcrumbs %}
+  {{ breadcrumb(crate::csb::examination::CsbExaminationOverviewPath, "csb.examination") }}
+  {{ breadcrumb(political_group.group_path() , political_group.csb_appellation(), is_translatable=false) }}
+  {{ breadcrumb(political_group.all_brp_findings_path() , "csb.all_brp_findings.title") }}
+{% endblock %}
+{% block page_title %}
+  {{ "csb.all_brp_findings.title"|trans }}
+{% endblock %}
+{% block page_sub_title %}
+  <span class="subtitle">{{ "csb.all_brp_findings.explanation"|trans }}</span>
+{% endblock %}
+{% block header_action %}
+  {% set back_url = political_group.group_path() %}
+  {% include "csb/components/header_examination_actions.html" %}
+{% endblock %}
+{% block content %}
+  {% set toggle_redirect_url = political_group.all_brp_findings_path() %}
+  {% include "csb/components/examination_controls.html" %}
+  <div class="examination-panels">
+    <div class="examination-panel">
+      <div class="examination-panel-header">
+        <div>
+          <h2 class="h3">{{ "csb.group.discovered_errors"|trans }}</h2>
+        </div>
+        {% if brp_running %}
+          <div class="examination-panel-actions">
+            <a class="button secondary"
+               href="{{ political_group.all_brp_findings_path() }}">{{ "csb.brp.refresh"|trans }}</a>
+          </div>
+        {% else if brp_incomplete.is_some() %}
+          <div class="examination-panel-actions">
+            <form method="post" action="{{ political_group.start_brp_check_path() }}">
+              {{ macros::csrf_field() }}
+              <button type="submit" class="button secondary">{{ "csb.brp.start_check"|trans }}</button>
+            </form>
+          </div>
+        {% endif %}
+      </div>
+      {{ restorations::brp_strip(brp, brp_incomplete.as_deref() ) }}
+      {% if !all_findings.candidates.is_empty() %}
+        {% for candidate in all_findings.candidates %}
+          {{ restorations::brp_group(candidate.person.name.display() , candidate.path.as_str(), candidate.messages.as_slice()) }}
+        {% endfor %}
+      {% else if brp.is_correct() %}
+        <p class="font-italic">{{ "csb.all_brp_findings.none"|trans }}</p>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

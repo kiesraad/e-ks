@@ -6,7 +6,7 @@ use crate::{
     Locale,
     structs::{
         audit_log::FieldChange,
-        common::{Appellation, DateOfBirth, Initials, LastName, PlaceOfResidence},
+        common::{Appellation, DateOfBirth, Initials, LastName, LastNamePrefix, PlaceOfResidence},
         persons::{Person, PersonId},
     },
     trans,
@@ -15,6 +15,8 @@ use crate::{
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 pub enum PersonCorrection {
     Initials(Initials),
+    /// `None` clears the prefix, which has to be correctable to absent.
+    LastNamePrefix(Option<LastNamePrefix>),
     LastName(LastName),
     DateOfBirth(DateOfBirth),
     PlaceOfResidence(PlaceOfResidence),
@@ -23,6 +25,7 @@ pub enum PersonCorrection {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone)]
 enum PersonCorrectionKind {
     Initials,
+    LastNamePrefix,
     LastName,
     DateOfBirth,
     PlaceOfResidence,
@@ -62,6 +65,9 @@ impl PersonCorrection {
             PersonCorrection::Initials(initials) => {
                 person.name.initials = initials;
             }
+            PersonCorrection::LastNamePrefix(prefix) => {
+                person.name.last_name_prefix = prefix;
+            }
             PersonCorrection::LastName(last_name) => {
                 person.name.last_name = last_name;
             }
@@ -79,6 +85,7 @@ impl PersonCorrection {
     pub fn changes(&self, person: &Person) -> bool {
         match self {
             PersonCorrection::Initials(initials) => &person.name.initials != initials,
+            PersonCorrection::LastNamePrefix(prefix) => &person.name.last_name_prefix != prefix,
             PersonCorrection::LastName(last_name) => &person.name.last_name != last_name,
             PersonCorrection::DateOfBirth(date_of_birth) => {
                 person.personal_data.date_of_birth.as_ref() != Some(date_of_birth)
@@ -94,6 +101,10 @@ impl PersonCorrection {
             PersonCorrection::Initials(v) => (
                 trans!("audit_log.detail.fields.initials", locale),
                 v.to_string(),
+            ),
+            PersonCorrection::LastNamePrefix(v) => (
+                trans!("audit_log.detail.fields.last_name_prefix", locale),
+                v.as_ref().map(ToString::to_string).unwrap_or_default(),
             ),
             PersonCorrection::LastName(v) => (
                 trans!("audit_log.detail.fields.last_name", locale),
@@ -118,6 +129,7 @@ impl PersonCorrection {
     fn kind(&self) -> PersonCorrectionKind {
         match self {
             PersonCorrection::Initials(_) => PersonCorrectionKind::Initials,
+            PersonCorrection::LastNamePrefix(_) => PersonCorrectionKind::LastNamePrefix,
             PersonCorrection::LastName(_) => PersonCorrectionKind::LastName,
             PersonCorrection::DateOfBirth(_) => PersonCorrectionKind::DateOfBirth,
             PersonCorrection::PlaceOfResidence(_) => PersonCorrectionKind::PlaceOfResidence,

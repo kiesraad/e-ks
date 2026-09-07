@@ -4,10 +4,12 @@ export class CsbCandidatePage {
   readonly linkAddOmission: Locator;
   readonly linkManageOmissions: Locator;
   readonly linkInitials: Locator;
+  readonly linkLastNamePrefix: Locator;
   readonly linkLastName: Locator;
   readonly linkDateOfBirth: Locator;
   readonly linkPlaceOfResidence: Locator;
   readonly textCorrectedInitials: Locator;
+  readonly textCorrectedLastNamePrefix: Locator;
   readonly textCorrectedLastName: Locator;
   readonly textCorrectedDateOfBirth: Locator;
   readonly textCorrectedPlaceOfResidence: Locator;
@@ -22,6 +24,9 @@ export class CsbCandidatePage {
     this.linkInitials = this.page.getByRole("cell", {
       name: "Voorletters",
     });
+    this.linkLastNamePrefix = this.page.getByRole("cell", {
+      name: "Voorvoegsel",
+    });
     this.linkLastName = this.page.getByRole("cell", {
       name: "Achternaam",
     });
@@ -33,6 +38,9 @@ export class CsbCandidatePage {
     });
     this.textCorrectedInitials = this.page
       .getByRole("row", { name: "Voorletters:" })
+      .getByRole("strong");
+    this.textCorrectedLastNamePrefix = this.page
+      .getByRole("row", { name: "Voorvoegsel:" })
       .getByRole("strong");
     this.textCorrectedLastName = this.page
       .getByRole("row", { name: "Achternaam:" })

@@ -63,7 +63,7 @@
             <th scope="col">{{ "person.fields.name"|trans }}</th>
             <th scope="col">{{ "person.fields.place_of_residence"|trans }}</th>
             {% if political_group.mode.is_examination() %}
-              <th scope="col">{{ "csb.list.brp_errors"|trans }}</th>
+              <th scope="col">{{ "csb.list.brp_check"|trans }}</th>
             {% endif %}
             <th scope="col"></th>
             <th scope="col"></th>
@@ -109,19 +109,7 @@
                 {% endif %}
               </td>
               {% if political_group.mode.is_examination() %}
-                <td>
-                  <ul class="tags-list">
-                    {% if candidate.brp_error_count == 0 %}
-                      <li class="tag link width-md">
-                        <a class="ok" href="#">{{ "csb.brp.correct"|trans }}</a>
-                      </li>
-                    {% else %}
-                      <li class="tag link">
-                        <a class="error" href="#">{{ "csb.brp.errors"|trans }}</a>
-                      </li>
-                    {% endif %}
-                  </ul>
-                </td>
+                <td>{{ brp_badge(candidate.brp, political_group.candidate_path(list_id, candidate.person.id) ) }}</td>
               {% endif %}
               <td>{{ omission_badge(candidate.restoration_status) }}</td>
               <td class="actions">

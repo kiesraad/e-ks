@@ -59,3 +59,44 @@
     {{ data_row(label, value) }}
   {% endif %}
 {% endmacro %}
+{% macro brp_findings(findings) %}
+  {% if !findings.is_empty() %}
+    <ul class="restoration-tags">
+      {% for finding in findings %}
+        <li class="restoration-tag restoration-tag-error">{{ finding }}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+{% endmacro %}
+{% macro brp_data_row(label, value, findings) %}
+  <tr>
+    <td>{{ label }}: {{ value(value) }}</td>
+    <td>{{ brp_findings(findings) }}</td>
+    <td></td>
+  </tr>
+{% endmacro %}
+{% macro brp_editable_data_row(label, value, findings, edit_url) %}
+  <tr class="clickable">
+    <td>{{ label }}: {{ value(value) }}</td>
+    <td>{{ brp_findings(findings) }}</td>
+    <td class="actions">
+      <a href="{{ edit_url }}" aria-label="{{ "action.edit"|trans }}"></a>
+    </td>
+  </tr>
+{% endmacro %}
+{# The BRP check and its corrections both belong to the examination, so
+   outside it the row is plain. #}
+{% macro maybe_brp_editable_data_row(label, value, findings, edit_url, examining) %}
+  {% if examining %}
+    {{ brp_editable_data_row(label, value, findings, edit_url) }}
+  {% else %}
+    {{ data_row(label, value) }}
+  {% endif %}
+{% endmacro %}
+{% macro maybe_brp_data_row(label, value, findings, examining) %}
+  {% if examining %}
+    {{ brp_data_row(label, value, findings) }}
+  {% else %}
+    {{ data_row(label, value) }}
+  {% endif %}
+{% endmacro %}

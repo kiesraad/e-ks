@@ -171,6 +171,35 @@ pub fn sample_person(id: PersonId) -> Person {
     }
 }
 
+pub fn sample_person_from_brp() -> Person {
+    Person {
+        id: PersonId::new(),
+        name: FullName {
+            first_name: Some("Tina-Antïna".parse().unwrap()),
+            last_name: "Bruin".parse().unwrap(),
+            last_name_prefix: Some("de".parse().unwrap()),
+            initials: "T.".parse().unwrap(),
+        },
+        personal_data: PersonalData {
+            gender: Some(Gender::Female),
+            bsn: Some("900194054".parse().unwrap()),
+            date_of_birth: Some("11-12-1990".parse().unwrap()),
+            place_of_residence: Some("Utrecht".parse().unwrap()),
+            country: Some("NL".parse().unwrap()),
+        },
+        address: DutchAddress {
+            street_name: Some("Croeselaan".parse().unwrap()),
+            house_number: Some("15".parse().unwrap()),
+            house_number_addition: None,
+            locality: Some("Utrecht".parse().unwrap()),
+            postal_code: Some("3521BJ".parse().unwrap()),
+            known_in_bag: None,
+        },
+        representative: None,
+        updated_at: Default::default(),
+    }
+}
+
 pub fn sample_person_with_last_name(id: PersonId, last_name: &str) -> Person {
     sample_person_with(id, None, last_name, None, "H.A.H.A.")
 }

@@ -40,6 +40,7 @@ documents:
 empty: No events have been recorded yet that meet the filter criteria.
 event:
   add_candidate_to_list: Added candidate to list
+  brp_validation: Validated candidate against the BRP
   create_candidate_list: Created list of candidates
   create_empty: Created empty political group
   create_name_authorisation: Created statutory name and authorised agent
@@ -63,6 +64,7 @@ event:
   logout: Signed out
   paper_correction: Paper corrections
   remove_candidate_from_list: Removed candidate from list
+  set_brp_validation_state: Set BRP validation state
   set_finished: Set finished state
   set_omission_status: Set omission status
   update_candidate_list_districts: Updated electoral districts of list

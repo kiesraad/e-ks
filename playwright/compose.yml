@@ -10,11 +10,16 @@ services:
       PLAYWRIGHT_TEST_BASE_URL: http://application:3000
       CI: ${CI:-}
     depends_on:
-      - application
+      # Waiting for the healthcheck rather than for the container to exist
+      # means a startup failure surfaces here, as an unhealthy dependency,
+      # instead of as a wall of connection-refused test failures.
+      application:
+        condition: service_healthy
     networks: [pw_network]
-    
+
   application:
-    image: debian:trixie-slim
+    build:
+      dockerfile: docker/application.Dockerfile
     working_dir: /app
     volumes:
       - ../target/release/eks:/app/eks:ro
@@ -25,6 +30,16 @@ services:
       # Tests authenticate via the /dev/login bypass; skip the live auth-service
       # so the container boots without reaching the TVS for IdP metadata.
       DISABLE_AUTH_SERVICE: "true"
+      # No BRP is reachable from this network, so the check would abort; the
+      # tests do not exercise it.
+      BRP_BASE_URL: http://127.0.0.1:1
+    # /lb-health answers before the database gate and without the eks key, so
+    # it reports exactly what this needs to know: the server is up and serving.
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/lb-health"]
+      interval: 1s
+      timeout: 2s
+      retries: 60
     networks: [pw_network]
 
 networks:

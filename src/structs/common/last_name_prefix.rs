@@ -24,6 +24,24 @@ pub(crate) fn is_last_name_prefix(value: &str) -> bool {
     LAST_NAME_PREFIXES.contains(&value)
 }
 
+/// Split a written-out last name into its prefix and the name itself, taking
+/// the longest prefix from the table that the value starts with (prefixes such
+/// as "voor in 't" span several words).
+#[cfg(any(feature = "fixtures", test))]
+pub fn split_last_name_prefix(value: &str) -> (Option<&str>, &str) {
+    let value = value.trim();
+    let split = value
+        .match_indices(' ')
+        .filter(|(index, _)| is_last_name_prefix(&value[..*index]))
+        .map(|(index, _)| index)
+        .next_back();
+
+    match split {
+        Some(index) => (Some(&value[..index]), value[index..].trim_start()),
+        None => (None, value),
+    }
+}
+
 /// All prefixes from Table 36 of the [RvIG](https://publicaties.rvig.nl/landelijke-tabellen-32-tm-61)
 ///
 /// (last updated: 27 november 2015)
@@ -362,3 +380,30 @@ const LAST_NAME_PREFIXES: [&str; 333] = [
     "zur",
     "Zur",
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn splits_off_the_longest_matching_prefix() {
+        assert_eq!(split_last_name_prefix("Bruin"), (None, "Bruin"));
+        assert_eq!(split_last_name_prefix("de Bruin"), (Some("de"), "Bruin"));
+        assert_eq!(
+            split_last_name_prefix("van der Wiel"),
+            (Some("van der"), "Wiel")
+        );
+        assert_eq!(
+            split_last_name_prefix("voor in 't C"),
+            (Some("voor in \'t"), "C")
+        );
+    }
+
+    #[test]
+    fn leaves_a_name_that_merely_starts_like_a_prefix_alone() {
+        assert_eq!(
+            split_last_name_prefix("Jansen-de Groot"),
+            (None, "Jansen-de Groot")
+        );
+    }
+}

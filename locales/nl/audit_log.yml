@@ -40,6 +40,7 @@ documents:
 empty: Er zijn nog geen gebeurtenissen vastgelegd die voldoen aan de filter criteria.
 event:
   add_candidate_to_list: Kandidaat aan lijst toegevoegd
+  brp_validation: Kandidaat gevalideerd tegen de BRP
   create_candidate_list: Kandidatenlijst aangemaakt
   create_empty: Lege politieke groepering aangemaakt
   create_name_authorisation: Statutaire naam en gemachtigde aangemaakt
@@ -63,6 +64,7 @@ event:
   logout: Uitgelogd
   paper_correction: Papieren correcties
   remove_candidate_from_list: Kandidaat van lijst verwijderd
+  set_brp_validation_state: BRP validatie status gezet
   set_finished: Afgerond gezet
   set_omission_status: Verzuimstatus vastgelegd
   update_candidate_list_districts: Kieskringen van lijst bijgewerkt

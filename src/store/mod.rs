@@ -27,7 +27,10 @@ pub(crate) use event::{chain_hash, event_aad};
 use chrono::{DateTime, Utc};
 use serde::de::DeserializeOwned;
 
-use crate::{AppError, ElectionConfig, Scope, crypto::EventCipher};
+use crate::{
+    AppError, ElectionConfig, Scope,
+    crypto::{EventCipher, EventDecryptError},
+};
 
 /// Decryption-free metadata about a persisted stream, read from the backend's
 /// index without replaying (or warming) it. The political group name is absent:
@@ -65,21 +68,60 @@ pub trait StoreData: Default + Send + Sync + 'static {
     fn scope() -> Scope;
 }
 
+/// What a replay pass did with the stored events it was handed.
+///
+/// Callers need `chain_tip` (not the projection's last applied hash) to append
+/// a new event, because the two differ once a replay was truncated.
+#[derive(Clone, Debug)]
+pub(crate) struct Replay {
+    /// Chain hash of the highest-numbered *stored* event seen, applied or not.
+    /// The hash a new event must chain onto.
+    pub chain_tip: EventHash,
+    /// Set to the event id where replay stopped applying payloads, if any.
+    pub truncated_at: Option<usize>,
+}
+
+impl Replay {
+    /// Refuse to append to a stream whose replay was truncated.
+    ///
+    /// A new event would land after the gap, so it would be stored but never
+    /// applied on the next load: the write would look like it succeeded and
+    /// then vanish on restart. The stream is readable (as of the last event
+    /// before the gap) but not writable until the build can decode its events
+    /// again.
+    pub(crate) fn reject_append(&self, stream_id: StreamId) -> Result<(), AppError> {
+        match self.truncated_at {
+            None => Ok(()),
+            Some(event_id) => Err(AppError::EventDecodeError(format!(
+                "stream {stream_id} stopped replaying at event {event_id}: \
+                 refusing to append to a stream this build cannot fully read"
+            ))),
+        }
+    }
+}
+
 /// Decrypt persisted events and apply the ones `data` has not seen yet.
 ///
 /// `events` yields the stored events in ascending event order; events at or
 /// below the projection's last ID are skipped. Shared by the filesystem and
 /// database backends.
+///
+/// A payload this build can no longer decode does not fail the load: replay
+/// stops there and reports the id in [`Replay::truncated_at`], leaving the
+/// projection deliberately incomplete, so callers must refuse to append on top
+/// of it. Unreadable bytes and a broken hash chain stay hard errors.
 pub(crate) fn apply_encrypted_events<D>(
     data: &mut D,
     cipher: &EventCipher,
     events: impl IntoIterator<Item = EncryptedEvent>,
-) -> Result<(), AppError>
+) -> Result<Replay, AppError>
 where
     D: StoreData,
     D::Event: DeserializeOwned,
 {
     let mut prev_hash = data.last_event_hash();
+    let mut chain_tip = prev_hash;
+    let mut truncated_at = None;
 
     for EncryptedEvent {
         event_id,
@@ -88,7 +130,8 @@ where
         payload: encrypted_payload,
     } in events
     {
-        if data.last_event_id() >= event_id {
+        if truncated_at.is_none() && data.last_event_id() >= event_id {
+            chain_tip = hash;
             continue;
         }
 
@@ -104,15 +147,39 @@ where
         }
 
         let aad = event_aad(event_id, created_at, &prev_hash);
-        let payload = cipher.decrypt::<D::Event>(encrypted_payload, &aad)?;
+        // The chain is walked over every stored event, including the ones past
+        // a truncation point: it needs only the encrypted blob, and callers
+        // need the real tip to append.
         prev_hash = hash;
-        data.apply(StoreEvent {
-            event_id,
-            payload,
-            created_at,
-            hash,
-        });
+        chain_tip = hash;
+
+        if truncated_at.is_some() {
+            continue;
+        }
+
+        match cipher.decrypt::<D::Event>(encrypted_payload, &aad) {
+            Ok(payload) => data.apply(StoreEvent {
+                event_id,
+                payload,
+                created_at,
+                hash,
+            }),
+            Err(err @ EventDecryptError::Unreadable(_)) => return Err(err.into()),
+            Err(EventDecryptError::IncompatiblePayload(err)) => {
+                tracing::error!(
+                    event_id,
+                    error = %err,
+                    "event payload does not match this build's event type; \
+                     replay stops here and the projection stays at event {}",
+                    event_id.saturating_sub(1)
+                );
+                truncated_at = Some(event_id);
+            }
+        }
     }
 
-    Ok(())
+    Ok(Replay {
+        chain_tip,
+        truncated_at,
+    })
 }
