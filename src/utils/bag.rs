@@ -1,6 +1,6 @@
 //! Embedded BAG address lookup: handles `/lookup` and `/suggest` in-process
 //! using the `bagatel` library
-use std::sync::LazyLock;
+use std::{collections::HashMap, sync::LazyLock};
 
 use axum::{
     Router,
@@ -13,7 +13,7 @@ use bagatel::{DEFAULT_SUGGEST_LIMIT, DEFAULT_SUGGEST_THRESHOLD, DatabaseHandle};
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::utils::locality_aliases::replace_locality_alias;
+use crate::utils::locality_aliases::{correct_locality_name, frisian_locality_name, same_locality};
 
 /// Lazily-decoded handle to the BAG database embedded in `bagatel`.
 ///
@@ -22,6 +22,20 @@ use crate::utils::locality_aliases::replace_locality_alias;
 /// time, so the first request is slower than subsequent ones.
 static DATABASE: LazyLock<DatabaseHandle> =
     LazyLock::new(|| DatabaseHandle::load().expect("failed to load embedded BAG database"));
+
+/// Every official BAG locality name, keyed by its lowercased form.
+static OFFICIAL_LOCALITIES: LazyLock<HashMap<String, &str>> = LazyLock::new(|| {
+    DATABASE
+        .localities()
+        .map(|name| (name.to_lowercase(), name))
+        .collect()
+});
+
+/// The official BAG spelling of `locality`, matched exactly (ignoring case).
+/// Never fuzzy, so a near miss such as `Amsterda` yields `None`.
+pub fn official_locality_name(locality: &str) -> Option<&'static str> {
+    OFFICIAL_LOCALITIES.get(&locality.to_lowercase()).copied()
+}
 
 /// Axum router exposing the `/lookup` and `/suggest` endpoints backed by the
 /// embedded BAG database
@@ -59,9 +73,10 @@ async fn lookup(Query(params): Query<LookupQuery>) -> impl IntoResponse {
 /// Check whether a full address exists verbatim in the BAG.
 ///
 /// The postal code and house number are looked up, and the result only counts
-/// as a match when the resolved street and locality also equal the supplied
-/// `street_name` and `locality`. Returns `false` when the postal code + house
-/// number combination is unknown.
+/// as a match when the resolved street equals `street_name` and the resolved
+/// locality denotes the same place as `locality`, in either language (see
+/// [`same_locality`]). Returns `false` when the postal code + house number
+/// combination is unknown.
 pub fn address_exists(
     postal_code: &str,
     house_number: u32,
@@ -69,7 +84,7 @@ pub fn address_exists(
     locality: &str,
 ) -> bool {
     match DATABASE.lookup(postal_code, house_number) {
-        Some((pr, wp)) => pr == street_name && wp == locality,
+        Some((pr, wp)) => pr == street_name && same_locality(wp, locality),
         None => false,
     }
 }
@@ -103,8 +118,15 @@ async fn suggest(Query(params): Query<SuggestQuery>) -> impl IntoResponse {
         );
     };
 
-    if let Some(suggestion) = replace_locality_alias(&query) {
-        return (StatusCode::OK, Json(json!([suggestion])));
+    // An accepted name is its own suggestion: the fuzzy search below returns
+    // only its best matches, so a correct name can lose to a closer-scoring one.
+    if let Some(accepted) = official_locality_name(&query).or_else(|| frisian_locality_name(&query))
+    {
+        return (StatusCode::OK, Json(json!([accepted])));
+    }
+
+    if let Some(official) = correct_locality_name(&query) {
+        return (StatusCode::OK, Json(json!([official])));
     }
 
     let limit = params.limit.unwrap_or(DEFAULT_SUGGEST_LIMIT);
@@ -122,12 +144,18 @@ async fn suggest(Query(params): Query<SuggestQuery>) -> impl IntoResponse {
 
 /// Check whether `locality` is an exact, known place name in the BAG.
 ///
-/// This runs the same fuzzy `suggest` matching as the endpoint but only
-/// reports `true` when a suggestion equals the input exactly, so a prefix of a
-/// real locality (e.g. `Amsterda`) is rejected. `with_municipalities` also
-/// considers municipality names; `with_aliases` also considers Frisian
-/// locality aliases.
+/// Locality names are matched exactly. Anything else runs through the same
+/// fuzzy `suggest` matching as the endpoint and only reports `true` when a
+/// suggestion equals the input exactly, so a prefix of a real locality
+/// (e.g. `Amsterda`) is rejected. `with_municipalities` also considers
+/// municipality names; `with_aliases` also considers Frisian locality aliases.
 pub fn locality_exists(locality: &str, with_municipalities: bool, with_aliases: bool) -> bool {
+    if official_locality_name(locality).is_some()
+        || (with_aliases && frisian_locality_name(locality).is_some())
+    {
+        return true;
+    }
+
     DATABASE
         .suggest(
             locality,
@@ -214,6 +242,29 @@ mod tests {
         // are included.
         assert!(locality_exists("Land van Cuijk", true, false));
         assert!(!locality_exists("Land van Cuijk", false, false));
+    }
+
+    #[test]
+    fn official_locality_name_returns_the_bag_spelling() {
+        assert_eq!(official_locality_name("amsterdam"), Some("Amsterdam"));
+        assert_eq!(official_locality_name("Den Haag"), None);
+        // A prefix of a real locality is not itself a locality.
+        assert_eq!(official_locality_name("Amsterda"), None);
+    }
+
+    /// The fuzzy search ranks Bears above Beers, shadowing a real locality.
+    #[test]
+    fn locality_exists_matches_a_name_the_fuzzy_search_would_shadow() {
+        assert!(locality_exists("Beers", true, true));
+    }
+
+    #[test]
+    fn address_exists_accepts_the_locality_in_either_language() {
+        // Berltsum as the BAG spells it, and its Dutch name.
+        assert!(address_exists("9041AA", 1, "Bûterhoeke", "Berltsum"));
+        assert!(address_exists("9041AA", 1, "Bûterhoeke", "Berlikum"));
+
+        assert!(!address_exists("9041AA", 1, "Bûterhoeke", "Bitgum"));
     }
 
     #[test]

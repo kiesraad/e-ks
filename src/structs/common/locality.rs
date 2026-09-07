@@ -3,12 +3,12 @@
 //! Validation rules (via `FromStr`):
 //! - Whitespace is trimmed; the value must be 1..=200 characters.
 //! - Only Teletex characters are allowed.
-//! - Known non-official names are replaced by their official counterpart
-//!   (see [`replace_locality_alias`]).
+//! - A misspelling is replaced by the official name (see
+//!   [`correct_locality_name`]); both names of a Frisian locality are kept.
 use crate::{
     form::{ValidationError, validate_length, validate_teletex_chars},
     transparent_string,
-    utils::locality_aliases::replace_locality_alias,
+    utils::locality_aliases::correct_locality_name,
 };
 
 transparent_string! {
@@ -22,7 +22,8 @@ impl std::str::FromStr for Locality {
         let trimmed_value = validate_length(value, 1, 200)?;
         validate_teletex_chars(&trimmed_value)?;
 
-        let normalized = replace_locality_alias(&trimmed_value).unwrap_or(trimmed_value);
+        let normalized =
+            correct_locality_name(&trimmed_value).map_or(trimmed_value, str::to_string);
 
         Ok(Locality(normalized))
     }
@@ -41,10 +42,25 @@ mod tests {
     }
 
     #[test]
-    fn replaces_known_alias_with_official_name() {
+    fn replaces_a_misspelling_with_the_official_name() {
         let locality = Locality::from_str("Den Haag").expect("locality");
 
         assert_eq!(locality.to_string(), "'s-Gravenhage");
+    }
+
+    #[test]
+    fn keeps_both_names_of_a_frisian_locality() {
+        for name in ["Berltsum", "Berlikum"] {
+            let locality = Locality::from_str(name).expect("locality");
+
+            assert_eq!(locality.to_string(), name);
+        }
+
+        // Beers (Land van Cuijk) is also the Dutch name of Bears in Fryslan,
+        // so correcting it would move the candidate to another province.
+        let locality = Locality::from_str("Beers").expect("locality");
+
+        assert_eq!(locality.to_string(), "Beers");
     }
 
     #[test]
