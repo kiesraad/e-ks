@@ -8,4 +8,4 @@ pub(in crate::csb) mod structs;
 
 pub use forms::OmissionForm;
 pub use pages::router;
-pub use paths::{CsbExaminationOverviewPath, CsbPoliticalGroupPath};
+pub use paths::{CsbExaminationOverviewPath, CsbFinishExaminationPath, CsbPoliticalGroupPath};

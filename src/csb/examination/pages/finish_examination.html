@@ -1,0 +1,9 @@
+{% extends "csb/components/layout.html" %}
+{% block breadcrumbs %}
+  {{ breadcrumb(crate::csb::examination::CsbExaminationOverviewPath, "csb.examination") }}
+  {{ breadcrumb(crate::csb::examination::CsbFinishExaminationPath, "csb.finish_examination") }}
+{% endblock %}
+{% block page_title %}{{ "csb.finish_examination"|trans }}{% endblock %}
+{% block content %}
+<b>Hello {{ name }}</b>
+{% endblock %}
