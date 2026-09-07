@@ -10,6 +10,7 @@ use crate::{
     structs::{
         candidate_lists::{CandidateList, CandidateListId},
         csb::{Omission, OmissionCategory, OmissionId},
+        list_designation::ListDesignation,
         list_submitters::ListSubmitter,
         name_authorisations::NameAuthorisation,
         persons::{Person, PersonId},
@@ -480,9 +481,13 @@ impl CsbStream {
     }
 
     pub fn is_appellation_scrapped(&self) -> bool {
-        self.get_appellation_omissions()
-            .iter()
-            .any(Omission::is_unresolved)
+        self.get_political_group(WithCorrections::All)
+            .list_designation
+            != Some(ListDesignation::Blank) // blank lists don't have an appellation => can't be scrapped
+            && self
+                .get_appellation_omissions()
+                .iter()
+                .any(Omission::is_unresolved)
     }
 
     /// One-based position of the candidate on the given list

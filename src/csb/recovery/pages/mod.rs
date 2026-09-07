@@ -77,17 +77,22 @@ async fn candidate(
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use super::*;
     use axum::{http::StatusCode, response::IntoResponse};
 
     use crate::{
+        CsbAction, PgEvent,
         structs::{
             candidate_lists::CandidateListId,
-            csb::{Omission, OmissionCategory, OmissionStatus},
+            csb::{Omission, OmissionCategory, OmissionStatus, OmissionText, OmissionTitle},
+            name_authorisations::NameAuthorisationId,
             persons::PersonId,
         },
         test_utils::{
-            response_body_string, sample_candidate_list, sample_person, sample_political_group,
+            response_body_string, sample_candidate_list, sample_name_authorisation, sample_person,
+            sample_political_group,
         },
     };
 
@@ -319,5 +324,50 @@ mod tests {
         assert!(body.contains("Kiesraad Demo"));
         assert!(!body.contains("/correction/"));
         assert!(!body.contains("/csb/examination/"));
+    }
+
+    #[tokio::test]
+    async fn scrapped_appellation_renders() {
+        let store = CsbStore::new_for_test();
+
+        // add a name authorisation
+        store
+            .update(CsbAction::PaperCorrectedUpdate(Box::new(
+                PgEvent::CreateNameAuthorisation(sample_name_authorisation(
+                    NameAuthorisationId::new(),
+                )),
+            )))
+            .await
+            .expect("Create name authorisation");
+
+        // add irrecoverable omission for the appellation
+        let mut omission = Omission::new(
+            OmissionCategory::Appellation,
+            OmissionTitle::from_str("unregistered").unwrap(),
+            OmissionText::from_str("unregistered").unwrap(),
+            None,
+        );
+        omission.recoverable = false;
+        store
+            .update(CsbAction::CreateOmission(omission))
+            .await
+            .expect("Update store with appellation omission creation");
+
+        let response = general_information(
+            CsbRecoveryGeneralInformationPath {
+                stream_id: store.stream_id,
+            },
+            CsbContext::new_test(),
+            store,
+        )
+        .await
+        .unwrap()
+        .into_response();
+
+        let body = response_body_string(response).await;
+
+        assert!(body.contains("Blank list"));
+        // 1 badge for the appellation and 2 badges for the name authorisation
+        assert_eq!(body.matches("Scrapped</span>").count(), 3);
     }
 }

@@ -291,4 +291,45 @@ mod tests {
             }
         }
     }
+
+    #[tokio::test]
+    async fn appellation_omission_bar_is_hidden_for_blank_lists() {
+        let store = CsbStore::new_for_test();
+        let mut pg = sample_political_group();
+        pg.list_designation = Some(ListDesignation::Blank);
+        store.set_political_group(pg);
+
+        let response = overview(
+            CsbGeneralInformationPath {
+                stream_id: store.stream_id,
+            },
+            CsbContext::new_test(),
+            store,
+        )
+        .await
+        .unwrap()
+        .into_response();
+        let body = response_body_string(response).await;
+
+        assert!(!body.contains("Omissions appellation</h2>"));
+    }
+
+    #[tokio::test]
+    async fn appellation_omission_bar_shows_for_non_blank_lists() {
+        let store = CsbStore::new_for_test();
+
+        let response = overview(
+            CsbGeneralInformationPath {
+                stream_id: store.stream_id,
+            },
+            CsbContext::new_test(),
+            store,
+        )
+        .await
+        .unwrap()
+        .into_response();
+        let body = response_body_string(response).await;
+
+        assert!(body.contains("Omissions appellation</h2>"));
+    }
 }
