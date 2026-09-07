@@ -365,6 +365,12 @@
   cursor: not-allowed;
 }
 
+.form textarea[readonly] {
+  background-color: var(--bg-gray-darker);
+  color: var(--gray-500);
+  cursor: not-allowed;
+}
+
 .form textarea {
   align-items: flex-start;
   resize: none;

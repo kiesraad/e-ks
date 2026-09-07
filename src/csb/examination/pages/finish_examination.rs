@@ -5,7 +5,10 @@ use crate::{
     AppError, Context, CsbContext, HtmlTemplate,
     csb::examination::{
         extractors::{CsbPoliticalGroup, CsbPoliticalGroups},
-        paths::{CsbFinishExaminationPath, CsbI1DocxDownloadPath, CsbI1DownloadPath},
+        paths::{
+            CsbFinishExaminationPath, CsbI1DocxDownloadPath, CsbI1DownloadPath,
+            CsbOmissionLettersDownloadPath,
+        },
     },
     filters,
 };
@@ -96,20 +99,31 @@ mod tests {
         assert!(body.contains(r#"href="/csb/examination/i1.docx""#));
     }
 
-    /// The row links to the group's examination page through the typed path.
+    /// The row links to the group's omission letter page, not its examination
+    /// page.
     #[tokio::test]
-    async fn finish_links_the_political_group_page() {
+    async fn finish_links_the_omission_letter_page() {
         let group = letter_group();
         let stream_id = group.stream_id;
         let body = render(vec![group]).await;
 
-        assert!(body.contains(&format!(r#"href="/csb/examination/{stream_id}""#)));
+        assert!(body.contains(&format!(r#"href="/csb/examination/finish/{stream_id}""#)));
+        assert!(!body.contains(&format!(r#"href="/csb/examination/{stream_id}""#)));
     }
 
     #[tokio::test]
     async fn finish_renders_without_political_groups() {
         let body = render(vec![]).await;
         assert!(body.contains("There are no letters of omission to create."));
+    }
+
+    /// The ZIP with every letter is offered only when there is a letter.
+    #[tokio::test]
+    async fn finish_links_the_letters_zip_only_with_letters() {
+        let zip_link = r#"href="/csb/examination/finish/verzuimbrieven.zip""#;
+
+        assert!(render(vec![letter_group()]).await.contains(zip_link));
+        assert!(!render(vec![]).await.contains(zip_link));
     }
 
     /// Only finished, undeleted groups with omissions get a letter.

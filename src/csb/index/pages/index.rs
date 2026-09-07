@@ -24,10 +24,8 @@ fn current_phase(election: &ElectionConfig, today: NaiveDate) -> u8 {
         2
     } else if today <= election.public_session().datetime.date() {
         3
-    } else if today <= election.election_date() {
-        4
     } else {
-        5
+        4
     }
 }
 
@@ -56,8 +54,8 @@ mod tests {
         assert!(body.contains("Pre-submission"));
         assert!(body.contains("Examination"));
         assert!(body.contains("Rectified lists"));
-        assert!(body.contains("List numbering"));
         assert!(body.contains("Finalise candidate lists"));
+        assert!(!body.contains("Phase 5"));
     }
 
     #[tokio::test]
@@ -100,6 +98,19 @@ mod tests {
         assert!(body.contains("href=\"/csb/recovery\""));
     }
 
+    #[tokio::test]
+    async fn index_links_i4_download_as_phase_4() {
+        let response = index(CsbIndexPath {}, CsbContext::new_test())
+            .await
+            .unwrap()
+            .into_response();
+
+        let body = response_body_string(response).await;
+        assert!(body.contains("Phase 4"));
+        assert!(body.contains("href=\"/csb/examination/i4.pdf\""));
+        assert!(body.contains("Download I 4"));
+    }
+
     #[test]
     fn current_phase_follows_the_election_dates() {
         let election = ElectionConfig::EK27;
@@ -131,9 +142,10 @@ mod tests {
             ),
             4
         );
+        assert_eq!(current_phase(&election, election.election_date()), 4);
         assert_eq!(
             current_phase(&election, day_after(election.election_date())),
-            5
+            4
         );
     }
 }

@@ -73,6 +73,7 @@ finish_examination:
   download_note: Download all letters of omission as Word and PDF files in a single ZIP
   download_pdf: Download PDF
   download_word: Download Word
+  download_zip: Download ZIP
   hearing_details: Hearing details
   i1_note: Examination of submitted candidate lists. Create the form for the report on the examination of the candidate lists.
   i1_title: I 1 Official report
@@ -150,8 +151,6 @@ index:
   phase_3:
     title: Rectified lists
   phase_4:
-    title: List numbering
-  phase_5:
     title: Finalise candidate lists
 list:
   add_text: Add omissions for this candidate list
@@ -176,6 +175,7 @@ omission:
     applies_to: "This omission applies to:"
     description_label: Add I 1 omission
     edit_heading: Type or edit the omission here
+    help_text_hint: Only for a recoverable omission. Irreparable omissions do not go into the omission letter.
     help_text_label: Add omission letter note
     placeholder_warning: The text still contains unfilled placeholders.
     presets_heading: Use one of these omissions as a template (optional)
@@ -197,6 +197,12 @@ omission:
     candidate: "Omissions {}"
     candidate_list: Omissions candidate list
     general: Omissions general information
+omission_letter:
+  download_note: Download the letter of omission for this political group as a Word or PDF file.
+  explanation: The letter of omission lists every omission found for this political group.
+  omissions_explanation: "All omissions found for this political group, as they are listed in the letter of omission."
+  omissions_title: Omissions in the letter
+  title: Letter of omission
 paper_corrections:
   added: Paper correction added
   banner: "You are correcting {}. Only enter corrections that are handwritten on the submitted paper documents, nothing else."

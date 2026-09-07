@@ -307,8 +307,13 @@ The CSB section has two projections of its own on the shared store machinery
 - **`examination`**: the examination of the imported lists. An overview
   groups the imported political groups by finished/unfinished; detail pages
   render the imported data read-only; omissions and corrections are recorded
-  in overlays; and the models **I 1** and **I 4** are generated here, their
-  inputs collected across all imported streams in `model_inputs.rs`.
+  in overlays; and the models **I 1** and **I 4** plus the per-group omission
+  letter (*verzuimbrief*) are generated here, their inputs collected in
+  `model_inputs.rs` (I 1 and I 4 across all imported streams, the letter per
+  group). The finish-examination page lists the groups that get a letter;
+  each links to a read-only page with the letter's omissions and its PDF and
+  Word downloads, and the page bundles every letter in a ZIP that streams
+  while the letters render one at a time.
 - **`recovery`**: the "Herstelde lijsten" phase that follows the examination.
   Once the omission letters have gone out, the CSB marks every recoverable
   omission as recovered or not recovered; candidates, lists and districts

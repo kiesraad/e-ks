@@ -138,6 +138,15 @@ impl ElectionConfig {
         }
     }
 
+    /// The election code as a download filename slug, e.g. `ek27`, `ps27prov1`.
+    pub fn filename_slug(&self) -> String {
+        let mut slug = self.code().to_lowercase();
+        if let Some(region) = self.region_code() {
+            slug.push_str(&region.to_lowercase());
+        }
+        slug
+    }
+
     /// Parse a [`Self::stable_id`] string (e.g. `"EK27"`, `"PS27:prov1"`)
     /// back to an election configuration.
     pub fn from_stable_id(value: &str) -> Option<Self> {

@@ -39,7 +39,8 @@
               <h5>{{ pg.csb_appellation() }}</h5>
             </td>
             <td>
-              <a href="{{ pg.group_path() }}" title="{{ "csb.action.examine"|trans }}"></a>
+              <a href="{{ pg.omission_letter_path() }}"
+                 title="{{ "csb.omission_letter.title"|trans }}"></a>
             </td>
           </tr>
         {% else %}
@@ -50,10 +51,13 @@
           </tr>
         {% endfor %}
       </table>
-      <div class="omission-download-row">
-        <p class="w-16">{{ "csb.finish_examination.download_note"|trans }}</p>
-        <a href="" class="button primary icon-download">Download</a>
-      </div>
+      {% if !political_groups.is_empty() %}
+        <div class="omission-download-row">
+          <p class="w-16">{{ "csb.finish_examination.download_note"|trans }}</p>
+          <a href="{{ CsbOmissionLettersDownloadPath }}"
+             class="button primary icon-download">{{ "csb.finish_examination.download_zip"|trans }}</a>
+        </div>
+      {% endif %}
     </div>
   </div>
 {% endblock %}

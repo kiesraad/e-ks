@@ -1,8 +1,9 @@
 //! The official election PDF models, rendered in-process with
 //! [`textris_pdf`].
 //!
-//! Each model lives in its own file (`h1`, `h3`, `h4`, `h9`, `i1`, `i4`); H 3 covers
-//! both the H 3-1 and H 3-2 variants. The document text is authored as askama
+//! Each model lives in its own file (`h1`, `h3`, `h4`, `h9`, `i1`, `i4`, plus
+//! the omission letter in `omission_letter`); H 3 covers both the H 3-1 and
+//! H 3-2 variants. The document text is authored as askama
 //! Markdown templates in `templates/` (one per locale and variant), written in
 //! the textris-pdf Markdown dialect and wired up by [`mod@markdown`].
 //! [`layout`] holds the shared page set-up, and [`inputs`] the shared input
@@ -27,6 +28,7 @@ pub mod i4;
 pub mod inputs;
 mod layout;
 mod markdown;
+pub mod omission_letter;
 
 pub use examples::{Example, examples};
 pub use fonts::fonts;
@@ -103,9 +105,9 @@ mod tests {
             .expect("render model")
     }
 
-    /// Every example input renders to a valid PDF. This drives all seven
-    /// document builders (`h1`, `h3-1`, `h3-2`, `h4`, `h9`, `i1`, `i4`)
-    /// together with the shared layout code, end to end.
+    /// Every example input renders to a valid PDF. This drives all eight
+    /// document builders (`h1`, `h3-1`, `h3-2`, `h4`, `h9`, `i1`, `i4` and the
+    /// omission letter) together with the shared layout code, end to end.
     #[test]
     fn renders_every_example_input() {
         let mut rendered = 0;
@@ -114,7 +116,7 @@ mod tests {
             assert_pdf(&example.render().expect("render example"), name);
             rendered += 1;
         }
-        assert_eq!(rendered, 19, "expected to render every example input");
+        assert_eq!(rendered, 21, "expected to render every example input");
     }
 
     /// Every example input also exports as a Word document, which exercises the
@@ -224,5 +226,15 @@ mod tests {
 
         assert_eq!(i1_example_1().filename(), "i1-proces-verbaal.pdf");
         assert_eq!(i4_example_1().filename(), "i4-proces-verbaal.pdf");
+
+        // The omission letter is stamped with the group it is addressed to and
+        // the election; a blank list has no appellation to slugify.
+        assert_eq!(
+            omission_letter_example_1().filename(),
+            "verzuimbrief-kiesraad-demo-ek27.pdf"
+        );
+        let mut blank = omission_letter_example_1();
+        blank.appellation = String::new();
+        assert_eq!(blank.filename(), "verzuimbrief-ek27.pdf");
     }
 }

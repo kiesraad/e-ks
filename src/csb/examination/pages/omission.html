@@ -109,8 +109,13 @@
       <div class="form-row">
         <p class="form-field form-field-xl">
           <label for="help_text">{{ "csb.omission.form.help_text_label"|trans }}</label>
-          <textarea name="help_text" id="help_text" rows="5" data-omission-help-text>{{ form.data.help_text }}</textarea>
+          <textarea name="help_text"
+                    id="help_text"
+                    rows="5"
+                    data-omission-help-text
+                    {% if !form.data.recoverable %}readonly{% endif %}>{{ form.data.help_text }}</textarea>
           {% for error in form|error("help_text") %}<span class="error">{{ error }}</span>{% endfor %}
+          <span class="hint">{{ "csb.omission.form.help_text_hint"|trans }}</span>
         </p>
       </div>
       <div class="form-row">

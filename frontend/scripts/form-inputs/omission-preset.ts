@@ -30,6 +30,17 @@ function updatePlaceholderWarning(
   warning.classList.toggle("hidden", !description.value.includes("{"));
 }
 
+// Only recoverable omissions reach the omission letter, so the letter note
+// is read-only while the omission is marked irreparable.
+function syncHelpText(
+  helpText: HTMLTextAreaElement | null,
+  recoverable: HTMLInputElement | null,
+) {
+  if (helpText && recoverable) {
+    helpText.readOnly = !recoverable.checked;
+  }
+}
+
 // Fill the omission description and help-text fields when a preset is clicked.
 export default function omissionPreset() {
   const title = document.querySelector<HTMLInputElement>(
@@ -56,6 +67,11 @@ export default function omissionPreset() {
     updatePlaceholderWarning(description, warning),
   );
 
+  recoverable?.addEventListener("change", () =>
+    syncHelpText(helpText, recoverable),
+  );
+  syncHelpText(helpText, recoverable);
+
   document
     .querySelectorAll<HTMLButtonElement>("[data-omission-preset]")
     .forEach((button) => {
@@ -80,6 +96,7 @@ export default function omissionPreset() {
         setValue(helpText, help);
         if (recoverable) {
           recoverable.checked = button.dataset.recoverable !== "false";
+          syncHelpText(helpText, recoverable);
         }
         description.focus();
       });
