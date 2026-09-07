@@ -73,7 +73,10 @@ pub async fn csb_audit_log_detail<S: AppRequestState>(
             locale,
         )?
     } else {
-        let import_stores = state.csb_store_registry().stores_by_scope().await?;
+        let import_stores = state
+            .csb_store_registry()
+            .stores_for_election(context.election)
+            .await?;
         let store = import_stores
             .iter()
             .find(|s| s.stream_id == stream_id)
