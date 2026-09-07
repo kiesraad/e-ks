@@ -121,11 +121,16 @@ index:
     create_i1_letters: Create I 1 and omission letters
     create_i4: Create I 4
     recover_omissions: Recover omissions
+    register_appellations: Record registered appellations
+    register_previous_results: Record previous election results
     report_errors: Report errors
     view_candidate_lists: View candidate lists
   go_to_examination: Go to examination
   go_to_recovery: Go to recovered lists
+  go_to_registered_political_groups: Go to registered political groups
   phase: "Phase {}"
+  phase_0:
+    title: Registration
   phase_1:
     title: Pre-submission
   phase_2:
@@ -200,6 +205,13 @@ recovery:
   recovered: Recovered
   scrapped: Scrapped
   title: Recovered lists
+registered_political_groups:
+  edit: Edit political group
+  none: No political groups have been registered yet.
+  numbering_hint: Only political groups that obtained at least one seat are numbered on votes. The remaining lists are numbered by lot.
+  previous_seats: Seats at the previous election
+  previous_votes: Votes at the previous election
+  title: Registered political groups
 status:
   approved: Approved
   correction: Corrections added

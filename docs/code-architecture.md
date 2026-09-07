@@ -277,7 +277,8 @@ The CSB section has two projections of its own on the shared store machinery
 - **`CsbMainStoreData`** (`src/csb/store_main/`), a single stream per
   election shared by all committee members under the fixed
   `CSB_MAIN_STREAM_ID` (scope `CentralElectoralCommittee`). It records
-  committee-wide events (currently logins) and backs the main CSB audit log.
+  committee-wide events (logins, and the registered political groups with
+  their previous election results) and backs the main CSB audit log.
 
 #### Domains
 
@@ -304,6 +305,12 @@ The CSB section has two projections of its own on the shared store machinery
   data.
 - **`audit_log`**: the CSB audit log, a read view over either the main
   committee stream or a single imported stream.
+- **`registered_political_groups`**: administration of the political groups
+  registered for the election with their result at the previous election of
+  the same body (appellation, votes, seats), kept on the CSB main stream. The
+  lists of groups that obtained one or more seats are numbered first on model
+  I 4, in the order of their votes (Kieswet Art. I 14); the remaining lists
+  are numbered by lot (Art. I 15).
 - **`common`**: the not-found page for paths under `/csb` that no CSB route
   claims. The error pages for the CSB routes (`csb/error_response.rs`) render
   the page an `AppError` carries in the CSB layout, the counterpart of the

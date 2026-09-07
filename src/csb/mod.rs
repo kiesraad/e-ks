@@ -12,6 +12,7 @@ pub mod index;
 pub mod login;
 pub mod monitoring;
 pub mod recovery;
+pub mod registered_political_groups;
 
 mod context;
 mod error_response;

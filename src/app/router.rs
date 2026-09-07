@@ -135,6 +135,7 @@ fn csb_router(state: &AppState) -> Router<AppState> {
         .merge(csb::common::router())
         .merge(csb::examination::router())
         .merge(csb::recovery::router())
+        .merge(csb::registered_political_groups::router())
         .merge(csb::import::router())
         .merge(csb::monitoring::router())
         .layer(middleware::from_fn_with_state(

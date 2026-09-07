@@ -20,6 +20,7 @@ pub enum ValidationError {
     TooManyInitials(ActualCount, MaxCount),
     InvalidPostalCode,
     NameAlreadyExists,
+    AppellationAlreadyExists,
     BsnAlreadyExists,
     DateInFuture,
 }
@@ -65,6 +66,9 @@ impl ValidationError {
             }
             ValidationError::NameAlreadyExists => {
                 trans!("validation.name_already_exists", locale)
+            }
+            ValidationError::AppellationAlreadyExists => {
+                trans!("validation.appellation_already_exists", locale)
             }
             ValidationError::BsnAlreadyExists => trans!("validation.bsn_already_exists", locale),
             ValidationError::DateInFuture => trans!("validation.date_of_birth_in_future", locale),

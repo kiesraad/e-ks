@@ -10,6 +10,27 @@
 {% block content %}
   {% let election = "election"|election_value %}
   <div class="cards cards-csb-phases">
+    <a class="card csb-phase-card {% if current_phase == 1 %}csb-phase-active{% else %}csb-phase-completed{% endif %}"
+       href="{{ crate::csb::registered_political_groups::CsbRegisteredPoliticalGroupsPath }}">
+      <div class="card-header">
+        <div class="csb-phase-badge {% if current_phase == 1 %}csb-phase-badge-unlocked{% else %}csb-phase-badge-check{% endif %}">
+        </div>
+        <div>
+          <h4>{{ "csb.index.phase"|trans("0") }}</h4>
+        </div>
+      </div>
+      <div class="card-content">
+        <div class="csb-phase-text">
+          <h2 class="card-title">{{ "csb.index.phase_0.title"|trans }}</h2>
+          <ul class="card-instruction">
+            <li>{{ "csb.index.feature.register_appellations"|trans }}</li>
+            <li>{{ "csb.index.feature.register_previous_results"|trans }}</li>
+          </ul>
+        </div>
+        <div class="csb-phase-illustration csb-phase-illustration-1"></div>
+      </div>
+      <p class="card-footer">{{ "csb.index.go_to_registered_political_groups"|trans }}</p>
+    </a>
     <div class="card csb-phase-card {% if current_phase == 1 %}csb-phase-active{% else %}csb-phase-completed{% endif %}">
       <div class="card-header">
         <div class="csb-phase-badge {% if current_phase == 1 %}csb-phase-badge-unlocked{% else %}csb-phase-badge-check{% endif %}">
