@@ -110,7 +110,9 @@ fn i4_removed_candidates() -> Vec<RemovedCandidates> {
             electoral_district: "kieskring 20 (Bonaire)".to_string(),
             candidates: vec![RemovedCandidate {
                 name: "Vermeulen, H. (Henk) (m)".to_string(),
-                reason: "Ten aanzien van kandidaat nr. 24 H. Vermeulen ontbreekt de verklaring dat deze instemt met kandidaatstelling op de lijst. De verklaring van de kandidaat wordt geacht te ontbreken omdat geen kopie van een geldig identiteitsbewijs is ingeleverd.".to_string(),
+                reasons: strings(&[
+                    "Ten aanzien van kandidaat nr. 24 H. Vermeulen ontbreekt de verklaring dat deze instemt met kandidaatstelling op de lijst. De verklaring van de kandidaat wordt geacht te ontbreken omdat geen kopie van een geldig identiteitsbewijs is ingeleverd.",
+                ]),
             }],
         },
         RemovedCandidates {
@@ -119,11 +121,15 @@ fn i4_removed_candidates() -> Vec<RemovedCandidates> {
             candidates: vec![
                 RemovedCandidate {
                     name: "Meerman, K.S. (Kevin) (m)".to_string(),
-                    reason: "Ten aanzien van kandidaat nr. 2 K.S Meerman ontbreekt de verklaring dat deze instemt met kandidaatstelling op de lijst.".to_string(),
+                    reasons: strings(&[
+                        "Ten aanzien van kandidaat nr. 2 K.S Meerman ontbreekt de verklaring dat deze instemt met kandidaatstelling op de lijst.",
+                    ]),
                 },
                 RemovedCandidate {
                     name: "Olympos, T. (Thanatos) (m)".to_string(),
-                    reason: "Ten aanzien van kandidaat nr. 9 T. Olympos ontbreekt de verklaring dat deze instemt met kandidaatstelling op de lijst.".to_string(),
+                    reasons: strings(&[
+                        "Ten aanzien van kandidaat nr. 9 T. Olympos ontbreekt de verklaring dat deze instemt met kandidaatstelling op de lijst.",
+                    ]),
                 },
             ],
         },
@@ -135,7 +141,9 @@ fn i4_removed_appellations() -> Vec<RemovedAppellation> {
         appellation: "De Geschrapte Aanduiding Partij".to_string(),
         electoral_district: "kieskring 20 (Bonaire)".to_string(),
         first_candidate_name: "Nagelhout, H. (Hubertus) (m)".to_string(),
-        reason: "De aanduiding stemt niet overeen met de bij het Centraal Stembureau geregistreerde naam van de politieke groepering.".to_string(),
+        reasons: strings(&[
+            "De aanduiding stemt niet overeen met de bij het Centraal Stembureau geregistreerde naam van de politieke groepering.",
+        ]),
     }]
 }
 

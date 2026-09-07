@@ -227,14 +227,10 @@ impl CsbStream {
             .collect()
     }
 
-    pub fn get_recoverable_omissions(&self) -> Vec<Omission> {
+    pub fn get_omissions(&self) -> Vec<Omission> {
         let data = self.data.read();
 
-        data.omissions
-            .values()
-            .filter(|o| o.recoverable)
-            .cloned()
-            .collect()
+        data.omissions.values().cloned().collect()
     }
 
     pub fn get_political_group_omissions(&self) -> Vec<Omission> {

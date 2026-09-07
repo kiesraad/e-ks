@@ -69,7 +69,7 @@ pub struct RemovedCandidates {
 #[derive(Debug)]
 pub struct RemovedCandidate {
     pub name: String,
-    pub reason: String,
+    pub reasons: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -77,7 +77,7 @@ pub struct RemovedAppellation {
     pub appellation: String,
     pub electoral_district: String,
     pub first_candidate_name: String,
-    pub reason: String,
+    pub reasons: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -94,13 +94,13 @@ pub struct DistrictLists {
     pub lists: Vec<ValidList>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ValidList {
     pub appellation: String,
     pub candidates: Vec<ValidListCandidate>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ValidListCandidate {
     pub last_name: String,
     pub initials: String,
