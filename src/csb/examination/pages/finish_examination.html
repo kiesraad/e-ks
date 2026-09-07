@@ -1,9 +1,30 @@
 {% extends "csb/components/layout.html" %}
 {% block breadcrumbs %}
   {{ breadcrumb(crate::csb::examination::CsbExaminationOverviewPath, "csb.examination") }}
-  {{ breadcrumb(crate::csb::examination::CsbFinishExaminationPath, "csb.finish_examination") }}
+  {{ breadcrumb(crate::csb::examination::CsbFinishExaminationPath, "csb.finish_examination.title") }}
 {% endblock %}
-{% block page_title %}{{ "csb.finish_examination"|trans }}{% endblock %}
+{% block page_title %}{{ "csb.finish_examination.title"|trans }}{% endblock %}
 {% block content %}
-<b>Hello {{ name }}</b>
+<div class="examination-panels">
+
+  <div class="examination-panel">
+    <div class="examination-panel-header">
+      <div>
+        <h2 class="h3">{{ "csb.finish_examination.i1_title"|trans }}</h2>
+        <p>{{ "csb.finish_examination.i1_note"|trans }}</p>
+      </div>
+      <a class="button secondary icon-plus-end" href="#">{{ "csb.finish_examination.hearing_details"|trans }}</a>
+    </div>
+  </div>
+
+  <div class="examination-panel">
+    <div class="examination-panel-header">
+      <div>
+        <h2 class="h3">{{ "csb.finish_examination.omission_letters"|trans }}</h2>
+        <p>{{ "csb.finish_examination.omission_letters_note"|trans }}</p>
+      </div>
+    </div>
+  </div>
+
+</div>
 {% endblock %}

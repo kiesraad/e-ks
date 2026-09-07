@@ -69,7 +69,14 @@ declarations_of_support:
   instruction: Meld problemen met de ondersteunings\u00ADverklaringen
   title: Ondersteunings\u00ADverklaringen
 examination: Onderzoek
-finish_examination: Afronden onderzoek
+finish_examination:
+  title: Afronden onderzoek
+  i1_title: I 1 Proces-verbaal
+  i1_note:  Onderzoek ingeleverde kandidatenlijsten. Maak het formulier aan van verslag van het onderzoek naar de kandidatenlijsten
+  hearing_details: Zitting details
+  omission_letters: Verzuimbrieven
+  omission_letters_note: Lorem ipsum
+
 finish_instruction:
   create_defects: Aanmaken verzuimbrief
   create_model_i1: Aanmaken model I 1

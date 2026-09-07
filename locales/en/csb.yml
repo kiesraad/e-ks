@@ -69,7 +69,13 @@ declarations_of_support:
   instruction: Report problems with the declarations of support
   title: Declarations of support
 examination: Examination
-finish_examination: Finish examination
+finish_examination:
+  title: Finish examination
+  i1_title: I 1 Official report
+  i1_note: Examination of submitted candidate lists. Create the form for the report on the examination of the candidate lists.
+  hearing_details: Hearing details
+  omission_letters: Letters of omission
+  omission_letters_note: Lorem ipsum
 finish_instruction:
   create_defects: Create notice of defects
   create_model_i1: Create model I 1
