@@ -1,9 +1,10 @@
 //! The realistic per-user flow, expressed as a flat top-to-bottom script.
 //!
-//! The CSRF token is stable for the lifetime of a session — we sniff it once
-//! from the first rendered page and reuse it for every POST. GETs interleaved
-//! between POSTs are there for realism (a real user does navigate to a form
-//! before submitting it), not to refresh CSRF.
+//! The GETs interleaved between POSTs are there for realism (a real user does
+//! navigate to a form before submitting it) — and they double as the source of
+//! the CSRF token: the session's token is not fixed for the session's lifetime
+//! (`/select-election` rotates it), so every step reads the token off the page
+//! it just rendered, exactly like a browser submitting that page's form.
 //!
 //! When the actions a user does change, the only file that needs to change is
 //! this one.
@@ -38,18 +39,21 @@ pub async fn run_session(
         .await?
     {
         GetOutcome::Redirect(loc) => loc,
-        GetOutcome::Page(_) => bail!("/dev/login did not redirect (is the server built with the `dev-features` feature?)"),
+        GetOutcome::Page(_) => bail!(
+            "/dev/login did not redirect (is the server built with the `dev-features` feature?)"
+        ),
     };
 
-    // 2. Follow to /select-election. The first rendered page sets the CSRF
-    //    token, which is stable for the rest of the session.
+    // 2. Follow to /select-election, whose rendered form carries the token the
+    //    election choice has to be submitted with.
     client
         .follow("select-election:get", next)
         .await
         .context("GET /select-election")?;
     let csrf = client.csrf().to_string();
 
-    // 3. Submit the election choice.
+    // 3. Submit the election choice. This rotates the session's token, so
+    //    nothing after this point may reuse `csrf`.
     let mut form: Vec<(&str, &str)> = vec![("csrf_token", &csrf), ("election", config.election)];
     if config.load_fixtures_via_form {
         form.push(("load_fixtures", "true"));
@@ -62,12 +66,16 @@ pub async fn run_session(
 
     // 4. Browse around (realism: a user doesn't only POST).
     client.get("persons:list", "/persons").await?;
-    client.get("list-designation:get", "/political-group").await?;
+    client
+        .get("list-designation:get", "/political-group")
+        .await?;
     client
         .get("political-group:get", "/political-group/information")
         .await?;
     client.get("audit-log:get", "/audit-log").await?;
-    client.get("candidate-lists:list", "/candidate-lists").await?;
+    client
+        .get("candidate-lists:list", "/candidate-lists")
+        .await?;
 
     // 5. Create each person + their address. The user navigates to the form
     //    page each time, mirroring real behaviour. Per-candidate validation
@@ -83,7 +91,7 @@ pub async fn run_session(
     for (i, row) in persons.iter().take(config.persons_per_user).enumerate() {
         client.get("persons:list", "/persons").await?;
         let row_suffix = format!("{suffix}-{i}");
-        match create_person(client, &csrf, row, &row_suffix).await {
+        match create_person(client, row, &row_suffix).await {
             Ok((id, true)) => complete.push((id, row)),
             Ok((id, false)) => incomplete_ids.push(id),
             Err(err) => {
@@ -98,46 +106,61 @@ pub async fn run_session(
     //    the candidate out of the models), so we resend the row with an
     //    amended last name.
     for (i, (person_id, row)) in complete.iter().take(config.edits).enumerate() {
-        let last_name = format!("{} aangepast", unique_last_name(&row.geslachtsnaam, &format!("{suffix}-{i}")));
-        if let Err(err) = edit_person(client, &csrf, person_id, row, &last_name).await {
+        if let Err(err) = edit_person(client, person_id, row, &format!("{suffix}-{i}")).await {
             eprintln!("edit {person_id}: {err}");
         }
     }
 
     // 7. Pick the list designation, then fill in the group's display name. The
     //    designation drives which H3 model is generated, so it comes first.
-    update_list_designation(client, &csrf, "standalone").await?;
-    update_political_group(client, &csrf, suffix).await?;
+    update_list_designation(client, "standalone").await?;
+    update_political_group(client, suffix).await?;
 
     // 8. The rest of the general-information flow that the fixture loader
     //    replicates: one name authorisation (formerly "authorised agent", and
     //    the holder of the legal name), the (singleton) list submitter, and two
     //    substitute submitters.
-    create_name_authorisation(client, &csrf, suffix).await?;
-    update_list_submitter(client, &csrf).await?;
+    create_name_authorisation(client, suffix).await?;
+    update_list_submitter(client).await?;
     create_substitute_submitter(
-        client, &csrf, "Smit", Some("van"), "G.H.", "Spui", "18", None, "2511 DD", "Den Haag",
+        client,
+        "Smit",
+        Some("van"),
+        "G.H.",
+        "Spui",
+        "18",
+        None,
+        "2511 DD",
+        "Den Haag",
     )
     .await?;
     create_substitute_submitter(
-        client, &csrf, "Jong", None, "I.J.", "Oudegracht", "21", Some("C"), "3511 AA", "Utrecht",
+        client,
+        "Jong",
+        None,
+        "I.J.",
+        "Oudegracht",
+        "21",
+        Some("C"),
+        "3511 AA",
+        "Utrecht",
     )
     .await?;
 
     // 9. Create a candidate list. EK27 has 16 electoral districts, so the GET
     //    renders the picker and the POST creates the list; its 303 carries the
     //    new `list_id`.
-    let candidate_list_id = create_candidate_list(client, &csrf).await?;
+    let candidate_list_id = create_candidate_list(client).await?;
 
     // 10. Add every person we created to the candidate list.
-    add_all_persons_to_list(client, &csrf, &candidate_list_id).await?;
+    add_all_persons_to_list(client, &candidate_list_id).await?;
 
     // 11. The PDF/eml generators reject the whole list if any candidate is
     //     missing a date of birth or place of residence. The person-level
     //     form validator allows those fields to be empty, so they slip onto
     //     the list. Drop them now so reorder + download can succeed.
     for id in &incomplete_ids {
-        delete_candidate(client, &csrf, &candidate_list_id, id).await?;
+        delete_candidate(client, &candidate_list_id, id).await?;
     }
 
     // 12. Shuffle the (now-clean) order a few times to exercise the reorder
@@ -151,11 +174,13 @@ pub async fn run_session(
     //     now, covering every candidate list at once; it is timed as a full
     //     transfer (the Typst service has to render every model), so it's
     //     usually the slowest leg of the run by a wide margin.
-    download_documents(client, &csrf, config.locale).await?;
+    download_documents(client, config.locale).await?;
 
     // 14. Final survey of the data we created.
     client.get("persons:list", "/persons").await?;
-    client.get("candidate-lists:list", "/candidate-lists").await?;
+    client
+        .get("candidate-lists:list", "/candidate-lists")
+        .await?;
 
     Ok(())
 }
@@ -167,6 +192,7 @@ fn personal_data_form<'a>(
     csrf: &'a str,
     row: &'a PersonRow,
     last_name: &'a str,
+    last_name_prefix: &'a str,
     initials: &'a str,
     date_of_birth: &'a str,
 ) -> Vec<(&'a str, &'a str)> {
@@ -174,7 +200,7 @@ fn personal_data_form<'a>(
         ("csrf_token", csrf),
         ("first_name", row.first_name()),
         ("last_name", last_name),
-        ("last_name_prefix", ""),
+        ("last_name_prefix", last_name_prefix),
         ("initials", initials),
         ("gender", row.gender()),
         ("date_of_birth", date_of_birth),
@@ -191,17 +217,25 @@ fn personal_data_form<'a>(
 /// still successfully created.
 async fn create_person(
     client: &mut Client,
-    csrf: &str,
     row: &PersonRow,
     suffix: &str,
 ) -> Result<(String, bool)> {
     client.get("person-create:get", "/persons/create").await?;
+    let csrf = client.csrf().to_string();
 
-    let last_name = unique_last_name(&row.geslachtsnaam, suffix);
+    let (prefix, base_last_name) = row.last_name_parts();
+    let last_name = unique_last_name(base_last_name, suffix);
     let initials = row.initials();
     let dob = row.date_of_birth();
     let complete = !dob.is_empty() && !row.woonplaats.is_empty();
-    let form = personal_data_form(csrf, row, &last_name, &initials, &dob);
+    let form = personal_data_form(
+        &csrf,
+        row,
+        &last_name,
+        prefix.unwrap_or(""),
+        &initials,
+        &dob,
+    );
     let address_path = client
         .post("person-create:post", "/persons/create", &form)
         .await?
@@ -213,8 +247,9 @@ async fn create_person(
     // The address redirect carries `?created=true`. Land on it (realistic),
     // then POST to the canonical path.
     client.get("person-address:get", &address_path).await?;
+    let csrf = client.csrf().to_string();
     let address_form: Vec<(&str, &str)> = vec![
-        ("csrf_token", csrf),
+        ("csrf_token", &csrf),
         ("street_name", &row.straat),
         ("house_number", &row.huisnummer),
         ("house_number_addition", ""),
@@ -235,17 +270,26 @@ async fn create_person(
 
 async fn edit_person(
     client: &mut Client,
-    csrf: &str,
     person_id: &str,
     row: &PersonRow,
-    new_last_name: &str,
+    suffix: &str,
 ) -> Result<()> {
     let path = format!("/persons/{person_id}/update");
     client.get("person-edit:get", &path).await?;
+    let csrf = client.csrf().to_string();
 
+    let (prefix, base_last_name) = row.last_name_parts();
+    let last_name = format!("{} aangepast", unique_last_name(base_last_name, suffix));
     let initials = row.initials();
     let dob = row.date_of_birth();
-    let form = personal_data_form(csrf, row, new_last_name, &initials, &dob);
+    let form = personal_data_form(
+        &csrf,
+        row,
+        &last_name,
+        prefix.unwrap_or(""),
+        &initials,
+        &dob,
+    );
     // A Dutch-resident person lands back on their address page after an update
     // (the "next step" in the person flow), so follow wherever we're sent.
     let next = client
@@ -257,14 +301,12 @@ async fn edit_person(
     Ok(())
 }
 
-async fn delete_candidate(
-    client: &mut Client,
-    csrf: &str,
-    list_id: &str,
-    person_id: &str,
-) -> Result<()> {
+/// Posted straight from the candidate-list view (a modal's form), so the
+/// token of the page last rendered is the right one.
+async fn delete_candidate(client: &mut Client, list_id: &str, person_id: &str) -> Result<()> {
     let path = format!("/candidate-lists/{list_id}/delete/{person_id}");
-    let form: Vec<(&str, &str)> = vec![("csrf_token", csrf)];
+    let csrf = client.csrf().to_string();
+    let form: Vec<(&str, &str)> = vec![("csrf_token", &csrf)];
     let next = client
         .post("candidate:delete", &path, &form)
         .await?
@@ -273,11 +315,12 @@ async fn delete_candidate(
     Ok(())
 }
 
-async fn add_all_persons_to_list(client: &mut Client, csrf: &str, list_id: &str) -> Result<()> {
+async fn add_all_persons_to_list(client: &mut Client, list_id: &str) -> Result<()> {
     let path = format!("/candidate-lists/{list_id}/add");
     client.get("candidate-list:add:get", &path).await?;
+    let csrf = client.csrf().to_string();
     let form: Vec<(&str, &str)> = vec![
-        ("csrf_token", csrf),
+        ("csrf_token", &csrf),
         ("action", "add-all"),
         ("added_position", ""),
     ];
@@ -286,7 +329,10 @@ async fn add_all_persons_to_list(client: &mut Client, csrf: &str, list_id: &str)
     // the happy path — we don't get a redirect.
     client.post("candidate-list:add:post", &path, &form).await?;
     client
-        .get("candidate-list:view", &format!("/candidate-lists/{list_id}"))
+        .get(
+            "candidate-list:view",
+            &format!("/candidate-lists/{list_id}"),
+        )
         .await?;
     Ok(())
 }
@@ -306,19 +352,23 @@ async fn reorder_list(
     // Follow up by viewing the list — that's what a real user does after
     // dragging the rows around.
     client
-        .get("candidate-list:view", &format!("/candidate-lists/{list_id}"))
+        .get(
+            "candidate-list:view",
+            &format!("/candidate-lists/{list_id}"),
+        )
         .await?;
     Ok(())
 }
 
-async fn create_candidate_list(client: &mut Client, csrf: &str) -> Result<String> {
+async fn create_candidate_list(client: &mut Client) -> Result<String> {
     // EK27 has 16 electoral districts — pick them all. (For single-district
     // elections like PS27/WS27, the GET handler auto-creates the list and
     // we'd skip the POST; we don't bother handling that here since the rest
     // of the scenario is EK27-flavoured anyway.)
     let path = "/candidate-lists/create";
     client.get("candidate-list:create:get", path).await?;
-    let mut form: Vec<(&str, &str)> = vec![("csrf_token", csrf)];
+    let csrf = client.csrf().to_string();
+    let mut form: Vec<(&str, &str)> = vec![("csrf_token", &csrf)];
     for district in EK27_DISTRICTS {
         form.push(("electoral_districts", district));
     }
@@ -332,17 +382,35 @@ async fn create_candidate_list(client: &mut Client, csrf: &str) -> Result<String
     Ok(list_id)
 }
 
-/// The `ElectoralDistrict` variant names EK27 uses. These are the *form* values
-/// (`serde_name()`), which for these 16 happen to equal their codes.
+/// The `ElectoralDistrict` variant names EK27 uses. The checkbox values are
+/// `serde_name()`, i.e. the variant name verbatim, *not* the district code
+/// (`prov1`, `kc16`, ...) — see `districts_form.html`. The enum itself is
+/// generated by the app's build script from the district tables.
 const EK27_DISTRICTS: &[&str] = &[
-    "GR", "FR", "DR", "OV", "FL", "GE", "UT", "NH", "ZH", "ZE", "NB", "LI", "BO", "SE", "SA", "KN",
+    "Groningen",
+    "Fryslan",
+    "Drenthe",
+    "Overijssel",
+    "Flevoland",
+    "Gelderland",
+    "Utrecht",
+    "NoordHolland",
+    "ZuidHolland",
+    "Zeeland",
+    "NoordBrabant",
+    "Limburg",
+    "Bonaire",
+    "SintEustatius",
+    "Saba",
+    "Buitenland",
 ];
 
 /// One download per session: `/generate/{locale}/documents.zip` bundles every
 /// model (H1, H3, H4, H9) plus the EML 2.10 export for every candidate list,
 /// replacing the per-model endpoints.
-async fn download_documents(client: &mut Client, csrf: &str, locale: &str) -> Result<()> {
+async fn download_documents(client: &mut Client, locale: &str) -> Result<()> {
     client.get("finalise:get", "/finalise").await?;
+    let csrf = client.csrf().to_string();
     let path = format!("/generate/{locale}/documents.zip");
     if let Err(err) = client.download("download:documents", &path).await {
         eprintln!("download documents: {err}");
@@ -351,7 +419,7 @@ async fn download_documents(client: &mut Client, csrf: &str, locale: &str) -> Re
 
     // After a download the app shows a "don't forget to check the documents"
     // warning on every page until the user dismisses it.
-    let form: Vec<(&str, &str)> = vec![("csrf_token", csrf)];
+    let form: Vec<(&str, &str)> = vec![("csrf_token", &csrf)];
     let next = client
         .post_with_referer(
             "hide-download-warning:post",
@@ -380,15 +448,20 @@ fn parse_id_segment(redirect: &str, prefix: &str) -> Option<String> {
         .next()?
         .split('/')
         .next()?;
-    if id.is_empty() { None } else { Some(id.to_string()) }
+    if id.is_empty() {
+        None
+    } else {
+        Some(id.to_string())
+    }
 }
 
-async fn create_name_authorisation(client: &mut Client, csrf: &str, suffix: &str) -> Result<()> {
+async fn create_name_authorisation(client: &mut Client, suffix: &str) -> Result<()> {
     let path = "/political-group/name-authorisation/create";
     client.get("name-authorisation:create:get", path).await?;
+    let csrf = client.csrf().to_string();
     let legal = format!("Vereniging Partij {suffix}");
     let form: Vec<(&str, &str)> = vec![
-        ("csrf_token", csrf),
+        ("csrf_token", &csrf),
         ("last_name", "Jansen"),
         ("last_name_prefix", "de"),
         ("initials", "A.B."),
@@ -402,11 +475,12 @@ async fn create_name_authorisation(client: &mut Client, csrf: &str, suffix: &str
     Ok(())
 }
 
-async fn update_list_submitter(client: &mut Client, csrf: &str) -> Result<()> {
+async fn update_list_submitter(client: &mut Client) -> Result<()> {
     let path = "/political-group/list-submitter/update";
     client.get("list-submitter:update:get", path).await?;
+    let csrf = client.csrf().to_string();
     let form: Vec<(&str, &str)> = vec![
-        ("csrf_token", csrf),
+        ("csrf_token", &csrf),
         ("last_name", "Bos"),
         ("last_name_prefix", ""),
         ("initials", "E.F."),
@@ -430,7 +504,6 @@ async fn update_list_submitter(client: &mut Client, csrf: &str) -> Result<()> {
 #[allow(clippy::too_many_arguments)]
 async fn create_substitute_submitter(
     client: &mut Client,
-    csrf: &str,
     last_name: &str,
     last_name_prefix: Option<&str>,
     initials: &str,
@@ -442,8 +515,9 @@ async fn create_substitute_submitter(
 ) -> Result<()> {
     let path = "/political-group/substitute-submitters/create";
     client.get("substitute-submitter:create:get", path).await?;
+    let csrf = client.csrf().to_string();
     let form: Vec<(&str, &str)> = vec![
-        ("csrf_token", csrf),
+        ("csrf_token", &csrf),
         ("last_name", last_name),
         ("last_name_prefix", last_name_prefix.unwrap_or("")),
         ("initials", initials),
@@ -465,10 +539,13 @@ async fn create_substitute_submitter(
 
 /// `standalone` / `blank` / `combined`. Which one is set decides whether an H3-1
 /// or an H3-2 ends up in the zip, so it has to be set before downloading.
-async fn update_list_designation(client: &mut Client, csrf: &str, designation: &str) -> Result<()> {
-    client.get("list-designation:get", "/political-group").await?;
+async fn update_list_designation(client: &mut Client, designation: &str) -> Result<()> {
+    client
+        .get("list-designation:get", "/political-group")
+        .await?;
+    let csrf = client.csrf().to_string();
     let form: Vec<(&str, &str)> = vec![
-        ("csrf_token", csrf),
+        ("csrf_token", &csrf),
         ("list_designation_type", designation),
     ];
     let next = client
@@ -479,13 +556,20 @@ async fn update_list_designation(client: &mut Client, csrf: &str, designation: &
     Ok(())
 }
 
-async fn update_political_group(client: &mut Client, csrf: &str, suffix: &str) -> Result<()> {
+/// The group's `appellation` (its name on the ballot; the field used to be
+/// called `display_name`). `pg_appellation()` errors out for anything but a
+/// blank list when it is unset, which fails the whole documents download, so
+/// this step has to land before step 13.
+async fn update_political_group(client: &mut Client, suffix: &str) -> Result<()> {
     let path = "/political-group/information";
     client.get("political-group:get", path).await?;
-    let display = format!("Partij {suffix}");
+    let csrf = client.csrf().to_string();
+    // At most 35 characters excluding spaces, so the suffix has to stay short.
+    let appellation = format!("Partij {suffix}");
     let form: Vec<(&str, &str)> = vec![
-        ("csrf_token", csrf),
-        ("display_name", &display),
+        ("csrf_token", &csrf),
+        ("appellation", &appellation),
+        // The fixture loader leaves this unset too; empty parses to `None`.
         ("previous_election_results", ""),
     ];
     let next = client

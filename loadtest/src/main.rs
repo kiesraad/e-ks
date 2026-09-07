@@ -15,6 +15,10 @@ use crate::client::Client;
 use crate::metrics::Collector;
 use crate::scenario::{ScenarioConfig, run_session};
 
+/// Mirrors the app's `MAX_CANDIDATES`: the hard cap `PgStore::candidate_limit`
+/// enforces on the length of a candidate list.
+const MAX_CANDIDATES: usize = 80;
+
 #[derive(Parser, Debug)]
 #[command(about = "Concurrent session load test for the e-KS app")]
 struct Args {
@@ -38,9 +42,14 @@ struct Args {
     #[arg(long, default_value = "EK27")]
     election: String,
 
-    /// Tick the "load fixtures" checkbox in the select-election form. Skip
-    /// for a true cold-load — when set, the server pre-loads, which makes the
-    /// per-session POSTs hit a non-empty store.
+    /// Tick the "load fixtures" checkbox in the select-election form, so the
+    /// session's store starts non-empty.
+    ///
+    /// The fixtures are seeded from the same `persons.csv` this test reads and
+    /// `uniqueness_errors` rejects a duplicate BSN outright, so with this set
+    /// every person the session tries to create is refused and the
+    /// candidate-list and download steps have nothing to work with. Only
+    /// useful for timing the GETs against a populated store.
     #[arg(long)]
     load_fixtures: bool,
 
@@ -73,7 +82,8 @@ struct Args {
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
-    let base = Url::parse(&args.base_url).with_context(|| format!("parse base_url {}", args.base_url))?;
+    let base =
+        Url::parse(&args.base_url).with_context(|| format!("parse base_url {}", args.base_url))?;
     let persons = data::load_persons().context("load persons.csv")?;
     println!(
         "loadtest: {} users x {} runs, {} persons/run against {}",
@@ -84,6 +94,16 @@ async fn main() -> Result<()> {
             "persons_per_user ({}) > available fixture rows ({})",
             args.persons_per_user,
             persons.len()
+        );
+    }
+    // Every person a session creates also goes onto its candidate list, and
+    // `CandidateList::update_order` rejects a list longer than the app's
+    // `MAX_CANDIDATES` — the reorder step would 404/400 for the whole session.
+    if args.persons_per_user > MAX_CANDIDATES {
+        anyhow::bail!(
+            "persons_per_user ({}) > the app's candidate limit ({MAX_CANDIDATES}); \
+             the candidate list cannot hold them and the reorder step would fail",
+            args.persons_per_user,
         );
     }
 

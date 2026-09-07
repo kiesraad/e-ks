@@ -70,11 +70,14 @@ impl Client {
         self.csrf.as_deref().unwrap_or("")
     }
 
-    /// GET a path. The CSRF token is stable for the lifetime of a session, so
-    /// we only sniff it from the first HTML page we render — subsequent GETs
-    /// are pure timing measurements.
+    /// GET a path, keeping [`Client::csrf`] on the token the last rendered page
+    /// carried. The session's token is not immutable: `/select-election`
+    /// rotates it, so latching onto the first one 400s every later POST.
     pub async fn get(&mut self, label: &'static str, path: &str) -> Result<GetOutcome> {
-        let url = self.base.join(path).with_context(|| format!("join {path}"))?;
+        let url = self
+            .base
+            .join(path)
+            .with_context(|| format!("join {path}"))?;
         let started = Instant::now();
         let response = self.http.get(url).send().await?;
         let status = response.status();
@@ -88,8 +91,10 @@ impl Client {
             GetOutcome::Redirect(location.clone().unwrap_or_default())
         } else if status.is_success() {
             let body = response.text().await?;
-            if self.csrf.is_none() {
-                self.csrf = extract_csrf_token(&body);
+            // Pages without a form (downloads, the 404) carry no token; keep
+            // the one we have rather than clearing it.
+            if let Some(token) = extract_csrf_token(&body) {
+                self.csrf = Some(token);
             }
             GetOutcome::Page(body)
         } else {
@@ -109,7 +114,10 @@ impl Client {
     /// GET a file download (PDF, XML, ZIP). Consumes the body as bytes so the
     /// timing reflects the full transfer, but doesn't parse it.
     pub async fn download(&self, label: &'static str, path: &str) -> Result<()> {
-        let url = self.base.join(path).with_context(|| format!("join {path}"))?;
+        let url = self
+            .base
+            .join(path)
+            .with_context(|| format!("join {path}"))?;
         let started = Instant::now();
         let response = self
             .http
@@ -209,7 +217,10 @@ impl Client {
         body: String,
         referer: Option<String>,
     ) -> Result<PostOutcome> {
-        let url = self.base.join(path).with_context(|| format!("join {path}"))?;
+        let url = self
+            .base
+            .join(path)
+            .with_context(|| format!("join {path}"))?;
         let started = Instant::now();
         let mut request = self
             .http
@@ -254,7 +265,10 @@ impl Client {
             return Ok(PostOutcome::Rerender(body));
         }
         let body = response.text().await.unwrap_or_default();
-        bail!("POST {path} unexpected status {status}: {}", truncate(&body));
+        bail!(
+            "POST {path} unexpected status {status}: {}",
+            truncate(&body)
+        );
     }
 }
 
@@ -286,10 +300,9 @@ impl PostOutcome {
         match self {
             PostOutcome::NoContent => Ok(()),
             PostOutcome::Redirect(loc) => bail!("{label}: expected 204, got redirect to {loc}"),
-            PostOutcome::Rerender(body) => bail!(
-                "{label}: expected 204, got 200: {}",
-                truncate(&body)
-            ),
+            PostOutcome::Rerender(body) => {
+                bail!("{label}: expected 204, got 200: {}", truncate(&body))
+            }
         }
     }
 }
@@ -319,8 +332,7 @@ fn extract_validation_errors(body: &str) -> Option<String> {
         && let Some(msg_start) = body[start + after..].find("<p>")
         && let Some(msg_end) = body[start + after + msg_start..].find("</p>")
     {
-        let msg = &body
-            [start + after + msg_start + 3..start + after + msg_start + msg_end];
+        let msg = &body[start + after + msg_start + 3..start + after + msg_start + msg_end];
         let msg = msg.trim();
         if !msg.is_empty() {
             out.push(msg.to_string());
