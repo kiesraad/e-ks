@@ -21,13 +21,13 @@ use super::OmissionTarget;
 /// otherwise the political group examination overview.
 pub(super) fn return_path(target: &OmissionTarget, political_group: &CsbPoliticalGroup) -> String {
     match target.omission_type {
-        OmissionType::PoliticalGroup => political_group.general_information_path().to_string(),
+        OmissionType::PoliticalGroup | OmissionType::Appellation => {
+            political_group.general_information_path().to_string()
+        }
         OmissionType::CandidateList => political_group
             .candidate_list_path(&CandidateListId::from(target.reference))
             .to_string(),
-        OmissionType::DeclarationsOfSupport | OmissionType::Appellation => {
-            political_group.group_path().to_string()
-        }
+        OmissionType::DeclarationsOfSupport => political_group.group_path().to_string(),
         // The candidate detail page is scoped to a list, so it can only be the
         // return target when the dialog was opened for a specific list.
         OmissionType::Candidate => match target.list {

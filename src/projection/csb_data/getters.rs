@@ -479,6 +479,12 @@ impl CsbStream {
         }
     }
 
+    pub fn is_appellation_scrapped(&self) -> bool {
+        self.get_appellation_omissions()
+            .iter()
+            .any(Omission::is_unresolved)
+    }
+
     /// One-based position of the candidate on the given list
     pub fn get_candidate_position(
         &self,

@@ -10,9 +10,6 @@ all_restorations:
   omissions_explanation: Alle aangemaakte verzuimen vindt u hier.
   omissions_title: Overzicht verzuimen
   title: Verzuimen en correcties
-appellation:
-  instruction: Meld problemen met de aanduiding
-  title: Aanduiding
 auth:
   button:
     github: Inloggen met GitHub
@@ -145,6 +142,7 @@ omission:
     title: Overzicht
   title: Verzuimen
   title_for:
+    appellation: Verzuimen aanduiding
     candidate: "Verzuimen {}"
     candidate_list: Verzuimen kandidatenlijst
     general: Verzuimen basisgegevens

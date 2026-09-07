@@ -71,6 +71,7 @@ mod tests {
             restoration_count: 0,
             omission_count: 0,
             first_candidate_name: None,
+            is_appellation_scrapped: false,
         }]);
 
         let response = overview(
@@ -101,6 +102,7 @@ mod tests {
             restoration_count: 0,
             omission_count: 0,
             first_candidate_name: None,
+            is_appellation_scrapped: false,
         }]);
 
         let response = overview(
@@ -131,6 +133,7 @@ mod tests {
             restoration_count: 0, /* omission count should be used and > 0 */
             omission_count: 3,
             first_candidate_name: None,
+            is_appellation_scrapped: false,
         }]);
 
         let response = overview(

@@ -39,8 +39,10 @@
   <section class="general-information">
     {% if political_group.mode.is_examination() %}
       {{ restorations::omission_panel("csb.omission.title_for.general"|trans, "csb.general.add_text"|trans, political_group.add_political_group_omission_path() , political_group.manage_political_group_omissions_path() , political_group_omissions.as_slice()) }}
+      {{ restorations::omission_panel("csb.omission.title_for.appellation"|trans, "csb.general.add_text"|trans, political_group.add_appellation_omission_path() , political_group.manage_appellation_omissions_path() , appellation_omissions.as_slice()) }}
     {% else %}
       {{ restorations::status_panel(political_group, "csb.omission.title_for.general"|trans, "csb.recovery.omissions_explanation"|trans, political_group_omissions.as_slice() , political_group.general_information_path()) }}
+      {{ restorations::status_panel(political_group, "csb.omission.title_for.appellation"|trans, "", appellation_omissions.as_slice() , political_group.general_information_path()) }}
     {% endif %}
     <h2>{{ "csb.general.group_info"|trans }}</h2>
     <table class="detail-table">
@@ -58,9 +60,15 @@
             </tr>
           {% else %}
             <tr>
-              <td>{{ appellation_label }}: {{ paper_corrected::value(group_info.appellation) }}</td>
-              <td></td>
-              <td></td>
+              {% if political_group.is_appellation_scrapped %}
+                <td><s>{{ appellation_label }}: {{ paper_corrected::value(group_info.appellation) }}</s></td>
+                <td><span class="restoration-tag restoration-tag-scrapped">{{ "csb.recovery.scrapped"|trans }}</span></td>
+                <td></td>
+              {% else %}
+                <td>{{ appellation_label }}: {{ paper_corrected::value(group_info.appellation) }}</td>
+                <td></td>
+                <td></td>
+              {% endif %}
             </tr>
           {% endif %}
         {% endif %}
@@ -77,8 +85,21 @@
         <table class="detail-table">
           {{ paper_corrected::columns_head(name_authorisation.heading) }}
           <tbody>
-            {{ paper_corrected::data_row("political_group.legal_name"|trans, name_authorisation.legal_name) }}
-            {{ paper_corrected::data_row("political_group.authorised_agent"|trans, name_authorisation.authorised_agent) }}
+            {% if !political_group.mode.is_recovery() || !political_group.is_appellation_scrapped %}
+              {{ paper_corrected::data_row("political_group.legal_name"|trans, name_authorisation.legal_name) }}
+              {{ paper_corrected::data_row("political_group.authorised_agent"|trans, name_authorisation.authorised_agent) }}
+            {% else %}
+              <tr>
+                <td><s>{{ "political_group.legal_name"|trans }}: {{ paper_corrected::value(name_authorisation.legal_name) }}</s></td>
+                <td><span class="restoration-tag restoration-tag-scrapped">{{ "csb.recovery.scrapped"|trans }}</span></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td><s>{{ "political_group.authorised_agent"|trans }}: {{ paper_corrected::value(name_authorisation.authorised_agent) }}</s></td>
+                <td><span class="restoration-tag restoration-tag-scrapped">{{ "csb.recovery.scrapped"|trans }}</span></td>
+                <td></td>
+              </tr>
+            {% endif %}
           </tbody>
         </table>
       {% endfor %}

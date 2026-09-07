@@ -5,6 +5,7 @@ add_legal_name: Add statutory name
 add_list_submitter: Add list submitter
 add_substitute_submitter: Add substitute submitter
 appellation: Appellation
+appellation_any: Appellation
 appellation_combined: Combined appellation
 authorised_agent: Authorised agent
 authorised_agent_data: (Deputy) authorised agent data

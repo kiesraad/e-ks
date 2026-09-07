@@ -25,6 +25,7 @@ struct CsbGeneralInformationTemplate {
     list_submitter: Option<PaperCorrectedSubmitter>,
     substitute_submitters: Vec<PaperCorrectedSubmitter>,
     political_group_omissions: Vec<Omission>,
+    appellation_omissions: Vec<Omission>,
 }
 
 /// Render the placeholder general information (basisgegevens) page for a
@@ -47,11 +48,12 @@ pub(in crate::csb) async fn render(
     Ok(HtmlTemplate(
         CsbGeneralInformationTemplate {
             political_group: CsbPoliticalGroup::new_from_csb_store(&store).with_mode(mode),
-            group_info: PaperCorrectedPoliticalGroupInfo::new(&store, context.session.locale),
+            group_info: PaperCorrectedPoliticalGroupInfo::new(&store, context.session.locale, mode),
             name_authorisations: paper_corrected_name_authorisations(&store),
             list_submitter: paper_corrected_list_submitter(&store),
             substitute_submitters: paper_corrected_substitute_submitters(&store),
             political_group_omissions: store.get_political_group_omissions(),
+            appellation_omissions: store.get_appellation_omissions(),
         },
         context,
     )

@@ -3,7 +3,7 @@ use crate::{
     CsbStream, Locale,
     projection::WithCorrections,
     structs::{
-        common::PreviousElectionResults, list_designation::ListDesignation,
+        common::PreviousElectionResults, csb::CsbPhase, list_designation::ListDesignation,
         political_groups::PoliticalGroup,
     },
     trans,
@@ -22,11 +22,20 @@ pub struct PaperCorrectedPoliticalGroupInfo {
 }
 
 impl PaperCorrectedPoliticalGroupInfo {
-    pub fn new(store: &CsbStream, locale: Locale) -> Self {
+    pub fn new(store: &CsbStream, locale: Locale, mode: CsbPhase) -> Self {
         let imported_group = store.get_political_group(WithCorrections::None);
         let paper_corrected_group = store.get_political_group(WithCorrections::Paper);
 
         let designation = paper_corrected_group.list_designation.unwrap_or_default();
+
+        let mut list_type = PaperCorrected::new(
+            list_type_label(&imported_group, locale),
+            list_type_label(&paper_corrected_group, locale),
+        );
+        if mode.is_recovery() && store.is_appellation_scrapped() {
+            list_type = list_type
+                .with_csb_correction(Some(trans!("political_group.type.blank_name", locale)));
+        }
 
         Self {
             appellation_label: appellation_label(designation, locale),
@@ -35,10 +44,7 @@ impl PaperCorrectedPoliticalGroupInfo {
                 store.get_appellation(WithCorrections::Paper),
             )
             .with_csb_correction(Some(store.get_appellation(WithCorrections::All))),
-            list_type: PaperCorrected::new(
-                list_type_label(&imported_group, locale),
-                list_type_label(&paper_corrected_group, locale),
-            ),
+            list_type,
             previous_results: PaperCorrected::new(
                 previous_results_label(&imported_group, locale),
                 previous_results_label(&paper_corrected_group, locale),

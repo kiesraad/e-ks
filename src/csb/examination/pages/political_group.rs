@@ -25,7 +25,6 @@ struct CsbPoliticalGroupTemplate {
     candidate_lists: Vec<CsbCandidateList>,
     political_group_status: RestorationStatus,
     declarations_of_support_omissions: Vec<Omission>,
-    appellation_omissions: Vec<Omission>,
     has_paper_corrections: bool,
     scrapped_districts: Vec<crate::ElectoralDistrict>,
 }
@@ -86,7 +85,6 @@ pub(in crate::csb) async fn render(
             candidate_lists,
             political_group_status,
             declarations_of_support_omissions: store.get_all_declarations_of_support_omissions(),
-            appellation_omissions: store.get_appellation_omissions(),
             has_paper_corrections: store.has_paper_corrections(),
             scrapped_districts: store.get_scrapped_districts(),
         },

@@ -130,7 +130,7 @@ impl OmissionTarget {
                         // the user can still get to the add/overview omission page via
                         // all restorations. Users shouldn't apply paper corrections
                         // after adding omissions, but we cannot guarantee this.
-                        trans!("csb.appellation.title", locale)
+                        trans!("political_group.appellation_any", locale)
                     }
                 }
             }

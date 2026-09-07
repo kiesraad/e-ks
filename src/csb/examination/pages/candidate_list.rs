@@ -7,6 +7,7 @@ use crate::{
         extractors::CsbPoliticalGroup, pages::CsbCandidateListPath, structs::CsbCandidate,
     },
     filters,
+    projection::WithCorrections,
     structs::{
         candidate_lists::{CandidateList, CandidateListId},
         csb::{CsbPhase, Omission},
@@ -43,11 +44,11 @@ pub(in crate::csb) async fn render(
     mode: CsbPhase,
 ) -> Result<Response, AppError> {
     let political_group = CsbPoliticalGroup::new_from_csb_store(&store).with_mode(mode);
-    let corrected_list = store.get_candidate_list(list_id, crate::projection::WithCorrections::All);
+    let corrected_list = store.get_candidate_list(list_id, WithCorrections::All);
     // For paper-added lists there is no imported side; use an empty-candidate
     // placeholder so all candidates render as paper-corrected additions.
     let imported_list = store
-        .get_candidate_list(list_id, crate::projection::WithCorrections::None)
+        .get_candidate_list(list_id, WithCorrections::None)
         .or_else(|| {
             corrected_list.as_ref().map(|corrected| CandidateList {
                 candidates: Vec::new(),

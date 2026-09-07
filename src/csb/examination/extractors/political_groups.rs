@@ -13,6 +13,7 @@ pub struct CsbPoliticalGroup {
     pub mode: CsbPhase,
     pub is_examination_finished: bool,
     pub is_deleted: bool,
+    pub is_appellation_scrapped: bool,
     pub restoration_count: usize,
     pub omission_count: usize,
     pub pending_omission_count: usize,
@@ -28,6 +29,7 @@ impl CsbPoliticalGroup {
             mode: CsbPhase::Examination,
             is_examination_finished: store.is_examination_finished(),
             is_deleted: store.is_deleted(),
+            is_appellation_scrapped: store.is_appellation_scrapped(),
             restoration_count: store.get_restoration_count(),
             omission_count: store.get_omission_count(),
             pending_omission_count: store.get_pending_omission_count(),
@@ -158,6 +160,7 @@ mod tests {
             pending_omission_count: 0,
             actionable_omission_count: 0,
             first_candidate_name: None,
+            is_appellation_scrapped: false,
         };
 
         assert_eq!(group.csb_appellation(), "Kiesraad Demo");
@@ -183,6 +186,7 @@ mod tests {
                 initials: "A.B.".parse().unwrap(),
                 ..Default::default()
             }),
+            is_appellation_scrapped: false,
         };
 
         assert_eq!(group.csb_appellation(), "Blanco (Jansen, A.B.)");
@@ -204,6 +208,7 @@ mod tests {
             pending_omission_count: 0,
             actionable_omission_count: 0,
             first_candidate_name: None,
+            is_appellation_scrapped: false,
         };
 
         assert_eq!(group.csb_appellation(), "Blanco");

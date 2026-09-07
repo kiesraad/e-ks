@@ -54,6 +54,7 @@ mod tests {
             pending_omission_count: pending,
             actionable_omission_count: actionable,
             first_candidate_name: None,
+            is_appellation_scrapped: false,
         }
     }
 
