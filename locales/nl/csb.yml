@@ -3,6 +3,10 @@ action:
   examine: Onderzoeken
   finish: Afronden
 added: Toegevoegd
+all_brp_findings:
+  explanation: "Alle verschillen die de controle tegen de BRP heeft gevonden, per kandidaat."
+  none: De controle tegen de BRP heeft geen fouten gevonden.
+  title: Alle BRP fouten
 all_restorations:
   corrections_explanation: Alle aangemaakte ambtshalve correcties vindt u hier.
   corrections_title: Overzicht gecorrigeerde acties
@@ -19,12 +23,41 @@ auth:
     intro: U logt in met uw GitHub-account. Alleen accounts die vooraf toegang hebben gekregen kunnen inloggen bij het centraal stembureau.
     title: Inloggen bij het centraal stembureau
 brp:
+  check_candidate: Deze kandidaat controleren met de BRP
   correct: Correct
   errors: Fouten
+  finding:
+    bsn_matched_by_personal_details: "Op de overige persoonsgegevens is precies één persoon in de BRP gevonden, met burgerservicenummer {}. De gegevens hieronder zijn met die persoon vergeleken."
+    bsn_missing: "Er is geen burgerservicenummer vastgelegd, waardoor deze kandidaat niet in de BRP is op te zoeken."
+    bsn_none_confirmed: "Van deze kandidaat is vastgelegd dat die geen burgerservicenummer heeft, waardoor deze niet in de BRP is op te zoeken."
+    bsn_not_unique: Er is meer dan één persoon in de BRP met dit burgerservicenummer.
+    bsn_unknown: Er is geen persoon in de BRP met dit burgerservicenummer.
+    deceased: "Volgens de BRP is deze kandidaat overleden op {}."
+    deceased_date_unknown: "Volgens de BRP is deze kandidaat overleden, zonder volledige datum van overlijden."
+    excluded_from_suffrage: Volgens de BRP is deze kandidaat uitgesloten van het kiesrecht.
+    mismatch: "{} wijkt af van de BRP, waarin staat: {}"
+    missing_in_brp: "De BRP bevat geen {} voor deze kandidaat."
+    not_dutch: Volgens de BRP heeft deze kandidaat niet de Nederlandse nationaliteit.
+    personal_details_not_unique: "Er passen meerdere personen in de BRP op de persoonsgegevens van deze kandidaat, waardoor de gegevens niet zijn vergeleken."
+    residence_abroad: "Deze kandidaat woont in het buitenland, waardoor de BRP geen woonplaats bevat."
+    residence_unknown: De verblijfplaats van deze kandidaat is onbekend in de BRP.
+    residence_without_address: "Deze kandidaat heeft geen woonadres in de BRP (bijvoorbeeld een briefadres), waardoor de BRP geen woonplaats bevat."
+    unparsable: "De waarde uit de BRP voor {} is niet te interpreteren en is daarom niet vergeleken: {}"
+  incomplete: Controle niet afgerond
+  not_checked: Niet gecontroleerd
+  refresh: Pagina verversen
+  start_check: Controleren met de BRP
+  status:
+    aborted: "De controle tegen de BRP is voortijdig gestopt, waardoor niet alle kandidaten zijn gecontroleerd: {}"
+    changed_since_check: De gegevens zijn na de controle tegen de BRP gewijzigd en moeten opnieuw gecontroleerd worden.
+    in_progress: "De controle tegen de BRP loopt nog, waardoor nog niet alle kandidaten zijn gecontroleerd."
+    interrupted: "De controle tegen de BRP is voortijdig gestopt, waardoor niet alle kandidaten zijn gecontroleerd. Start de controle opnieuw om de rest te controleren."
+    not_started: De kandidaten zijn nog niet tegen de BRP gecontroleerd.
 candidate:
   add_candidate_text: Voeg verzuimen toe voor deze kandidaat
   personal_details: Persoonsgegevens
 correction:
+  brp_value: Waarde in de BRP
   form:
     submit: Correctie opslaan
     value_label: Gecorrigeerde waarde
@@ -104,7 +137,7 @@ index:
     title: Vaststellen kandidatenlijsten
 list:
   add_text: Voeg verzuimen toe voor deze kandidatenlijst
-  brp_errors: BRP fouten
+  brp_check: BRP controle
 monitoring:
   cache: Lokale cache
   created_at: Aangemaakt
@@ -169,6 +202,6 @@ recovery:
 status:
   approved: Goedgekeurd
   correction: Ambtshalve correcties toegevoegd
-  in_progress: Controle bezig
+  in_progress: Onderzoek bezig
   name: Status
   omission: Verzuimen toegevoegd

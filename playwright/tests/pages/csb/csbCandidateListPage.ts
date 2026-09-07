@@ -20,7 +20,9 @@ export class CsbCandidateListPage {
 
   async getElectoralDistrict(page: Page, districts: string[]): Promise<string> {
     for (const district of districts) {
-      if (await page.getByText(district).isVisible()) {
+      // Match the numbered district tag ("1. Groningen") rather than the bare
+      // name, which can also appear as a candidate's place of residence.
+      if (await page.getByText(new RegExp(`\\d+\\. ${district}`)).isVisible()) {
         return district;
       }
     }

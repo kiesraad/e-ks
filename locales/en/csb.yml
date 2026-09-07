@@ -3,6 +3,10 @@ action:
   examine: Examine
   finish: Finish
 added: Added
+all_brp_findings:
+  explanation: "Every difference the check against the BRP found, per candidate."
+  none: The check against the BRP found no errors.
+  title: All BRP errors
 all_restorations:
   corrections_explanation: All created corrections are displayed here.
   corrections_title: Corrections overview
@@ -19,12 +23,41 @@ auth:
     intro: You sign in with your GitHub account. Only accounts that have been granted access in advance can sign in to the central electoral committee.
     title: Sign in to the central electoral committee
 brp:
+  check_candidate: Check this candidate against the BRP
   correct: Correct
   errors: Errors
+  finding:
+    bsn_matched_by_personal_details: "The candidate's other personal details match exactly one person in the BRP, with social security number {}. The data below was compared against that person."
+    bsn_missing: "No social security number was recorded, so this candidate could not be looked up in the BRP."
+    bsn_none_confirmed: "This candidate is recorded as having no social security number, so they could not be looked up in the BRP."
+    bsn_not_unique: More than one person in the BRP has this social security number.
+    bsn_unknown: No person in the BRP has this social security number.
+    deceased: "The BRP records this candidate as deceased on {}."
+    deceased_date_unknown: "The BRP records this candidate as deceased, without a full date of death."
+    excluded_from_suffrage: The BRP records this candidate as excluded from the right to vote.
+    mismatch: "{} differs from the BRP, which holds: {}"
+    missing_in_brp: "The BRP holds no {} for this candidate."
+    not_dutch: The BRP records no Dutch nationality for this candidate.
+    personal_details_not_unique: "More than one person in the BRP matches this candidate's personal details, so their data could not be compared."
+    residence_abroad: "This candidate lives abroad, so the BRP holds no place of residence."
+    residence_unknown: "This candidate's residence is unknown in the BRP."
+    residence_without_address: "This candidate has no residential address in the BRP (a correspondence address, for instance), so the BRP holds no place of residence."
+    unparsable: "The BRP value for {} could not be interpreted, so it was not compared: {}"
+  incomplete: Check not finished
+  not_checked: Not checked
+  refresh: Refresh this page
+  start_check: Check against the BRP
+  status:
+    aborted: "The check against the BRP stopped before it finished, so not every candidate was checked: {}"
+    changed_since_check: "The data was changed after the check against the BRP, so it has to be checked again."
+    in_progress: "The check against the BRP is still running, so not every candidate has been checked yet."
+    interrupted: "The check against the BRP stopped before it finished, so not every candidate was checked. Start it again to check the rest."
+    not_started: The candidates have not been checked against the BRP yet.
 candidate:
   add_candidate_text: Add omissions for this candidate
   personal_details: Personal details
 correction:
+  brp_value: Value in the BRP
   form:
     submit: Save correction
     value_label: Corrected value
@@ -104,7 +137,7 @@ index:
     title: Finalise candidate lists
 list:
   add_text: Add omissions for this candidate list
-  brp_errors: BRP errors
+  brp_check: BRP check
 monitoring:
   cache: Local cache
   created_at: Created

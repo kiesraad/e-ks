@@ -1,12 +1,15 @@
 //! Loads runtime configuration from environment variables for AppState.
 //! Used by AppState::new to construct service URLs and storage settings.
 
-use std::{env, path::PathBuf};
+use std::{env, path::PathBuf, time::Duration};
 
 use secrecy::SecretString;
 
 use super::rate_limit::RateLimits;
-use crate::{AppError, ElectionConfig, GithubUserId};
+use crate::{
+    AppError, ElectionConfig, GithubUserId,
+    constants::{BRP_PERSONS_ENDPOINT, BRP_TIMEOUT},
+};
 
 #[cfg(feature = "dev-features")]
 mod dev_defaults {
@@ -21,6 +24,8 @@ mod dev_defaults {
     pub(super) const DEFAULT_MASTER_ENCRYPTION_KEY: &str =
         "eks-dev-master-encryption-key-not-for-production";
 
+    pub(super) const BRP_API_KEY: &str = "";
+    pub(super) const BRP_BASE_URL: &str = "http://localhost:5010";
     pub(super) const DEFAULT_ELECTION: &str = "EK27";
 
     pub(super) fn lookup(name: &'static str) -> Result<String, std::env::VarError> {
@@ -28,6 +33,8 @@ mod dev_defaults {
             ("STORAGE_URL", STORAGE_URL),
             ("ID_DERIVATION_KEY", ID_DERIVATION_KEY),
             ("MASTER_ENCRYPTION_KEY", DEFAULT_MASTER_ENCRYPTION_KEY),
+            ("BRP_BASE_URL", BRP_BASE_URL),
+            ("BRP_API_KEY", BRP_API_KEY),
             ("DEFAULT_ELECTION", DEFAULT_ELECTION),
         ])
         .get(name)
@@ -41,6 +48,16 @@ mod dev_defaults {
 pub struct TlsConfig {
     pub cert_path: PathBuf,
     pub key_path: PathBuf,
+}
+
+/// BRP client configuration.
+#[derive(Debug, Clone)]
+pub struct BrpConfig {
+    pub base_url: String,
+    /// Held as a secret so it cannot reach a log through `Debug`.
+    pub api_key: SecretString,
+    pub persons_endpoint: String,
+    pub timeout: Duration,
 }
 
 /// ACME (Let's Encrypt) certificate-renewal configuration.
@@ -96,6 +113,7 @@ pub struct Config {
     /// container. Set via `DISABLE_AUTH_SERVICE` (`1`, `true`, or `yes`,
     /// case-insensitive); anything else leaves the auth-service enabled.
     pub disable_auth_service: bool,
+    pub brp_client: BrpConfig,
     /// GitHub OAuth login for CSB users; the `/csb/login` routes answer 404
     /// when unset.
     pub github_oauth: Option<GithubOauthConfig>,
@@ -308,6 +326,24 @@ impl Config {
             )
         });
 
+        let base_url = get_env_with("BRP_BASE_URL", &mut lookup)?;
+        let api_key = SecretString::from(get_env_with("BRP_API_KEY", &mut lookup)?);
+
+        let timeout: u64 = lookup("BRP_TIMEOUT")
+            .unwrap_or(BRP_TIMEOUT.to_string())
+            .parse()
+            .map_err(|_| {
+                AppError::ConfigLoadError("Invalid BRP_TIMEOUT; please enter a number".to_string())
+            })?;
+
+        let brp_client = BrpConfig {
+            base_url,
+            api_key,
+            persons_endpoint: lookup("BRP_PERSONS_ENDPOINT")
+                .unwrap_or(BRP_PERSONS_ENDPOINT.to_string()),
+            timeout: Duration::from_secs(timeout),
+        };
+
         let rate_limits = RateLimits::from_env_with(&mut lookup)?;
 
         Ok(Self {
@@ -319,6 +355,7 @@ impl Config {
             server_name,
             eks_key,
             disable_auth_service,
+            brp_client,
             github_oauth,
             default_election,
             rate_limits,
@@ -327,6 +364,8 @@ impl Config {
 
     #[cfg(test)]
     pub fn new_test() -> Self {
+        use crate::constants;
+
         Self {
             storage_url: SecretString::from("memory://"),
             id_derivation_key: SecretString::from("test-secret-123"),
@@ -336,6 +375,12 @@ impl Config {
             server_name: None,
             eks_key: None,
             disable_auth_service: false,
+            brp_client: BrpConfig {
+                base_url: "http://localhost:5010".to_string(),
+                api_key: SecretString::from(""),
+                persons_endpoint: constants::BRP_PERSONS_ENDPOINT.to_string(),
+                timeout: Duration::from_secs(5),
+            },
             github_oauth: None,
             default_election: ElectionConfig::EK27,
             rate_limits: RateLimits::default(),

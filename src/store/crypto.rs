@@ -228,9 +228,9 @@ impl EventCipher {
         &self,
         mut data: Vec<u8>,
         aad: &[u8],
-    ) -> Result<E, AppError> {
+    ) -> Result<E, EventDecryptError> {
         if data.len() < NONCE_LEN {
-            return Err(AppError::EventDecodeError(
+            return Err(EventDecryptError::Unreadable(
                 "ciphertext too short for nonce".to_string(),
             ));
         }
@@ -243,13 +243,41 @@ impl EventCipher {
         let _ = data.drain(..NONCE_LEN);
         self.cipher
             .decrypt_in_place(&nonce, aad, &mut data)
-            .map_err(|e| AppError::EventDecodeError(format!("AES-GCM decrypt failed: {e}")))?;
+            .map_err(|e| EventDecryptError::Unreadable(format!("AES-GCM decrypt failed: {e}")))?;
 
         let event = postcard::from_bytes(&data)
-            .map_err(|e| AppError::EventDecodeError(format!("payload deserialize failed: {e}")));
+            .map_err(|e| EventDecryptError::IncompatiblePayload(e.to_string()));
         // wipe the plaintext copy
         data.zeroize();
         event
+    }
+}
+
+/// Why a stored event payload could not be turned back into an event.
+///
+/// Kept apart because [`crate::store::apply_encrypted_events`] treats them
+/// differently: untrustworthy bytes are an integrity failure, an authentic
+/// payload this build cannot decode is schema drift.
+#[derive(Debug)]
+pub enum EventDecryptError {
+    /// Authentication or framing failed; the plaintext was never recovered.
+    Unreadable(String),
+    /// Plaintext recovered, but postcard could not decode it into the event type.
+    IncompatiblePayload(String),
+}
+
+impl std::fmt::Display for EventDecryptError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Unreadable(err) => write!(f, "{err}"),
+            Self::IncompatiblePayload(err) => write!(f, "payload deserialize failed: {err}"),
+        }
+    }
+}
+
+impl From<EventDecryptError> for AppError {
+    fn from(err: EventDecryptError) -> Self {
+        AppError::EventDecodeError(err.to_string())
     }
 }
 

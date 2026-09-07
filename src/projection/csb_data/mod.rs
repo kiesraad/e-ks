@@ -11,11 +11,15 @@ use serde::{Deserialize, Serialize};
 #[cfg(test)]
 use crate::structs::political_groups::PoliticalGroup;
 use crate::{
-    PgStoreData, Scope,
+    PgEvent, PgStoreData, Scope,
     store::{StoreData, StoreEvent},
     structs::{
+        brp::{BrpFinding, BrpStatus},
         common::{Appellation, UtcDateTime},
-        csb::{Correction, Omission, OmissionId, PersonCorrection, PersonCorrectionDelta},
+        csb::{
+            Correction, Omission, OmissionId, OmissionStatus, PersonCorrection,
+            PersonCorrectionDelta,
+        },
         persons::PersonId,
     },
 };
@@ -28,10 +32,14 @@ pub struct CsbStoreData {
     pub(crate) paper_corrected_data: PgStoreData,
     pub(crate) events: Vec<StoreEvent<CsbEvent>>,
     pub(crate) is_examination_finished: bool,
+    pub(crate) is_deleted: bool,
     pub(crate) omissions: HashMap<OmissionId, Omission>,
+    /// A checked candidate is present even with no findings, which keeps a
+    /// repeated sweep from checking them again.
+    pub(crate) brp_findings: HashMap<PersonId, Vec<BrpFinding>>,
+    pub(crate) brp_validation_status: BrpStatus,
     pub(crate) csb_corrected_persons: HashMap<PersonId, PersonCorrectionDelta>,
     pub(crate) csb_corrected_appellation: Option<Appellation>,
-    pub(crate) is_deleted: bool,
 }
 
 impl StoreData for CsbStoreData {
@@ -68,41 +76,32 @@ impl StoreData for CsbStoreData {
             }
             CsbAction::CreateEmpty => {}
             CsbAction::Delete => self.is_deleted = true,
-            CsbAction::PaperCorrectedUpdate(payload) => {
-                // Replay the wrapped app event onto the corrected projection,
-                // keeping the CSB stream's event metadata.
-                self.paper_corrected_data.apply(StoreEvent {
-                    event_id,
-                    payload: *payload,
-                    created_at,
-                    hash,
-                });
-            }
+            CsbAction::PaperCorrectedUpdate(payload) => self.apply_paper_correction(StoreEvent {
+                event_id,
+                payload: *payload,
+                created_at,
+                hash,
+            }),
             CsbAction::SetFinished(value) => self.is_examination_finished = value,
-            CsbAction::CreateOmission(mut omission) => {
-                omission.updated_at = event_time;
-                self.omissions.insert(omission.id, omission);
-            }
-            CsbAction::UpdateOmission(mut omission) => {
-                omission.updated_at = event_time;
-                let omission_id = omission.id;
-                self.omissions.entry(omission_id).and_modify(|existing| {
-                    *existing = omission;
-                });
-            }
+            CsbAction::CreateOmission(omission) => self.create_omission(omission, event_time),
+            CsbAction::UpdateOmission(omission) => self.update_omission(omission, event_time),
             CsbAction::DeleteOmission { omission_id } => {
                 self.omissions.remove(&omission_id);
             }
             CsbAction::SetOmissionStatus {
                 omission_id,
                 status,
-            } => {
-                self.omissions.entry(omission_id).and_modify(|omission| {
-                    omission.status = status;
-                    omission.updated_at = event_time;
-                });
+            } => self.set_omission_status(omission_id, status, event_time),
+            CsbAction::UpdateCorrection(correction) => {
+                if let Correction::Person(person_id, _) = &correction {
+                    self.forget_brp_check(*person_id);
+                }
+                self.apply_correction(correction)
             }
-            CsbAction::UpdateCorrection(correction) => self.apply_correction(correction),
+            CsbAction::BrpPersonChecked { person, findings } => {
+                self.brp_findings.insert(person, findings);
+            }
+            CsbAction::SetBrpStatus(value) => self.brp_validation_status = value,
         }
     }
 
@@ -116,6 +115,53 @@ impl StoreData for CsbStoreData {
 }
 
 impl CsbStoreData {
+    /// Forget what the BRP said about this candidate. Their data changed, so
+    /// the findings are about values that are no longer on screen; dropping
+    /// them puts the candidate back to "not checked" and lets a new check pick
+    /// them up.
+    ///
+    /// The sweep status is deliberately left alone: most candidates were still
+    /// checked, and [`crate::structs::brp::BrpStatus`] records how far the
+    /// sweep got, not whether its outcome still holds.
+    fn forget_brp_check(&mut self, person_id: PersonId) {
+        self.brp_findings.remove(&person_id);
+    }
+
+    fn create_omission(&mut self, mut omission: Omission, event_time: UtcDateTime) {
+        omission.updated_at = event_time;
+        self.omissions.insert(omission.id, omission);
+    }
+
+    fn update_omission(&mut self, mut omission: Omission, event_time: UtcDateTime) {
+        omission.updated_at = event_time;
+        let omission_id = omission.id;
+        self.omissions.entry(omission_id).and_modify(|existing| {
+            *existing = omission;
+        });
+    }
+
+    fn set_omission_status(
+        &mut self,
+        omission_id: OmissionId,
+        status: OmissionStatus,
+        event_time: UtcDateTime,
+    ) {
+        self.omissions.entry(omission_id).and_modify(|omission| {
+            omission.status = status;
+            omission.updated_at = event_time;
+        });
+    }
+
+    /// Replay an app event onto the corrected projection, keeping the CSB
+    /// stream's own event metadata.
+    fn apply_paper_correction(&mut self, event: StoreEvent<PgEvent>) {
+        if let Some(person_id) = candidate_changed_by(&event.payload) {
+            self.forget_brp_check(person_id);
+        }
+
+        self.paper_corrected_data.apply(event);
+    }
+
     /// Record a CSB correction. Correcting a value back to the one already in
     /// the paper-corrected projection undoes the correction instead.
     fn apply_correction(&mut self, correction: Correction) {
@@ -156,6 +202,21 @@ impl CsbStoreData {
                 entry.remove_entry();
             }
         }
+    }
+}
+
+/// The candidate whose BRP-checked data an app event changes, if any.
+///
+/// The correspondence address and the representative are absent on purpose:
+/// the BRP check does not compare them, so changing one leaves its findings
+/// standing.
+fn candidate_changed_by(event: &PgEvent) -> Option<PersonId> {
+    match event {
+        PgEvent::CreatePerson(person) | PgEvent::UpdatePerson(person) => Some(person.id),
+        PgEvent::CreatePersonPersonalData { person_id, .. }
+        | PgEvent::UpdatePersonPersonalData { person_id, .. }
+        | PgEvent::DeletePerson { person_id } => Some(*person_id),
+        _ => None,
     }
 }
 
@@ -459,5 +520,121 @@ mod tests {
             let corrected = data.csb_corrected_persons.get(&person_id).unwrap();
             assert_eq!(corrected.get_corrections(), expected);
         }
+    }
+}
+
+#[cfg(test)]
+mod brp_reset_tests {
+    use super::*;
+    use crate::{
+        structs::{
+            brp::BrpFinding,
+            csb::{Correction, PersonCorrection},
+        },
+        test_utils::sample_person,
+    };
+
+    /// A store holding `person`, already checked against the BRP.
+    async fn checked_store(person: crate::structs::persons::Person) -> crate::CsbStore {
+        let store = crate::CsbStore::new_for_test();
+        store.add_person(person.clone());
+        store
+            .update(CsbAction::BrpPersonChecked {
+                person: person.id,
+                findings: vec![BrpFinding::NotDutch],
+            })
+            .await
+            .unwrap();
+        store
+            .update(CsbAction::SetBrpStatus(BrpStatus::Finished))
+            .await
+            .unwrap();
+        assert!(store.is_brp_checked(person.id));
+        store
+    }
+
+    #[tokio::test]
+    async fn an_ambtshalve_correction_drops_what_the_brp_said() {
+        let person = sample_person(PersonId::new());
+        let person_id = person.id;
+        let store = checked_store(person).await;
+
+        store
+            .update(CsbAction::UpdateCorrection(Correction::Person(
+                person_id,
+                PersonCorrection::LastName("Gecorrigeerd".parse().unwrap()),
+            )))
+            .await
+            .unwrap();
+
+        assert!(
+            !store.is_brp_checked(person_id),
+            "the findings are about values that are no longer on screen"
+        );
+        // The sweep still ran to completion; it is the candidate that changed.
+        assert_eq!(store.get_brp_status(), BrpStatus::Finished);
+    }
+
+    #[tokio::test]
+    async fn a_paper_correction_to_the_candidate_drops_what_the_brp_said() {
+        let mut person = sample_person(PersonId::new());
+        let person_id = person.id;
+        let store = checked_store(person.clone()).await;
+
+        person.name.last_name = "Gecorrigeerd".parse().unwrap();
+        store
+            .update(CsbAction::PaperCorrectedUpdate(Box::new(
+                crate::PgEvent::UpdatePerson(person),
+            )))
+            .await
+            .unwrap();
+
+        assert!(!store.is_brp_checked(person_id));
+    }
+
+    #[tokio::test]
+    async fn a_change_the_brp_check_never_looked_at_leaves_the_findings_alone() {
+        let person = sample_person(PersonId::new());
+        let person_id = person.id;
+        let store = checked_store(person).await;
+
+        // The correspondence address is not compared against the BRP.
+        store
+            .update(CsbAction::PaperCorrectedUpdate(Box::new(
+                crate::PgEvent::UpdatePersonAddress {
+                    person_id,
+                    address: Default::default(),
+                },
+            )))
+            .await
+            .unwrap();
+        // Nor is anything about the political group.
+        store
+            .update(CsbAction::UpdateCorrection(Correction::Appellation(
+                "Andere Naam".parse().unwrap(),
+            )))
+            .await
+            .unwrap();
+
+        assert!(store.is_brp_checked(person_id));
+    }
+
+    #[tokio::test]
+    async fn a_candidate_nobody_checked_is_unaffected() {
+        let store = crate::CsbStore::new_for_test();
+        let person = sample_person(PersonId::new());
+        let person_id = person.id;
+        store.add_person(person);
+
+        store
+            .update(CsbAction::UpdateCorrection(Correction::Person(
+                person_id,
+                PersonCorrection::LastName("Gecorrigeerd".parse().unwrap()),
+            )))
+            .await
+            .unwrap();
+
+        assert!(!store.is_brp_checked(person_id));
+        assert_eq!(store.get_brp_status(), BrpStatus::NotStarted);
     }
 }

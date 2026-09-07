@@ -11,6 +11,7 @@ use crate::{
     crypto::MasterKey,
     projection::CSB_MAIN_STREAM_ID,
     store::{Store, StoreRegistry},
+    structs::brp::BrpClient,
 };
 
 #[cfg(feature = "fixtures")]
@@ -37,6 +38,7 @@ pub struct AppState {
     pub id_deriver: IdDeriver,
     pub auth_service_state: AuthServiceState,
     pub db_health: DbHealth,
+    pub brp_client: BrpClient,
 }
 
 impl AppRequestState for AppState {
@@ -66,6 +68,10 @@ impl AppRequestState for AppState {
 
     fn csb_main_store_registry(&self) -> &StoreRegistry<CsbMainStoreData> {
         &self.csb_main_store_registry
+    }
+
+    fn brp_client(&self) -> &BrpClient {
+        &self.brp_client
     }
 
     async fn csb_store_for_stream(
@@ -127,6 +133,13 @@ impl AppState {
             AuthServiceState::new_from_env().await?
         };
 
+        let brp_client = BrpClient::new(
+            &config.brp_client.base_url,
+            config.brp_client.api_key.clone(),
+            &config.brp_client.persons_endpoint,
+            config.brp_client.timeout,
+        );
+
         #[cfg(feature = "acme")]
         let acme_store = crate::AcmeStore::from_storage_url(config.storage_url.expose_secret())?;
 
@@ -142,6 +155,7 @@ impl AppState {
             id_deriver,
             auth_service_state,
             db_health: DbHealth::default(),
+            brp_client,
         })
     }
 
@@ -230,6 +244,13 @@ impl AppState {
         let csb_main_store_registry =
             StoreRegistry::with_persistence(store_registry.persistence().clone(), master);
 
+        let brp_client = BrpClient::new(
+            &config.brp_client.base_url,
+            config.brp_client.api_key.clone(),
+            &config.brp_client.persons_endpoint,
+            config.brp_client.timeout,
+        );
+
         #[cfg(feature = "acme")]
         let acme_store = crate::AcmeStore::from_storage_url(config.storage_url.expose_secret())
             .expect("test AcmeStore must initialize");
@@ -246,6 +267,7 @@ impl AppState {
             id_deriver,
             auth_service_state,
             db_health: DbHealth::default(),
+            brp_client,
         }
     }
 }

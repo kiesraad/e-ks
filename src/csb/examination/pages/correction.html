@@ -18,9 +18,16 @@
                 {{ paper_corrected }}
               </dd>
             {% endif %}
+            {% if let Some(brp) = brp_value %}
+              <dt>{{ "csb.correction.brp_value"|trans }}</dt>
+              <dd>
+                {{ brp }}
+              </dd>
+            {% endif %}
           </dl>
         </div>
         <div class="form-row">
+          {% let placeholder = brp_value.as_deref().unwrap_or(" ") %}
           {% match field_type %}
           {% when CorrectionFieldType::Initials %}
           <p class="form-field form-field-sm">
@@ -29,6 +36,7 @@
                    name="value"
                    id="value"
                    value="{{ form.data.value }}"
+                   placeholder="{{ placeholder }}"
                    class="initials-input"
                    autocomplete="off" />
             <label class="autoformat">
@@ -66,7 +74,7 @@
                        inputmode="numeric" />
               </span>
               <input type="text"
-                     placeholder=" "
+                     placeholder="{{ placeholder }}"
                      name="date_of_birth"
                      id="date_of_birth"
                      value="{{ form.data.value }}"
@@ -80,7 +88,7 @@
           <p class="form-field">
             <label for="locality">{{ "csb.correction.form.value_label"|trans }}</label>
             <input type="text"
-                   placeholder=" "
+                   placeholder="{{ placeholder }}"
                    name="value"
                    id="locality"
                    value="{{ form.data.value }}"
@@ -99,6 +107,7 @@
                    name="value"
                    id="value"
                    value="{{ form.data.value }}"
+                   placeholder="{{ placeholder }}"
                    autocomplete="off" />
             {% for error in form|error("value") %}<span class="error">{{ error }}</span>{% endfor %}
           </p>

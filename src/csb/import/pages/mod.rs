@@ -7,6 +7,11 @@ pub(crate) use super::paths::{CsbCreateEmptyPath, CsbImportPath};
 
 mod import;
 
+pub use import::{brp_sweep_running, do_brp_verification};
+
+#[cfg(test)]
+pub use import::claim_sweep_for_test;
+
 pub fn router<S: AppRequestState>() -> Router<S> {
     Router::new()
         .typed_get(import::import)

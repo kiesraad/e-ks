@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use parking_lot::{
     RawRwLock,
@@ -8,6 +8,7 @@ use parking_lot::{
 use crate::{
     AppError, CsbStream, ElectoralDistrict, Locale, PgStoreData,
     structs::{
+        brp::{BrpFinding, BrpStatus},
         candidate_lists::{CandidateList, CandidateListId},
         csb::{Omission, OmissionCategory, OmissionId},
         list_submitters::ListSubmitter,
@@ -498,6 +499,44 @@ impl CsbStream {
             .collect()
     }
 
+    /// Every candidate, with the corrections `corrections` asks for. Routed
+    /// through [`Self::get_person`], which applies the ambtshalve corrections
+    /// that live beside the projection.
+    pub fn get_persons(&self, corrections: WithCorrections) -> Vec<Person> {
+        // The read guard is dropped before `get_person` takes it again.
+        let ids: Vec<PersonId> = self.read(corrections).persons.keys().copied().collect();
+
+        ids.into_iter()
+            .filter_map(|id| self.get_person(id, corrections))
+            .collect()
+    }
+
+    /// Per checked candidate; candidates absent from the map were not checked.
+    pub fn get_brp_findings(&self) -> HashMap<PersonId, Vec<BrpFinding>> {
+        self.data.read().brp_findings.clone()
+    }
+
+    /// An empty list covers both "checked, nothing found" and "not checked";
+    /// use [`Self::get_brp_findings`] when the difference matters.
+    pub fn get_brp_findings_for_person(&self, person_id: PersonId) -> Vec<BrpFinding> {
+        self.data
+            .read()
+            .brp_findings
+            .get(&person_id)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    /// Whether this candidate has been checked, findings or not.
+    pub fn is_brp_checked(&self, person_id: PersonId) -> bool {
+        self.data.read().brp_findings.contains_key(&person_id)
+    }
+
+    /// How far the BRP sweep for this stream got.
+    pub fn get_brp_status(&self) -> BrpStatus {
+        self.data.read().brp_validation_status.clone()
+    }
+
     /// Return the single stored omission. Test-only helper for asserting on
     /// omissions whose category has no dedicated getter (e.g. candidate lists).
     #[cfg(test)]
@@ -519,10 +558,13 @@ mod tests {
         CsbStore, CsbStream, ElectoralDistrict,
         structs::{
             candidate_lists::CandidateList,
-            csb::{OmissionCategory, OmissionStatus, sample_omission},
+            csb::{
+                OmissionCategory, OmissionStatus, PersonCorrection, PersonCorrectionDelta,
+                sample_omission,
+            },
             list_designation::ListDesignation,
         },
-        test_utils::{sample_candidate_list, sample_person_with},
+        test_utils::{sample_candidate_list, sample_person, sample_person_with},
     };
 
     fn insert(store: &CsbStream, category: OmissionCategory) {
@@ -1008,5 +1050,31 @@ mod tests {
         });
 
         assert_eq!(store.get_appellation(WithCorrections::All), "Blanco");
+    }
+
+    #[test]
+    fn get_persons_applies_the_committees_own_corrections() {
+        let store = CsbStore::new_for_test();
+        let person = sample_person(PersonId::new());
+        let person_id = person.id;
+        store.add_person(person);
+
+        // An ambtshalve correction is a delta beside the projection, and the
+        // BRP check examines the corrected data.
+        let mut delta = PersonCorrectionDelta::default();
+        delta.add_correction(PersonCorrection::LastName("Gecorrigeerd".parse().unwrap()));
+        store
+            .data
+            .write()
+            .csb_corrected_persons
+            .insert(person_id, delta);
+
+        let corrected = store.get_persons(WithCorrections::All);
+        assert_eq!(corrected.len(), 1);
+        assert_eq!(corrected[0].name.last_name.to_string(), "Gecorrigeerd");
+
+        // The imported data is untouched.
+        let imported = store.get_persons(WithCorrections::None);
+        assert_eq!(imported[0].name.last_name.to_string(), "Jansen");
     }
 }

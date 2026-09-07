@@ -58,13 +58,7 @@
                     <div class="status omission">{{ "csb.status.omission"|trans }}</div>
                   {% endif %}
                 </td>
-                <td>
-                  <ul class="tags-list">
-                    <li class="tag link width-md">
-                      <a class="ok" href="#">{{ "csb.brp.correct"|trans }}</a>
-                    </li>
-                  </ul>
-                </td>
+                <td>{{ brp_badge(pg.brp, pg.group_path() ) }}</td>
                 <td>
                   <a href="{{ pg.group_path() }}" title="{{ "csb.action.examine"|trans }}"></a>
                 </td>
@@ -97,13 +91,7 @@
                     <div class="status omission">{{ "csb.status.omission"|trans }}</div>
                   {% endif %}
                 </td>
-                <td>
-                  <ul class="tags-list">
-                    <li class="tag link width-md">
-                      <a class="ok" href="#">{{ "csb.brp.correct"|trans }}</a>
-                    </li>
-                  </ul>
-                </td>
+                <td>{{ brp_badge(pg.brp, pg.group_path() ) }}</td>
                 <td>
                   <a href="{{ pg.group_path() }}" title="{{ "csb.action.examine"|trans }}"></a>
                 </td>

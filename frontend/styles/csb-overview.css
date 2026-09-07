@@ -96,8 +96,10 @@
       width: 20rem;
     }
 
+    /* Wide enough for the longest BRP state ("Controle niet afgerond"), which
+       must not spill over the action column. */
     th:nth-child(3) {
-      width: 10rem;
+      width: 14rem;
     }
 
     th:nth-child(4) {
@@ -360,7 +362,7 @@
     }
 
     th:nth-child(2) {
-      width: 24rem;
+      width: 32rem;
     }
 
     th:nth-child(3) {

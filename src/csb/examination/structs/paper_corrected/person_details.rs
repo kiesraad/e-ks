@@ -11,6 +11,7 @@ use crate::{
 pub struct PaperCorrectedPersonDetails {
     pub initials: PaperCorrected,
     pub first_name: PaperCorrected,
+    pub last_name_prefix: PaperCorrected,
     pub last_name: PaperCorrected,
     pub gender: PaperCorrected,
     pub date_of_birth: PaperCorrected,
@@ -49,7 +50,8 @@ impl PaperCorrectedPersonDetails {
         Self {
             initials: csb_field(|p| p.name.initials.to_string()),
             first_name: field(|p| opt_display(&p.name.first_name)),
-            last_name: csb_field(|p| p.name.last_name_with_prefix()),
+            last_name_prefix: csb_field(|p| opt_display(&p.name.last_name_prefix)),
+            last_name: csb_field(|p| p.name.last_name.to_string()),
             gender: PaperCorrected::from_field(imported, corrected, |p| p.gender_label(locale)),
             date_of_birth: csb_field(|p| {
                 DateOfBirth::format_option(&p.personal_data.date_of_birth)

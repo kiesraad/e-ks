@@ -12,7 +12,7 @@ import { FinalisePage } from "./pages/pg/finalisePage.ts";
 import { ManageCandidateListPage } from "./pages/pg/manageCandidateListPage.ts";
 
 test.describe("download documents", async () => {
-  const existingCandidates = ["Akwasi", "Braber"];
+  const existingCandidates = ["Nagelhout", "Braber"];
 
   async function setupCandidateList(page: Page, district: string) {
     await page.goto("/candidate-lists");

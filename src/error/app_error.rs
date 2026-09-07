@@ -86,6 +86,11 @@ pub enum AppError {
     /// A persisted event could not be decrypted or deserialized.
     /// Indicates tampering, a wrong key, or a corrupt/unsupported frame.
     EventDecodeError(String),
+
+    /// The BRP could not be consulted. Never a statement about a person: what
+    /// the BRP says about a candidate is a
+    /// [`crate::structs::brp::BrpFinding`], not an error.
+    BrpError(String),
 }
 
 impl Display for AppError {
@@ -138,6 +143,7 @@ impl Display for AppError {
             AppError::AuthError(err) => write!(f, "Authentication error: {err}"),
             #[cfg(feature = "acme")]
             AppError::AcmeError(err) => write!(f, "ACME error: {err}"),
+            AppError::BrpError(err) => write!(f, "BRP error: {err}"),
         }
     }
 }

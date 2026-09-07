@@ -1,6 +1,8 @@
 use crate::{
-    CsbStream, csb::examination::structs::CandidateCorrectionField, projection::WithCorrections,
-    structs::persons::PersonId,
+    CsbStream,
+    csb::examination::structs::CandidateCorrectionField,
+    projection::WithCorrections,
+    structs::{brp::BrpFinding, persons::PersonId},
 };
 
 /// Which type of input to render in the correction overlay.
@@ -15,7 +17,9 @@ impl From<CandidateCorrectionField> for CorrectionFieldType {
     fn from(field: CandidateCorrectionField) -> Self {
         match field {
             CandidateCorrectionField::Initials => Self::Initials,
-            CandidateCorrectionField::LastName => Self::Text,
+            CandidateCorrectionField::LastNamePrefix | CandidateCorrectionField::LastName => {
+                Self::Text
+            }
             CandidateCorrectionField::DateOfBirth => Self::DateOfBirth,
             CandidateCorrectionField::PlaceOfResidence => Self::PlaceOfResidence,
         }
@@ -28,15 +32,20 @@ pub(crate) struct CorrectionDisplay {
     pub(crate) label: String,
     pub(crate) imported_value: String,
     pub(crate) paper_corrected_value: Option<String>,
+    /// What the BRP holds for this field, when it differs from what the
+    /// candidate filed in. Offered as the input's placeholder.
+    pub(crate) brp_value: Option<String>,
     pub(crate) field_type: CorrectionFieldType,
 }
 
-/// The three value strings needed for the correction overlay, extracted from
-/// the three data projections.
+/// The value strings needed for the correction overlay: the imported,
+/// paper-corrected and CSB-corrected values from the three data projections,
+/// plus what the BRP holds for the field when that differs.
 pub(crate) struct FieldValues {
     imported: String,
     paper_corrected: Option<String>,
     current_correction: Option<String>,
+    brp: Option<String>,
 }
 
 impl FieldValues {
@@ -51,6 +60,7 @@ impl FieldValues {
             imported,
             paper_corrected,
             current_correction,
+            brp: None,
         }
     }
 
@@ -58,7 +68,9 @@ impl FieldValues {
         store: &CsbStream,
         person_id: PersonId,
         field: CandidateCorrectionField,
+        locale: crate::Locale,
     ) -> Self {
+        let field_of_interest = field.brp_field();
         let imported = store.get_person(person_id, WithCorrections::None);
         let paper_corrected = store.get_person(person_id, WithCorrections::Paper);
         let csb_corrected = store.get_person(person_id, WithCorrections::All);
@@ -76,10 +88,20 @@ impl FieldValues {
             .map(|p| field.extract(p))
             .filter(|v| v != paper_corrected.as_ref().unwrap_or(&imported));
 
+        // Only a difference the BRP actually holds is worth offering; a value
+        // it could not be read from is shown as a finding instead.
+        let brp = store
+            .get_brp_findings_for_person(person_id)
+            .iter()
+            .filter_map(BrpFinding::brp_value)
+            .find(|value| value.field() == field_of_interest)
+            .map(|value| value.display(locale));
+
         Self {
             imported,
             paper_corrected,
             current_correction,
+            brp,
         }
     }
 
@@ -101,6 +123,7 @@ impl FieldValues {
             label,
             imported_value: self.imported,
             paper_corrected_value: self.paper_corrected,
+            brp_value: self.brp,
             field_type,
         }
     }

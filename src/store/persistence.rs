@@ -367,10 +367,11 @@ where
                 update_in_database(self, pool, cipher, event).await
             }
             StoreBackend::Local { dir, cipher } => {
-                let last_id = replay_from_file(self, dir, cipher).await?;
+                let (last_id, replay) = replay_from_file(self, dir, cipher).await?;
+                replay.reject_append(self.stream_id)?;
                 let next_id = last_id + 1;
                 let created_at = Utc::now();
-                let prev_hash = self.data.read().last_event_hash();
+                let prev_hash = replay.chain_tip;
 
                 let path = filesystem::stream_path(dir, self.stream_id, self.election);
                 let hash = filesystem::append_event(

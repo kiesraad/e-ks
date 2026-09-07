@@ -28,6 +28,29 @@
     </div>
   {% endif %}
 {% endmacro omission_badge %}
+{# A partial check is reported as such even when it already found something:
+   one tag cannot pass for a verdict the check did not reach. #}
+{% macro brp_badge(brp, url) %}
+  <ul class="tags-list">
+    {% if brp.is_not_checked() %}
+      <li class="tag link">
+        <a class="pending unclickable">{{ "csb.brp.not_checked"|trans }}</a>
+      </li>
+    {% else if brp.is_incomplete() %}
+      <li class="tag link">
+        <a class="warning" href="{{ url }}">{{ "csb.brp.incomplete"|trans }}</a>
+      </li>
+    {% else if brp.has_errors() %}
+      <li class="tag link">
+        <a class="error" href="{{ url }}">{{ "csb.brp.errors"|trans }}</a>
+      </li>
+    {% else %}
+      <li class="tag link width-md">
+        <a class="ok" href="{{ url }}">{{ "csb.brp.correct"|trans }}</a>
+      </li>
+    {% endif %}
+  </ul>
+{% endmacro brp_badge %}
 {% block body %}
   <header>
     <nav>

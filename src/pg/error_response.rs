@@ -279,6 +279,7 @@ impl ErrorResponse {
             | AppError::UpstreamError(_)
             | AppError::ServerError(_)
             | AppError::EventDecodeError(_)
+            | AppError::BrpError(_)
             | AppError::AuthError(_) => internal(),
         };
 

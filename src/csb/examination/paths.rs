@@ -51,6 +51,18 @@ pub struct CsbPoliticalGroupToggleFinishPath {
 }
 
 #[derive(TypedPath, Deserialize)]
+#[typed_path("/csb/examination/{stream_id}/brp-errors", rejection(AppError))]
+pub struct CsbAllBrpFindingsPath {
+    pub stream_id: StreamId,
+}
+
+#[derive(TypedPath, Deserialize)]
+#[typed_path("/csb/examination/{stream_id}/brp-check", rejection(AppError))]
+pub struct CsbBrpCheckPath {
+    pub stream_id: StreamId,
+}
+
+#[derive(TypedPath, Deserialize)]
 #[typed_path("/csb/examination/{stream_id}/delete", rejection(AppError))]
 pub struct CsbPoliticalGroupDeletePath {
     pub stream_id: StreamId,
@@ -93,6 +105,17 @@ pub struct CsbCandidateListPath {
     rejection(AppError)
 )]
 pub struct CsbCandidatePath {
+    pub stream_id: StreamId,
+    pub list_id: CandidateListId,
+    pub person_id: PersonId,
+}
+
+#[derive(TypedPath, Deserialize)]
+#[typed_path(
+    "/csb/examination/{stream_id}/list/{list_id}/candidate/{person_id}/brp-check",
+    rejection(AppError)
+)]
+pub struct CsbCandidateBrpCheckPath {
     pub stream_id: StreamId,
     pub list_id: CandidateListId,
     pub person_id: PersonId,
@@ -231,6 +254,18 @@ impl CsbPoliticalGroup {
     }
 
     /// Path that puts the session in paper-corrections mode for this stream.
+    pub fn all_brp_findings_path(&self) -> impl TypedPath {
+        CsbAllBrpFindingsPath {
+            stream_id: self.stream_id,
+        }
+    }
+
+    pub fn start_brp_check_path(&self) -> impl TypedPath {
+        CsbBrpCheckPath {
+            stream_id: self.stream_id,
+        }
+    }
+
     pub fn start_paper_corrections_path(&self) -> impl TypedPath {
         CsbPaperCorrectionsStartPath {
             stream_id: self.stream_id,
@@ -324,6 +359,19 @@ impl CsbPoliticalGroup {
                 person_id: *person,
             }
             .to_string(),
+        }
+    }
+
+    /// Path that re-checks one candidate against the BRP.
+    pub fn candidate_brp_check_path(
+        &self,
+        list: &CandidateListId,
+        person: &PersonId,
+    ) -> impl TypedPath {
+        CsbCandidateBrpCheckPath {
+            stream_id: self.stream_id,
+            list_id: *list,
+            person_id: *person,
         }
     }
 

@@ -124,9 +124,9 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
-        // The candidate is listed and the BRP errors column header renders.
+        // The candidate is listed and the BRP column header renders.
         assert!(body.contains("Jansen"));
-        assert!(body.contains("BRP errors"));
+        assert!(body.contains("BRP check"));
         // The add omission button links to the candidate list omission dialog.
         assert!(body.contains(&format!(
             "/csb/examination/{stream_id}/omission/candidate-list/"

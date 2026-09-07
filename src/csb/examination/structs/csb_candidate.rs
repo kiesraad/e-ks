@@ -1,24 +1,19 @@
-use rand::{RngExt, rng};
-
 use crate::{
     AnyLocale, CsbStream,
-    csb::examination::structs::RestorationStatus,
+    csb::examination::structs::{BrpCheckState, RestorationStatus},
     projection::WithCorrections,
     structs::{candidate_lists::CandidateList, persons::Person},
 };
 
 use super::paper_corrected::PaperCorrected;
 
-/// A candidate row on the CSB candidate list examination page: the person
-/// (imported, or added by the paper corrections), their position, name and
-/// place of residence diffed against the corrections, and a placeholder count
-/// of BRP errors until the real BRP checks are wired up.
+/// A candidate row on the CSB candidate list examination page.
 pub struct CsbCandidate {
     pub person: Person,
     pub position: PaperCorrected,
     pub name: PaperCorrected,
     pub residence: PaperCorrected,
-    pub brp_error_count: usize,
+    pub brp: BrpCheckState,
     pub restoration_status: RestorationStatus,
     /// Whether an unresolved omission scraps this candidate from the list.
     /// Only rendered in the recovery ("Herstelde lijsten") phase.
@@ -85,10 +80,10 @@ fn imported_rows(
                     )
                     .with_csb_correction(csb_corrected.as_ref().map(residence_string)),
                     restoration_status: RestorationStatus::for_candidate(store, person.id, list.id),
+                    brp: BrpCheckState::for_candidate(store, person.id),
                     is_scrapped: store.is_candidate_scrapped(person.id, list.id),
                     recovery_position: store.get_recovery_position(list.id, person.id),
                     person,
-                    brp_error_count: rng().random_range(0..=2),
                 },
             ))
         })
@@ -124,7 +119,7 @@ fn corrected_only_rows(
                         ),
                     residence: PaperCorrected::new(String::new(), residence_string(&person))
                         .with_csb_correction(csb_corrected.as_ref().map(residence_string)),
-                    brp_error_count: 0,
+                    brp: BrpCheckState::for_candidate(store, person.id),
                     restoration_status: RestorationStatus::for_candidate(store, person.id, list.id),
                     is_scrapped: store.is_candidate_scrapped(person.id, list.id),
                     recovery_position: store.get_recovery_position(list.id, person.id),

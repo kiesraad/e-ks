@@ -68,6 +68,13 @@
 
 /* The heading above a single strip, naming the part of the examination the
    omissions or corrections in that strip belong to. */
+.examination-panel-actions {
+  align-items: flex-start;
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--space-3);
+}
+
 .examination-panel-group {
   color: var(--gray-600);
   font-size: var(--font-size-sm);
@@ -107,6 +114,13 @@
 
 .restoration-strip-error {
   --restoration-strip-color: var(--red-100);
+}
+
+.restoration-strip-note {
+  color: var(--gray-500);
+  font-size: var(--font-size-sm);
+  line-height: var(--leading-sm);
+  margin-top: var(--space-2);
 }
 
 .restoration-strip-empty {
@@ -196,6 +210,15 @@
 .restoration-tag-ok {
   --restoration-tag-color: var(--green-700);
   --restoration-tag-icon: url("../icons/checkmarkSmall.svg");
+}
+
+/* The BRP check has not run, or did not cover every candidate. */
+.restoration-tag-pending {
+  --restoration-tag-bg: transparent;
+  --restoration-tag-color: var(--gray-500);
+  --restoration-tag-icon: url("../icons/info.svg");
+  border-radius: var(--rounded-md);
+  flex-direction: row-reverse;
 }
 
 /* The link to the overview of everything registered for this item. */

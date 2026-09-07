@@ -122,3 +122,44 @@
     <a class="restoration-strip-link" href="{{ overview_url }}">{{ "csb.omission.overview.title"|trans }}</a>
   </div>
 {% endmacro omission_strip %}
+{# The state of the BRP check: what it found, and whether it got that far. #}
+{% macro brp_strip(brp, incomplete_reason) %}
+  <div class="restoration-strip {% if brp.has_errors() %}restoration-strip-error{% endif %}">
+    <ul class="restoration-tags">
+      {% if brp.is_not_checked() %}
+        <li>
+          <span class="restoration-tag restoration-tag-pending">{{ "csb.brp.not_checked"|trans }}</span>
+        </li>
+      {% else %}
+        {% if brp.is_incomplete() %}
+          <li>
+            <span class="restoration-tag restoration-tag-pending">{{ "csb.brp.incomplete"|trans }}</span>
+          </li>
+        {% endif %}
+        <li>
+          {% if brp.errors() == 0 %}
+            <span class="restoration-tag restoration-tag-ok">{{ "csb.group.brp_errors.none"|trans }}</span>
+          {% else if brp.errors() == 1 %}
+            <span class="restoration-tag restoration-tag-error">{{ "csb.group.brp_errors.singular"|trans }}</span>
+          {% else %}
+            <span class="restoration-tag restoration-tag-error">{{ "csb.group.brp_errors.plural"|trans(&brp.errors().to_string() ) }}</span>
+          {% endif %}
+        </li>
+      {% endif %}
+    </ul>
+  </div>
+  {% if let Some(reason) = incomplete_reason %}<p class="restoration-strip-note">{{ reason }}</p>{% endif %}
+{% endmacro brp_strip %}
+{# The BRP findings of one candidate, each linking to the candidate's page. #}
+{% macro brp_group(label, url, messages) %}
+  <h3 class="examination-panel-group">{{ label }}</h3>
+  <div class="restoration-strip restoration-strip-error">
+    <ul class="restoration-tags">
+      {% for message in messages %}
+        <li>
+          <a class="restoration-tag restoration-tag-error" href="{{ url }}">{{ message }}</a>
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+{% endmacro brp_group %}

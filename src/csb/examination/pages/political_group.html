@@ -27,21 +27,20 @@
             <h2 class="h3">{{ "csb.group.discovered_errors"|trans }}</h2>
             <p>{{ "csb.group.discovered_errors_note"|trans }}</p>
           </div>
-          <a class="button secondary icon-chevron-end" href="#">{{ "csb.group.examine_all"|trans }}</a>
+          <div class="examination-panel-actions">
+            {% if brp_running %}
+              <a class="button secondary" href="{{ political_group.group_path() }}">{{ "csb.brp.refresh"|trans }}</a>
+            {% else if brp_incomplete.is_some() %}
+              <form method="post" action="{{ political_group.start_brp_check_path() }}">
+                {{ macros::csrf_field() }}
+                <button type="submit" class="button secondary">{{ "csb.brp.start_check"|trans }}</button>
+              </form>
+            {% endif %}
+            <a class="button secondary icon-chevron-end"
+               href="{{ political_group.all_brp_findings_path() }}">{{ "csb.group.examine_all"|trans }}</a>
+          </div>
         </div>
-        <div class="restoration-strip {% if all_brp_error_count > 0 %}restoration-strip-error{% endif %}">
-          <ul class="restoration-tags">
-            <li>
-              {% if all_brp_error_count == 0 %}
-                <span class="restoration-tag restoration-tag-ok">{{ "csb.group.brp_errors.none"|trans }}</span>
-              {% else if all_brp_error_count == 1 %}
-                <span class="restoration-tag restoration-tag-error">{{ "csb.group.brp_errors.singular"|trans }}</span>
-              {% else %}
-                <span class="restoration-tag restoration-tag-error">{{ "csb.group.brp_errors.plural"|trans(&all_brp_error_count.to_string() ) }}</span>
-              {% endif %}
-            </li>
-          </ul>
-        </div>
+        {{ restorations::brp_strip(brp, brp_incomplete.as_deref() ) }}
       </div>
       <form method="post"
             class="examination-panel"
@@ -166,16 +165,26 @@
                 </p>
               {% endif %}
               <p>{{ "csb.group.candidate_count"|trans(&candidate_list.list.candidates.len().to_string())|safe }}</p>
-              {% let has_brp_errors = political_group.mode.is_examination() && candidate_list.brp_error_count > 0 %}
+              {% let show_brp = political_group.mode.is_examination() && !candidate_list.brp.is_correct() %}
               {% let is_scrapped = political_group.mode.is_recovery() && candidate_list.is_scrapped %}
-              {% if has_brp_errors || is_scrapped || candidate_list.restoration_status.has_changes() %}
-                <div class="restoration-strip {% if has_brp_errors %}restoration-strip-error{% endif %}">
-                  {% if has_brp_errors || is_scrapped %}
+              {% if show_brp || is_scrapped || candidate_list.restoration_status.has_changes() %}
+                <div class="restoration-strip {% if political_group.mode.is_examination() && candidate_list.brp.has_errors() %}restoration-strip-error{% endif %}">
+                  {% if show_brp || is_scrapped %}
                     <ul class="restoration-tags">
-                      {% if has_brp_errors %}
-                        <li>
-                          <span class="restoration-tag restoration-tag-error">{{ "csb.brp.errors"|trans }}</span>
-                        </li>
+                      {% if show_brp %}
+                        {% if candidate_list.brp.has_errors() %}
+                          <li>
+                            <span class="restoration-tag restoration-tag-error">{{ "csb.brp.errors"|trans }}</span>
+                          </li>
+                        {% else if candidate_list.brp.is_not_checked() %}
+                          <li>
+                            <span class="restoration-tag restoration-tag-pending">{{ "csb.brp.not_checked"|trans }}</span>
+                          </li>
+                        {% else if candidate_list.brp.is_incomplete() %}
+                          <li>
+                            <span class="restoration-tag restoration-tag-pending">{{ "csb.brp.incomplete"|trans }}</span>
+                          </li>
+                        {% endif %}
                       {% endif %}
                       {% if is_scrapped %}
                         <li>

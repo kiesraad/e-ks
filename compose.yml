@@ -9,3 +9,11 @@ services:
       TZ: Europe/Amsterdam
     ports: ['127.0.0.1:5432:5432']
     networks: [default]
+
+  personen-mock:
+    container_name: brp-personen-mock
+    image: ghcr.io/brp-api/personen-mock:2.7.0-latest
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Release
+      - ASPNETCORE_URLS=http://+:5010
+    ports: ['127.0.0.1:5010:5010']

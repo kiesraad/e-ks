@@ -10,7 +10,7 @@ test("finalize examination happy flow", async ({ csbImport }) => {
   const politicalGroupPage = new CsbPoliticalGroupPage(page);
 
   await page.goto("/csb/examination");
-  await expect(page.getByText(`${groupName} Controle bezig`)).toBeVisible();
+  await expect(page.getByText(`${groupName} Onderzoek bezig`)).toBeVisible();
   await examinationPage.selectPoliticalGroup(groupName);
   await expect(page.getByText("Onderzoek afronden")).toBeVisible();
   await expect(page.locator(".examination-panels")).not.toHaveClass(/disabled/);
@@ -28,7 +28,7 @@ test("finalize examination with omissions", async ({ csbImport }) => {
   const omissionsPage = new CsbOmissionsDeclarationsOfSupportPage(page);
 
   await page.goto("/csb/examination");
-  await expect(page.getByText(`${groupName} Controle bezig`)).toBeVisible();
+  await expect(page.getByText(`${groupName} Onderzoek bezig`)).toBeVisible();
 
   await examinationPage.selectPoliticalGroup(groupName);
   await politicalGroupPage.linkSupportDeclarations.click();
