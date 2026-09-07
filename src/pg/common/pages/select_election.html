@@ -2,6 +2,13 @@
 {% import "pg/common/components/macros.html" as macros %}
 {% block body %}
   <header>
+    <nav>
+      <div class="end">
+        <ul>
+          {% include "pg/common/components/logout_nav_item.html" %}
+        </ul>
+      </div>
+    </nav>
     <div class="header-content">
       <h1>{{ "common.title"|trans }}</h1>
     </div>

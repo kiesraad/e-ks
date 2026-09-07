@@ -15,6 +15,10 @@ header {
       max-width: var(--container-size);
       display: flex;
       justify-content: space-between;
+
+      &.end {
+        justify-content: flex-end;
+      }
     }
 
     ul {
