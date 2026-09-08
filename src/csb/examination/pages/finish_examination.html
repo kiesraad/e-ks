@@ -30,6 +30,11 @@
     </div>
 
     <table class="omission-table">
+      <thead>
+        <tr>
+          <th colspan="2">{{ "common.political_group"|trans }}</th>
+        </tr>
+      </thead>
       {% for pg in political_groups %}
       <tr class="clickable">
         <td>
@@ -39,6 +44,8 @@
           <a class="icon-chevron-end" href="/csb/examination/{{pg.stream_id}}"></a>
         </td>
       </tr>
+      {% else %}
+        <td colspan="2"><p class="font-italic">{{ "csb.no_finished_political_group"|trans }}</p></td>
       {% endfor %}
     </table>
 
