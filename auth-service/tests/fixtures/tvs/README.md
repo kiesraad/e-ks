@@ -6,9 +6,8 @@ Real `ArtifactResponse` messages from the TVS *Routeringsdienst*, used by
 Copied verbatim from [`minvws/nl-rdo-max`](https://github.com/minvws/nl-rdo-max)
 (the TVS reference SP) at commit `70d1e46907cb1a9af666891f9b87882bd0f00c0b`,
 `tests/test-saml-art.tvs.xml` and `tests/resources/sample_messages/`. Upstream
-is EUPL-1.2, as is this repository. They were already test fixtures there: the
-identifiers are test-environment values and the `EncryptedID` payloads are
-wrapped to DV keys we do not hold.
+is EUPL-1.2, as is this repository. The identifiers are test-environment values and the
+`EncryptedID` payloads are wrapped to DV keys we do not hold.
 
 | File | Shape |
 |---|---|
