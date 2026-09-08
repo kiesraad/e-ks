@@ -97,6 +97,17 @@ impl Person {
         initials
     }
 
+    /// Returns the full name as printed on the candidate list.
+    ///
+    /// **Example:** van Dijk, A.B. (Anne) (v)
+    pub fn name_as_printed_on_list(&self, locale: AnyLocale) -> String {
+        format!(
+            "{}, {}",
+            self.name.last_name_with_prefix(),
+            self.initials_as_printed_on_list(locale)
+        )
+    }
+
     pub fn lives_in_nl(&self) -> bool {
         self.personal_data.lives_in_nl()
     }

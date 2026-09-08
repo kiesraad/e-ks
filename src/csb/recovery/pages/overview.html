@@ -13,7 +13,7 @@
     {% if political_groups.is_empty() %}
       <p class="font-italic">{{ "csb.no_political_groups_added"|trans }}</p>
     {% else %}
-      <table class="political-group-table mb-xl mt-md">
+      <table class="political-group-recovery-table mb-xl mt-md">
         <thead>
           <tr>
             <th>{{ "common.political_group"|trans }}</th>
@@ -29,15 +29,15 @@
               <td>
                 {% if pg.omission_count == 0 %}
                   <div class="status approved">{{ "csb.recovery.no_omissions"|trans }}</div>
-                {% else if pg.pending_omission_count > 0 %}
+                {% else if !pg.recovery.is_complete() %}
                   <div class="status in-progress">{{ "csb.status.in_progress"|trans }}</div>
                 {% else %}
                   <div class="status approved">{{ "csb.recovery.assessed"|trans }}</div>
                 {% endif %}
               </td>
               <td>
-                {% if pg.actionable_omission_count > 0 %}
-                  {{ "csb.recovery.assessed_count"|trans(&pg.decided_omission_count().to_string() , &pg.actionable_omission_count.to_string() ) }}
+                {% if pg.recovery.total > 0 %}
+                  {{ "csb.recovery.assessed_count"|trans(&pg.recovery.decided().to_string() , &pg.recovery.total.to_string() ) }}
                 {% endif %}
               </td>
               <td>

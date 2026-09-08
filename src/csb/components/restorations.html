@@ -28,34 +28,66 @@
     </ul>
   </div>
 {% endmacro omission_group %}
-{% macro status_control(political_group, omission, redirect) %}
-  {% if omission.is_actionable() %}
-    <form method="post"
-          class="omission-status-control"
-          action="{{ political_group.set_omission_status_path(omission.id, redirect) }}">
-      <input type="hidden" name="csrf_token" value="{{ "csrf_token"|str_value }}">
-      <button type="submit"
-              name="status"
-              value="recovered"
-              class="button {% if omission.status.is_recovered() %}selected{% else %}secondary{% endif %}">
-        {{ "csb.recovery.recovered"|trans }}
-      </button>
-      <button type="submit"
-              name="status"
-              value="not-recovered"
-              class="button {% if omission.status.is_not_recovered() %}primary-destructive selected{% else %}secondary{% endif %}">
-        {{ "csb.recovery.not_recovered"|trans }}
-      </button>
-    </form>
-  {% else %}
+{% macro status_buttons(political_group, omission, redirect, part, size="", part_field="electoral_district") %}
+  <form method="post"
+        class="omission-status-control"
+        action="{{ political_group.set_omission_status_path(omission.id, redirect) }}">
+    <input type="hidden" name="csrf_token" value="{{ "csrf_token"|str_value }}">
+    {% if !part.is_empty() %}<input type="hidden" name="{{ part_field }}" value="{{ part }}">{% endif %}
+    <button type="submit"
+            name="status"
+            value="recovered"
+            class="button {{ size }} {% if omission.status.is_recovered() %}selected{% else %}secondary{% endif %}">
+      {{ "csb.recovery.recovered"|trans }}
+    </button>
+    <button type="submit"
+            name="status"
+            value="not-recovered"
+            class="button {{ size }} {% if omission.status.is_not_recovered() %}primary-destructive selected{% else %}secondary{% endif %}">
+      {{ "csb.recovery.not_recovered"|trans }}
+    </button>
+  </form>
+{% endmacro status_buttons %}
+{# The decision controls of an omission. On the page of one candidate list
+   (`scope_list`) they decide that list only; elsewhere an omission covering
+   several districts or lists is decided part by part. #}
+{% macro status_control(political_group, omission, redirect, districts, lists, scope_list) %}
+  {% if !omission.is_actionable() %}
     <span class="restoration-tag restoration-tag-unrecoverable">{{ "csb.omission.overview.not_recoverable"|trans }}</span>
+  {% else if !scope_list.is_empty() %}
+    {{ status_buttons(political_group, omission, redirect, scope_list, part_field="candidate_list") }}
+  {% else if districts.len() > 1 %}
+    <table class="omission-part-table">
+      <tbody>
+        {% for district in districts %}
+          <tr>
+            <th scope="row">{{ district|district_name }}</th>
+            <td>{{ status_buttons(political_group, omission, redirect, district.serde_name() , size="xs") }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else if lists.len() > 1 %}
+    <table class="omission-part-table">
+      <tbody>
+        {% for list_id in lists %}
+          <tr>
+            <th scope="row">
+              {% for district in political_group.candidate_list_districts(list_id) %}
+                {% if !loop.first %}<span class="districts-separator" aria-hidden="true">|</span>{% endif %}
+                {{ district|district_name }}
+              {% endfor %}
+            </th>
+            <td>{{ status_buttons(political_group, omission, redirect, list_id.to_string() , size="xs", part_field="candidate_list") }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    {{ status_buttons(political_group, omission, redirect, "") }}
   {% endif %}
 {% endmacro status_control %}
-{# The electoral districts an omission is scoped to, read as one line. Only the
-   declarations of support are reported per district, so this renders nothing
-   for the other omissions, nor in a single-district election. #}
-{% macro districts_line(omission) %}
-  {% let districts = omission.electoral_districts() %}
+{% macro districts_line(districts) %}
   {% let election = "election"|election_value %}
   {% if !districts.is_empty() && !election.has_only_one_district() %}
     <p class="omission-districts">
@@ -71,8 +103,29 @@
     </p>
   {% endif %}
 {% endmacro districts_line %}
-{% macro status_row(political_group, omission, path, redirect) %}
-  <li class="omission-status-row {% if omission.is_pending() %}omission-status-row-pending{% endif %}">
+{# The candidate lists an omission is scoped to, each named by its districts
+   like the group's lists are told apart. Nothing when the group has only one
+   list, which then goes without saying. #}
+{% macro lists_line(political_group, lists) %}
+  {% if !lists.is_empty() && political_group.has_multiple_candidate_lists() %}
+    <p class="omission-districts">
+      <strong>{{ "candidate_list.title_single"|trans }}:</strong>
+      {% for list_id in lists %}
+        {% if !loop.first %},{% endif %}
+        {% for district in political_group.candidate_list_districts(list_id) %}
+          {% if !loop.first %}<span class="districts-separator" aria-hidden="true">|</span>{% endif %}
+          {{ district|district_name }}
+        {% endfor %}
+      {% endfor %}
+    </p>
+  {% endif %}
+{% endmacro lists_line %}
+{% macro status_row(political_group, omission, path, redirect, scope_list="") %}
+  {% let election = "election"|election_value %}
+  {% let districts = omission.electoral_districts(election) %}
+  {% let lists = omission.candidate_lists() %}
+  {% let per_part = scope_list.is_empty() && omission.is_assessed_per_part(election) %}
+  <li class="omission-status-row{% if per_part %} omission-status-row-per-part{% endif %}{% if omission.is_pending() %} omission-status-row-pending{% endif %}">
     <div class="omission-status-text">
       {% if path.is_empty() %}
         <span class="restoration-tag{% if !omission.recoverable %} restoration-tag-unrecoverable{% endif %}">{{ omission.title }}</span>
@@ -80,13 +133,14 @@
         <a class="restoration-tag{% if !omission.recoverable %} restoration-tag-unrecoverable{% endif %}"
            href="{{ path }}">{{ omission.title }}</a>
       {% endif %}
-      {{ districts_line(omission) }}
+      {% if !per_part %}{{ districts_line(districts) }}{% endif %}
+      {% if scope_list.is_empty() && lists.len() == 1 %}{{ lists_line(political_group, lists) }}{% endif %}
       <p>{{ omission.description }}</p>
     </div>
-    {{ status_control(political_group, omission, redirect) }}
+    {{ status_control(political_group, omission, redirect, districts, lists, scope_list) }}
   </li>
 {% endmacro status_row %}
-{% macro status_panel(political_group, title, explanation, omissions, redirect) %}
+{% macro status_panel(political_group, title, explanation, omissions, redirect, scope_list="") %}
   <div class="examination-panel">
     <div class="examination-panel-header">
       <div>
@@ -100,7 +154,7 @@
       </div>
     {% else %}
       <ul class="omission-status-list">
-        {% for omission in omissions %}{{ status_row(political_group, omission, "", redirect) }}{% endfor %}
+        {% for omission in omissions %}{{ status_row(political_group, omission, "", redirect, scope_list=scope_list) }}{% endfor %}
       </ul>
     {% endif %}
   </div>

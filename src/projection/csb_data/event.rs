@@ -5,7 +5,7 @@ use crate::{
     CsbUser, Event, HasCsbUser, PgEvent, PgStoreData, StreamId,
     structs::{
         brp::{BrpFinding, BrpStatus},
-        csb::{Correction, Omission, OmissionId, OmissionStatus},
+        csb::{Correction, Omission, OmissionId, OmissionPart, OmissionStatus},
         persons::PersonId,
     },
     trans,
@@ -96,6 +96,14 @@ pub enum CsbAction {
         omission_id: OmissionId,
         status: OmissionStatus,
     },
+    /// Record the decision for one part of an omission. The projection splits
+    /// the part off while the omission covers other parts, and reads parts
+    /// decided the same way as one omission.
+    SetOmissionPartStatus {
+        omission_id: OmissionId,
+        part: OmissionPart,
+        status: OmissionStatus,
+    },
     UpdateCorrection(Correction),
     /// Empty `findings` means checked, with the BRP agreeing on every field.
     BrpPersonChecked {
@@ -116,7 +124,8 @@ impl CsbAction {
             CsbAction::CreateOmission(_)
             | CsbAction::UpdateOmission(_)
             | CsbAction::DeleteOmission { .. }
-            | CsbAction::SetOmissionStatus { .. } => "omission",
+            | CsbAction::SetOmissionStatus { .. }
+            | CsbAction::SetOmissionPartStatus { .. } => "omission",
             CsbAction::UpdateCorrection(_) => "correction",
             CsbAction::BrpPersonChecked { .. } | CsbAction::SetBrpStatus(_) => "brp_validation",
         }
@@ -133,6 +142,7 @@ impl CsbAction {
             CsbAction::UpdateOmission(_) => "update_omission",
             CsbAction::DeleteOmission { .. } => "delete_omission",
             CsbAction::SetOmissionStatus { .. } => "set_omission_status",
+            CsbAction::SetOmissionPartStatus { .. } => "set_omission_part_status",
             CsbAction::UpdateCorrection(_) => "update_correction",
             CsbAction::BrpPersonChecked { .. } => "brp_person_checked",
             CsbAction::SetBrpStatus(_) => "brp_validation",
@@ -151,6 +161,9 @@ impl CsbAction {
             CsbAction::DeleteOmission { .. } => trans!("audit_log.event.delete_omission", locale),
             CsbAction::SetOmissionStatus { .. } => {
                 trans!("audit_log.event.set_omission_status", locale)
+            }
+            CsbAction::SetOmissionPartStatus { .. } => {
+                trans!("audit_log.event.set_omission_part_status", locale)
             }
             CsbAction::UpdateCorrection { .. } => {
                 trans!("audit_log.event.update_correction", locale)
@@ -189,6 +202,13 @@ impl CsbAction {
                 status,
             } => {
                 format!("{omission_id}: {status:?}")
+            }
+            CsbAction::SetOmissionPartStatus {
+                omission_id,
+                part,
+                status,
+            } => {
+                format!("{omission_id}: {part:?} {status:?}")
             }
             CsbAction::UpdateCorrection(_) => String::new(),
             CsbAction::BrpPersonChecked { person, .. } => person.to_string(),

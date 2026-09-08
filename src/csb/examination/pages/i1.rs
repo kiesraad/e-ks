@@ -4,7 +4,7 @@ use crate::{
     AppError, AppRequestState, CsbMainStore,
     core::{ModelLocale, constants::DEFAULT_DATE_FORMAT},
     csb::examination::{
-        actions::{found_omissions, submitted_lists},
+        model_inputs::{found_omissions, submitted_lists},
         pages::CsbI1DownloadPath,
     },
     models::{Pdf, i1::I1},

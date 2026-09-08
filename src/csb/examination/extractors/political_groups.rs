@@ -1,9 +1,16 @@
 use axum::{extract::FromRequestParts, http::request::Parts};
 
+use std::collections::HashMap;
+
 use crate::{
-    AppError, AppRequestState, CsbStream, Session, StreamId,
+    AppError, AppRequestState, CsbStream, ElectoralDistrict, Session, StreamId,
     csb::examination::structs::BrpCheckState,
-    structs::{common::FullName, csb::CsbPhase, political_groups::PoliticalGroup},
+    structs::{
+        candidate_lists::CandidateListId,
+        common::FullName,
+        csb::{CsbPhase, RecoveryProgress},
+        political_groups::PoliticalGroup,
+    },
 };
 
 pub struct CsbPoliticalGroup {
@@ -18,9 +25,13 @@ pub struct CsbPoliticalGroup {
     pub is_appellation_scrapped: bool,
     pub restoration_count: usize,
     pub omission_count: usize,
-    pub pending_omission_count: usize,
-    pub actionable_omission_count: usize,
+    /// How far the group is through the recovery phase; only meaningful in
+    /// [`CsbPhase::Recovery`].
+    pub recovery: RecoveryProgress,
     pub first_candidate_name: Option<FullName>,
+    /// The electoral districts of each candidate list, which is how the
+    /// shared templates name a list (see [`Self::candidate_list_districts`]).
+    pub candidate_list_districts: HashMap<CandidateListId, Vec<ElectoralDistrict>>,
 }
 
 impl CsbPoliticalGroup {
@@ -35,10 +46,14 @@ impl CsbPoliticalGroup {
             is_appellation_scrapped: store.is_appellation_scrapped(),
             restoration_count: store.get_restoration_count(),
             omission_count: store.get_omission_count(),
-            pending_omission_count: store.get_pending_omission_count(),
-            actionable_omission_count: store.get_actionable_omission_count(),
+            recovery: store.get_recovery_progress(),
             first_candidate_name: store
                 .get_first_candidate_name(crate::projection::WithCorrections::All),
+            candidate_list_districts: store
+                .get_candidate_lists(crate::projection::WithCorrections::All)
+                .into_iter()
+                .map(|list| (list.id, list.electoral_districts))
+                .collect(),
         }
     }
 
@@ -47,9 +62,16 @@ impl CsbPoliticalGroup {
         self
     }
 
-    /// The number of omissions already assessed in the recovery phase.
-    pub fn decided_omission_count(&self) -> usize {
-        self.actionable_omission_count - self.pending_omission_count
+    /// Whether the group's candidate lists have to be told apart at all.
+    pub fn has_multiple_candidate_lists(&self) -> bool {
+        self.candidate_list_districts.len() > 1
+    }
+
+    /// The districts of one candidate list, empty when the list is unknown.
+    pub fn candidate_list_districts(&self, list_id: &CandidateListId) -> &[ElectoralDistrict] {
+        self.candidate_list_districts
+            .get(list_id)
+            .map_or(&[], Vec::as_slice)
     }
 
     pub fn csb_appellation(&self) -> String {
@@ -188,10 +210,10 @@ mod tests {
             is_deleted: false,
             restoration_count: 0,
             omission_count: 0,
-            pending_omission_count: 0,
-            actionable_omission_count: 0,
+            recovery: RecoveryProgress::default(),
             first_candidate_name: None,
             is_appellation_scrapped: false,
+            candidate_list_districts: HashMap::new(),
         };
 
         assert_eq!(group.csb_appellation(), "Kiesraad Demo");
@@ -211,14 +233,14 @@ mod tests {
             is_deleted: false,
             restoration_count: 0,
             omission_count: 0,
-            pending_omission_count: 0,
-            actionable_omission_count: 0,
+            recovery: RecoveryProgress::default(),
             first_candidate_name: Some(FullName {
                 last_name: "Jansen".parse().unwrap(),
                 initials: "A.B.".parse().unwrap(),
                 ..Default::default()
             }),
             is_appellation_scrapped: false,
+            candidate_list_districts: HashMap::new(),
         };
 
         assert_eq!(group.csb_appellation(), "Blanco (Jansen, A.B.)");
@@ -238,10 +260,10 @@ mod tests {
             is_deleted: false,
             restoration_count: 0,
             omission_count: 0,
-            pending_omission_count: 0,
-            actionable_omission_count: 0,
+            recovery: RecoveryProgress::default(),
             first_candidate_name: None,
             is_appellation_scrapped: false,
+            candidate_list_districts: HashMap::new(),
         };
 
         assert_eq!(group.csb_appellation(), "Blanco");

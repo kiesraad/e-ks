@@ -32,13 +32,7 @@ impl CsbStream {
         &self,
         political_group: &CsbPoliticalGroup,
     ) -> Result<AllOmissions, AppError> {
-        let omissions = self
-            .data
-            .read()
-            .omissions
-            .values()
-            .cloned()
-            .collect::<Vec<_>>();
+        let omissions = self.get_omissions();
 
         let mut general = Vec::new();
         let mut declarations_of_support = Vec::new();
@@ -68,31 +62,73 @@ impl CsbStream {
                         omission,
                     })
                 }
-                OmissionCategory::Candidate { person, ref lists } => {
-                    let list = lists.first().ok_or(AppError::InternalServerError)?;
-                    let with_path = OmissionWithPath {
-                        path: candidate_path(political_group, &person, list),
-                        omission: omission.clone(),
-                    };
-                    if let Some(candidate) = candidates.iter_mut().find(|c| c.person.id == person) {
-                        candidate.omissions.push(with_path)
-                    } else {
-                        candidates.push(CandidateOmissions {
-                            omissions: vec![with_path],
-                            person: self
-                                .get_person(person, crate::projection::WithCorrections::All)
-                                .ok_or(AppError::InternalServerError)?,
-                        });
-                    }
+                OmissionCategory::Candidate { person, .. } => {
+                    self.push_candidate_omission(
+                        &mut candidates,
+                        political_group,
+                        person,
+                        omission,
+                    )?;
                 }
             }
         }
-        Ok(AllOmissions {
+        let mut all = AllOmissions {
             general,
             declarations_of_support,
             candidate_lists,
             candidates,
-        })
+        };
+        all.sort_by_district(self);
+        Ok(all)
+    }
+
+    /// Add `omission` to its candidate's group, starting a new group when this
+    /// is the candidate's first one.
+    fn push_candidate_omission(
+        &self,
+        candidates: &mut Vec<CandidateOmissions>,
+        political_group: &CsbPoliticalGroup,
+        person: PersonId,
+        omission: Omission,
+    ) -> Result<(), AppError> {
+        let list = omission
+            .candidate_lists()
+            .first()
+            .ok_or(AppError::InternalServerError)?;
+        let with_path = OmissionWithPath {
+            path: candidate_path(political_group, &person, list),
+            omission,
+        };
+
+        if let Some(candidate) = candidates.iter_mut().find(|c| c.person.id == person) {
+            candidate.omissions.push(with_path);
+        } else {
+            candidates.push(CandidateOmissions {
+                omissions: vec![with_path],
+                person: self
+                    .get_person(person, crate::projection::WithCorrections::All)
+                    .ok_or(AppError::InternalServerError)?,
+            });
+        }
+
+        Ok(())
+    }
+}
+
+impl AllOmissions {
+    /// Read the omissions assessed part by part in district order rather than
+    /// in store order, so the parts of a split stay together and in place.
+    fn sort_by_district(&mut self, store: &CsbStream) {
+        self.declarations_of_support
+            .sort_by_key(|view| store.district_order(&view.omission));
+        self.candidate_lists
+            .sort_by_key(|view| store.district_order(&view.omission));
+
+        for candidate in &mut self.candidates {
+            candidate
+                .omissions
+                .sort_by_key(|view| store.district_order(&view.omission));
+        }
     }
 }
 

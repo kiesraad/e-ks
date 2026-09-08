@@ -316,6 +316,39 @@
   }
 }
 
+/* Assessed part by part: the decisions stack under the omission. */
+.omission-status-row-per-part {
+  align-items: stretch;
+  flex-direction: column;
+}
+
+.omission-part-table {
+  th,
+  td {
+    border-bottom: none;
+    height: auto;
+    padding: var(--space-1) var(--space-3);
+  }
+
+  th {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    line-height: var(--leading-sm);
+  }
+
+  td {
+    text-align: right;
+  }
+
+  tr:nth-child(even) {
+    background-color: var(--gray-50);
+  }
+
+  .omission-status-control {
+    justify-content: flex-end;
+  }
+}
+
 .omission-status-control {
   display: flex;
   flex-shrink: 0;

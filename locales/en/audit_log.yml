@@ -66,6 +66,7 @@ event:
   remove_candidate_from_list: Removed candidate from list
   set_brp_validation_state: Set BRP validation state
   set_finished: Set finished state
+  set_omission_part_status: Set omission status per electoral district or list
   set_omission_status: Set omission status
   update_candidate_list_districts: Updated electoral districts of list
   update_candidate_list_order: Updated order of list of candidates

@@ -7,18 +7,19 @@ pub use getters::WithCorrections;
 use std::collections::{HashMap, hash_map::Entry};
 
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 #[cfg(test)]
 use crate::structs::political_groups::PoliticalGroup;
 use crate::{
-    PgEvent, PgStoreData, Scope,
+    ElectoralDistrict, PgEvent, PgStoreData, Scope,
     store::{StoreData, StoreEvent},
     structs::{
         brp::{BrpFinding, BrpStatus},
         common::{Appellation, UtcDateTime},
         csb::{
-            Correction, Omission, OmissionId, OmissionStatus, PersonCorrection,
-            PersonCorrectionDelta,
+            Correction, Omission, OmissionCategory, OmissionDecision, OmissionId, OmissionPart,
+            OmissionStatus, PersonCorrection, PersonCorrectionDelta,
         },
         persons::PersonId,
     },
@@ -61,19 +62,15 @@ impl StoreData for CsbStoreData {
                 snapshot,
                 hash: source_hash,
                 ..
-            } => {
-                self.imported_data = *snapshot;
-                self.paper_corrected_data = self.imported_data.clone();
-
-                // Record the import as event #1 of the corrected projection,
-                // so the paper-corrections audit log starts with it.
-                self.paper_corrected_data.apply(StoreEvent {
+            } => self.apply_import(
+                *snapshot,
+                StoreEvent {
                     event_id,
                     payload: crate::PgEvent::Import { hash: source_hash },
                     created_at,
                     hash,
-                });
-            }
+                },
+            ),
             CsbAction::CreateEmpty => {}
             CsbAction::Delete => self.is_deleted = true,
             CsbAction::PaperCorrectedUpdate(payload) => self.apply_paper_correction(StoreEvent {
@@ -92,6 +89,11 @@ impl StoreData for CsbStoreData {
                 omission_id,
                 status,
             } => self.set_omission_status(omission_id, status, event_time),
+            CsbAction::SetOmissionPartStatus {
+                omission_id,
+                part,
+                status,
+            } => self.set_omission_part_status(omission_id, part, status, event_id, event_time),
             CsbAction::UpdateCorrection(correction) => {
                 if let Correction::Person(person_id, _) = &correction {
                     self.forget_brp_check(*person_id);
@@ -115,6 +117,14 @@ impl StoreData for CsbStoreData {
 }
 
 impl CsbStoreData {
+    /// Take over an imported package as both projections. `import` becomes
+    /// event #1 of the corrected one, starting its audit log.
+    fn apply_import(&mut self, snapshot: PgStoreData, import: StoreEvent<crate::PgEvent>) {
+        self.imported_data = snapshot;
+        self.paper_corrected_data = self.imported_data.clone();
+        self.paper_corrected_data.apply(import);
+    }
+
     /// Forget what the BRP said about this candidate. Their data changed, so
     /// the findings are about values that are no longer on screen; dropping
     /// them puts the candidate back to "not checked" and lets a new check pick
@@ -140,6 +150,8 @@ impl CsbStoreData {
         });
     }
 
+    /// Record a decision on the omission, then read it as one with the
+    /// omission that has the same details and holds the same decision.
     fn set_omission_status(
         &mut self,
         omission_id: OmissionId,
@@ -150,6 +162,96 @@ impl CsbStoreData {
             omission.status = status;
             omission.updated_at = event_time;
         });
+        self.merge_omission(omission_id, event_time);
+    }
+
+    /// Record a decision on one part of the omission. While the omission
+    /// covers other parts, the part is split off first: a copy under an id
+    /// derived from the event, so replaying the stream is deterministic.
+    fn set_omission_part_status(
+        &mut self,
+        omission_id: OmissionId,
+        part: OmissionPart,
+        status: OmissionStatus,
+        event_id: usize,
+        event_time: UtcDateTime,
+    ) {
+        let Some(omission) = self.omissions.get(&omission_id).cloned() else {
+            return;
+        };
+
+        let decided = match omission.category.decide(part) {
+            None => return,
+            Some(OmissionDecision::Whole) => omission_id,
+            Some(OmissionDecision::Split { remaining, split }) => {
+                let split_id = split_off_id(omission_id, event_id);
+                self.omissions.insert(
+                    split_id,
+                    Omission {
+                        id: split_id,
+                        category: split,
+                        updated_at: event_time,
+                        ..omission
+                    },
+                );
+                self.omissions.entry(omission_id).and_modify(|omission| {
+                    omission.category = remaining;
+                    omission.updated_at = event_time;
+                });
+                split_id
+            }
+        };
+
+        self.set_omission_status(decided, status, event_time);
+    }
+
+    /// Read the omission as one with the omission that has the same details
+    /// and holds the same decision, if any: that one takes its parts over and
+    /// the omission goes away. Pending omissions stay as they were reported.
+    fn merge_omission(&mut self, omission_id: OmissionId, event_time: UtcDateTime) {
+        let Some(omission) = self.omissions.get(&omission_id) else {
+            return;
+        };
+        if omission.status == OmissionStatus::Pending {
+            return;
+        }
+        let Some(holder) = self
+            .omissions
+            .values()
+            .filter(|o| {
+                o.id != omission_id && o.status == omission.status && o.has_same_details(omission)
+            })
+            .min_by_key(|o| o.id)
+        else {
+            return;
+        };
+        let Some(mut category) = holder.category.merged_with(&omission.category) else {
+            return;
+        };
+        let holder_id = holder.id;
+
+        self.sort_candidate_lists(&mut category);
+        self.omissions.remove(&omission_id);
+        self.omissions.entry(holder_id).and_modify(|holder| {
+            holder.category = category;
+            holder.updated_at = event_time;
+        });
+    }
+
+    /// Put the lists of a category in district order, by their first
+    /// district, the way omissions are read.
+    fn sort_candidate_lists(&self, category: &mut OmissionCategory) {
+        if let OmissionCategory::CandidateList(lists) | OmissionCategory::Candidate { lists, .. } =
+            category
+        {
+            lists.sort_by_key(|list_id| {
+                self.paper_corrected_data
+                    .candidate_lists
+                    .get(list_id)
+                    .and_then(|list| list.electoral_districts.first())
+                    .map_or(u16::MAX, ElectoralDistrict::region_number)
+            });
+        }
     }
 
     /// Replay an app event onto the corrected projection, keeping the CSB
@@ -203,6 +305,12 @@ impl CsbStoreData {
             }
         }
     }
+}
+
+/// The id of the part split off `omission_id` by event `event_id`: the same on
+/// every replay of the stream.
+fn split_off_id(omission_id: OmissionId, event_id: usize) -> OmissionId {
+    Uuid::new_v5(&Uuid::from(omission_id), &event_id.to_be_bytes()).into()
 }
 
 /// The candidate whose BRP-checked data an app event changes, if any.
@@ -309,6 +417,115 @@ mod tests {
             snapshot: Box::new(snapshot),
         }
         .by(CsbUser::new_test())
+    }
+
+    fn declarations_of_support(districts: Vec<ElectoralDistrict>) -> Omission {
+        Omission::new(
+            OmissionCategory::DeclarationsOfSupport(districts),
+            "Declarations of support missing".parse().unwrap(),
+            "Too few declarations of support were handed in."
+                .parse()
+                .unwrap(),
+            None,
+        )
+    }
+
+    fn replay(events: &[CsbAction]) -> CsbStoreData {
+        let mut data = CsbStoreData::default();
+        for (index, action) in events.iter().enumerate() {
+            data.apply(StoreEvent::new(
+                index + 1,
+                action.clone().by(CsbUser::new_test()),
+            ));
+        }
+        data
+    }
+
+    #[test]
+    fn a_part_decision_splits_the_part_off_under_an_id_derived_from_the_event() {
+        let omission = declarations_of_support(vec![
+            ElectoralDistrict::Groningen,
+            ElectoralDistrict::Fryslan,
+        ]);
+        let events = [
+            CsbAction::CreateOmission(omission.clone()),
+            CsbAction::SetOmissionPartStatus {
+                omission_id: omission.id,
+                part: OmissionPart::ElectoralDistrict(ElectoralDistrict::Groningen),
+                status: OmissionStatus::Recovered,
+            },
+        ];
+
+        let data = replay(&events);
+        assert_eq!(data.omissions.len(), 2);
+        let remaining = &data.omissions[&omission.id];
+        assert_eq!(
+            remaining.category,
+            OmissionCategory::DeclarationsOfSupport(vec![ElectoralDistrict::Fryslan])
+        );
+        assert_eq!(remaining.status, OmissionStatus::Pending);
+        let split = &data.omissions[&split_off_id(omission.id, 2)];
+        assert_eq!(
+            split.category,
+            OmissionCategory::DeclarationsOfSupport(vec![ElectoralDistrict::Groningen])
+        );
+        assert_eq!(split.status, OmissionStatus::Recovered);
+        assert_eq!(split.title, omission.title);
+
+        // Replaying the stream yields the same ids.
+        let ids = |data: &CsbStoreData| {
+            let mut ids: Vec<OmissionId> = data.omissions.keys().copied().collect();
+            ids.sort();
+            ids
+        };
+        assert_eq!(ids(&replay(&events)), ids(&data));
+    }
+
+    #[test]
+    fn decisions_alike_read_as_one_omission() {
+        let groningen = declarations_of_support(vec![ElectoralDistrict::Groningen]);
+        let fryslan = declarations_of_support(vec![ElectoralDistrict::Fryslan]);
+        let data = replay(&[
+            CsbAction::CreateOmission(fryslan.clone()),
+            CsbAction::CreateOmission(groningen.clone()),
+            CsbAction::SetOmissionStatus {
+                omission_id: fryslan.id,
+                status: OmissionStatus::Recovered,
+            },
+            // The whole of Groningen is decided alike, so it joins Fryslân.
+            CsbAction::SetOmissionPartStatus {
+                omission_id: groningen.id,
+                part: OmissionPart::ElectoralDistrict(ElectoralDistrict::Groningen),
+                status: OmissionStatus::Recovered,
+            },
+        ]);
+
+        assert_eq!(data.omissions.len(), 1);
+        let merged = &data.omissions[&fryslan.id];
+        assert_eq!(
+            merged.category,
+            OmissionCategory::DeclarationsOfSupport(vec![
+                ElectoralDistrict::Groningen,
+                ElectoralDistrict::Fryslan
+            ])
+        );
+        assert_eq!(merged.status, OmissionStatus::Recovered);
+    }
+
+    #[test]
+    fn a_part_decision_for_an_uncovered_district_changes_nothing() {
+        let omission = declarations_of_support(vec![ElectoralDistrict::Groningen]);
+        let data = replay(&[
+            CsbAction::CreateOmission(omission.clone()),
+            CsbAction::SetOmissionPartStatus {
+                omission_id: omission.id,
+                part: OmissionPart::ElectoralDistrict(ElectoralDistrict::Utrecht),
+                status: OmissionStatus::Recovered,
+            },
+        ]);
+
+        assert_eq!(data.omissions.len(), 1);
+        assert_eq!(data.omissions[&omission.id].status, OmissionStatus::Pending);
     }
 
     #[test]
