@@ -92,7 +92,7 @@ test.describe("check candidate and add corrections and omissions", async () => {
       await page.waitForURL(/\/omission\//);
       await expect(
         page.getByRole("heading", {
-          name: "Verzuimen: Peereboom, P. (Patricia)",
+          name: "Verzuimen - Peereboom, P. (Patricia)",
         }),
       ).toBeVisible();
       await omissionsPage.expectOnlySelectedDistrictChecked(
@@ -177,7 +177,7 @@ test.describe("check candidate and add corrections and omissions", async () => {
       await page.waitForURL(/\/omission\//);
       await expect(
         page.getByRole("heading", {
-          name: "Verzuimen: Peereboom, P. (Patricia)",
+          name: "Verzuimen - Peereboom, P. (Patricia)",
         }),
       ).toBeVisible();
       await omissionsPage.expectOnlySelectedDistrictChecked(

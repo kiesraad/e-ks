@@ -66,7 +66,8 @@ pub mod tests {
 
     #[test]
     fn presets_are_loaded_from_json_per_type() {
-        assert_eq!(OmissionType::PoliticalGroup.presets().len(), 2);
+        assert_eq!(OmissionType::PoliticalGroup.presets().len(), 0);
+        assert_eq!(OmissionType::Appellation.presets().len(), 2);
         assert_eq!(OmissionType::CandidateList.presets().len(), 4);
         assert_eq!(OmissionType::DeclarationsOfSupport.presets().len(), 4);
         assert_eq!(OmissionType::Candidate.presets().len(), 12);
@@ -80,7 +81,7 @@ pub mod tests {
                 .all(|p| !p.title.is_empty() && !p.description.is_empty())
         );
         assert!(
-            OmissionType::PoliticalGroup
+            OmissionType::Appellation
                 .presets()
                 .iter()
                 .any(|p| p.help_text.is_empty())
@@ -99,7 +100,7 @@ pub mod tests {
         // Irreparable defects ("onherstelbaar verzuim") have no help text and are
         // flagged as non-recoverable.
         assert!(
-            OmissionType::PoliticalGroup
+            OmissionType::Appellation
                 .presets()
                 .iter()
                 .any(|p| !p.recoverable)

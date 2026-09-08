@@ -5,6 +5,7 @@ add_legal_name: Statutaire naam toevoegen
 add_list_submitter: Lijstinleveraar toevoegen
 add_substitute_submitter: Vervanger voor het herstel van verzuimen
 appellation: Geregistreerde aanduiding
+appellation_any: Aanduiding
 appellation_combined: Samengevoegde aanduiding
 authorised_agent: Gemachtigde
 authorised_agent_data: Gegevens (plv.) gemachtigde

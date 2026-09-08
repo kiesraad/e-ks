@@ -725,8 +725,8 @@ mod tests {
         );
         assert_eq!(all[0].status, OmissionStatus::Recovered);
         assert_progress(&store, 0, 2);
-        assert!(!store.is_candidate_scrapped(person, lists[0]));
-        assert!(!store.is_candidate_scrapped(person, lists[1]));
+        assert!(!store.get_scrapped().is_candidate_scrapped(lists[0], person));
+        assert!(!store.get_scrapped().is_candidate_scrapped(lists[1], person));
     }
 
     #[tokio::test]
@@ -785,8 +785,8 @@ mod tests {
         assert_progress(&store, 1, 2);
 
         // The candidate is scrapped from the Utrecht list only.
-        assert!(!store.is_candidate_scrapped(person, lists[0]));
-        assert!(store.is_candidate_scrapped(person, lists[1]));
+        assert!(!store.get_scrapped().is_candidate_scrapped(lists[0], person));
+        assert!(store.get_scrapped().is_candidate_scrapped(lists[1], person));
     }
 
     #[tokio::test]
@@ -815,7 +815,7 @@ mod tests {
             store.get_omission(omission.id).unwrap().status,
             OmissionStatus::Recovered
         );
-        assert!(!store.is_candidate_scrapped(person, lists[0]));
+        assert!(!store.get_scrapped().is_candidate_scrapped(lists[0], person));
     }
 
     #[tokio::test]
@@ -925,8 +925,8 @@ mod tests {
         assert_progress(&store, 1, 2);
 
         // Only the Utrecht list is scrapped.
-        assert!(!store.is_candidate_list_scrapped(lists[0]).unwrap());
-        assert!(store.is_candidate_list_scrapped(lists[1]).unwrap());
+        assert!(!store.get_scrapped().is_list_scrapped(lists[0]));
+        assert!(store.get_scrapped().is_list_scrapped(lists[1]));
     }
 
     #[tokio::test]

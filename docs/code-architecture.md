@@ -295,9 +295,16 @@ The CSB section has two projections of its own on the shared store machinery
 - **`examination`**: the examination of the imported lists. An overview
   groups the imported political groups by finished/unfinished; detail pages
   render the imported data read-only; omissions and corrections are recorded
-  in overlays; and the model **I 4** notice (the letter listing every
-  recoverable omission across all imported streams, per electoral district)
-  is generated here.
+  in overlays; and the models **I 1** and **I 4** are generated here, their
+  inputs collected across all imported streams in `model_inputs.rs`.
+- **`recovery`**: the "Herstelde lijsten" phase that follows the examination.
+  Once the omission letters have gone out, the CSB marks every recoverable
+  omission as recovered or not recovered; candidates, lists and districts
+  whose omission stays unresolved are scrapped ("geschrapt") and drop out of
+  the I 4. The pages are thin handlers that re-render the examination
+  templates under their own route prefix in `CsbPhase::Recovery` mode, which
+  hides the examination-only actions and shows the assessment controls
+  instead.
 - **`monitoring`**: an overview of the political-group streams built from
   `StreamMeta`: event counts and timestamps read from the backend's index.
   This deliberately reads no payloads: no stream key is unwrapped and nothing
@@ -321,8 +328,11 @@ The CSB section has two projections of its own on the shared store machinery
 An **omission** (*verzuim*) is a defect found during examination.
 `OmissionCategory` ties each omission to what it concerns: the political
 group itself, a candidate list (with the affected electoral districts), or a
-candidate (with the affected lists). Recoverable omissions feed the I 4
-notice. A **correction** (*ambtshalve correctie*) (`CsbAction::UpdateCorrection`) records a fix to
+candidate (with the affected lists). Recoverable omissions are the
+"Geconstateerde verzuimen" of models I 1 and I 4; an omission left unresolved
+(irreparable, or not recovered) scraps the candidate, the list (per district
+for declarations of support) or, for a political-group omission, the
+appellation. A **correction** (*ambtshalve correctie*) (`CsbAction::UpdateCorrection`) records a fix to
 the imported political group appellation and person data (initials, last name,
 date of birth, place of residence); corrections on persons are kept in a separate
 map in the projection (`csb_corrected_persons`), so the imported snapshot itself stays untouched.

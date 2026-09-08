@@ -112,7 +112,8 @@ fn placeholders_for(target: &OmissionTarget, store: &CsbStream) -> OmissionPlace
         // in by the front-end
         OmissionType::CandidateList
         | OmissionType::DeclarationsOfSupport
-        | OmissionType::PoliticalGroup => OmissionPlaceholders::default(),
+        | OmissionType::PoliticalGroup
+        | OmissionType::Appellation => OmissionPlaceholders::default(),
     }
 }
 
@@ -186,6 +187,7 @@ pub(super) fn omission_views(
         }
         OmissionType::DeclarationsOfSupport => store.get_all_declarations_of_support_omissions(),
         OmissionType::Candidate => store.get_candidate_omissions(PersonId::from(target.reference)),
+        OmissionType::Appellation => store.get_appellation_omissions(),
     };
 
     let mut views = Vec::with_capacity(omissions.len());
