@@ -346,7 +346,7 @@ mod tests {
             .sum();
         assert_eq!(actionable.len(), 6);
         assert!(decisions > actionable.len());
-        assert_eq!(store.get_pending_omission_count(), decisions);
+        assert_eq!(store.get_recovery_progress().pending, decisions);
         assert!(
             actionable
                 .iter()

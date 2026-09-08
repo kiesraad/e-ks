@@ -5,7 +5,7 @@ mod phase;
 pub use correction::{Correction, PersonCorrection, PersonCorrectionDelta};
 pub use omission::{
     Omission, OmissionCategory, OmissionDecision, OmissionId, OmissionPart, OmissionPlaceholders,
-    OmissionStatus, OmissionText, OmissionTitle, OmissionType,
+    OmissionStatus, OmissionText, OmissionTitle, OmissionType, RecoveryProgress,
 };
 pub use phase::CsbPhase;
 

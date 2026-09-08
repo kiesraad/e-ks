@@ -6,7 +6,9 @@ use crate::{
     AppError, AppRequestState, CsbStream, ElectoralDistrict, Session, StreamId,
     csb::examination::structs::BrpCheckState,
     structs::{
-        candidate_lists::CandidateListId, common::FullName, csb::CsbPhase,
+        candidate_lists::CandidateListId,
+        common::FullName,
+        csb::{CsbPhase, RecoveryProgress},
         political_groups::PoliticalGroup,
     },
 };
@@ -22,8 +24,9 @@ pub struct CsbPoliticalGroup {
     pub is_deleted: bool,
     pub restoration_count: usize,
     pub omission_count: usize,
-    pub pending_omission_count: usize,
-    pub actionable_omission_count: usize,
+    /// How far the group is through the recovery phase; only meaningful in
+    /// [`CsbPhase::Recovery`].
+    pub recovery: RecoveryProgress,
     pub first_candidate_name: Option<FullName>,
     /// The electoral districts of each candidate list, which is how the
     /// shared templates name a list (see [`Self::candidate_list_districts`]).
@@ -41,8 +44,7 @@ impl CsbPoliticalGroup {
             is_deleted: store.is_deleted(),
             restoration_count: store.get_restoration_count(),
             omission_count: store.get_omission_count(),
-            pending_omission_count: store.get_pending_omission_count(),
-            actionable_omission_count: store.get_actionable_omission_count(),
+            recovery: store.get_recovery_progress(),
             first_candidate_name: store
                 .get_first_candidate_name(crate::projection::WithCorrections::All),
             candidate_list_districts: store
@@ -68,11 +70,6 @@ impl CsbPoliticalGroup {
         self.candidate_list_districts
             .get(list_id)
             .map_or(&[], Vec::as_slice)
-    }
-
-    /// The number of omissions already assessed in the recovery phase.
-    pub fn decided_omission_count(&self) -> usize {
-        self.actionable_omission_count - self.pending_omission_count
     }
 
     pub fn csb_appellation(&self) -> String {
@@ -211,8 +208,7 @@ mod tests {
             is_deleted: false,
             restoration_count: 0,
             omission_count: 0,
-            pending_omission_count: 0,
-            actionable_omission_count: 0,
+            recovery: RecoveryProgress::default(),
             first_candidate_name: None,
             candidate_list_districts: HashMap::new(),
         };
@@ -234,8 +230,7 @@ mod tests {
             is_deleted: false,
             restoration_count: 0,
             omission_count: 0,
-            pending_omission_count: 0,
-            actionable_omission_count: 0,
+            recovery: RecoveryProgress::default(),
             first_candidate_name: Some(FullName {
                 last_name: "Jansen".parse().unwrap(),
                 initials: "A.B.".parse().unwrap(),
@@ -261,8 +256,7 @@ mod tests {
             is_deleted: false,
             restoration_count: 0,
             omission_count: 0,
-            pending_omission_count: 0,
-            actionable_omission_count: 0,
+            recovery: RecoveryProgress::default(),
             first_candidate_name: None,
             candidate_list_districts: HashMap::new(),
         };

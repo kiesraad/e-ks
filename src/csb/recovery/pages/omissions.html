@@ -25,7 +25,7 @@
             {{ "csb.recovery.omissions_title"|trans }}
           </h2>
           <p>
-            {{ "csb.recovery.assessed_count"|trans(&political_group.decided_omission_count().to_string() , &political_group.actionable_omission_count.to_string() ) }}
+            {{ "csb.recovery.assessed_count"|trans(&political_group.recovery.decided().to_string() , &political_group.recovery.total.to_string() ) }}
           </p>
         </div>
       </div>

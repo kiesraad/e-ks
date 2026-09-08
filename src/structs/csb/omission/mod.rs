@@ -316,6 +316,34 @@ pub enum OmissionDecision {
     },
 }
 
+/// Progress through the recovery ("Herstelde lijsten") phase of a political
+/// group, counted in decisions rather than in omissions: an omission the CSB
+/// assesses part by part stands for one decision per part (see
+/// [`Omission::decision_count`]). Irreparable omissions were never in the
+/// omission letter, so there is nothing to assess and they are in neither
+/// count.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct RecoveryProgress {
+    /// The decisions that still need a recovered / not-recovered answer, a
+    /// subset of `total`.
+    pub pending: usize,
+    /// The decisions to be made at all.
+    pub total: usize,
+}
+
+impl RecoveryProgress {
+    /// The decisions already answered.
+    pub fn decided(&self) -> usize {
+        self.total - self.pending
+    }
+
+    /// Whether every decision has been made. True as well when the group has
+    /// no omission to assess.
+    pub fn is_complete(&self) -> bool {
+        self.pending == 0
+    }
+}
+
 /// An omission ("verzuim") signifies something was wrong with the submitted data
 #[derive(Default, Debug, Serialize, Eq, PartialEq, Deserialize, Clone)]
 pub struct Omission {

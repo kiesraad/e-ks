@@ -10,7 +10,7 @@ use crate::{
     structs::{
         brp::{BrpFinding, BrpStatus},
         candidate_lists::{CandidateList, CandidateListId},
-        csb::{Omission, OmissionCategory, OmissionId},
+        csb::{Omission, OmissionCategory, OmissionId, RecoveryProgress},
         list_submitters::ListSubmitter,
         name_authorisations::NameAuthorisation,
         persons::{Person, PersonId},
@@ -99,30 +99,21 @@ impl CsbStream {
         self.get_omission_count() + self.get_correction_count()
     }
 
-    /// The number of omissions that still need a recovered / not-recovered
-    /// decision in the "Herstelde lijsten" phase.
-    /// The recovery decisions still to be made, counted per district for the
-    /// declarations of support (see [`Omission::decision_count`]).
-    pub fn get_pending_omission_count(&self) -> usize {
+    /// How far the group is through the "Herstelde lijsten" phase, counted in
+    /// recovery decisions (see [`RecoveryProgress`]).
+    pub fn get_recovery_progress(&self) -> RecoveryProgress {
         let data = self.data.read();
 
-        data.omissions
-            .values()
-            .filter(|o| o.is_pending())
-            .map(|o| o.decision_count(&self.election))
-            .sum()
-    }
+        let mut progress = RecoveryProgress::default();
+        for omission in data.omissions.values().filter(|o| o.is_actionable()) {
+            let decisions = omission.decision_count(&self.election);
+            progress.total += decisions;
+            if omission.is_pending() {
+                progress.pending += decisions;
+            }
+        }
 
-    /// The recovery decisions to be made at all (irreparable omissions cannot
-    /// be assessed), counted like [`Self::get_pending_omission_count`].
-    pub fn get_actionable_omission_count(&self) -> usize {
-        let data = self.data.read();
-
-        data.omissions
-            .values()
-            .filter(|o| o.is_actionable())
-            .map(|o| o.decision_count(&self.election))
-            .sum()
+        progress
     }
 
     /// Whether the candidate is scrapped from this list: an unresolved omission
@@ -640,7 +631,7 @@ mod tests {
     }
 
     #[test]
-    fn pending_and_actionable_counts_skip_irreparable_omissions() {
+    fn recovery_progress_skips_irreparable_omissions() {
         let store = CsbStore::new_for_test();
         insert(&store, OmissionCategory::PoliticalGroup);
         insert_with_status(
@@ -657,8 +648,13 @@ mod tests {
         );
 
         // The irreparable omission needs no decision and is not actionable.
-        assert_eq!(store.get_pending_omission_count(), 1);
-        assert_eq!(store.get_actionable_omission_count(), 2);
+        assert_eq!(
+            store.get_recovery_progress(),
+            RecoveryProgress {
+                pending: 1,
+                total: 2
+            }
+        );
     }
 
     #[test]

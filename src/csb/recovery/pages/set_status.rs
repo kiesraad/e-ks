@@ -73,11 +73,20 @@ mod tests {
     use crate::{
         structs::{
             candidate_lists::CandidateList,
-            csb::{Omission, OmissionCategory, OmissionId, sample_omission},
+            csb::{Omission, OmissionCategory, OmissionId, RecoveryProgress, sample_omission},
             persons::PersonId,
         },
         test_utils::sample_candidate_list,
     };
+
+    /// Assert the recovery progress: `pending` decisions outstanding of
+    /// `total`.
+    fn assert_progress(store: &CsbStore, pending: usize, total: usize) {
+        assert_eq!(
+            store.get_recovery_progress(),
+            RecoveryProgress { pending, total }
+        );
+    }
 
     fn declarations_of_support(districts: Vec<ElectoralDistrict>) -> Omission {
         Omission::new(
@@ -267,8 +276,7 @@ mod tests {
         omission.create(&store).await.unwrap();
 
         // Three districts, so three decisions.
-        assert_eq!(store.get_actionable_omission_count(), 3);
-        assert_eq!(store.get_pending_omission_count(), 3);
+        assert_progress(&store, 3, 3);
 
         set_status(
             CsbSetOmissionStatusPath {
@@ -312,8 +320,7 @@ mod tests {
         assert_eq!(split.description, omission.description);
 
         // Counting per district keeps the progress from jumping.
-        assert_eq!(store.get_actionable_omission_count(), 3);
-        assert_eq!(store.get_pending_omission_count(), 2);
+        assert_progress(&store, 2, 3);
 
         // Only the unrecovered district is scrapped.
         assert_eq!(
@@ -416,8 +423,7 @@ mod tests {
         }
 
         // All decided, only Fryslân scrapped.
-        assert_eq!(store.get_actionable_omission_count(), 3);
-        assert_eq!(store.get_pending_omission_count(), 0);
+        assert_progress(&store, 0, 3);
         assert_eq!(
             store.get_scrapped_districts(),
             vec![ElectoralDistrict::Fryslan]
@@ -506,8 +512,7 @@ mod tests {
         assert!(store.get_omission(omission.id).is_err());
 
         // Still two decisions, both made.
-        assert_eq!(store.get_actionable_omission_count(), 2);
-        assert_eq!(store.get_pending_omission_count(), 0);
+        assert_progress(&store, 0, 2);
     }
 
     #[tokio::test]
@@ -719,8 +724,7 @@ mod tests {
             }
         );
         assert_eq!(all[0].status, OmissionStatus::Recovered);
-        assert_eq!(store.get_actionable_omission_count(), 2);
-        assert_eq!(store.get_pending_omission_count(), 0);
+        assert_progress(&store, 0, 2);
         assert!(!store.is_candidate_scrapped(person, lists[0]));
         assert!(!store.is_candidate_scrapped(person, lists[1]));
     }
@@ -739,8 +743,7 @@ mod tests {
         omission.create(&store).await.unwrap();
 
         // Two lists, so two decisions.
-        assert_eq!(store.get_actionable_omission_count(), 2);
-        assert_eq!(store.get_pending_omission_count(), 2);
+        assert_progress(&store, 2, 2);
 
         set_status(
             CsbSetOmissionStatusPath {
@@ -779,8 +782,7 @@ mod tests {
         assert_eq!(all[1].status, OmissionStatus::NotRecovered);
         assert_eq!(all[1].title, omission.title);
 
-        assert_eq!(store.get_actionable_omission_count(), 2);
-        assert_eq!(store.get_pending_omission_count(), 1);
+        assert_progress(&store, 1, 2);
 
         // The candidate is scrapped from the Utrecht list only.
         assert!(!store.is_candidate_scrapped(person, lists[0]));
@@ -891,7 +893,7 @@ mod tests {
         let omission = on_lists(lists.clone());
         omission.create(&store).await.unwrap();
 
-        assert_eq!(store.get_actionable_omission_count(), 2);
+        assert_eq!(store.get_recovery_progress().total, 2);
 
         set_status(
             CsbSetOmissionStatusPath {
@@ -920,8 +922,7 @@ mod tests {
         );
         assert_eq!(split[0].status, OmissionStatus::NotRecovered);
 
-        assert_eq!(store.get_actionable_omission_count(), 2);
-        assert_eq!(store.get_pending_omission_count(), 1);
+        assert_progress(&store, 1, 2);
 
         // Only the Utrecht list is scrapped.
         assert!(!store.is_candidate_list_scrapped(lists[0]).unwrap());
