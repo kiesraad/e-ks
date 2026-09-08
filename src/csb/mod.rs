@@ -2,9 +2,10 @@
 //!
 //! Mirrors the layout of the `pg` domain but is scoped to the central electoral
 //! council side of the workflow: the import and examination pages plus their own
-//! request context. The events and store projections these pages read from live
-//! in [`crate::projection`].
+//! request context and error pages. The events and store projections these
+//! pages read from live in [`crate::projection`].
 pub mod audit_log;
+pub mod common;
 pub mod examination;
 pub mod import;
 pub mod index;
@@ -13,5 +14,7 @@ pub mod monitoring;
 pub mod recovery;
 
 mod context;
+mod error_response;
 
 pub use context::CsbContext;
+pub use error_response::render_csb_error_pages;

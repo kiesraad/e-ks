@@ -123,13 +123,24 @@ fn public_router() -> Router<AppState> {
 /// CSB routes need the session plus their own (CSB) store middleware, which
 /// also gates them to committee-scoped sessions. They must NOT get the app
 /// `store_middleware`, so they are merged into the session layer separately.
+///
+/// Errors are rendered in the CSB layout by `render_csb_error_pages`, the CSB
+/// counterpart of `render_error_pages`. `csb::common::router()` claims every
+/// other path under `/csb` for the CSB not-found page: the app router's
+/// fallback would otherwise catch those, and its store middleware redirects
+/// committee sessions away instead of answering with a page.
 fn csb_router(state: &AppState) -> Router<AppState> {
     csb::index::router()
         .merge(csb::audit_log::router())
+        .merge(csb::common::router())
         .merge(csb::examination::router())
         .merge(csb::recovery::router())
         .merge(csb::import::router())
         .merge(csb::monitoring::router())
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            csb::render_csb_error_pages,
+        ))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             csb_store_middleware,
@@ -317,6 +328,58 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
         assert!(body.contains("Kiesraad - Kandidaatstelling"));
+    }
+
+    /// Insert a committee session and build a GET request for `uri` that
+    /// carries its cookie.
+    async fn committee_request(state: &AppState, uri: &str) -> Request<Body> {
+        let session = crate::Session::new_test_committee();
+        let token = session.token_string();
+        state.sessions.insert(session).await;
+
+        Request::builder()
+            .uri(uri)
+            .header(
+                header::COOKIE,
+                format!("{}={}", crate::SESSION_COOKIE_NAME, token),
+            )
+            .body(Body::empty())
+            .unwrap()
+    }
+
+    /// An unknown path under `/csb` gets the CSB not-found page, not the app
+    /// router's fallback (which would redirect the committee session).
+    #[tokio::test]
+    async fn unknown_csb_path_renders_csb_not_found_page() {
+        let state = AppState::new_for_tests().await;
+        let app: Router = create(state.clone()).with_state(state.clone());
+
+        let request = committee_request(&state, "/csb/does-not-exist").await;
+        let response = app.oneshot(request).await.expect("response");
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let body = response_body_string(response).await;
+        assert!(body.contains("Pagina niet gevonden"), "{body}");
+        assert!(body.contains("/csb/does-not-exist"), "{body}");
+        assert!(body.contains("href=\"/csb\""), "{body}");
+    }
+
+    /// An error from a CSB handler or extractor is rendered as a page in the
+    /// CSB layout rather than answered with a bare status code.
+    #[tokio::test]
+    async fn csb_handler_error_renders_csb_error_page() {
+        let state = AppState::new_for_tests().await;
+        let app: Router = create(state.clone()).with_state(state.clone());
+
+        let uri = format!("/csb/examination/{}", crate::StreamId::new());
+        let request = committee_request(&state, &uri).await;
+        let response = app.oneshot(request).await.expect("response");
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let body = response_body_string(response).await;
+        assert!(body.contains("Foutcode 404"), "{body}");
+        assert!(body.contains("Stream not found"), "{body}");
+        assert!(body.contains("href=\"/csb\""), "{body}");
     }
 
     #[tokio::test]
