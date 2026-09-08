@@ -10,21 +10,38 @@
   <div class="examination-panel">
     <div class="examination-panel-header">
       <div>
-        <h2 class="h3">{{ "csb.finish_examination.i1_title"|trans }}</h2>
+        <h3>{{ "csb.finish_examination.i1_title"|trans }}</h3>
         <p>{{ "csb.finish_examination.i1_note"|trans }}</p>
       </div>
       <a class="button secondary icon-plus-end" href="#">{{ "csb.finish_examination.hearing_details"|trans }}</a>
+    </div>
+    <div class="examination-strip">
+      <a href="" class="button secondary icon-download">Download Word</a>
+      <a href="" class="button primary icon-download">Download PDF</a>
     </div>
   </div>
 
   <div class="examination-panel">
     <div class="examination-panel-header">
       <div>
-        <h2 class="h3">{{ "csb.finish_examination.omission_letters"|trans }}</h2>
+        <h3>{{ "csb.finish_examination.omission_letters"|trans }}</h3>
         <p>{{ "csb.finish_examination.omission_letters_note"|trans }}</p>
       </div>
     </div>
-  </div>
+
+    <table class="omission-table">
+      {% for pg in political_groups %}
+      <tr class="clickable">
+        <td>
+          <h5>{{pg.csb_appellation()}}</h5>
+        </td>
+        <td>
+          <a class="icon-chevron-end" href="/csb/examination/{{pg.stream_id}}"></a>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+</div>
 
 </div>
 {% endblock %}

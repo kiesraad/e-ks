@@ -1,0 +1,20 @@
+.examination-strip {
+  --examination-strip-color: var(--gray-100);
+  align-items: center;
+  background-color: var(--bg-gray);
+  border: 1px solid var(--gray-100);
+  border-radius: var(--rounded-md);
+  column-gap: var(--space-2);
+  display: flex;
+  min-height: 3.5rem;
+  padding: var(--space-2) var(--space-4);
+}
+
+table.omission-table {
+  margin-top: var(--space-md);
+  margin-bottom: var(--space-md);
+
+  tr {
+    height: var(--space-md);
+  }
+}
