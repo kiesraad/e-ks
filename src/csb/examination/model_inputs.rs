@@ -307,6 +307,7 @@ fn removed_appellation(
     election: &ElectionConfig,
     omissions: &[Omission],
 ) -> Option<i4::RemovedAppellation> {
+    // TODO: this is incorrect, fix in #1032
     let reasons: Vec<String> = unresolved_group_omissions(omissions)
         .map(|omission| omission.description.to_string())
         .collect();
@@ -1335,6 +1336,7 @@ mod tests {
 
     #[tokio::test]
     async fn i4_unresolved_group_omission_scraps_the_appellation() {
+        // TODO: this is incorrect, fix in #1032
         let state = AppState::new_for_tests().await;
         let (store, _, _) = seed_group_with_list(&state, "De Geschrapte Aanduiding").await;
         create_irreparable_omission(
