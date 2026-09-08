@@ -2,8 +2,8 @@ import type { Locator, Page } from "@playwright/test";
 
 export class CsbGeneralInformationPage {
   readonly headerGeneralInformation: Locator;
-  readonly linkAddOmission: Locator;
-  readonly linkManageOmissions: Locator;
+  readonly linkAddAppellationOmission: Locator;
+  readonly linkManageAppellationOmissions: Locator;
   readonly linkRegisteredDesignationStandalone: Locator;
   readonly textCorrectedNameStandalone: Locator;
   readonly textCorrectedNameCombined: Locator;
@@ -15,12 +15,16 @@ export class CsbGeneralInformationPage {
       name: "Basisgegevens",
       exact: true,
     });
-    this.linkAddOmission = this.page.getByRole("link", {
-      name: "Verzuim toevoegen",
-    });
-    this.linkManageOmissions = this.page.getByRole("link", {
-      name: "Overzicht",
-    });
+    this.linkAddAppellationOmission = this.page
+      .getByRole("link", {
+        name: "Verzuim toevoegen",
+      })
+      .nth(1);
+    this.linkManageAppellationOmissions = this.page
+      .getByRole("link", {
+        name: "Overzicht",
+      })
+      .nth(1);
     this.linkRegisteredDesignationStandalone = this.page.getByRole("cell", {
       name: "Geregistreerde aanduiding",
     });

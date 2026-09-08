@@ -10,7 +10,7 @@ import { NameAuthorisationPage } from "./pages/pg/nameAuthorisationPage.ts";
 import { OverviewPage } from "./pages/pg/overviewPage.ts";
 import { PoliticalGroupPage } from "./pages/pg/politicalGroupPage.ts";
 
-test.describe("check general information and add corrections and omissions", async () => {
+test.describe("check general information and add appellation corrections and omissions", async () => {
   test("for standalone political group", async ({ csbOnlyImport }) => {
     const { page, groupName } = csbOnlyImport;
     const politicalGroupPage = new CsbPoliticalGroupPage(page);
@@ -38,10 +38,12 @@ test.describe("check general information and add corrections and omissions", asy
     ];
 
     for (const { button, text, resolvable } of omissions) {
-      await generalInformationPage.linkAddOmission.click();
+      await generalInformationPage.linkAddAppellationOmission.click();
       await page.waitForURL(/\/omission\//);
       await expect(
-        page.getByRole("heading", { name: "Verzuimen: Basisgegevens (KDP)" }),
+        page.getByRole("heading", {
+          name: "Verzuimen - Geregistreerde aanduiding (KDP)",
+        }),
       ).toBeVisible();
       await button.click();
       if (resolvable) {
@@ -50,7 +52,7 @@ test.describe("check general information and add corrections and omissions", asy
       }
       await omissionsPage.buttonAddAndClose.click();
       await expect(page.locator("form.overlay")).toBeHidden();
-      await generalInformationPage.linkManageOmissions.click();
+      await generalInformationPage.linkManageAppellationOmissions.click();
       await page.waitForURL(/\/omission\//);
       await expect(page.getByText(text)).toBeVisible();
       if (resolvable) {
@@ -163,11 +165,11 @@ test.describe("check general information and add corrections and omissions", asy
     ];
 
     for (const { button, text, resolvable } of omissions) {
-      await generalInformationPage.linkAddOmission.click();
+      await generalInformationPage.linkAddAppellationOmission.click();
       await page.waitForURL(/\/omission\//);
       await expect(
         page.getByRole("heading", {
-          name: "Verzuimen: Basisgegevens (TP/TP2)",
+          name: "Verzuimen - Samengevoegde aanduiding (TP/TP2)",
         }),
       ).toBeVisible();
       await button.click();
@@ -177,7 +179,7 @@ test.describe("check general information and add corrections and omissions", asy
       }
       await omissionsPage.buttonAddAndClose.click();
       await expect(page.locator("form.overlay")).toBeHidden();
-      await generalInformationPage.linkManageOmissions.click();
+      await generalInformationPage.linkManageAppellationOmissions.click();
       await page.waitForURL(/\/omission\//);
       await expect(page.getByText(text)).toBeVisible();
       if (resolvable) {

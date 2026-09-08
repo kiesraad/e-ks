@@ -332,6 +332,4 @@ mod tests {
         assert_eq!(all_omissions.candidates.len(), 1);
         assert_eq!(all_omissions.candidates[0].omissions.len(), omission_count)
     }
-
-    // TODO add appellation omission test
 }
