@@ -7,9 +7,10 @@ use super::paths::{
     CsbAddOmissionPath, CsbAllBrpFindingsPath, CsbAllRestorationsPath,
     CsbAppellationCorrectionPath, CsbBrpCheckPath, CsbCandidateBrpCheckPath, CsbCandidateListPath,
     CsbCandidatePath, CsbDeleteOmissionPath, CsbExaminationOverviewPath, CsbFinishExaminationPath,
-    CsbGeneralInformationPath, CsbI1DownloadPath, CsbI4DownloadPath, CsbOmissionOverviewPath,
-    CsbPaperCorrectionsStartPath, CsbPaperCorrectionsStopPath, CsbPersonCorrectionPath,
-    CsbPoliticalGroupPath, CsbPoliticalGroupToggleFinishPath, OmissionListQuery, PgIndexPath,
+    CsbGeneralInformationPath, CsbI1DocxDownloadPath, CsbI1DownloadPath, CsbI4DownloadPath,
+    CsbOmissionOverviewPath, CsbPaperCorrectionsStartPath, CsbPaperCorrectionsStopPath,
+    CsbPersonCorrectionPath, CsbPoliticalGroupPath, CsbPoliticalGroupToggleFinishPath,
+    OmissionListQuery, PgIndexPath,
 };
 
 mod all_brp_findings;
@@ -31,6 +32,7 @@ pub fn router<S: AppRequestState>() -> Router<S> {
     Router::new()
         .typed_get(overview::overview)
         .typed_get(i1::gen_i1::<S>)
+        .typed_get(i1::gen_i1_docx::<S>)
         .typed_get(i4::gen_i4::<S>)
         .typed_get(political_group::overview)
         .typed_post(political_group::toggle_examination_finish)

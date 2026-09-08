@@ -43,6 +43,8 @@ pub enum AppError {
     /// Missing or invalid data when generating a PDF.
     IncompleteData(&'static str),
     PdfError(textris_pdf::render::RenderError),
+    /// Failed to pack the Word (`.docx`) export.
+    DocxError(std::io::Error),
     MarkdownError(textris_pdf::markdown::MarkdownParseError),
     EmlError(eml_nl::EMLError),
 
@@ -128,6 +130,7 @@ impl Display for AppError {
             AppError::MultipartFormError(err) => write!(f, "Multipart form error: {err}"),
             AppError::NoStorageConfigured => write!(f, "No event storage configured"),
             AppError::PdfError(err) => write!(f, "PDF error: {err}"),
+            AppError::DocxError(err) => write!(f, "Word export error: {err}"),
             AppError::MarkdownError(err) => write!(f, "Markdown template error: {err}"),
             AppError::NotFound(msg) => write!(f, "{msg}"),
             AppError::UserError(msg) => write!(f, "{msg}"),

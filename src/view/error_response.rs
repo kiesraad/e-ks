@@ -231,6 +231,7 @@ impl ErrorResponse {
             | AppError::MissingEnvVar(_)
             | AppError::ConfigLoadError(_)
             | AppError::PdfError(_)
+            | AppError::DocxError(_)
             | AppError::MarkdownError(_)
             | AppError::TemplateError(_)
             | AppError::UpstreamError(_)

@@ -35,6 +35,10 @@ pub struct CsbExaminationOverviewPath;
 pub struct CsbI1DownloadPath;
 
 #[derive(TypedPath)]
+#[typed_path("/csb/examination/i1.docx", rejection(AppError))]
+pub struct CsbI1DocxDownloadPath;
+
+#[derive(TypedPath)]
 #[typed_path("/csb/examination/i4.pdf", rejection(AppError))]
 pub struct CsbI4DownloadPath;
 
