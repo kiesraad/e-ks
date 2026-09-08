@@ -70,9 +70,9 @@ mod tests {
             is_deleted: false,
             restoration_count: 0,
             omission_count: 0,
-            pending_omission_count: 0,
-            actionable_omission_count: 0,
+            recovery: Default::default(),
             first_candidate_name: None,
+            candidate_list_districts: Default::default(),
         }]);
 
         let response = overview(
@@ -101,9 +101,9 @@ mod tests {
             is_deleted: false,
             restoration_count: 0,
             omission_count: 0,
-            pending_omission_count: 0,
-            actionable_omission_count: 0,
+            recovery: Default::default(),
             first_candidate_name: None,
+            candidate_list_districts: Default::default(),
         }]);
 
         let response = overview(
@@ -131,9 +131,9 @@ mod tests {
             is_deleted: false,
             restoration_count: 0,
             omission_count: 0,
-            pending_omission_count: 0,
-            actionable_omission_count: 0,
+            recovery: Default::default(),
             first_candidate_name: None,
+            candidate_list_districts: Default::default(),
         }]);
 
         let response = overview(
@@ -159,13 +159,13 @@ mod tests {
             stream_id: StreamId::new(),
             brp: BrpCheckState::NotChecked,
             mode: crate::structs::csb::CsbPhase::Examination,
-            pending_omission_count: 0,
-            actionable_omission_count: 0,
+            recovery: Default::default(),
             is_examination_finished: false,
             is_deleted: true,
             restoration_count: 0,
             omission_count: 0,
             first_candidate_name: None,
+            candidate_list_districts: Default::default(),
         }]);
 
         let response = overview(
@@ -190,13 +190,13 @@ mod tests {
             stream_id: StreamId::new(),
             brp: BrpCheckState::NotChecked,
             mode: crate::structs::csb::CsbPhase::Examination,
-            pending_omission_count: 0,
-            actionable_omission_count: 0,
+            recovery: Default::default(),
             is_examination_finished: false,
             is_deleted: false,
             restoration_count: 0, /* omission count should be used and > 0 */
             omission_count: 3,
             first_candidate_name: None,
+            candidate_list_districts: Default::default(),
         }]);
 
         let response = overview(

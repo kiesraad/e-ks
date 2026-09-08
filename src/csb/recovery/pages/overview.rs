@@ -39,10 +39,11 @@ mod tests {
 
     use crate::{
         StreamId,
+        structs::csb::RecoveryProgress,
         test_utils::{response_body_string, sample_political_group},
     };
 
-    fn group(pending: usize, actionable: usize) -> CsbPoliticalGroup {
+    fn group(pending: usize, total: usize) -> CsbPoliticalGroup {
         CsbPoliticalGroup {
             political_group: sample_political_group(),
             stream_id: StreamId::new(),
@@ -51,10 +52,10 @@ mod tests {
             is_examination_finished: false,
             is_deleted: false,
             restoration_count: 0,
-            omission_count: actionable,
-            pending_omission_count: pending,
-            actionable_omission_count: actionable,
+            omission_count: total,
+            recovery: RecoveryProgress { pending, total },
             first_candidate_name: None,
+            candidate_list_districts: Default::default(),
         }
     }
 

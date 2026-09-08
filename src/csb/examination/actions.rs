@@ -10,7 +10,7 @@ use crate::{
     },
     projection::WithCorrections,
     store::StoreRegistry,
-    structs::csb::{Omission, OmissionCategory, OmissionStatus},
+    structs::csb::{Omission, OmissionCategory, OmissionPart, OmissionStatus},
 };
 
 const ALL_DISTRICTS: &str = "alle kieskringen";
@@ -200,6 +200,43 @@ impl Omission {
         store
             .update(CsbAction::SetOmissionStatus {
                 omission_id: self.id,
+                status,
+            })
+            .await
+    }
+
+    /// Record the recovery decision for one part of this omission: an
+    /// electoral district, or a candidate list. The projection splits the part
+    /// off while the omission covers other parts, so those keep waiting for
+    /// their own decision, and reads parts decided the same way as one
+    /// omission again (see [`CsbAction::SetOmissionPartStatus`]).
+    pub async fn set_part_status(
+        &self,
+        store: &CsbStore,
+        part: OmissionPart,
+        status: OmissionStatus,
+    ) -> Result<(), AppError> {
+        if !self.is_actionable() {
+            return Err(AppError::UserError(
+                "an irreparable omission cannot be assessed".to_string(),
+            ));
+        }
+        if !self.covers(&store.election, part) {
+            return Err(AppError::UserError(format!(
+                "the omission was not reported for {part:?}"
+            )));
+        }
+
+        // A legacy omission covers all districts as none; spell them out, so
+        // the projection knows which ones remain after the split.
+        if let Some(explicit) = self.with_explicit_districts(&store.election) {
+            explicit.update(store).await?;
+        }
+
+        store
+            .update(CsbAction::SetOmissionPartStatus {
+                omission_id: self.id,
+                part,
                 status,
             })
             .await

@@ -253,7 +253,7 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
-        // The candidates still render, but the BRP check is examination-only.
+        // Candidates still render; the BRP check is examination-only.
         assert!(body.contains("Jansen"));
         assert!(!body.contains("BRP"));
     }

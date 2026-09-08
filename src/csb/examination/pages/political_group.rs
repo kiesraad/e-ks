@@ -512,8 +512,7 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
-        // The BRP check belongs to the examination, so neither the panel
-        // counting its errors nor the per-list error tag renders here.
+        // The BRP check belongs to the examination.
         assert!(!body.contains("BRP"));
         assert!(!body.contains("restoration-tag-error"));
     }

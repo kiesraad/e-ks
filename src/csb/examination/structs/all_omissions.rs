@@ -83,12 +83,31 @@ impl CsbStream {
                 }
             }
         }
-        Ok(AllOmissions {
+        let mut all = AllOmissions {
             general,
             declarations_of_support,
             candidate_lists,
             candidates,
-        })
+        };
+        all.sort_by_district(self);
+        Ok(all)
+    }
+}
+
+impl AllOmissions {
+    /// Read the omissions assessed part by part in district order rather than
+    /// in store order, so the parts of a split stay together and in place.
+    fn sort_by_district(&mut self, store: &CsbStream) {
+        self.declarations_of_support
+            .sort_by_key(|view| store.district_order(&view.omission));
+        self.candidate_lists
+            .sort_by_key(|view| store.district_order(&view.omission));
+
+        for candidate in &mut self.candidates {
+            candidate
+                .omissions
+                .sort_by_key(|view| store.district_order(&view.omission));
+        }
     }
 }
 

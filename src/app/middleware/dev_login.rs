@@ -557,9 +557,16 @@ mod tests {
         let csb_store = &csb_stores[0];
 
         let events = csb_store.data.read().events.clone();
-        assert_eq!(events.len(), 1);
+        // The import comes first, followed by the fixture omissions.
+        let (event, omissions) = events.split_first().expect("the import event");
+        assert!(!omissions.is_empty());
+        assert!(
+            omissions
+                .iter()
+                .all(|event| matches!(event.payload.action, CsbAction::CreateOmission(_)))
+        );
 
-        let event = events[0].clone();
+        let event = event.clone();
         let StoreEvent {
             payload:
                 crate::CsbEvent {
