@@ -176,6 +176,7 @@ omission:
     title: Overzicht
   title: Verzuimen
   title_for:
+    appellation: Verzuimen aanduiding
     candidate: "Verzuimen {}"
     candidate_list: Verzuimen kandidatenlijst
     general: Verzuimen basisgegevens

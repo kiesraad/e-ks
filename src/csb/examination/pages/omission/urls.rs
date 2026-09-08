@@ -21,7 +21,9 @@ use super::OmissionTarget;
 /// otherwise the political group examination overview.
 pub(super) fn return_path(target: &OmissionTarget, political_group: &CsbPoliticalGroup) -> String {
     match target.omission_type {
-        OmissionType::PoliticalGroup => political_group.general_information_path().to_string(),
+        OmissionType::PoliticalGroup | OmissionType::Appellation => {
+            political_group.general_information_path().to_string()
+        }
         OmissionType::CandidateList => political_group
             .candidate_list_path(&CandidateListId::from(target.reference))
             .to_string(),

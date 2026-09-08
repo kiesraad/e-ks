@@ -73,9 +73,9 @@ fn fixture_omissions(store: &CsbStream) -> Vec<Omission> {
     let mut omissions = vec![
         preset_omission(
             b"fixture_omission_unregistered_appellation",
-            OmissionType::PoliticalGroup,
+            OmissionType::Appellation,
             "De aanduiding is niet geregistreerd",
-            OmissionCategory::PoliticalGroup,
+            OmissionCategory::Appellation,
             &[],
         ),
         preset_omission(
@@ -316,7 +316,7 @@ mod tests {
         assert!(
             omissions
                 .iter()
-                .any(|o| o.category == OmissionCategory::PoliticalGroup)
+                .any(|o| o.category == OmissionCategory::Appellation)
         );
         assert!(
             omissions

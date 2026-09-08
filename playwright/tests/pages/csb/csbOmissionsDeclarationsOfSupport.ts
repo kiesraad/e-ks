@@ -19,7 +19,7 @@ export class CsbOmissionsDeclarationsOfSupportPage {
 
   constructor(protected readonly page: Page) {
     this.headerDeclarationsOfSupport = this.page.getByRole("heading", {
-      name: "Verzuimen: Ondersteuningsverklaringen",
+      name: "Verzuimen - Ondersteuningsverklaringen",
     });
     this.linkAdd = this.page.getByRole("link", { name: "Verzuimen toevoegen" });
     this.linkOverview = this.page.getByRole("link", { name: "Overzicht" });

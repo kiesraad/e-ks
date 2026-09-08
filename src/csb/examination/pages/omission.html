@@ -1,7 +1,7 @@
 {% extends "csb/components/overlay.html" %}
 {% set submit_label = "csb.omission.form.submit"|trans %}
 {% block overlay_class %}omission-overlay{% endblock %}
-{% block overlay_title %}<span class="omission-icon" aria-hidden="true"></span>{{ "csb.omission.title"|trans }}: {{ title_suffix }}{% endblock %}
+{% block overlay_title %}<span class="omission-icon" aria-hidden="true"></span>{{ "csb.omission.title"|trans }} - {{ title_suffix }}{% endblock %}
 {% block overlay_steps %}
   {% set is_overview = false %}
   {% include "csb/examination/pages/omission_steps.html" %}

@@ -41,7 +41,7 @@ test.describe("check candidate list and add corrections and omissions", async ()
       await candidateListPage.linkAddOmission.click();
       await page.waitForURL(/\/omission\//);
       await expect(
-        page.getByRole("heading", { name: "Verzuimen: Kandidatenlijst" }),
+        page.getByRole("heading", { name: "Verzuimen - Kandidatenlijst" }),
       ).toBeVisible();
       await omissionsPage.expectOnlySelectedDistrictChecked(
         page,
@@ -115,7 +115,7 @@ test.describe("check candidate list and add corrections and omissions", async ()
       await candidateListPage.linkAddOmission.click();
       await page.waitForURL(/\/omission\//);
       await expect(
-        page.getByRole("heading", { name: "Verzuimen: Kandidatenlijst" }),
+        page.getByRole("heading", { name: "Verzuimen - Kandidatenlijst" }),
       ).toBeVisible();
       await omissionsPage.expectOnlySelectedDistrictChecked(
         page,

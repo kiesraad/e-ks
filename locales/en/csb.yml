@@ -176,6 +176,7 @@ omission:
     title: Overview
   title: Omissions
   title_for:
+    appellation: Omissions appellation
     candidate: "Omissions {}"
     candidate_list: Omissions candidate list
     general: Omissions general information

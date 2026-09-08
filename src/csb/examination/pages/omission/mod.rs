@@ -20,6 +20,7 @@ use crate::{
     structs::{
         candidate_lists::CandidateListId,
         csb::{OmissionCategory, OmissionType},
+        list_designation::ListDesignation,
         persons::PersonId,
     },
     trans,
@@ -51,6 +52,20 @@ impl OmissionTarget {
             reference: path.reference,
             list: query.list,
         }
+    }
+
+    /// A blank list has no appellation, so it cannot get appellation omissions.
+    /// The overview stays reachable: a paper correction can blank a list after
+    /// its omissions were added.
+    fn ensure_can_add(&self, store: &CsbStream) -> Result<(), AppError> {
+        let is_blank = store
+            .get_political_group(WithCorrections::All)
+            .list_designation
+            == Some(ListDesignation::Blank);
+        if self.omission_type == OmissionType::Appellation && is_blank {
+            return Err(AppError::GenericNotFound);
+        }
+        Ok(())
     }
 
     fn from_overview_path(path: CsbOmissionOverviewPath, query: OmissionListQuery) -> Self {
@@ -114,6 +129,25 @@ impl OmissionTarget {
             .csb_appellation(first_candidate.as_ref());
         let first_part = match self.omission_type {
             OmissionType::PoliticalGroup => trans!("common.general_information", locale),
+            OmissionType::Appellation => {
+                match store
+                    .get_political_group(WithCorrections::All)
+                    .list_designation
+                {
+                    Some(ListDesignation::Standalone) | None => {
+                        trans!("political_group.appellation", locale)
+                    }
+                    Some(ListDesignation::Combined) => {
+                        trans!("political_group.appellation_combined", locale)
+                    }
+                    Some(ListDesignation::Blank) => {
+                        // the user can still get to the add/overview omission page via
+                        // all restorations. Users shouldn't apply paper corrections
+                        // after adding omissions, but we cannot guarantee this.
+                        trans!("political_group.appellation_any", locale)
+                    }
+                }
+            }
             OmissionType::CandidateList => trans!("candidate_list.title_single", locale),
             OmissionType::DeclarationsOfSupport => {
                 trans!("csb.declarations_of_support.title", locale)
@@ -137,6 +171,7 @@ pub async fn add_omission(
     Query(list_query): Query<OmissionListQuery>,
 ) -> Result<Response, AppError> {
     let target = OmissionTarget::from_add_path(path, list_query);
+    target.ensure_can_add(&store)?;
     let form = if target.omission_type == OmissionType::CandidateList {
         // Pre-fill the candidate list from the path
         FormData::new_with_data(OmissionForm {
@@ -219,6 +254,7 @@ pub async fn add_omission_submit(
     Form(form): Form<OmissionForm>,
 ) -> Result<Response, AppError> {
     let target = OmissionTarget::from_add_path(path, list_query);
+    target.ensure_can_add(&store)?;
 
     // For candidate list and declarations-of-support omissions at least one district must be selected
     let districts = match selected_or_only_available(
@@ -306,8 +342,11 @@ mod tests {
 
     use crate::{
         ElectoralDistrict,
-        structs::{candidate_lists::CandidateListId, csb::Omission, persons::PersonId},
-        test_utils::{response_body_string, sample_candidate_list},
+        structs::{
+            candidate_lists::CandidateListId, csb::Omission, persons::PersonId,
+            political_groups::PoliticalGroup,
+        },
+        test_utils::{response_body_string, sample_candidate_list, sample_political_group},
     };
 
     fn sample_form() -> OmissionForm {
@@ -328,6 +367,43 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn add_appellation_omission_is_not_found_for_a_blank_list() {
+        let store = CsbStore::new_for_test();
+        store.set_political_group(PoliticalGroup {
+            list_designation: Some(ListDesignation::Blank),
+            ..sample_political_group()
+        });
+        let stream_id = store.stream_id;
+        let path = || CsbAddOmissionPath {
+            stream_id,
+            omission_type: OmissionType::Appellation,
+            reference: stream_id.into(),
+        };
+
+        let result = add_omission(
+            path(),
+            CsbContext::new_test(),
+            store.clone(),
+            Query(QueryParamState::default()),
+            Query(OmissionListQuery::default()),
+        )
+        .await;
+        assert!(matches!(result, Err(AppError::GenericNotFound)));
+
+        let result = add_omission_submit(
+            path(),
+            CsbContext::new_test(),
+            store.clone(),
+            Query(QueryParamState::default()),
+            Query(OmissionListQuery::default()),
+            Form(sample_form()),
+        )
+        .await;
+        assert!(matches!(result, Err(AppError::GenericNotFound)));
+        assert_eq!(store.get_omission_count(), 0);
+    }
+
+    #[tokio::test]
     async fn add_omission_renders_csrf_and_fields() {
         let store = CsbStore::new_for_test();
         let stream_id = store.stream_id;
@@ -335,7 +411,7 @@ mod tests {
         let response = add_omission(
             CsbAddOmissionPath {
                 stream_id,
-                omission_type: OmissionType::PoliticalGroup,
+                omission_type: OmissionType::Appellation,
                 reference: stream_id.into(),
             },
             CsbContext::new_test(),
@@ -378,7 +454,7 @@ mod tests {
         // add-omission form active by default and the overview on its own route.
         assert!(body.contains("steps-nav"));
         assert!(body.contains(&format!(
-            "/csb/examination/{stream_id}/omission/political-group/{stream_id}/overview"
+            "/csb/examination/{stream_id}/omission/appellation/{stream_id}/overview"
         )));
         assert!(body.contains(">Overview</a>"));
     }

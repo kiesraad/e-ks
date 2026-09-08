@@ -1,14 +1,16 @@
 {# The panel at the top of an examination page: what has to be reported for
    this item, the action that adds a new omission, and a strip listing the
    omissions already added with a link to their overview. #}
-{% macro omission_panel(title, explanation, add_url, overview_url, omissions) %}
+{% macro omission_panel(title, explanation, add_url, overview_url, omissions, can_add=true) %}
   <div class="examination-panel">
     <div class="examination-panel-header">
       <div>
         <h2 class="h3">{{ title }}</h2>
         <p>{{ explanation }}</p>
       </div>
-      <a class="button secondary icon-plus-end" href="{{ add_url }}">{{ "csb.omission.action.add"|trans }}</a>
+      {% if can_add %}
+        <a class="button secondary icon-plus-end" href="{{ add_url }}">{{ "csb.omission.action.add"|trans }}</a>
+      {% endif %}
     </div>
     {{ omission_strip(overview_url, omissions) }}
   </div>
