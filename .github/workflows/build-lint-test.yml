@@ -395,6 +395,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - *checkout
+      - *setup-stable-rust
 
       - name: Read version
         id: version
@@ -425,6 +426,42 @@ jobs:
               }
             }
 
+      - name: Cargo cache
+        if: steps.release_check.outputs.release_exists == 'false'
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: eks-release
+
+      - *tools-cache
+
+      - name: Setup project
+        if: steps.release_check.outputs.release_exists == 'false'
+        run: bin/init
+
+      - name: Build production binary
+        if: steps.release_check.outputs.release_exists == 'false'
+        env:
+          CARGO_SET_FEATURES: "memory-serve,database,tls,acme"
+        run: bin/build
+
+      - name: Strip debug symbols
+        if: steps.release_check.outputs.release_exists == 'false'
+        run: strip target/release/eks
+
+      - name: Download test binary
+        if: steps.release_check.outputs.release_exists == 'false'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: eks
+          path: bin-test
+
+      - name: Collect release binaries
+        if: steps.release_check.outputs.release_exists == 'false'
+        run: |
+          mkdir bin-release
+          mv target/release/eks bin-release/eks
+          mv bin-test/eks bin-release/eks-test
+
       - name: Install cargo-sbom
         if: steps.release_check.outputs.release_exists == 'false'
         uses: psastras/sbom-rs/actions/install-cargo-sbom@9ecc460b937ac5558c4f8ebebc9e07d2bdbef67b # v0.10.0
@@ -436,13 +473,6 @@ jobs:
           cargo-sbom --output-format=cyclone_dx_json_1_6 > sbom/cyclone-dx-1-6-sbom.json
           cargo-sbom --output-format=spdx_json_2_3 > sbom/spdx-2-3-sbom.json
 
-      - name: Download binary
-        if: steps.release_check.outputs.release_exists == 'false'
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: eks
-          path: bin-release
-
       - name: Create release
         if: steps.release_check.outputs.release_exists == 'false'
         env:
@@ -452,7 +482,8 @@ jobs:
           gh release create "$TAG" \
           sbom/cyclone-dx-1-6-sbom.json \
           sbom/spdx-2-3-sbom.json \
-          bin-release/eks \
+          "bin-release/eks#eks (production)" \
+          "bin-release/eks-test#eks-test (test build, includes fixtures and TVS mock)" \
           --title "Version $TAG" \
           --generate-notes \
           --target "$GITHUB_SHA"
