@@ -1,0 +1,250 @@
+<?xml version="1.0"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+    <soapenv:Body>
+        <samlp:ArtifactResponse xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
+                                xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
+                                ID="_b9f4ddf7b7914e979f26cfef736a678b"
+                                InResponseTo="_3d3d7e56963aa4ed73fe7c95c9c21fe432cf84f8958ed3cd2372a3bf08b1251fd839d265dbcd3d90b5"
+                                IssueInstant="2022-09-07T14:30:23Z" Version="2.0">
+            <saml:Issuer>urn:nl-eid-gdi:1.0:RD:00000004000000149000:entities:9002</saml:Issuer>
+            <dsig:Signature xmlns:dsig="http://www.w3.org/2000/09/xmldsig#" Id="Id-0001662561023591-000000002691e84c-1">
+                <dsig:SignedInfo>
+                    <dsig:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
+                    <dsig:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>
+                    <dsig:Reference URI="#_b9f4ddf7b7914e979f26cfef736a678b">
+                        <dsig:Transforms>
+                            <dsig:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/>
+                            <dsig:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
+                        </dsig:Transforms>
+                        <dsig:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+                        <dsig:DigestValue>qwBU4UGH6+0i+PUjWXvJBbcCVvCxq1rRKwCYdy8JfwU=</dsig:DigestValue>
+                    </dsig:Reference>
+                </dsig:SignedInfo>
+                <dsig:SignatureValue>myfJcGmB4gcowqcRwlzs0dL+Gn3kgWGbnTKPWFdvspHo/2teHv1sGjXCRPlqL8LY
+                    w/DeZVpgiIL5bHNwM2WBxHZobu5gXPgjtU2qjBnwA1HpXxbOpgph3TiRMJ5gMN/A
+                    mn7VybCZ8uBNnJedLsDMRBdkaK36tDEuJLgl21MWf8GYd2zjm+dWt/Q2xdNiNJIU
+                    KI7r0m2jOql/n08wMkAL1uSzGRdYaF/FD45twzVfRGE03BbRTP3W8CUaB4RwrJws
+                    JPSrE4Fxx1Nx/EBoRUuYgdQuQg3NxBXc7AwcsL1LbrvXm0nAe6Lca8kKfWMorJOM
+                    AoNyHafpttAD7od5CM5HWw==
+                </dsig:SignatureValue>
+                <dsig:KeyInfo Id="Id-0001662561023591-000000002691e84c-2">
+                    <dsig:KeyName>458d39f98d53307ec0987f2d8db1e0fad7d77aa2</dsig:KeyName>
+                </dsig:KeyInfo>
+            </dsig:Signature>
+            <samlp:Status>
+                <samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
+            </samlp:Status>
+            <samlp:Response ID="_9ddfcc920c074455991f10cf6e2689bf"
+                            InResponseTo="_837f3790c95cd6ca4cb815edd30f583d0fe6313a2ab0b53ccc65f972b571fabcf70924f49e4d8deb0e"
+                            IssueInstant="2022-09-07T14:30:23Z" Destination="https://poc-1.uzi.bavod.nl/acs"
+                            Version="2.0">
+                <saml:Issuer>urn:nl-eid-gdi:1.0:RD:00000004000000149000:entities:9002</saml:Issuer>
+                <samlp:Status>
+                    <samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
+                </samlp:Status>
+                <saml:Assertion ID="_3afef2d16b05473e954786992f82fcf8" IssueInstant="2022-09-07T14:30:23Z"
+                                Version="2.0">
+                    <saml:Issuer>urn:nl-eid-gdi:1.0:RD:00000004000000149000:entities:9002</saml:Issuer>
+                    <dsig:Signature xmlns:dsig="http://www.w3.org/2000/09/xmldsig#"
+                                    Id="Id-0001662561023589-000000006d36fbd2-1">
+                        <dsig:SignedInfo>
+                            <dsig:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
+                            <dsig:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>
+                            <dsig:Reference URI="#_3afef2d16b05473e954786992f82fcf8">
+                                <dsig:Transforms>
+                                    <dsig:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/>
+                                    <dsig:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
+                                </dsig:Transforms>
+                                <dsig:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+                                <dsig:DigestValue>NzxM2uYGkD9yL9SoZVvpKbjJu96eJR+7zZOlm+2jlxU=</dsig:DigestValue>
+                            </dsig:Reference>
+                        </dsig:SignedInfo>
+                        <dsig:SignatureValue>ANcBjHCP/mSdoXMaMG+O1DuKM1eXLJFBCnw8/6jgAlNOxRV4f7lOLmgyoVed6wa0
+                            UR58d95ZYkI9HfmP8YGP7FNJ+PXJGy2imXZgY60+0izKUTR3LPF55pN/ML17Hcao
+                            jhuaLe/+7pf2v+LIHmyfdkUsXeYgTnTWlfafEL29NH4/JDs75wzEwSnPDEREWAnJ
+                            W6i9ivX/lvurlL4ym4RJCfbbo5Wt206PnEjjWwR5mFQ3aMsVPBwykjQNQxZCAtf5
+                            cXXqC52UnrZqy/nODIyFeFlxzDMi5j3AGP4WkXuWIylcyKdMFMg4R7NKD5AvRjh3
+                            hKTIHuyXz7dPK7oyz434tQ==
+                        </dsig:SignatureValue>
+                        <dsig:KeyInfo Id="Id-0001662561023589-000000006d36fbd2-2">
+                            <dsig:KeyName>458d39f98d53307ec0987f2d8db1e0fad7d77aa2</dsig:KeyName>
+                        </dsig:KeyInfo>
+                    </dsig:Signature>
+                    <saml:Subject>
+                        <saml:NameID>64b0d194095940008ffa142b12444c01</saml:NameID>
+                        <saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
+                            <saml:SubjectConfirmationData
+                                    InResponseTo="_837f3790c95cd6ca4cb815edd30f583d0fe6313a2ab0b53ccc65f972b571fabcf70924f49e4d8deb0e"
+                                    NotOnOrAfter="2022-09-07T14:32:23Z" Recipient="https://poc-1.uzi.bavod.nl/acs"/>
+                        </saml:SubjectConfirmation>
+                    </saml:Subject>
+                    <saml:Conditions NotBefore="2022-09-07T14:28:23Z" NotOnOrAfter="2022-09-07T14:32:23Z">
+                        <saml:AudienceRestriction>
+                            <saml:Audience>urn:nl-eid-gdi:1.0:LC:00000002003182447001:entities:9001</saml:Audience>
+                            <saml:Audience>urn:nl-eid-gdi:1.0:DV:00000002006756402002:entities:9999</saml:Audience>
+                        </saml:AudienceRestriction>
+                    </saml:Conditions>
+                    <saml:Advice>
+                        <saml2:Assertion xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion"
+                                         ID="_ede93752cb4b366c96c90780fa126fdb" IssueInstant="2022-09-07T14:30:23.037Z"
+                                         Version="2.0">
+                            <saml2:Issuer>urn:nl-eid-gdi:1.0:AD:00000004166909913000:entities:9002</saml2:Issuer>
+                            <ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+                                <ds:SignedInfo>
+                                    <ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
+                                    <ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>
+                                    <ds:Reference URI="#_ede93752cb4b366c96c90780fa126fdb">
+                                        <ds:Transforms>
+                                            <ds:Transform
+                                                    Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/>
+                                            <ds:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
+                                        </ds:Transforms>
+                                        <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+                                        <ds:DigestValue>u2jThuAOr2l1SQ9Rz6gUgSCy3PTZI2AlnJVFD2CsbS0=</ds:DigestValue>
+                                    </ds:Reference>
+                                </ds:SignedInfo>
+                                <ds:SignatureValue>
+                                    H9JJ9XtkPMDu+nDsTRbu2d5fd3fW2qS00GJy+7OFx3sgbKUUbxiPtZE9bWItOx9S/7+RjGDYLZHV4vOq50fQjbt56LhjP2mKMf7mEizpqvW8MMm6y1+zN6h8LOKIUekCp6h7oemw20YvbXPGNNgUH5InX8qpf5tpqa6w1GpFj0mYolwVAm6ozmUZ21pRXHrscxRgLj3/xa987fNWwR5EndL7Wf9cGlLmsrpYkv1t/k5T1XWBbPWdjwNdZHzDi7isVBHnqeea6UIIDutQJNn0int+Ye5iUSlrT8HYvsQ8jrwJV7ohs+9bazK589B8d9OTetGprIb+Jg+HFV/BUfysFQ==
+                                </ds:SignatureValue>
+                                <ds:KeyInfo>
+                                    <ds:KeyName>d0cdbaa30a109b98c077ee3a8d26e51dd8e3b660eb973bc85cb48cfed032ab51
+                                    </ds:KeyName>
+                                </ds:KeyInfo>
+                            </ds:Signature>
+                            <saml2:Subject>
+                                <saml2:NameID Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient">
+                                    2cbd6231-4257-44ae-aa87-b4bfc25e232f
+                                </saml2:NameID>
+                                <saml2:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
+                                    <saml2:SubjectConfirmationData InResponseTo="_a7efd80d17a4f064dde50b9cd78aca7b"
+                                                                   NotOnOrAfter="2022-09-07T14:32:22.659Z"
+                                                                   Recipient="https://pp2.toegang.overheid.nl/foam/saml/acs"/>
+                                </saml2:SubjectConfirmation>
+                            </saml2:Subject>
+                            <saml2:Conditions NotBefore="2022-09-07T14:28:22.659Z"
+                                              NotOnOrAfter="2022-09-07T14:32:22.659Z">
+                                <saml2:AudienceRestriction>
+                                    <saml2:Audience>urn:nl-eid-gdi:1.0:RD:00000004000000149000:entities:9002
+                                    </saml2:Audience>
+                                </saml2:AudienceRestriction>
+                            </saml2:Conditions>
+                            <saml2:AuthnStatement AuthnInstant="2022-09-07T14:30:23.037Z">
+                                <saml2:AuthnContext>
+                                    <saml2:AuthnContextClassRef>http://eidas.europa.eu/LoA/substantial
+                                    </saml2:AuthnContextClassRef>
+                                </saml2:AuthnContext>
+                            </saml2:AuthnStatement>
+                            <saml2:AttributeStatement>
+                                <saml2:Attribute Name="urn:nl-eid-gdi:1.0:ServiceUUID">
+                                    <saml2:AttributeValue>464f504d-5857-5946-304f-494449414a4d</saml2:AttributeValue>
+                                </saml2:Attribute>
+                                <saml2:Attribute Name="urn:nl-eid-gdi:1.0:ActingSubjectID">
+                                    <saml2:AttributeValue>
+                                        <saml2:EncryptedID>
+                                            <xenc:EncryptedData xmlns:xenc="http://www.w3.org/2001/04/xmlenc#"
+                                                                Id="_ac6c83aaf5e36398a60566b03ce6e3e9"
+                                                                Type="http://www.w3.org/2001/04/xmlenc#Element">
+                                                <xenc:EncryptionMethod
+                                                        Algorithm="http://www.w3.org/2001/04/xmlenc#aes256-cbc"/>
+                                                <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+                                                    <ds:RetrievalMethod
+                                                            Type="http://www.w3.org/2001/04/xmlenc#EncryptedKey"
+                                                            URI="#_8481f2d7e5a44846df50694e654ccd8b"/>
+                                                </ds:KeyInfo>
+                                                <xenc:CipherData>
+                                                    <xenc:CipherValue>
+                                                        iwI7OV5gRHySXxpjAEuXUK4q4T8qGu5D1T5yyFNTfplzEqTqjFfemqyZoytBmgu5aew7uIZeKMyYoX9v+1fpoALCqAugEH+teELURIWmc0T03o1ccY/i3DQrDDcSvXuPK159smQ+g+U7tftgktJ+bEwRlU8PL4W+b+OCyoEtIs+9mMTbtgBWUuR1qQJp7QwGpGBDLO9tprQvVpF2xbJNnYJlKeoSjmaS1Qi3dM4iDzO+AI/5sL7ZBWWZFJPJ1Hrtmia1/lmt9DdAP67++8VDk9T+IH26ykyDBTNoV2ivivY=
+                                                    </xenc:CipherValue>
+                                                </xenc:CipherData>
+                                            </xenc:EncryptedData>
+                                            <xenc:EncryptedKey xmlns:xenc="http://www.w3.org/2001/04/xmlenc#"
+                                                               Id="_8481f2d7e5a44846df50694e654ccd8b"
+                                                               Recipient="urn:nl-eid-gdi:1.0:DV:00000002006756402002:entities:9999">
+                                                <xenc:EncryptionMethod
+                                                        Algorithm="http://www.w3.org/2001/04/xmlenc#rsa-oaep-mgf1p">
+                                                    <ds:DigestMethod xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+                                                                     Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/>
+                                                </xenc:EncryptionMethod>
+                                                <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+                                                    <ds:KeyName>
+                                                        50c8db777dca1d56b6e9cf3eff045426dbbd82f7714e6cd735acf019ab5c4a70
+                                                    </ds:KeyName>
+                                                </ds:KeyInfo>
+                                                <xenc:CipherData>
+                                                    <xenc:CipherValue>
+                                                        syylZTRn3ZSy3nOAaJAZC5BQJvFC0vpFH1b8e8cu1U+tfnl8Y3QMtn7zUW6DrrXy65nezE0auBWu8vE3d5NcsqoCEPeVpToxhd5S8tagu8woYtXMInQjIbIhlUyrwUZHYE4h7ZwB22lJiP4zMxLzQ0cKBXIcLJJz66NLjWUve3d0+b93G+3bjMEELI6tiLVf8Oa71zB5II1NkVdIGHIRxbnAoAzhSX1kKrQiOBoqfWsETeJz9eAaYVwPW8/GMKnPEzQvjpgxCTFNUI4zRkYdkERVMHhONG8+wCu8gQ7/98j7wEXthGNpn6rpIRbC2uNNBnr+unqB0P9xJaXES5Ix7A==
+                                                    </xenc:CipherValue>
+                                                </xenc:CipherData>
+                                                <xenc:ReferenceList>
+                                                    <xenc:DataReference URI="#_ac6c83aaf5e36398a60566b03ce6e3e9"/>
+                                                </xenc:ReferenceList>
+                                            </xenc:EncryptedKey>
+                                        </saml2:EncryptedID>
+                                    </saml2:AttributeValue>
+                                </saml2:Attribute>
+                            </saml2:AttributeStatement>
+                        </saml2:Assertion>
+                    </saml:Advice>
+                    <saml:AuthnStatement AuthnInstant="2022-09-07T14:30:23Z">
+                        <saml:AuthnContext>
+                            <saml:AuthnContextClassRef>http://eidas.europa.eu/LoA/substantial
+                            </saml:AuthnContextClassRef>
+                            <saml:AuthenticatingAuthority>urn:nl-eid-gdi:1.0:AD:00000004166909913000:entities:9002
+                            </saml:AuthenticatingAuthority>
+                        </saml:AuthnContext>
+                    </saml:AuthnStatement>
+                    <saml:AttributeStatement xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                                             xmlns:xs="http://www.w3.org/2001/XMLSchema">
+                        <saml:Attribute Name="urn:nl-eid-gdi:1.0:ActingSubjectID">
+                            <saml:AttributeValue>
+                                <saml2:EncryptedID xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion">
+                                    <xenc:EncryptedData xmlns:xenc="http://www.w3.org/2001/04/xmlenc#"
+                                                        Id="_ac6c83aaf5e36398a60566b03ce6e3e9-1"
+                                                        Type="http://www.w3.org/2001/04/xmlenc#Element">
+                                        <xenc:EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes256-cbc"/>
+                                        <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+                                            <ds:RetrievalMethod Type="http://www.w3.org/2001/04/xmlenc#EncryptedKey"
+                                                                URI="#_8481f2d7e5a44846df50694e654ccd8b-1"/>
+                                        </ds:KeyInfo>
+                                        <xenc:CipherData>
+                                            <xenc:CipherValue>
+                                                iwI7OV5gRHySXxpjAEuXUK4q4T8qGu5D1T5yyFNTfplzEqTqjFfemqyZoytBmgu5aew7uIZeKMyYoX9v+1fpoALCqAugEH+teELURIWmc0T03o1ccY/i3DQrDDcSvXuPK159smQ+g+U7tftgktJ+bEwRlU8PL4W+b+OCyoEtIs+9mMTbtgBWUuR1qQJp7QwGpGBDLO9tprQvVpF2xbJNnYJlKeoSjmaS1Qi3dM4iDzO+AI/5sL7ZBWWZFJPJ1Hrtmia1/lmt9DdAP67++8VDk9T+IH26ykyDBTNoV2ivivY=
+                                            </xenc:CipherValue>
+                                        </xenc:CipherData>
+                                    </xenc:EncryptedData>
+                                    <xenc:EncryptedKey xmlns:xenc="http://www.w3.org/2001/04/xmlenc#"
+                                                       Id="_8481f2d7e5a44846df50694e654ccd8b-1"
+                                                       Recipient="urn:nl-eid-gdi:1.0:DV:00000002006756402002:entities:9999">
+                                        <xenc:EncryptionMethod
+                                                Algorithm="http://www.w3.org/2001/04/xmlenc#rsa-oaep-mgf1p">
+                                            <ds:DigestMethod xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+                                                             Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/>
+                                        </xenc:EncryptionMethod>
+                                        <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+                                            <ds:KeyName>
+                                                50c8db777dca1d56b6e9cf3eff045426dbbd82f7714e6cd735acf019ab5c4a70
+                                            </ds:KeyName>
+                                        </ds:KeyInfo>
+                                        <xenc:CipherData>
+                                            <xenc:CipherValue>
+                                                syylZTRn3ZSy3nOAaJAZC5BQJvFC0vpFH1b8e8cu1U+tfnl8Y3QMtn7zUW6DrrXy65nezE0auBWu8vE3d5NcsqoCEPeVpToxhd5S8tagu8woYtXMInQjIbIhlUyrwUZHYE4h7ZwB22lJiP4zMxLzQ0cKBXIcLJJz66NLjWUve3d0+b93G+3bjMEELI6tiLVf8Oa71zB5II1NkVdIGHIRxbnAoAzhSX1kKrQiOBoqfWsETeJz9eAaYVwPW8/GMKnPEzQvjpgxCTFNUI4zRkYdkERVMHhONG8+wCu8gQ7/98j7wEXthGNpn6rpIRbC2uNNBnr+unqB0P9xJaXES5Ix7A==
+                                            </xenc:CipherValue>
+                                        </xenc:CipherData>
+                                        <xenc:ReferenceList>
+                                            <xenc:DataReference URI="#_ac6c83aaf5e36398a60566b03ce6e3e9-1"/>
+                                        </xenc:ReferenceList>
+                                    </xenc:EncryptedKey>
+                                </saml2:EncryptedID>
+                            </saml:AttributeValue>
+                        </saml:Attribute>
+                        <saml:Attribute Name="urn:nl-eid-gdi:1.0:ServiceUUID"
+                                        NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri">
+                            <saml:AttributeValue xsi:type="xs:string">464f504d-5857-5946-304f-494449414a4d
+                            </saml:AttributeValue>
+                        </saml:Attribute>
+                    </saml:AttributeStatement>
+                </saml:Assertion>
+            </samlp:Response>
+        </samlp:ArtifactResponse>
+    </soapenv:Body>
+</soapenv:Envelope>

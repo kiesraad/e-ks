@@ -21,8 +21,12 @@ pub async fn import_csb_fixture<S: AppRequestState>(
     election: ElectionConfig,
     user: CsbUser,
 ) -> Result<(), AppError> {
-    // Skip if a fixture import already exists in any committee-scoped stream.
-    for store in state.csb_store_registry().stores_by_scope().await? {
+    // Skip if a fixture import already exists for this election.
+    for store in state
+        .csb_store_registry()
+        .stores_for_election(election)
+        .await?
+    {
         let comes_from_fixtures = store.data.read().events.first().is_some_and(
             |e| matches!(&e.payload.action, CsbAction::Import { hash, .. } if *hash == FIXTURE_IMPORT_HASH),
         );

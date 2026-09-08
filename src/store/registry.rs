@@ -198,6 +198,19 @@ where
         Ok(stores)
     }
 
+    pub async fn stores_for_election(
+        &self,
+        election: ElectionConfig,
+    ) -> Result<Vec<Store<D>>, AppError> {
+        let mut stores = Vec::new();
+        for (stream_id, e) in self.streams_by_scope().await? {
+            if e == election {
+                stores.push(self.get_or_create(stream_id, election).await?);
+            }
+        }
+        Ok(stores)
+    }
+
     /// List the elections under the given stream that have persisted events,
     /// consulting the in-memory cache first.
     pub async fn elections_for_stream(

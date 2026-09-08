@@ -28,7 +28,7 @@ pub async fn submitted_lists(
     election: &ElectionConfig,
 ) -> Result<Vec<DistrictLists>, AppError> {
     let mut by_district: BTreeMap<ElectoralDistrict, Vec<SubmittedList>> = BTreeMap::new();
-    for store in registry.stores_by_scope().await? {
+    for store in registry.stores_for_election(*election).await? {
         for (district, list) in store_submitted_lists(&store) {
             by_district.entry(district).or_default().push(list);
         }
@@ -94,7 +94,7 @@ pub async fn found_omissions(
     election: &ElectionConfig,
 ) -> Result<Vec<OmissionGroup>, AppError> {
     let mut found_omissions = Vec::new();
-    for store in registry.stores_by_scope().await? {
+    for store in registry.stores_for_election(*election).await? {
         let recoverable = store.get_recoverable_omissions();
         if recoverable.is_empty() {
             continue;

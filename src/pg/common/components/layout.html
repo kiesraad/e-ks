@@ -47,14 +47,7 @@
           <li>
             <a href="{{ crate::audit_log::AuditLogPath{}.to_string() }}">{{ "audit_log.title"|trans }}</a>
           </li>
-          <li>
-            <form method="post"
-                  action="{{ crate::common::LogoutPath }}"
-                  class="logout-form">
-              {{ macros::csrf_field() }}
-              <button type="submit" class="logout">{{ "action.signout"|trans }}</button>
-            </form>
-          </li>
+          {% include "pg/common/components/logout_nav_item.html" %}
           {% let locale = "locale"|locale_value %}
           <li>
             <form action="{{ crate::common::SwitchLanguagePath{}.to_string() }}"

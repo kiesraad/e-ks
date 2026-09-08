@@ -99,7 +99,7 @@
     }
 
     &.error,
-    &:has(.error) {
+    &:has(.error:not(.hidden)) {
       input:not(.date-separate input):not([type="checkbox"]),
       .date-separate {
         border-color: var(--color-error-darker);
@@ -183,7 +183,7 @@
 
   span.hint,
   details.hint,
-  span.error,
+  span.error:not(.hidden),
   span.warning:not(.hidden) {
     display: inline-block;
     font-size: var(--font-size-md);
@@ -277,7 +277,7 @@
     transform: rotate(90deg);
   }
 
-  span.error {
+  span.error:not(.hidden) {
     color: var(--color-error-darker);
     font-weight: normal;
     margin-top: 0.5rem;

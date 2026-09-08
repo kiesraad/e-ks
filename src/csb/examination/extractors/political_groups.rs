@@ -3,7 +3,7 @@ use axum::{extract::FromRequestParts, http::request::Parts};
 use std::collections::HashMap;
 
 use crate::{
-    AppError, AppRequestState, CsbStream, ElectoralDistrict, StreamId,
+    AppError, AppRequestState, CsbStream, ElectoralDistrict, Session, StreamId,
     csb::examination::structs::BrpCheckState,
     structs::{
         candidate_lists::CandidateListId, common::FullName, csb::CsbPhase,
@@ -81,17 +81,21 @@ impl CsbPoliticalGroup {
     }
 }
 
-/// Extracts all imported political groups visible to the CSB scope.
+/// Extracts the imported political groups of the election the session works
+/// on. Streams of the other elections stay out of the listing: they are
+/// examined under their own election's ruleset, in a session that picked it.
 pub struct CsbPoliticalGroups(pub Vec<CsbPoliticalGroup>);
 
 impl<S: AppRequestState> FromRequestParts<S> for CsbPoliticalGroups {
     type Rejection = AppError;
 
-    async fn from_request_parts(_parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let session = Session::from_request_parts(parts, state).await?;
+        let election = session.require_current_election()?;
         let registry = state.csb_store_registry();
 
         let mut political_groups = Vec::new();
-        for store in registry.stores_by_scope().await? {
+        for store in registry.stores_for_election(election).await? {
             political_groups.push(CsbPoliticalGroup::new_from_csb_store(&store));
         }
 
@@ -105,7 +109,7 @@ mod tests {
     use axum::{body::Body, http::Request};
 
     use crate::{
-        AppState, CsbAction, CsbUser, ElectionConfig, PgStoreData,
+        AppState, CsbAction, CsbUser, ElectionConfig, Locale, PgStoreData, Province,
         structs::list_designation::ListDesignation,
     };
 
@@ -131,22 +135,30 @@ mod tests {
         stream_id
     }
 
-    fn empty_parts() -> axum::http::request::Parts {
-        Request::builder()
+    /// Request parts carrying a committee session on `election`, as the
+    /// session middleware injects them for a real request.
+    fn committee_parts(election: ElectionConfig) -> axum::http::request::Parts {
+        let mut parts = Request::builder()
             .uri("/csb/examination")
             .body(Body::empty())
             .unwrap()
             .into_parts()
-            .0
+            .0;
+        parts.extensions.insert(Session::for_committee(
+            CsbUser::new_test(),
+            election,
+            Locale::default(),
+        ));
+        parts
     }
 
     #[tokio::test]
-    async fn returns_every_csb_scoped_political_group() {
+    async fn returns_every_political_group_of_the_session_election() {
         let state = AppState::new_for_tests().await;
         let first = seed_csb_store(&state, ElectionConfig::EK27).await;
         let second = seed_csb_store(&state, ElectionConfig::EK27).await;
 
-        let mut parts = empty_parts();
+        let mut parts = committee_parts(ElectionConfig::EK27);
         let CsbPoliticalGroups(groups) = CsbPoliticalGroups::from_request_parts(&mut parts, &state)
             .await
             .unwrap();
@@ -158,10 +170,25 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn skips_political_groups_of_another_election() {
+        let state = AppState::new_for_tests().await;
+        let own = seed_csb_store(&state, ElectionConfig::EK27).await;
+        seed_csb_store(&state, ElectionConfig::PS27(Province::Groningen)).await;
+
+        let mut parts = committee_parts(ElectionConfig::EK27);
+        let CsbPoliticalGroups(groups) = CsbPoliticalGroups::from_request_parts(&mut parts, &state)
+            .await
+            .unwrap();
+
+        let stream_ids: Vec<_> = groups.iter().map(|g| g.stream_id).collect();
+        assert_eq!(stream_ids, vec![own]);
+    }
+
+    #[tokio::test]
     async fn returns_empty_when_nothing_imported() {
         let state = AppState::new_for_tests().await;
 
-        let mut parts = empty_parts();
+        let mut parts = committee_parts(ElectionConfig::EK27);
         let CsbPoliticalGroups(groups) = CsbPoliticalGroups::from_request_parts(&mut parts, &state)
             .await
             .unwrap();

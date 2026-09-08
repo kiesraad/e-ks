@@ -110,6 +110,7 @@ import:
     ambiguous_hash: De ingevoerde hash code komt overeen met meer dan één dataset; voer meer tekens in.
     invalid_hash: "Voer een geldige hash code in (tenminste 4 paren van hexadecimale tekens, bijv. AB12 C3D4)."
     not_found: Er is geen data gevonden voor de ingevoerde hash code.
+    other_election: "De dataset voor de ingevoerde hash code hoort bij een andere verkiezing ({}) en kan niet worden geïmporteerd."
   warning:
     already_imported: "De politieke groepering “{}” is al geïmporteerd. Kies “Toch importeren” om deze opnieuw te importeren."
 index:

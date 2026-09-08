@@ -152,7 +152,7 @@ pub(crate) use utils::{
 };
 // Askama resolves custom filters from the enclosing module scope, so template
 // modules do `use crate::filters`.
-pub(crate) use view::{Context, filters};
+pub(crate) use view::{Context, ErrorPage, filters};
 
 #[cfg(test)]
 mod test_support;

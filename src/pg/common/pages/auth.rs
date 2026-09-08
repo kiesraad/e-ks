@@ -471,12 +471,17 @@ mod tests {
         assert!(response.status().is_success());
     }
 
+    // TVS L10 requires this literal text on a DigiD result error.
+    const L10_MESSAGE: &str = "Inloggen bij deze organisatie is niet gelukt. \
+        Probeert u het later nog een keer. Lukt het nog steeds niet? Log in bij \
+        Mijn DigiD. Zo controleert u of uw DigiD goed werkt. Mogelijk is er een \
+        storing bij de organisatie waar u inlogt.";
+
     #[tokio::test]
     async fn error_page_shows_mandated_digid_message() {
         let response = auth_failure_response(AuthFailure::Error, Locale::Nl);
         let body = response_body_string(response).await;
-        // TVS L10 requires this literal text on a DigiD result error.
-        assert!(body.contains("Inloggen bij deze organisatie is niet gelukt"));
+        assert!(body.contains(L10_MESSAGE), "{body}");
     }
 
     #[tokio::test]
