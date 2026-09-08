@@ -309,8 +309,8 @@ The CSB section has two projections of its own on the shared store machinery
   registered for the election with their result at the previous election of
   the same body (appellation, votes, seats), kept on the CSB main stream. The
   lists of groups that obtained one or more seats are numbered first on model
-  I 4, in the order of their votes (Kieswet Art. I 14); the remaining lists
-  are numbered by lot (Art. I 15).
+  I 4, in the order of their votes (Kieswet Art. I 14); the remaining list order
+  is decided by lot (Art. I 15).
 - **`common`**: the not-found page for paths under `/csb` that no CSB route
   claims. The error pages for the CSB routes (`csb/error_response.rs`) render
   the page an `AppError` carries in the CSB layout, the counterpart of the
