@@ -296,6 +296,14 @@ The CSB section has two projections of its own on the shared store machinery
   render the imported data read-only; omissions and corrections are recorded
   in overlays; and the models **I 1** and **I 4** are generated here, their
   inputs collected across all imported streams in `model_inputs.rs`.
+- **`recovery`**: the "Herstelde lijsten" phase that follows the examination.
+  Once the omission letters have gone out, the CSB marks every recoverable
+  omission as recovered or not recovered; candidates, lists and districts
+  whose omission stays unresolved are scrapped ("geschrapt") and drop out of
+  the I 4. The pages are thin handlers that re-render the examination
+  templates under their own route prefix in `CsbPhase::Recovery` mode, which
+  hides the examination-only actions and shows the assessment controls
+  instead.
 - **`monitoring`**: an overview of the political-group streams built from
   `StreamMeta`: event counts and timestamps read from the backend's index.
   This deliberately reads no payloads: no stream key is unwrapped and nothing

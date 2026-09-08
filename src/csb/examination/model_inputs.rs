@@ -15,7 +15,7 @@ use crate::{
         candidate_lists::{CandidateList, CandidateListId},
         common::UtcDateTime,
         csb::{Omission, OmissionCategory, OmissionId},
-        persons::{Person, PersonId},
+        persons::PersonId,
     },
 };
 
@@ -117,17 +117,15 @@ pub async fn i4_inputs(
     registry: &StoreRegistry<CsbStoreData>,
     election: &ElectionConfig,
 ) -> Result<I4Inputs, AppError> {
-    let mut inputs = I4Inputs::default();
+    let mut inputs = I4Inputs {
+        found_omissions: found_omissions(registry, election).await?,
+        ..Default::default()
+    };
     let mut valid_by_district: BTreeMap<ElectoralDistrict, Vec<i4::ValidList>> = BTreeMap::new();
 
     for store in examined_stores(registry, election).await? {
         let omissions = sorted_omissions(&store);
 
-        inputs.found_omissions.extend(omission_groups(
-            &store,
-            election,
-            omissions.iter().filter(|omission| omission.recoverable),
-        )?);
         inputs.recovered_omissions.extend(omission_groups(
             &store,
             election,
@@ -260,7 +258,7 @@ fn removed_candidates(
             rows.push((
                 *person,
                 i4::RemovedCandidate {
-                    name: candidate_name(&candidate),
+                    name: candidate.name_as_printed_on_list(AnyLocale::Nl),
                     reasons: vec![omission.description.to_string()],
                 },
             ));
@@ -389,6 +387,8 @@ fn valid_candidates(
         .collect()
 }
 
+// TODO: sort by the list numbering once it is implemented, falling back to
+// creation order for the draft I 4 that predates the numbering.
 fn lists_by_creation(store: &CsbStream) -> Vec<CandidateList> {
     let mut lists = store.get_candidate_lists(WithCorrections::All);
     lists.sort_unstable_by_key(|list| list.created_at);
@@ -401,15 +401,6 @@ fn first_candidate_name(store: &CsbStream) -> String {
         .get_first_candidate_name(WithCorrections::All)
         .map(|name| name.display())
         .unwrap_or_default()
-}
-
-/// E.g. `van Dijk, A.B. (Anne) (v)`.
-fn candidate_name(person: &Person) -> String {
-    format!(
-        "{}, {}",
-        person.name.last_name_with_prefix(),
-        person.initials_as_printed_on_list(AnyLocale::Nl)
-    )
 }
 
 impl OmissionCategory {
