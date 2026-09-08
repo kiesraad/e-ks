@@ -1,10 +1,3 @@
-{# DigiD login button per the Logius "Stijlhandleiding aansluiten Toegang"
-   (TVS checklist L8): a white button with the black label "Inloggen met DigiD",
-   a light border, and the official DigiD logo on the right (added as a CSS
-   background, see styles/digid.css). Submits straight to the SAML SSO initiator
-   (POST /login) with no intermediate redirects (T4/L11): GET /login renders this
-   start page, the POST begins the flow. Do not change the label — the style
-   guide requires this exact text. #}
 <form method="post"
       action="{{ crate::common::LoginStartPath }}"
       class="digid-login-form">

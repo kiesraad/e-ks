@@ -159,7 +159,7 @@ modules:
 | `src/lib.rs` | Crate root: module wiring, public re-exports, architecture overview. |
 | `src/router.rs` | Top-level Axum router; merges every domain's `router()` and applies middleware. |
 | `src/state.rs` | `AppState`: the shared application state (config, store registry, sessions). |
-| `src/filters.rs` | Askama template filters (display formatting, translation, validation errors). |
+| `src/view/` | Shared view layer: the Askama template filters (display formatting, translation, validation errors), the request-scoped template `Context`, and the error response whose page each web section renders in its own layout. |
 | `src/pg/` | Political group (PG) **domain** modules (see below). |
 | `src/csb/` | Central voting bureau (CSB) section: import, examination, monitoring, audit log, and its own event stores (see [The CSB section](#the-csb-section-srccsb)). |
 | `src/structs/` | Shared domain model structs (persons, political groups, candidate lists, common value types) used by both `src/pg/` and `src/csb/`. |
@@ -167,7 +167,7 @@ modules:
 | `src/auth/` | Authentication: the session model and token handling, session/pending-request storage, id derivation, and the session cookie helpers + `Session` extractor. The session/store middleware and the development login endpoint live in `src/middleware/`. |
 | `src/core/` | Cross-cutting infrastructure: `Config`, server startup, logging/tracing, election configuration, Askama rendering, CSV, ZIP, locales. |
 | `src/store/` | The generic event store: persistence backends (memory/file/Postgres), at-rest encryption, the event hash chain, and the per-stream `StoreRegistry`. |
-| `src/error/` | `AppError` and the rendering of error responses/pages. |
+| `src/error/` | `AppError`, the application-wide error type. Its mapping to a response lives in `src/view/`, the page layouts in `src/pg/` and `src/csb/`. |
 | `src/form/` | Generic form extraction and validation: the `Form<T>` extractor, CSRF tokens, file uploads, string validators. |
 | `src/pagination/` | Reusable list-pagination helpers (params, page links, page info). |
 | `src/fixtures/` | Sample data loaded into the store on startup in development/test (`fixtures` feature). |
@@ -230,7 +230,10 @@ members import the packages submitted by political groups and examine them
 `pages/`, `forms/`, `extractors/`, `structs/`, `components/` layout, with
 `CsbContext` in place of `Context`), but its access model is fundamentally
 different: a political group only ever sees its own stream, while a committee
-member works across all imported streams.
+member works across all imported streams of the one election its session was
+established for: CSB listings go through `stores_for_election` rather than
+`stores_by_scope`, with the technical `monitoring` overview (which names the
+election per row) the one deliberate exception.
 
 #### Scopes and session identities
 
@@ -286,8 +289,8 @@ The CSB section has two projections of its own on the shared store machinery
   (`find_event_by_hash_prefix`, backed by the `events_hash_idx` index),
   replays the source stream up to it (`PgStoreData::snapshot_until`), and
   persists the snapshot as a `CsbAction::Import` on a **fresh** `ImportedByCsb`
-  stream. The political group's own stream is never written to, and importing
-  the same source stream twice is rejected (might change with #999).
+  stream keyed on the session's election. A package handed in for another
+  election is refused.
 - **`examination`**: the examination of the imported lists. An overview
   groups the imported political groups by finished/unfinished; detail pages
   render the imported data read-only; omissions and corrections are recorded
@@ -301,6 +304,10 @@ The CSB section has two projections of its own on the shared store machinery
   data.
 - **`audit_log`**: the CSB audit log, a read view over either the main
   committee stream or a single imported stream.
+- **`common`**: the not-found page for paths under `/csb` that no CSB route
+  claims. The error pages for the CSB routes (`csb/error_response.rs`) render
+  the page an `AppError` carries in the CSB layout, the counterpart of the
+  `render_error_pages` layer on the app routes.
 
 #### Omissions and corrections
 
@@ -380,8 +387,10 @@ The handler itself follows one of two shapes:
 
 An `AppError` returned from anywhere in this chain is caught by the
 `render_error_pages` layer, which turns it into the appropriate HTML error page
-and status code. On the way out, the session and store middleware may attach a
-`Set-Cookie` header, the security headers are written, and the trace is closed.
+and status code. The CSB routes have their own `render_csb_error_pages` layer,
+which renders the same page in the CSB layout. On the way out, the session and
+store middleware may attach a `Set-Cookie` header, the security headers are
+written, and the trace is closed.
 
 ## Key dependencies
 

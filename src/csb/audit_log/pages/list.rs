@@ -177,7 +177,10 @@ pub async fn csb_audit_log<S: AppRequestState>(
     Query(filter): Query<CsbAuditLogFilter>,
 ) -> Result<impl IntoResponse, AppError> {
     let locale = context.session.locale;
-    let import_stores = state.csb_store_registry().stores_by_scope().await?;
+    let import_stores = state
+        .csb_store_registry()
+        .stores_for_election(context.election)
+        .await?;
 
     // Build a short label for each import stream from its import event
     let import_stream_labels: Vec<(StreamId, String)> = import_stores

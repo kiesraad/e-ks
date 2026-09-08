@@ -110,6 +110,7 @@ import:
     ambiguous_hash: The entered hash code matches more than one data set; enter more characters.
     invalid_hash: "Enter a valid hash code (at least 4 pairs of hexadecimal characters, e.g. AB12 C3D4)."
     not_found: No data was found for the entered hash code.
+    other_election: "The data set for the entered hash code belongs to a different election ({}) and cannot be imported."
   warning:
     already_imported: "The political group “{}” has already been imported. Choose “Import anyway” to import it again."
 index:

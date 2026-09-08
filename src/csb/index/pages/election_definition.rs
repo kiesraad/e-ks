@@ -18,7 +18,7 @@ pub async fn download_election_definition<S: AppRequestState>(
     // TODO: get registered party from a proper source
     // Blank lists probably shouldn't be included
     let registered_party_names = csb_registry
-        .stores_by_scope()
+        .stores_for_election(election)
         .await?
         .into_iter()
         .map(|store| store.get_appellation(WithCorrections::All))

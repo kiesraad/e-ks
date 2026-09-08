@@ -31,10 +31,12 @@ impl PotentialProblems {
     pub fn person_fix_path(&self, person: &Person) -> String {
         let finalise = FinalisePath {}.to_string();
         match self {
-            PotentialProblems::IncompleteAddress { .. } => person
-                .update_address_path()
-                .with_query_params(QueryParamState::redirect_to(finalise))
-                .to_string(),
+            PotentialProblems::IncompleteAddress { .. } | PotentialProblems::UnknownAddress => {
+                person
+                    .update_address_path()
+                    .with_query_params(QueryParamState::redirect_to(finalise))
+                    .to_string()
+            }
             PotentialProblems::NoRepresentative | PotentialProblems::RepresentativeProblem(_) => {
                 person
                     .update_representative_path()
@@ -492,8 +494,10 @@ mod tests {
     use crate::{
         AppError, ElectoralDistrict,
         structs::{
-            candidate_lists::CandidateListId, common::HasSeverity,
-            list_submitters::ListSubmitterId, name_authorisations::NameAuthorisationId,
+            candidate_lists::CandidateListId,
+            common::{EmptyAddressProblems, HasSeverity},
+            list_submitters::ListSubmitterId,
+            name_authorisations::NameAuthorisationId,
             persons::PersonId,
         },
         test_utils::{
@@ -787,5 +791,38 @@ mod tests {
             )],
         };
         assert_eq!(problems.highest_severity(), Some(Severity::Warn));
+    }
+
+    #[test]
+    fn person_fix_path_points_at_the_form_that_holds_the_field() {
+        let person = sample_person(PersonId::new());
+
+        // Both address problems are fixed on the correspondence address form.
+        for problem in [
+            PotentialProblems::UnknownAddress,
+            PotentialProblems::IncompleteAddress {
+                severity: Severity::Warn,
+                problems: vec![EmptyAddressProblems::PostalCode],
+            },
+        ] {
+            assert!(
+                problem
+                    .person_fix_path(&person)
+                    .starts_with(&person.update_address_path().to_string()),
+                "{problem:?} should link to the address form"
+            );
+        }
+
+        assert!(
+            PotentialProblems::RepresentativeProblem(Box::new(PotentialProblems::UnknownAddress))
+                .person_fix_path(&person)
+                .starts_with(&person.update_representative_path().to_string())
+        );
+
+        assert!(
+            PotentialProblems::NoBsn
+                .person_fix_path(&person)
+                .starts_with(&person.update_path().to_string())
+        );
     }
 }
