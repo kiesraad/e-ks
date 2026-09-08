@@ -8,6 +8,7 @@ span.button {
   background: var(--button-color-primary);
   text-decoration: none;
 
+  font-family: var(--font-text);
   font-size: var(--font-size-md);
   font-weight: var(--font-weight-bold);
 
