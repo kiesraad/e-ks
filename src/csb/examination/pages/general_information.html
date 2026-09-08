@@ -37,15 +37,18 @@
 {% endmacro %}
 {% block content %}
   <section class="general-information">
+    {# A blank list has no appellation to add omissions for; omissions added
+       before a paper correction blanked the list stay visible. #}
+    {% let show_appellation_omissions = !group_info.is_blank || !appellation_omissions.is_empty() %}
     {% if political_group.mode.is_examination() %}
       {{ restorations::omission_panel("csb.omission.title_for.general"|trans, "csb.general.add_text"|trans, political_group.add_political_group_omission_path() , political_group.manage_political_group_omissions_path() , political_group_omissions.as_slice()) }}
-      {% if political_group.political_group.list_designation != Some(crate::structs::list_designation::ListDesignation::Blank) %}
-        {{ restorations::omission_panel("csb.omission.title_for.appellation"|trans, "csb.general.add_text"|trans, political_group.add_appellation_omission_path() , political_group.manage_appellation_omissions_path() , appellation_omissions.as_slice()) }}
+      {% if show_appellation_omissions %}
+        {{ restorations::omission_panel("csb.omission.title_for.appellation"|trans, "csb.general.add_text"|trans, political_group.add_appellation_omission_path() , political_group.manage_appellation_omissions_path() , appellation_omissions.as_slice() , can_add=!group_info.is_blank) }}
       {% endif %}
     {% else %}
       {{ restorations::status_panel(political_group, "csb.omission.title_for.general"|trans, "csb.recovery.omissions_explanation"|trans, political_group_omissions.as_slice() , political_group.general_information_path()) }}
-      {% if political_group.political_group.list_designation != Some(crate::structs::list_designation::ListDesignation::Blank) %}
-        {{ restorations::status_panel(political_group, "csb.omission.title_for.appellation"|trans, "", appellation_omissions.as_slice() , political_group.general_information_path()) }}
+      {% if show_appellation_omissions %}
+        {{ restorations::status_panel(political_group, "csb.omission.title_for.appellation"|trans, "csb.recovery.omissions_explanation"|trans, appellation_omissions.as_slice() , political_group.general_information_path()) }}
       {% endif %}
     {% endif %}
     <h2>{{ "csb.general.group_info"|trans }}</h2>

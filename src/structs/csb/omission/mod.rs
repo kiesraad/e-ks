@@ -102,11 +102,13 @@ impl<'de> Deserialize<'de> for OmissionType {
 
 #[derive(Default, Debug, Serialize, Eq, PartialEq, Deserialize, Clone)]
 pub enum OmissionCategory {
-    /// E.g. missing deposit ("waarborgsom"), unidentified submitter,
-    /// or problems with authorised agent and/or statutory name (H 3-1 / H 3-2)
+    /// Anything else about the group as a whole, e.g. a missing deposit
+    /// ("waarborgsom") or an unidentified submitter. Has no presets; the CSB
+    /// describes these itself.
     #[default]
     PoliticalGroup,
-    /// For omissions specifically having to do with the appellation
+    /// The appellation, e.g. not registered (H 3-1 / H 3-2). Unresolved, it
+    /// scraps the appellation: the list continues as a blank list.
     Appellation,
     /// Omissions scoped to one or more specific candidate lists.
     CandidateList(Vec<CandidateListId>),

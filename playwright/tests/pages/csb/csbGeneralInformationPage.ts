@@ -15,16 +15,17 @@ export class CsbGeneralInformationPage {
       name: "Basisgegevens",
       exact: true,
     });
-    this.linkAddAppellationOmission = this.page
-      .getByRole("link", {
-        name: "Verzuim toevoegen",
-      })
-      .nth(1);
-    this.linkManageAppellationOmissions = this.page
-      .getByRole("link", {
-        name: "Overzicht",
-      })
-      .nth(1);
+    const appellationOmissionsPanel = this.page.locator(".examination-panel", {
+      has: this.page.getByRole("heading", { name: "Verzuimen aanduiding" }),
+    });
+    this.linkAddAppellationOmission = appellationOmissionsPanel.getByRole(
+      "link",
+      { name: "Verzuim toevoegen" },
+    );
+    this.linkManageAppellationOmissions = appellationOmissionsPanel.getByRole(
+      "link",
+      { name: "Overzicht" },
+    );
     this.linkRegisteredDesignationStandalone = this.page.getByRole("cell", {
       name: "Geregistreerde aanduiding",
     });

@@ -10,6 +10,7 @@ use crate::{
         candidate_lists::CandidateListId,
         common::FullName,
         csb::{CsbPhase, RecoveryProgress},
+        list_designation::ListDesignation,
         political_groups::PoliticalGroup,
     },
 };
@@ -77,9 +78,18 @@ impl CsbPoliticalGroup {
             .map_or(&[], Vec::as_slice)
     }
 
+    /// The name shown for the group. Once its appellation is scrapped, the
+    /// recovery phase names it as the blank list it continues as.
     pub fn csb_appellation(&self) -> String {
-        self.political_group
-            .csb_appellation(self.first_candidate_name.as_ref())
+        let first_candidate_name = self.first_candidate_name.as_ref();
+        if self.mode.is_recovery() && self.is_appellation_scrapped() {
+            return PoliticalGroup {
+                list_designation: Some(ListDesignation::Blank),
+                ..self.political_group.clone()
+            }
+            .csb_appellation(first_candidate_name);
+        }
+        self.political_group.csb_appellation(first_candidate_name)
     }
 
     pub fn is_appellation_scrapped(&self) -> bool {
@@ -115,8 +125,8 @@ mod tests {
     use axum::{body::Body, http::Request};
 
     use crate::{
-        AppState, CsbAction, CsbUser, ElectionConfig, Locale, PgStoreData, Province,
-        structs::list_designation::ListDesignation,
+        AppState, CsbAction, CsbStore, CsbUser, ElectionConfig, Locale, PgStoreData, Province,
+        structs::csb::{OmissionCategory, sample_omission},
     };
 
     /// Persist a CSB stream carrying a single import event in the (in-memory)
@@ -224,6 +234,27 @@ mod tests {
         };
 
         assert_eq!(group.csb_appellation(), "Kiesraad Demo");
+    }
+
+    #[test]
+    fn csb_appellation_names_a_scrapped_appellation_as_blank_in_recovery_only() {
+        let store = CsbStore::new_for_test();
+        store.set_political_group(PoliticalGroup {
+            appellation: Some("Kiesraad Demo".parse().unwrap()),
+            list_designation: Some(ListDesignation::Standalone),
+            ..Default::default()
+        });
+        let mut omission = sample_omission(OmissionCategory::Appellation);
+        omission.recoverable = false;
+        store.data.write().omissions.insert(omission.id, omission);
+        store.data.write().refresh_scrapped();
+
+        let group = CsbPoliticalGroup::new_from_csb_store(&store);
+        assert_eq!(group.csb_appellation(), "Kiesraad Demo");
+        assert_eq!(
+            group.with_mode(CsbPhase::Recovery).csb_appellation(),
+            "Blanco"
+        );
     }
 
     #[test]

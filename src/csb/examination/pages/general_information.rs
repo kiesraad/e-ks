@@ -67,7 +67,11 @@ mod tests {
     use axum::http::StatusCode;
 
     use crate::{
-        structs::{csb::OmissionCategory, list_designation::ListDesignation},
+        CsbAction,
+        structs::{
+            csb::{OmissionCategory, sample_omission},
+            list_designation::ListDesignation,
+        },
         test_utils::{response_body_string, sample_political_group},
     };
 
@@ -312,6 +316,39 @@ mod tests {
         let body = response_body_string(response).await;
 
         assert!(!body.contains("Omissions appellation</h2>"));
+    }
+
+    /// A paper correction can blank a list after appellation omissions were
+    /// added; those stay visible, but no new ones can be added.
+    #[tokio::test]
+    async fn appellation_omission_bar_shows_existing_omissions_of_a_blank_list() {
+        let store = CsbStore::new_for_test();
+        let mut pg = sample_political_group();
+        pg.list_designation = Some(ListDesignation::Blank);
+        store.set_political_group(pg);
+        store
+            .update(CsbAction::CreateOmission(sample_omission(
+                OmissionCategory::Appellation,
+            )))
+            .await
+            .unwrap();
+
+        let stream_id = store.stream_id;
+        let response = overview(
+            CsbGeneralInformationPath { stream_id },
+            CsbContext::new_test(),
+            store,
+        )
+        .await
+        .unwrap()
+        .into_response();
+        let body = response_body_string(response).await;
+
+        assert!(body.contains("Omissions appellation</h2>"));
+        assert!(body.contains("test title"));
+        // The overview is linked, the add dialog is not.
+        assert!(body.contains(&format!("/omission/appellation/{stream_id}/overview")));
+        assert!(!body.contains(&format!("/omission/appellation/{stream_id}\"")));
     }
 
     #[tokio::test]
