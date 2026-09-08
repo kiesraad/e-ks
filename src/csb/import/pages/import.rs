@@ -12,8 +12,8 @@ use axum::{
 use serde::Deserialize;
 
 use crate::{
-    AppError, AppRequestState, Context, CsbAction, CsbContext, CsbStore, CsbUser, Form,
-    HtmlTemplate, Locale, PgStoreData, StreamId,
+    AppError, AppRequestState, Context, CsbAction, CsbContext, CsbStore, CsbUser, ElectionConfig,
+    Form, HtmlTemplate, Locale, PgStoreData, StreamId,
     csb::examination::{CsbExaminationOverviewPath, CsbPoliticalGroupPath},
     filters,
     projection::WithCorrections,
@@ -88,7 +88,7 @@ pub async fn import_submit<S: AppRequestState>(
     let hash = form.hash.clone();
     let locale = context.session.locale;
     let user = context.user()?;
-    match do_import(&state, form, user, locale).await {
+    match do_import(&state, form, user, context.election, locale).await {
         Ok(ImportOutcome::Imported(response)) => Ok(response),
         Ok(ImportOutcome::AlreadyImported { appellation }) => Ok(render_import(
             context,
@@ -111,16 +111,48 @@ pub async fn import_submit<S: AppRequestState>(
     }
 }
 
+fn election_label(election: ElectionConfig, locale: Locale) -> String {
+    let title = election.title(locale.into());
+    match election.region_title() {
+        Some(region) => format!("{title} - {region}"),
+        None => title.to_string(),
+    }
+}
+
+async fn imported_appellation<S: AppRequestState>(
+    state: &S,
+    election: ElectionConfig,
+    source_stream_id: StreamId,
+) -> Result<Option<String>, AppError> {
+    for store in state
+        .csb_store_registry()
+        .stores_for_election(election)
+        .await?
+    {
+        let already_imported_and_not_deleted = store.data.read().events.first().is_some_and(|e| {
+            matches!(&e.payload.action, CsbAction::Import { source_stream_id: sid, .. } if *sid == source_stream_id) &&
+            !store.is_deleted()
+        });
+        if already_imported_and_not_deleted {
+            return Ok(Some(store.get_appellation(WithCorrections::All)));
+        }
+    }
+
+    Ok(None)
+}
+
 /// Locates the political-group event whose hash matches the entry, replays that
 /// stream up to the event into an [`PgStoreData`] snapshot (its event log
 /// excluded), and records the snapshot in a [`CsbAction::Import`] persisted under
-/// a fresh CSB stream keyed on the source election. The source `stream_id` is
-/// carried on the event for reference; it is never reused as the CSB partition,
-/// which would collide with the PG stream's own events there.
+/// a fresh CSB stream keyed on `election`, the election the session works on.
+/// The source `stream_id` is carried on the event for reference; it is never
+/// reused as the CSB partition, which would collide with the PG stream's own
+/// events there.
 async fn do_import<S: AppRequestState>(
     state: &S,
     form: ImportForm,
     user: CsbUser,
+    election: ElectionConfig,
     locale: Locale,
 ) -> Result<ImportOutcome, AppError> {
     let hash_prefix = parse_hash_prefix(&form.hash)
@@ -133,21 +165,21 @@ async fn do_import<S: AppRequestState>(
         .await?
         .ok_or_else(|| AppError::UserError(trans!("csb.import.error.not_found", locale)))?;
 
+    if source_election != election {
+        return Err(AppError::UserError(trans!(
+            "csb.import.error.other_election",
+            locale,
+            election_label(source_election, locale),
+        )));
+    }
+
     // Importing a source stream that was already imported is allowed, but only
     // after the user confirms the warning for this exact hash entry.
     let confirmed = form.confirmed_hash.as_deref() == Some(form.hash.as_str());
-    if !confirmed {
-        for store in state.csb_store_registry().stores_by_scope().await? {
-            let already_imported_and_not_deleted =
-                store.data.read().events.first().is_some_and(|e| {
-                    matches!(&e.payload.action, CsbAction::Import { source_stream_id: sid, .. } if *sid == source_stream_id) &&
-                    !store.is_deleted()
-                });
-            if already_imported_and_not_deleted {
-                let appellation = store.get_appellation(WithCorrections::All);
-                return Ok(ImportOutcome::AlreadyImported { appellation });
-            }
-        }
+    if !confirmed
+        && let Some(appellation) = imported_appellation(state, election, source_stream_id).await?
+    {
+        return Ok(ImportOutcome::AlreadyImported { appellation });
     }
 
     // Replay the source stream up to the matched event into a snapshot. Reload
@@ -170,7 +202,7 @@ async fn do_import<S: AppRequestState>(
     // Persist the import under a fresh CSB stream.
     let csb_store = CsbStore::acting_as(
         state
-            .csb_store_for_stream(StreamId::new(), source_election)
+            .csb_store_for_stream(StreamId::new(), election)
             .await?,
         user,
     );
@@ -353,7 +385,7 @@ mod tests {
     use crate::{
         AppState,
         CsbAction::Delete,
-        CsbContext, ElectionConfig, PgEvent,
+        CsbContext, ElectionConfig, PgEvent, Province,
         brp_stub::{BrpStub, matching_record},
         structs::brp::{BrpFinding, BrpValue},
         test_utils::{response_body_string, sample_person_from_brp},
@@ -363,9 +395,17 @@ mod tests {
     /// Populate a political-group stream with a single event in the (in-memory)
     /// test store and return its `(stream_id, formatted chain hash)`.
     async fn seed_source_event(state: &AppState) -> Result<(StreamId, String), AppError> {
+        seed_source_event_for(state, ElectionConfig::EK27).await
+    }
+
+    /// As [`seed_source_event`], for a political-group stream of `election`.
+    async fn seed_source_event_for(
+        state: &AppState,
+        election: ElectionConfig,
+    ) -> Result<(StreamId, String), AppError> {
         let source_stream = StreamId::new();
         let source_store = state
-            .store_for_stream(source_stream, ElectionConfig::EK27, false)
+            .store_for_stream(source_stream, election, false)
             .await?;
         source_store.update(PgEvent::HideDownloadWarning).await?;
 
@@ -479,6 +519,43 @@ mod tests {
             matches!(&e.payload.action, CsbAction::Import { source_stream_id, .. } if *source_stream_id == source_stream)
         });
         assert!(imported);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn import_submit_rejects_package_of_another_election() -> Result<(), AppError> {
+        let state = AppState::new_for_tests().await;
+        // The session works on EK27 (see `CsbContext::new_test`).
+        let (_, hash) =
+            seed_source_event_for(&state, ElectionConfig::PS27(Province::Groningen)).await?;
+
+        let response = submit(&state, &hash, None).await?;
+
+        // The form is re-rendered with an error, naming the other election.
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response_body_string(response).await;
+        assert!(body.contains("<span class=\"error\">"));
+        assert!(body.contains("Elections of the Provincial Council 2027 - Groningen"));
+
+        // Nothing was imported, not even after confirming the hash entry: the
+        // confirmation only covers the duplicate-import warning.
+        assert!(
+            state
+                .csb_store_registry()
+                .stores_by_scope()
+                .await?
+                .is_empty()
+        );
+        let response = submit(&state, &hash, Some(&hash)).await?;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(
+            state
+                .csb_store_registry()
+                .stores_by_scope()
+                .await?
+                .is_empty()
+        );
 
         Ok(())
     }

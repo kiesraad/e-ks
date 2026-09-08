@@ -230,7 +230,10 @@ members import the packages submitted by political groups and examine them
 `pages/`, `forms/`, `extractors/`, `structs/`, `components/` layout, with
 `CsbContext` in place of `Context`), but its access model is fundamentally
 different: a political group only ever sees its own stream, while a committee
-member works across all imported streams.
+member works across all imported streams of the one election its session was
+established for: CSB listings go through `stores_for_election` rather than
+`stores_by_scope`, with the technical `monitoring` overview (which names the
+election per row) the one deliberate exception.
 
 #### Scopes and session identities
 
@@ -286,8 +289,8 @@ The CSB section has two projections of its own on the shared store machinery
   (`find_event_by_hash_prefix`, backed by the `events_hash_idx` index),
   replays the source stream up to it (`PgStoreData::snapshot_until`), and
   persists the snapshot as a `CsbAction::Import` on a **fresh** `ImportedByCsb`
-  stream. The political group's own stream is never written to, and importing
-  the same source stream twice is rejected (might change with #999).
+  stream keyed on the session's election. A package handed in for another
+  election is refused.
 - **`examination`**: the examination of the imported lists. An overview
   groups the imported political groups by finished/unfinished; detail pages
   render the imported data read-only; omissions and corrections are recorded
