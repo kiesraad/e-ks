@@ -7,14 +7,25 @@
   column-gap: var(--space-2);
   display: flex;
   min-height: 3.5rem;
-  padding: var(--space-2) var(--space-4);
+  padding: var(--space-2);
 }
 
 table.omission-table {
-  margin-top: var(--space-md);
-  margin-bottom: var(--space-md);
+  margin: var(--space-lg) 0;
+  background-color: var(--bg-gray);
 
-  tr {
-    height: var(--space-md);
+  tr > td {
+    padding: var(--space-lg);
+  }
+}
+
+.omission-download-row {
+  align-items: center;
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-8);
+
+  p {
+    text-align: right;
   }
 }

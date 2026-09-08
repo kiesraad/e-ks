@@ -76,6 +76,7 @@ finish_examination:
   hearing_details: Hearing details
   omission_letters: Letters of omission
   omission_letters_note: Lorem ipsum
+  download_note: Download all letters of omission as Word and PDF files in a single ZIP
 finish_instruction:
   create_defects: Create notice of defects
   create_model_i1: Create model I 1

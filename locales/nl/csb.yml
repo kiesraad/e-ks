@@ -76,7 +76,7 @@ finish_examination:
   hearing_details: Zitting details
   omission_letters: Verzuimbrieven
   omission_letters_note: Lorem ipsum
-
+  download_note: Download hier alle verzuimbrieven als Word en PDF in één ZIP
 finish_instruction:
   create_defects: Aanmaken verzuimbrief
   create_model_i1: Aanmaken model I 1
