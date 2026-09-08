@@ -5,13 +5,13 @@ use parking_lot::{
     lock_api::{MappedRwLockReadGuard, RwLockReadGuard},
 };
 
+use super::Scrapped;
 use crate::{
     AppError, CsbStream, ElectoralDistrict, Locale, PgStoreData,
     structs::{
         brp::{BrpFinding, BrpStatus},
         candidate_lists::{CandidateList, CandidateListId},
         csb::{Omission, OmissionCategory, OmissionId, RecoveryProgress},
-        list_designation::ListDesignation,
         list_submitters::ListSubmitter,
         name_authorisations::NameAuthorisation,
         persons::{Person, PersonId},
@@ -117,16 +117,15 @@ impl CsbStream {
         progress
     }
 
-    /// Whether the candidate is scrapped from this list: an unresolved omission
-    /// (irreparable or marked not recovered) references the candidate on this
-    /// list. Group-level omissions deliberately do not cascade down here; they
-    /// are surfaced at the political-group level instead.
-    pub fn is_candidate_scrapped(&self, person_id: PersonId, list_id: CandidateListId) -> bool {
-        self.get_candidate_omissions(person_id).iter().any(|o| {
-            o.is_unresolved()
-                && matches!(&o.category, OmissionCategory::Candidate { lists, .. }
-                    if lists.contains(&list_id))
-        })
+    /// What the unresolved omissions scrap, as derived after the last event.
+    pub fn get_scrapped(&self) -> Scrapped {
+        self.data.read().scrapped.clone()
+    }
+
+    /// The districts scrapped by unresolved declarations-of-support omissions,
+    /// in the election's district order.
+    pub fn get_scrapped_districts(&self) -> Vec<ElectoralDistrict> {
+        self.data.read().scrapped.districts(&self.election)
     }
 
     /// The candidate's number in the recovery ("Herstelde lijsten") phase.
@@ -145,10 +144,11 @@ impl CsbStream {
             .get(&list_id)?
             .candidates
             .clone();
+        let scrapped = &self.data.read().scrapped;
 
         let mut position = 0;
         for candidate in candidates {
-            if self.is_candidate_scrapped(candidate, list_id) {
+            if scrapped.is_candidate_scrapped(list_id, candidate) {
                 if candidate == person_id {
                     return None;
                 }
@@ -162,70 +162,6 @@ impl CsbStream {
         }
 
         None
-    }
-
-    /// Whether the whole candidate list is scrapped: an unresolved list-level
-    /// omission references it, or every electoral district it was submitted in
-    /// is scrapped. Unresolved omissions of individual candidates scrap only
-    /// those candidates, not the list.
-    pub fn is_candidate_list_scrapped(&self, list_id: CandidateListId) -> Result<bool, AppError> {
-        if self
-            .get_candidate_list_omissions(list_id)?
-            .iter()
-            .any(Omission::is_unresolved)
-        {
-            return Ok(true);
-        }
-
-        let districts = self.get_candidate_list_districts(list_id);
-
-        Ok(!districts.is_empty()
-            && districts.len() == self.get_candidate_list_scrapped_districts(list_id).len())
-    }
-
-    /// The electoral districts of a candidate list that are scrapped, in the
-    /// list's own district order.
-    pub fn get_candidate_list_scrapped_districts(
-        &self,
-        list_id: CandidateListId,
-    ) -> Vec<ElectoralDistrict> {
-        let scrapped = self.get_scrapped_districts();
-
-        self.get_candidate_list_districts(list_id)
-            .into_iter()
-            .filter(|district| scrapped.contains(district))
-            .collect()
-    }
-
-    /// The electoral districts a candidate list was submitted in, corrections
-    /// applied. Empty when the list is unknown.
-    fn get_candidate_list_districts(&self, list_id: CandidateListId) -> Vec<ElectoralDistrict> {
-        self.read(WithCorrections::All)
-            .candidate_lists
-            .get(&list_id)
-            .map(|list| list.electoral_districts.clone())
-            .unwrap_or_default()
-    }
-
-    /// The districts scrapped by unresolved declarations-of-support omissions,
-    /// in the election's district order.
-    pub fn get_scrapped_districts(&self) -> Vec<ElectoralDistrict> {
-        let data = self.data.read();
-
-        let scrapped: Vec<ElectoralDistrict> = data
-            .omissions
-            .values()
-            .filter(|o| o.is_unresolved())
-            .flat_map(|o| o.electoral_districts(&self.election))
-            .copied()
-            .collect();
-
-        self.election
-            .electoral_districts()
-            .iter()
-            .filter(|district| scrapped.contains(district))
-            .copied()
-            .collect()
     }
 
     pub fn get_omissions(&self) -> Vec<Omission> {
@@ -503,16 +439,6 @@ impl CsbStream {
         }
     }
 
-    pub fn is_appellation_scrapped(&self) -> bool {
-        self.get_political_group(WithCorrections::All)
-            .list_designation
-            != Some(ListDesignation::Blank) // blank lists don't have an appellation => can't be scrapped
-            && self
-                .get_appellation_omissions()
-                .iter()
-                .any(Omission::is_unresolved)
-    }
-
     /// One-based position of the candidate on the given list
     pub fn get_candidate_position(
         &self,
@@ -612,27 +538,9 @@ mod tests {
 
     fn insert(store: &CsbStream, category: OmissionCategory) {
         let omission = sample_omission(category);
-        store.data.write().omissions.insert(omission.id, omission);
-    }
-
-    fn insert_list(store: &CsbStream, list_id: CandidateListId, districts: Vec<ElectoralDistrict>) {
-        let list = CandidateList {
-            id: list_id,
-            electoral_districts: districts,
-            ..Default::default()
-        };
-        store
-            .data
-            .write()
-            .imported_data
-            .candidate_lists
-            .insert(list_id, list.clone());
-        store
-            .data
-            .write()
-            .paper_corrected_data
-            .candidate_lists
-            .insert(list_id, list);
+        let mut data = store.data.write();
+        data.omissions.insert(omission.id, omission);
+        data.refresh_scrapped();
     }
 
     fn insert_with_status(
@@ -644,7 +552,9 @@ mod tests {
         let mut omission = sample_omission(category);
         omission.recoverable = recoverable;
         omission.status = status;
-        store.data.write().omissions.insert(omission.id, omission);
+        let mut data = store.data.write();
+        data.omissions.insert(omission.id, omission);
+        data.refresh_scrapped();
     }
 
     #[test]
@@ -672,39 +582,6 @@ mod tests {
                 total: 2
             }
         );
-    }
-
-    #[test]
-    fn is_candidate_scrapped_only_for_unresolved_omissions_on_that_list() {
-        let person = PersonId::new();
-        let list_a = CandidateListId::new();
-        let list_b = CandidateListId::new();
-        let store = CsbStore::new_for_test();
-
-        // A pending omission is not (yet) unresolved.
-        insert(
-            &store,
-            OmissionCategory::Candidate {
-                person,
-                lists: vec![list_a],
-            },
-        );
-        assert!(!store.is_candidate_scrapped(person, list_a));
-
-        insert_with_status(
-            &store,
-            OmissionCategory::Candidate {
-                person,
-                lists: vec![list_a],
-            },
-            true,
-            OmissionStatus::NotRecovered,
-        );
-
-        assert!(store.is_candidate_scrapped(person, list_a));
-        // Scoped to the lists the omission references.
-        assert!(!store.is_candidate_scrapped(person, list_b));
-        assert!(!store.is_candidate_scrapped(PersonId::new(), list_a));
     }
 
     #[test]
@@ -736,143 +613,6 @@ mod tests {
         assert_eq!(store.get_recovery_position(list_id, last), Some(2));
 
         assert_eq!(store.get_recovery_position(list_id, PersonId::new()), None);
-    }
-
-    #[test]
-    fn candidate_list_is_scrapped_once_all_its_districts_are_scrapped() {
-        let store = CsbStore::new_for_test();
-        let list_id = CandidateListId::new();
-        insert_list(
-            &store,
-            list_id,
-            vec![ElectoralDistrict::Groningen, ElectoralDistrict::Drenthe],
-        );
-
-        insert_with_status(
-            &store,
-            OmissionCategory::DeclarationsOfSupport(vec![ElectoralDistrict::Groningen]),
-            true,
-            OmissionStatus::NotRecovered,
-        );
-
-        assert_eq!(
-            store.get_candidate_list_scrapped_districts(list_id),
-            vec![ElectoralDistrict::Groningen]
-        );
-        // One of the two districts is gone, the list itself is not.
-        assert!(!store.is_candidate_list_scrapped(list_id).unwrap());
-
-        insert_with_status(
-            &store,
-            OmissionCategory::DeclarationsOfSupport(vec![ElectoralDistrict::Drenthe]),
-            true,
-            OmissionStatus::NotRecovered,
-        );
-
-        assert_eq!(
-            store.get_candidate_list_scrapped_districts(list_id),
-            vec![ElectoralDistrict::Groningen, ElectoralDistrict::Drenthe]
-        );
-        assert!(store.is_candidate_list_scrapped(list_id).unwrap());
-    }
-
-    #[test]
-    fn is_candidate_scrapped_by_an_irreparable_omission() {
-        let person = PersonId::new();
-        let list = CandidateListId::new();
-        let store = CsbStore::new_for_test();
-        insert_with_status(
-            &store,
-            OmissionCategory::Candidate {
-                person,
-                lists: vec![list],
-            },
-            false,
-            OmissionStatus::Pending,
-        );
-
-        assert!(store.is_candidate_scrapped(person, list));
-    }
-
-    #[test]
-    fn is_candidate_list_scrapped_ignores_recovered_and_candidate_omissions() {
-        let list_id = CandidateListId::new();
-        let store = CsbStore::new_for_test();
-        insert_list(&store, list_id, vec![ElectoralDistrict::Groningen]);
-
-        insert_with_status(
-            &store,
-            OmissionCategory::CandidateList(vec![list_id]),
-            true,
-            OmissionStatus::Recovered,
-        );
-        // An unresolved omission of a candidate scraps the candidate, not the list.
-        insert_with_status(
-            &store,
-            OmissionCategory::Candidate {
-                person: PersonId::new(),
-                lists: vec![list_id],
-            },
-            true,
-            OmissionStatus::NotRecovered,
-        );
-        assert!(!store.is_candidate_list_scrapped(list_id).unwrap());
-
-        insert_with_status(
-            &store,
-            OmissionCategory::CandidateList(vec![list_id]),
-            true,
-            OmissionStatus::NotRecovered,
-        );
-        assert!(store.is_candidate_list_scrapped(list_id).unwrap());
-
-        assert!(
-            store
-                .is_candidate_list_scrapped(CandidateListId::new())
-                .is_err()
-        );
-    }
-
-    #[test]
-    fn get_scrapped_districts_sorts_and_expands_empty_to_all() {
-        let store = CsbStore::new_for_test();
-        insert_with_status(
-            &store,
-            OmissionCategory::DeclarationsOfSupport(vec![
-                ElectoralDistrict::Drenthe,
-                ElectoralDistrict::Groningen,
-            ]),
-            true,
-            OmissionStatus::NotRecovered,
-        );
-        // Recovered and pending omissions scrap nothing.
-        insert_with_status(
-            &store,
-            OmissionCategory::DeclarationsOfSupport(vec![ElectoralDistrict::Bonaire]),
-            true,
-            OmissionStatus::Recovered,
-        );
-        insert(
-            &store,
-            OmissionCategory::DeclarationsOfSupport(vec![ElectoralDistrict::Utrecht]),
-        );
-
-        assert_eq!(
-            store.get_scrapped_districts(),
-            vec![ElectoralDistrict::Groningen, ElectoralDistrict::Drenthe]
-        );
-
-        // An unresolved omission without districts covers all districts.
-        insert_with_status(
-            &store,
-            OmissionCategory::DeclarationsOfSupport(vec![]),
-            false,
-            OmissionStatus::Pending,
-        );
-        assert_eq!(
-            store.get_scrapped_districts(),
-            store.election.electoral_districts().to_vec()
-        );
     }
 
     #[test]
@@ -952,8 +692,16 @@ mod tests {
         let list_a = CandidateListId::new();
         let list_b = CandidateListId::new();
         let store = CsbStore::new_for_test();
-        insert_list(&store, list_a, vec![ElectoralDistrict::Groningen]);
-        insert_list(&store, list_b, vec![ElectoralDistrict::Drenthe]);
+        store.add_candidate_list(CandidateList {
+            id: list_a,
+            electoral_districts: vec![ElectoralDistrict::Groningen],
+            ..Default::default()
+        });
+        store.add_candidate_list(CandidateList {
+            id: list_b,
+            electoral_districts: vec![ElectoralDistrict::Drenthe],
+            ..Default::default()
+        });
         insert(&store, OmissionCategory::CandidateList(vec![list_a]));
         insert(&store, OmissionCategory::CandidateList(vec![list_b]));
         insert(&store, OmissionCategory::PoliticalGroup);
@@ -975,7 +723,11 @@ mod tests {
     fn get_candidate_list_prefers_the_paper_corrected_version() {
         let list_id = CandidateListId::new();
         let store = CsbStore::new_for_test();
-        insert_list(&store, list_id, vec![ElectoralDistrict::Utrecht]);
+        store.add_candidate_list(CandidateList {
+            id: list_id,
+            electoral_districts: vec![ElectoralDistrict::Utrecht],
+            ..Default::default()
+        });
         store.set_paper_corrected_candidate_list(CandidateList {
             id: list_id,
             electoral_districts: vec![ElectoralDistrict::Groningen],

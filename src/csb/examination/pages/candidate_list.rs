@@ -70,9 +70,10 @@ pub(in crate::csb) async fn render(
         .map(|corrected| corrected.electoral_districts)
         .unwrap_or(imported_list.electoral_districts);
 
-    let scrapped_districts = store.get_candidate_list_scrapped_districts(list_id);
-    let all_districts_scrapped =
-        !electoral_districts.is_empty() && scrapped_districts.len() == electoral_districts.len();
+    let scrapped = &political_group.scrapped;
+    let is_scrapped = scrapped.is_list_scrapped(list_id);
+    let scrapped_districts = scrapped.list_districts(list_id).to_vec();
+    let all_districts_scrapped = scrapped.all_list_districts_scrapped(list_id);
 
     Ok(HtmlTemplate(
         CsbCandidateListTemplate {
@@ -81,7 +82,7 @@ pub(in crate::csb) async fn render(
             electoral_districts,
             candidates,
             omissions,
-            is_scrapped: store.is_candidate_list_scrapped(list_id)?,
+            is_scrapped,
             scrapped_districts,
             all_districts_scrapped,
         },

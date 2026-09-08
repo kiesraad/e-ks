@@ -32,7 +32,7 @@ impl PaperCorrectedPoliticalGroupInfo {
             list_type_label(&imported_group, locale),
             list_type_label(&paper_corrected_group, locale),
         );
-        if mode.is_recovery() && store.is_appellation_scrapped() {
+        if mode.is_recovery() && store.get_scrapped().is_appellation_scrapped() {
             list_type = list_type
                 .with_csb_correction(Some(trans!("political_group.type.blank_name", locale)));
         }

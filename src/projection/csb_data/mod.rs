@@ -1,8 +1,10 @@
 mod event;
 mod getters;
+mod scrapped;
 
 pub use event::{CsbAction, CsbEvent};
 pub use getters::WithCorrections;
+pub use scrapped::Scrapped;
 
 use std::collections::{HashMap, hash_map::Entry};
 
@@ -41,6 +43,8 @@ pub struct CsbStoreData {
     pub(crate) brp_validation_status: BrpStatus,
     pub(crate) csb_corrected_persons: HashMap<PersonId, PersonCorrectionDelta>,
     pub(crate) csb_corrected_appellation: Option<Appellation>,
+    /// What the unresolved omissions scrap; derived again after every event.
+    pub(crate) scrapped: Scrapped,
 }
 
 impl StoreData for CsbStoreData {
@@ -105,6 +109,8 @@ impl StoreData for CsbStoreData {
             }
             CsbAction::SetBrpStatus(value) => self.brp_validation_status = value,
         }
+
+        self.refresh_scrapped();
     }
 
     fn events(&self) -> &[StoreEvent<Self::Event>] {
@@ -117,6 +123,11 @@ impl StoreData for CsbStoreData {
 }
 
 impl CsbStoreData {
+    /// Derive what is scrapped from the current omissions and corrected data.
+    pub(crate) fn refresh_scrapped(&mut self) {
+        self.scrapped = Scrapped::derive(&self.paper_corrected_data, &self.omissions);
+    }
+
     /// Take over an imported package as both projections. `import` becomes
     /// event #1 of the corrected one, starting its audit log.
     fn apply_import(&mut self, snapshot: PgStoreData, import: StoreEvent<crate::PgEvent>) {
@@ -349,6 +360,7 @@ impl crate::CsbStream {
         let mut data = self.data.write();
         data.imported_data.political_group = political_group.clone();
         data.paper_corrected_data.political_group = political_group;
+        data.refresh_scrapped();
     }
 
     pub fn add_candidate_list(&self, list: crate::structs::candidate_lists::CandidateList) {
@@ -359,6 +371,7 @@ impl crate::CsbStream {
         data.paper_corrected_data
             .candidate_lists
             .insert(list.id, list);
+        data.refresh_scrapped();
     }
 
     /// Test setter writing only the corrected projection, mirroring a list
@@ -367,11 +380,11 @@ impl crate::CsbStream {
         &self,
         list: crate::structs::candidate_lists::CandidateList,
     ) {
-        self.data
-            .write()
-            .paper_corrected_data
+        let mut data = self.data.write();
+        data.paper_corrected_data
             .candidate_lists
             .insert(list.id, list);
+        data.refresh_scrapped();
     }
 
     pub fn add_person(&self, person: crate::structs::persons::Person) {

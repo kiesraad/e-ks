@@ -1,7 +1,6 @@
 //! Model I 1 and I 4 inputs, collected over every imported political group.
-//! Unresolved omissions (irreparable or not recovered) scrap a candidate, a
-//! list (per district for declarations of support) or, for a political-group
-//! omission, the appellation; recovered omissions have no consequences.
+//! What the omissions scrap is read from the store's [`Scrapped`] state, so
+//! the models report the same outcome as the recovery pages.
 
 use std::collections::BTreeMap;
 
@@ -9,7 +8,7 @@ use crate::{
     AppError, CsbStoreData, CsbStream, ElectionConfig, ElectoralDistrict,
     core::AnyLocale,
     models::{i1, i4},
-    projection::WithCorrections,
+    projection::{Scrapped, WithCorrections},
     store::StoreRegistry,
     structs::{
         candidate_lists::{CandidateList, CandidateListId},
@@ -125,6 +124,7 @@ pub async fn i4_inputs(
 
     for store in examined_stores(registry, election).await? {
         let omissions = sorted_omissions(&store);
+        let scrapped = store.get_scrapped();
 
         inputs.recovered_omissions.extend(omission_groups(
             &store,
@@ -136,20 +136,20 @@ pub async fn i4_inputs(
         inputs.invalid_lists.extend(omission_groups(
             &store,
             election,
-            omissions
-                .iter()
-                .filter(|omission| omission.is_unresolved() && invalidates_list(omission)),
+            omissions.iter().filter(|omission| {
+                scrapped.is_caused_by(omission.id) && invalidates_list(omission)
+            }),
         )?);
         inputs
             .removed_candidates
-            .extend(removed_candidates(&store, election, &omissions)?);
+            .extend(removed_candidates(&store, election, &omissions, &scrapped)?);
         inputs
             .removed_appellations
-            .extend(removed_appellation(&store, election, &omissions));
+            .extend(removed_appellation(&store, election, &omissions, &scrapped));
         inputs
             .corrected_appellations
             .extend(corrected_appellation(&store, election));
-        for (district, list) in valid_lists(&store)? {
+        for (district, list) in valid_lists(&store, &scrapped)? {
             valid_by_district.entry(district).or_default().push(list);
         }
     }
@@ -165,19 +165,13 @@ pub async fn i4_inputs(
     Ok(inputs)
 }
 
-/// Whether an unresolved omission of this category makes the list invalid.
+/// Whether a scrapping omission of this category is reported under the
+/// invalid lists (rather than the removed candidates or appellations).
 fn invalidates_list(omission: &Omission) -> bool {
     matches!(
         omission.category,
         OmissionCategory::CandidateList(_) | OmissionCategory::DeclarationsOfSupport(_)
     )
-}
-
-/// Unresolved appellation omissions scrap the appellation.
-fn unresolved_appellation_omissions(omissions: &[Omission]) -> impl Iterator<Item = &Omission> {
-    omissions.iter().filter(|omission| {
-        omission.is_unresolved() && matches!(omission.category, OmissionCategory::Appellation)
-    })
 }
 
 /// Reading order: group, declarations of support, lists, candidates by position.
@@ -236,13 +230,17 @@ fn removed_candidates(
     store: &CsbStream,
     election: &ElectionConfig,
     omissions: &[Omission],
+    scrapped: &Scrapped,
 ) -> Result<Vec<i4::RemovedCandidates>, AppError> {
     let mut by_district: BTreeMap<String, Vec<(PersonId, i4::RemovedCandidate)>> = BTreeMap::new();
-    for omission in omissions.iter().filter(|omission| omission.is_unresolved()) {
+    for omission in omissions
+        .iter()
+        .filter(|omission| scrapped.is_caused_by(omission.id))
+    {
         let OmissionCategory::Candidate { person, lists } = &omission.category else {
             continue;
         };
-        let districts = valid_districts_with_candidate(store, *person, lists)?;
+        let districts = valid_districts_with_candidate(store, scrapped, *person, lists)?;
         if districts.is_empty() {
             continue;
         }
@@ -279,6 +277,7 @@ fn removed_candidates(
 /// The districts in which the lists still carrying `person` stay valid.
 fn valid_districts_with_candidate(
     store: &CsbStream,
+    scrapped: &Scrapped,
     person: PersonId,
     lists: &[CandidateListId],
 ) -> Result<Vec<ElectoralDistrict>, AppError> {
@@ -287,12 +286,11 @@ fn valid_districts_with_candidate(
         let list = store
             .get_candidate_list(*id, WithCorrections::All)
             .ok_or(AppError::GenericNotFound)?;
-        if !list.candidates.contains(&person) || store.is_candidate_list_scrapped(*id)? {
+        if !list.candidates.contains(&person) || scrapped.is_list_scrapped(*id) {
             continue;
         }
-        let scrapped = store.get_candidate_list_scrapped_districts(*id);
         for district in list.electoral_districts {
-            if !scrapped.contains(&district) && !valid.contains(&district) {
+            if !scrapped.is_district_scrapped(district) && !valid.contains(&district) {
                 valid.push(district);
             }
         }
@@ -304,8 +302,9 @@ fn removed_appellation(
     store: &CsbStream,
     election: &ElectionConfig,
     omissions: &[Omission],
+    scrapped: &Scrapped,
 ) -> Option<i4::RemovedAppellation> {
-    if !store.is_appellation_scrapped() {
+    if !scrapped.is_appellation_scrapped() {
         return None;
     }
 
@@ -313,7 +312,9 @@ fn removed_appellation(
         appellation: store.get_appellation(WithCorrections::All),
         electoral_district: format_districts(&group_districts(store), election),
         first_candidate_name: first_candidate_name(store),
-        reasons: unresolved_appellation_omissions(omissions)
+        reasons: omissions
+            .iter()
+            .filter(|omission| scrapped.appellation_omissions().contains(&omission.id))
             .map(|omission| omission.description.to_string())
             .collect(),
     })
@@ -332,8 +333,11 @@ fn corrected_appellation(
 }
 
 /// The lists that are not scrapped, per district that is not scrapped.
-fn valid_lists(store: &CsbStream) -> Result<Vec<(ElectoralDistrict, i4::ValidList)>, AppError> {
-    let appellation = if store.is_appellation_scrapped() {
+fn valid_lists(
+    store: &CsbStream,
+    scrapped: &Scrapped,
+) -> Result<Vec<(ElectoralDistrict, i4::ValidList)>, AppError> {
+    let appellation = if scrapped.is_appellation_scrapped() {
         first_candidate_name(store)
     } else {
         store.get_appellation(WithCorrections::All)
@@ -341,13 +345,12 @@ fn valid_lists(store: &CsbStream) -> Result<Vec<(ElectoralDistrict, i4::ValidLis
 
     let mut valid = Vec::new();
     for list in lists_by_creation(store) {
-        if store.is_candidate_list_scrapped(list.id)? {
+        if scrapped.is_list_scrapped(list.id) {
             continue;
         }
-        let scrapped_districts = store.get_candidate_list_scrapped_districts(list.id);
-        let candidates = valid_candidates(store, &list)?;
+        let candidates = valid_candidates(store, scrapped, &list)?;
         for district in &list.electoral_districts {
-            if !scrapped_districts.contains(district) {
+            if !scrapped.is_district_scrapped(*district) {
                 valid.push((
                     *district,
                     i4::ValidList {
@@ -365,11 +368,12 @@ fn valid_lists(store: &CsbStream) -> Result<Vec<(ElectoralDistrict, i4::ValidLis
 /// The candidates that are not scrapped, renumbered.
 fn valid_candidates(
     store: &CsbStream,
+    scrapped: &Scrapped,
     list: &CandidateList,
 ) -> Result<Vec<i4::ValidListCandidate>, AppError> {
     list.candidates
         .iter()
-        .filter(|person| !store.is_candidate_scrapped(**person, list.id))
+        .filter(|person| !scrapped.is_candidate_scrapped(list.id, **person))
         .enumerate()
         .map(|(index, person)| {
             let person = store

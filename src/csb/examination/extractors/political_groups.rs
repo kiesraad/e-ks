@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use crate::{
     AppError, AppRequestState, CsbStream, ElectoralDistrict, Session, StreamId,
     csb::examination::structs::BrpCheckState,
+    projection::Scrapped,
     structs::{
         candidate_lists::CandidateListId,
         common::FullName,
@@ -22,7 +23,9 @@ pub struct CsbPoliticalGroup {
     pub mode: CsbPhase,
     pub is_examination_finished: bool,
     pub is_deleted: bool,
-    pub is_appellation_scrapped: bool,
+    /// What the unresolved omissions scrap; only rendered in
+    /// [`CsbPhase::Recovery`].
+    pub scrapped: Scrapped,
     pub restoration_count: usize,
     pub omission_count: usize,
     /// How far the group is through the recovery phase; only meaningful in
@@ -43,7 +46,7 @@ impl CsbPoliticalGroup {
             mode: CsbPhase::Examination,
             is_examination_finished: store.is_examination_finished(),
             is_deleted: store.is_deleted(),
-            is_appellation_scrapped: store.is_appellation_scrapped(),
+            scrapped: store.get_scrapped(),
             restoration_count: store.get_restoration_count(),
             omission_count: store.get_omission_count(),
             recovery: store.get_recovery_progress(),
@@ -77,6 +80,10 @@ impl CsbPoliticalGroup {
     pub fn csb_appellation(&self) -> String {
         self.political_group
             .csb_appellation(self.first_candidate_name.as_ref())
+    }
+
+    pub fn is_appellation_scrapped(&self) -> bool {
+        self.scrapped.is_appellation_scrapped()
     }
 }
 
@@ -212,7 +219,7 @@ mod tests {
             omission_count: 0,
             recovery: RecoveryProgress::default(),
             first_candidate_name: None,
-            is_appellation_scrapped: false,
+            scrapped: Default::default(),
             candidate_list_districts: HashMap::new(),
         };
 
@@ -239,7 +246,7 @@ mod tests {
                 initials: "A.B.".parse().unwrap(),
                 ..Default::default()
             }),
-            is_appellation_scrapped: false,
+            scrapped: Default::default(),
             candidate_list_districts: HashMap::new(),
         };
 
@@ -262,7 +269,7 @@ mod tests {
             omission_count: 0,
             recovery: RecoveryProgress::default(),
             first_candidate_name: None,
-            is_appellation_scrapped: false,
+            scrapped: Default::default(),
             candidate_list_districts: HashMap::new(),
         };
 

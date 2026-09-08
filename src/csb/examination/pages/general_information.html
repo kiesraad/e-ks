@@ -64,7 +64,7 @@
             </tr>
           {% else %}
             <tr>
-              {% if political_group.is_appellation_scrapped %}
+              {% if political_group.is_appellation_scrapped() %}
                 <td><s>{{ appellation_label }}: {{ paper_corrected::value(group_info.appellation) }}</s></td>
                 <td><span class="restoration-tag restoration-tag-scrapped">{{ "csb.recovery.scrapped"|trans }}</span></td>
                 <td></td>
@@ -89,7 +89,7 @@
         <table class="detail-table">
           {{ paper_corrected::columns_head(name_authorisation.heading) }}
           <tbody>
-            {% if !political_group.mode.is_recovery() || !political_group.is_appellation_scrapped %}
+            {% if !political_group.mode.is_recovery() || !political_group.is_appellation_scrapped() %}
               {{ paper_corrected::data_row("political_group.legal_name"|trans, name_authorisation.legal_name) }}
               {{ paper_corrected::data_row("political_group.authorised_agent"|trans, name_authorisation.authorised_agent) }}
             {% else %}

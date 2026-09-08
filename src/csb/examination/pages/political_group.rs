@@ -74,8 +74,8 @@ pub(in crate::csb) async fn render(
         let from_original_import = imported_lists.iter().any(|l| l.id == list.id);
         candidate_lists.push(CsbCandidateList {
             restoration_status: RestorationStatus::for_candidate_list(&store, list.id)?,
-            is_scrapped: store.is_candidate_list_scrapped(list.id)?,
-            scrapped_districts: store.get_candidate_list_scrapped_districts(list.id),
+            is_scrapped: political_group.scrapped.is_list_scrapped(list.id),
+            scrapped_districts: political_group.scrapped.list_districts(list.id).to_vec(),
             list,
             brp,
             is_paper_added: !from_original_import,
@@ -93,6 +93,7 @@ pub(in crate::csb) async fn render(
         context.session.locale,
     );
     let political_group_status = RestorationStatus::for_political_group(&store);
+    let scrapped_districts = political_group.scrapped.districts(&store.election);
 
     Ok(HtmlTemplate(
         CsbPoliticalGroupTemplate {
@@ -104,7 +105,7 @@ pub(in crate::csb) async fn render(
             political_group_status,
             declarations_of_support_omissions: store.get_all_declarations_of_support_omissions(),
             has_paper_corrections: store.has_paper_corrections(),
-            scrapped_districts: store.get_scrapped_districts(),
+            scrapped_districts,
         },
         context,
     )
