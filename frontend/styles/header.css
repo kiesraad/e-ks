@@ -7,14 +7,20 @@ header {
   nav {
     background-color: var(--header-bg);
     color: var(--header-color);
+    display: flex;
     min-height: var(--header-height);
     position: relative;
 
     > div {
       margin-inline: auto;
       max-width: var(--container-size);
+      width: 100%;
       display: flex;
       justify-content: space-between;
+
+      &.end {
+        justify-content: flex-end;
+      }
     }
 
     ul {

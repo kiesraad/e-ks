@@ -1,5 +1,5 @@
 button:
-  digid: Log in
+  digid: Inloggen
 cancelled:
   message: You cancelled the login. You are not logged in to Candidate Nomination of the Kiesraad. Log in again to continue.
   title: Login cancelled

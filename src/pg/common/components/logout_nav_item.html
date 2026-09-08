@@ -1,0 +1,9 @@
+{% import "pg/common/components/macros.html" as logout_macros %}
+<li>
+  <form method="post"
+        action="{{ crate::common::LogoutPath }}"
+        class="logout-form">
+    {{ logout_macros::csrf_field() }}
+    <button type="submit" class="logout">{{ "action.signout"|trans }}</button>
+  </form>
+</li>

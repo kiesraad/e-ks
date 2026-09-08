@@ -173,6 +173,47 @@ mod tests {
         assert_eq!(response.headers().get(header::LOCATION).unwrap(), "/");
     }
 
+    /// TVS "Checklist Testen" v2.1 T7: a logout option must be on screen from
+    /// the moment of login. This page is the first screen a newly authenticated
+    /// user without an election lands on, and it does not use the main layout.
+    #[tokio::test]
+    async fn select_election_offers_logout() {
+        let state = AppState::new_for_tests().await;
+        let app = Router::new()
+            .typed_get(select_election::<crate::AppState>)
+            .layer(middleware::from_fn_with_state(
+                state.clone(),
+                session_middleware,
+            ))
+            .with_state(state.clone());
+
+        let session = Session::new_test();
+        let token = session.token_string();
+        state.sessions().insert(session).await;
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/select-election")
+                    .header(
+                        header::COOKIE,
+                        format!("{}={}", crate::SESSION_COOKIE_NAME, token),
+                    )
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .expect("response");
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = crate::test_utils::response_body_string(response).await;
+        assert!(body.contains(r#"class="logout-form""#), "{body}");
+        assert!(
+            body.contains(&format!(r#"action="{}""#, crate::common::LogoutPath)),
+            "{body}"
+        );
+    }
+
     #[tokio::test]
     async fn select_election_submit_sets_current_election() {
         let state = AppState::new_for_tests().await;
