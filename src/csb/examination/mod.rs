@@ -11,5 +11,5 @@ pub use forms::OmissionForm;
 pub use pages::router;
 pub use paths::{
     CsbExaminationOverviewPath, CsbFinishExaminationPath, CsbI4DocxDownloadPath, CsbI4DownloadPath,
-    CsbPoliticalGroupPath,
+    CsbPoliticalGroupPath, CsbSessionDetailsPath,
 };

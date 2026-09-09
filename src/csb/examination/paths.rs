@@ -115,6 +115,10 @@ pub struct CsbOmissionLetterPath {
 pub struct CsbOmissionLettersDownloadPath;
 
 #[derive(TypedPath, Deserialize)]
+#[typed_path("/csb/examination/session-details", rejection(AppError))]
+pub struct CsbSessionDetailsPath;
+
+#[derive(TypedPath, Deserialize)]
 #[typed_path("/csb/examination/{stream_id}/paper-corrections", rejection(AppError))]
 pub struct CsbPaperCorrectionsStartPath {
     pub stream_id: StreamId,
