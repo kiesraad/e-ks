@@ -116,9 +116,13 @@ group:
   toggle: Finish or reopen examination
   unfinished: Finish examination
 hearing:
-  date: Date
+  date: Date of hearing
   location: This concerns the public session of the central electoral committee in
   place_and_time: Location and time
+  signing: Signing
+  time: Time of hearing
+  member_name: Member name
+  name: Name
 import:
   error:
     ambiguous_hash: The entered hash code matches more than one data set; enter more characters.

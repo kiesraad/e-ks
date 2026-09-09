@@ -1,10 +1,12 @@
 candidates: Candidates
 continue_to_home: Continue to home
 date_field:
+  date: Date
   day: Day
   day_placeholder: dd
   month: Month
   month_placeholder: mm
+  time: Time
   year: Year
   year_placeholder: yyyy
 description: Candidate nomination for elections in the Netherlands

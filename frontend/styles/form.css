@@ -35,6 +35,10 @@
       }
     }
 
+    /*input.time-input {
+      text-align: center;
+    }*/
+
     .date-input-row > .date-separate:not(.hidden) {
       display: flex;
 
