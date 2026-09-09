@@ -121,11 +121,16 @@ index:
     create_i1_letters: I 1 en verzuimbrieven aanmaken
     create_i4: I 4 aanmaken
     recover_omissions: Verzuimen herstellen
+    register_appellations: Geregistreerde aanduidingen vastleggen
+    register_previous_results: Uitslag van de laatstgehouden verkiezing vastleggen
     report_errors: Fouten doorgeven
     view_candidate_lists: Inzage kandidatenlijsten
   go_to_examination: Ga naar onderzoek
   go_to_recovery: Ga naar herstelde lijsten
+  go_to_registered_political_groups: Ga naar registratie
   phase: "Fase {}"
+  phase_0:
+    title: Registratie
   phase_1:
     title: Voorinlevering
   phase_2:
@@ -201,6 +206,13 @@ recovery:
   recovered: Hersteld
   scrapped: Geschrapt
   title: Herstelde lijsten
+registered_political_groups:
+  edit: Politieke groepering bewerken
+  none: Er zijn nog geen politieke groeperingen geregistreerd.
+  numbering_hint: "Alleen politieke groeperingen die ten minste één zetel hebben behaald, worden op stemmen genummerd. De overige lijsten worden door loting genummerd."
+  previous_seats: Zetels bij de laatstgehouden verkiezing
+  previous_votes: Stemmen bij de laatstgehouden verkiezing
+  title: Geregistreerde politieke groeperingen
 status:
   approved: Goedgekeurd
   correction: Ambtshalve correcties toegevoegd

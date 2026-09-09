@@ -1,0 +1,3 @@
+mod registered_political_group_form;
+
+pub use registered_political_group_form::RegisteredPoliticalGroupForm;

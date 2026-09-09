@@ -1,30 +1,20 @@
-use axum::{extract::State, http::HeaderValue, response::IntoResponse};
+use axum::{http::HeaderValue, response::IntoResponse};
 
 use crate::{
-    AppError, AppRequestState, CsbMainStore, csb::index::CsbElectionDefinitionDownloadPath,
-    models::eml::eml110a::eml110a, projection::WithCorrections, utils::no_cache_headers,
+    AppError, CsbMainStore, csb::index::CsbElectionDefinitionDownloadPath,
+    models::eml::eml110a::eml110a, utils::no_cache_headers,
 };
 
 const XML_CONTENT_TYPE: &str = "application/xml";
 
-pub async fn download_election_definition<S: AppRequestState>(
+pub async fn download_election_definition(
     _: CsbElectionDefinitionDownloadPath,
     main_store: CsbMainStore,
-    State(state): State<S>,
 ) -> Result<impl IntoResponse, AppError> {
-    let csb_registry = state.csb_store_registry();
-    let election = main_store.election;
-
-    // TODO: get registered party from a proper source
-    // Blank lists probably shouldn't be included
-    let registered_party_names = csb_registry
-        .stores_for_election(election)
-        .await?
-        .into_iter()
-        .map(|store| store.get_appellation(WithCorrections::All))
-        .collect();
-
-    let bytes = eml110a(&election, registered_party_names)?;
+    let bytes = eml110a(
+        &main_store.election,
+        &main_store.registered_political_groups(),
+    )?;
 
     let headers = no_cache_headers::generate_attachment_headers(
         "eml110a.eml.xml",
@@ -38,24 +28,30 @@ pub async fn download_election_definition<S: AppRequestState>(
 mod tests {
     use super::*;
     use axum::{
+        body::to_bytes,
         http::{StatusCode, header},
         response::IntoResponse,
     };
 
-    use crate::AppState;
+    use crate::{CsbMainAction, CsbUser, structs::csb::sample_registered_political_group};
 
     #[tokio::test]
     async fn download_election_definition_returns_xml_response() -> Result<(), AppError> {
         let main_store = CsbMainStore::new_for_test();
-        let state = AppState::new_for_tests().await;
+        for group in [
+            sample_registered_political_group("Kleine Partij", 10, 0),
+            sample_registered_political_group("Grote Partij", 1000, 5),
+        ] {
+            main_store
+                .update(
+                    CsbMainAction::CreateRegisteredPoliticalGroup(group).by(CsbUser::new_test()),
+                )
+                .await?;
+        }
 
-        let response = download_election_definition(
-            CsbElectionDefinitionDownloadPath,
-            main_store,
-            State(state),
-        )
-        .await?
-        .into_response();
+        let response = download_election_definition(CsbElectionDefinitionDownloadPath, main_store)
+            .await?
+            .into_response();
 
         assert_eq!(response.status(), StatusCode::OK);
         let headers = response.headers();
@@ -73,6 +69,14 @@ mod tests {
             headers.get(header::CACHE_CONTROL).expect("cache control"),
             "no-store, no-cache, must-revalidate, max-age=0"
         );
+
+        // the registered groups are exported, most votes first
+        let body = to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("response body");
+        let xml = String::from_utf8(body.to_vec()).expect("valid utf-8");
+        let position = |appellation| xml.find(appellation).expect("registered appellation");
+        assert!(position("Grote Partij") < position("Kleine Partij"));
 
         Ok(())
     }
