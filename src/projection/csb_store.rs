@@ -7,7 +7,10 @@ use axum::{
     http::request::Parts,
 };
 
-use crate::{AppError, AppRequestState, CsbAction, CsbStream, CsbUser, PgStore, Session, StreamId};
+use crate::{
+    AppError, AppRequestState, CsbAction, CsbStoreData, CsbStream, CsbUser, PgStore, Session,
+    StreamId, store::StoreRegistry,
+};
 
 /// A CSB stream paired with the committee member acting on it in this request.
 ///
@@ -51,6 +54,37 @@ impl CsbStore {
         PgStore::paper_corrections(self.clone())
     }
 
+    /// The stream named by the `stream_id` path parameter, looked up in
+    /// `registry` under the session's election and bound to its committee
+    /// member. A deleted stream is not found.
+    pub(crate) async fn from_registry<S: AppRequestState>(
+        parts: &mut Parts,
+        state: &S,
+        registry: &StoreRegistry<CsbStoreData>,
+    ) -> Result<Self, AppError> {
+        let Path(params) =
+            Path::<HashMap<String, String>>::from_request_parts(parts, state).await?;
+
+        let stream_id = StreamId::from_str(
+            params
+                .get("stream_id")
+                .ok_or(AppError::InternalServerError)?,
+        )
+        .map_err(|_| AppError::UserError("Invalid stream id".to_string()))?;
+
+        let session = Session::from_request_parts(parts, state).await?;
+        let election = session.require_current_election()?;
+        let user = session.require_csb_user()?;
+
+        let stream = registry.get_store(stream_id, election).await?;
+
+        if stream.is_deleted() {
+            return Err(AppError::NotFound("Stream deleted".to_string()));
+        }
+
+        Ok(Self::acting_as(stream, user))
+    }
+
     #[cfg(test)]
     pub fn new_for_test() -> Self {
         Self::acting_as(CsbStream::new_for_test(), CsbUser::new_test())
@@ -70,29 +104,7 @@ impl<S: AppRequestState> FromRequestParts<S> for CsbStore {
     type Rejection = AppError;
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        let Path(params) =
-            Path::<HashMap<String, String>>::from_request_parts(parts, state).await?;
-
-        let stream_id = StreamId::from_str(
-            params
-                .get("stream_id")
-                .ok_or(AppError::InternalServerError)?,
-        )
-        .map_err(|_| AppError::UserError("Invalid stream id".to_string()))?;
-
-        let registry = state.csb_store_registry();
-
-        let session = Session::from_request_parts(parts, state).await?;
-        let election = session.require_current_election()?;
-        let user = session.require_csb_user()?;
-
-        let stream = registry.get_store(stream_id, election).await?;
-
-        if stream.is_deleted() {
-            return Err(AppError::NotFound("Stream deleted".to_string()));
-        }
-
-        Ok(Self::acting_as(stream, user))
+        Self::from_registry(parts, state, state.csb_store_registry()).await
     }
 }
 

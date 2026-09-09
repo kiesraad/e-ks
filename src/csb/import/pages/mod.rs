@@ -7,6 +7,7 @@ pub(crate) use super::paths::{CsbCreateEmptyPath, CsbImportPath};
 
 mod import;
 
+pub(in crate::csb) use import::{ImportForm, ImportResult, import_package};
 pub use import::{brp_sweep_running, do_brp_verification};
 
 #[cfg(test)]

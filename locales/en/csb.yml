@@ -137,6 +137,7 @@ index:
     report_errors: Report errors
     view_candidate_lists: View candidate lists
   go_to_examination: Go to examination
+  go_to_pre_submission: Go to pre-submission
   go_to_recovery: Go to recovered lists
   go_to_registered_political_groups: Go to registered political groups
   phase: "Phase {}"
@@ -204,6 +205,12 @@ paper_corrections:
   start: Go to data
   stop: Back to examination
   title: Paper corrections
+pre_submission:
+  explanation: "Check the candidate lists political groups hand in ahead of nomination day against the BRP, so they can correct errors before the official submission."
+  group_explanation: "Every difference the check against the BRP found, per candidate. Report them to the political group, so they can be corrected before nomination day."
+  none: No political groups have been imported for the pre-submission yet.
+  title: Pre-submission
+  view: View BRP errors
 progress: Progress
 recovery:
   assess: Assess

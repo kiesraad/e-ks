@@ -31,7 +31,8 @@
       </div>
       <p class="card-footer">{{ "csb.index.go_to_registered_political_groups"|trans }}</p>
     </a>
-    <div class="card csb-phase-card {% if current_phase == 1 %}csb-phase-active{% else %}csb-phase-completed{% endif %}">
+    <a class="card csb-phase-card {% if current_phase == 1 %}csb-phase-active{% else %}csb-phase-completed{% endif %}"
+       href="{{ crate::csb::pre_submission::CsbPreSubmissionOverviewPath }}">
       <div class="card-header">
         <div class="csb-phase-badge {% if current_phase == 1 %}csb-phase-badge-unlocked{% else %}csb-phase-badge-check{% endif %}">
         </div>
@@ -53,7 +54,8 @@
         </div>
         <div class="csb-phase-illustration csb-phase-illustration-1"></div>
       </div>
-    </div>
+      <p class="card-footer">{{ "csb.index.go_to_pre_submission"|trans }}</p>
+    </a>
     <a class="card csb-phase-card {% if current_phase == 2 %}csb-phase-active{% else %}csb-phase-muted{% endif %}"
        href="{{ crate::csb::examination::CsbExaminationOverviewPath }}">
       <div class="card-header">
