@@ -25,4 +25,7 @@ pub async fn hearing_details(
     .into_response())
 }
 
-pub async fn session_details_submit() {}
+pub async fn hearing_details_submit(_: CsbHearingDetailsPath) {}
+// pub async fn hearing_details_submit(_: CsbHearingDetailsPath) -> Result<Response, AppError> {
+//     Ok
+// }
