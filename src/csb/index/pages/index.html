@@ -130,7 +130,8 @@
         <div class="csb-phase-illustration csb-phase-illustration-4"></div>
       </div>
     </div>
-    <div class="card csb-phase-card {% if current_phase == 5 %}csb-phase-active{% else %}csb-phase-locked{% endif %}">
+    <a class="card csb-phase-card {% if current_phase == 5 %}csb-phase-active{% else %}csb-phase-locked{% endif %}"
+       href="{{ crate::csb::examination::CsbI4DownloadPath }}">
       <div class="card-header">
         <div class="csb-phase-badge {% if current_phase == 5 %}csb-phase-badge-unlocked{% else %}csb-phase-badge-lock{% endif %}">
         </div>
@@ -153,6 +154,7 @@
         </div>
         <div class="csb-phase-illustration csb-phase-illustration-5"></div>
       </div>
-    </div>
+      <p class="card-footer">{{ "csb.index.download_i4"|trans }}</p>
+    </a>
   </div>
 {% endblock %}

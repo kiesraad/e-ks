@@ -69,7 +69,17 @@ declarations_of_support:
   instruction: Report problems with the declarations of support
   title: Declarations of support
 examination: Examination
-finish_examination: Finish examination
+finish_examination:
+  download_note: Download all letters of omission as Word and PDF files in a single ZIP
+  download_pdf: Download PDF
+  download_word: Download Word
+  hearing_details: Hearing details
+  i1_note: Examination of submitted candidate lists. Create the form for the report on the examination of the candidate lists.
+  i1_title: I 1 Official report
+  no_omission_letters: There are no letters of omission to create.
+  omission_letters: Letters of omission
+  omission_letters_note: Create the letters of omission for the political groups that were found to have omissions.
+  title: Finish examination
 finish_instruction:
   create_defects: Create notice of defects
   create_model_i1: Create model I 1
@@ -116,6 +126,7 @@ import:
 index:
   closes_on: Closes on
   download_election_definition: Download election definition
+  download_i4: Download I 4
   feature:
     add_omissions: Add omissions and corrections
     create_i1_letters: Create I 1 and omission letters

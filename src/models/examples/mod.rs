@@ -43,6 +43,11 @@ impl Example {
     pub fn render(self) -> Result<Vec<u8>, AppError> {
         Ok(self.document.render(super::fonts())?)
     }
+
+    /// Export this example as Word (`.docx`) bytes.
+    pub fn to_docx(&self) -> Result<Vec<u8>, AppError> {
+        self.document.to_docx().map_err(AppError::DocxError)
+    }
 }
 
 fn example<T: Pdf>(name: &'static str, model: T) -> Example {

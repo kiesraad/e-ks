@@ -35,6 +35,10 @@ pub struct CsbExaminationOverviewPath;
 pub struct CsbI1DownloadPath;
 
 #[derive(TypedPath)]
+#[typed_path("/csb/examination/i1.docx", rejection(AppError))]
+pub struct CsbI1DocxDownloadPath;
+
+#[derive(TypedPath)]
 #[typed_path("/csb/examination/i4.pdf", rejection(AppError))]
 pub struct CsbI4DownloadPath;
 
@@ -76,6 +80,10 @@ pub struct CsbPoliticalGroupDeletePath {
 pub struct CsbGeneralInformationPath {
     pub stream_id: StreamId,
 }
+
+#[derive(TypedPath, Deserialize)]
+#[typed_path("/csb/examination/finish", rejection(AppError))]
+pub struct CsbFinishExaminationPath;
 
 #[derive(TypedPath, Deserialize)]
 #[typed_path("/csb/examination/{stream_id}/paper-corrections", rejection(AppError))]

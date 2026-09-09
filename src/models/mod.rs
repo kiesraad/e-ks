@@ -56,6 +56,27 @@ pub trait Pdf: Sized {
                 .map_err(|_| AppError::InternalServerError)??,
         )
     }
+
+    /// [`Self::filename`] with the `.docx` extension.
+    fn docx_filename(&self) -> String {
+        let filename = self.filename();
+        format!(
+            "{}.docx",
+            filename.strip_suffix(".pdf").unwrap_or(&filename)
+        )
+    }
+
+    /// Export the Word (`.docx`) bytes on a blocking thread. This is a
+    /// structural export of the same document: content and coarse structure,
+    /// but not the PDF's styling.
+    #[allow(async_fn_in_trait)]
+    async fn generate_docx_bytes(&self) -> Result<Vec<u8>, AppError> {
+        let document = self.document()?;
+        tokio::task::spawn_blocking(move || document.to_docx())
+            .await
+            .map_err(|_| AppError::InternalServerError)?
+            .map_err(AppError::DocxError)
+    }
 }
 
 #[cfg(test)]
@@ -94,6 +115,21 @@ mod tests {
             rendered += 1;
         }
         assert_eq!(rendered, 19, "expected to render every example input");
+    }
+
+    /// Every example input also exports as a Word document, which exercises the
+    /// docx translation of every block type the models use.
+    #[test]
+    fn exports_every_example_as_docx() {
+        for example in examples() {
+            let bytes = example.to_docx().expect("export example as docx");
+            // A .docx is a ZIP archive.
+            assert!(
+                bytes.starts_with(b"PK"),
+                "{}: output is not a ZIP archive",
+                example.name
+            );
+        }
     }
 
     /// H 1's attachment checklist branches on the election type; render each so
