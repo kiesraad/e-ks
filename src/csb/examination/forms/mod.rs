@@ -1,5 +1,5 @@
 mod hearing;
 mod omission;
 
-pub use hearing::HearingForm;
+pub use hearing::HearingDetailsForm;
 pub use omission::OmissionForm;
