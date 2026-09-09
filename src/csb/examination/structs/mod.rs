@@ -6,7 +6,6 @@ mod candidate_brp_findings;
 mod correction_field;
 mod csb_candidate;
 mod csb_candidate_list;
-mod hearing_details;
 mod paper_corrected;
 mod restoration_status;
 
@@ -18,7 +17,6 @@ pub use candidate_brp_findings::{CandidateBrpFindings, brp_incomplete_reason};
 pub use correction_field::CandidateCorrectionField;
 pub use csb_candidate::CsbCandidate;
 pub use csb_candidate_list::CsbCandidateList;
-pub use hearing_details::HearingDetails;
 pub use paper_corrected::{
     PaperCorrected, PaperCorrectedNameAuthorisation, PaperCorrectedPersonDetails,
     PaperCorrectedPoliticalGroupInfo, PaperCorrectedSubmitter, paper_corrected_list_submitter,

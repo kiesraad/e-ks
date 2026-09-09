@@ -1,93 +1,107 @@
 {% extends "csb/components/layout.html" %}
 {% import "pg/common/components/macros.html" as macros %}
+{% macro member_input(id, value) %}
+  <p class="form-field form-field-lg">
+    <label for="{{ id }}">{{ "csb.hearing.member_name"|trans }}</label>
+    <input type="text"
+           name="{{ id }}"
+           id="{{ id }}"
+           value="{{ value }}"
+           aria-label="{{ "csb.hearing.name"|trans }}" />
+  </p>
+{% endmacro member_input %}
 {% block breadcrumbs %}
   {{ breadcrumb(crate::csb::examination::CsbExaminationOverviewPath, "csb.examination") }}
   {{ breadcrumb(crate::csb::examination::CsbFinishExaminationPath, "csb.finish_examination.title") }}
   {{ breadcrumb(crate::csb::examination::CsbHearingDetailsPath, "csb.finish_examination.hearing_details") }}
 {% endblock %}
 {% block page_title %}{{ "csb.finish_examination.hearing_details"|trans }}{% endblock %}
-
 {% block content %}
-<form method="post" class="page-form form">
-  {{ macros::csrf_field() }}
-  <h3>{{ "csb.hearing.place_and_time"|trans }}</h3>
-  <div class="form-row">
-    <p class="form-field form-field-xl">
-      <label for="hearing-location">{{ "csb.hearing.location"|trans }}</label>
-      <input class="disabled" type="text" name="hearing-location" id="hearing-location" value="{{election_config.public_session().location}}" disabled>
-    </p>
-  </div>
-  <div class="form-row">
-    <p class="form-field form-field-md">
-      <label for="hearing-date">{{ "csb.hearing.date"|trans }}</label>
-      <span class="date-input-row">
-        <span class="date-separate hidden">
-          <input type="text"
-                  class="day"
-                  name="day_of_hearing"
-                  id="day_of_hearing"
-                  placeholder="{{ "common.date_field.day_placeholder"|trans }}"
-                  aria-label="{{ "common.date_field.day"|trans }}"
-                  inputmode="numeric" />
-          <span class="dash">-</span>
-          <input type="text"
-                  class="month"
-                  name="month_of_hearing"
-                  id="month_of_hearing"
-                  placeholder="{{ "common.date_field.month_placeholder"|trans }}"
-                  aria-label="{{ "common.date_field.month"|trans }}"
-                  inputmode="numeric" />
-          <span class="dash">-</span>
-          <input type="text"
-                  class="year"
-                  placeholder="{{ "common.date_field.year_placeholder"|trans }}"
-                  aria-label="{{ "common.date_field.year"|trans }}"
-                  name="year_of_hearing"
-                  id="year_of_hearing"
-                  inputmode="numeric" />
-        </span>
-        <input type="text"
-                class="date"
-                placeholder=""
-                name="date_of_hearing"
-                id="date_of_hearing"
-                value=""
-                aria-label="{{ "common.date_field.date"|trans }}"
-                inputmode="numeric" />
-      </span>
-    </p>
-    <p class="form-field form-field-sm">
-      <label for="hearing-time">{{ "csb.hearing.time"|trans }}</label>
-      <input type="text"
-        class="time-input"
-        name="time_of_hearing"
-        id="time_of_hearing"
-        aria-label="{{ "common.date_field.time"|trans }}"
-        placeholder="hh:mm"
-      />
-    </p>
-  </div>
-  <h3>{{ "csb.hearing.signing"|trans }}</h3>
-  {% for i in 0..5 %}
+  <form method="post" class="page-form form">
+    {{ macros::csrf_field() }}
+    <h3>{{ "csb.hearing.place_and_time"|trans }}</h3>
     <div class="form-row">
-      <p class="form-field form-field-lg">
-        <label for="signer_{{i*2}}">{{ "csb.hearing.member_name"|trans }}</label>
-        <input type="text"
-          name="signer_{{i*2}}"
-          id="signer_{{i*2}}"
-          aria-label="{{ "csb.hearing.name"|trans }}"
-        />
-      </p>
-      <p class="form-field form-field-lg">
-        <label for="signer_{{i*2+1}}">{{ "csb.hearing.member_name"|trans }}</label>
-        <input type="text"
-          name="signer_{{i*2+1}}"
-          id="signer_{{i*2+1}}"
-          aria-label="{{ "csb.hearing.name"|trans }}"
-        />
+      <p class="form-field form-field-xl">
+        <label for="hearing-location">{{ "csb.hearing.location"|trans }}</label>
+        <input class="disabled"
+               type="text"
+               name="hearing-location"
+               id="hearing-location"
+               value="{{ election_config.public_session().location }}"
+               disabled>
       </p>
     </div>
-  {% endfor %}
-  <button class="button primary" type="submit">{{ "action.save"|trans }}</button>
-</form>
+    <div class="form-row">
+      <p class="form-field form-field-md">
+        <label for="hearing-date">{{ "csb.hearing.date"|trans }}</label>
+        <span class="date-input-row">
+          <span class="date-separate hidden">
+            <input type="text"
+                   class="day"
+                   name="day_of_hearing"
+                   id="day_of_hearing"
+                   placeholder="{{ "common.date_field.day_placeholder"|trans }}"
+                   aria-label="{{ "common.date_field.day"|trans }}"
+                   inputmode="numeric" />
+            <span class="dash">-</span>
+            <input type="text"
+                   class="month"
+                   name="month_of_hearing"
+                   id="month_of_hearing"
+                   placeholder="{{ "common.date_field.month_placeholder"|trans }}"
+                   aria-label="{{ "common.date_field.month"|trans }}"
+                   inputmode="numeric" />
+            <span class="dash">-</span>
+            <input type="text"
+                   class="year"
+                   placeholder="{{ "common.date_field.year_placeholder"|trans }}"
+                   aria-label="{{ "common.date_field.year"|trans }}"
+                   name="year_of_hearing"
+                   id="year_of_hearing"
+                   inputmode="numeric" />
+          </span>
+          <input type="text"
+                 class="date"
+                 placeholder=""
+                 name="date_of_hearing"
+                 id="date_of_hearing"
+                 value="{{ form.data.date_of_hearing }}"
+                 aria-label="{{ "common.date_field.date"|trans }}"
+                 inputmode="numeric" />
+        </span>
+      </p>
+      <p class="form-field form-field-sm">
+        <label for="hearing-time">{{ "csb.hearing.time"|trans }}</label>
+        <input type="text"
+               class="time-input"
+               name="time_of_hearing"
+               id="time_of_hearing"
+               value="{{ form.data.time_of_hearing }}"
+               aria-label="{{ "common.date_field.time"|trans }}"
+               placeholder="hh:mm" />
+      </p>
+    </div>
+    <h3>{{ "csb.hearing.signing"|trans }}</h3>
+    <div class="form-row">
+      {{ member_input("signer_0", form.data.signer_0) }}
+      {{ member_input("signer_1", form.data.signer_1) }}
+    </div>
+    <div class="form-row">
+      {{ member_input("signer_2", form.data.signer_2) }}
+      {{ member_input("signer_3", form.data.signer_3) }}
+    </div>
+    <div class="form-row">
+      {{ member_input("signer_4", form.data.signer_4) }}
+      {{ member_input("signer_5", form.data.signer_5) }}
+    </div>
+    <div class="form-row">
+      {{ member_input("signer_6", form.data.signer_6) }}
+      {{ member_input("signer_7", form.data.signer_7) }}
+    </div>
+    <div class="form-row">
+      {{ member_input("signer_8", form.data.signer_8) }}
+      {{ member_input("signer_9", form.data.signer_9) }}
+    </div>
+    <button class="button primary" type="submit">{{ "action.save"|trans }}</button>
+  </form>
 {% endblock %}

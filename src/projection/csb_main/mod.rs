@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     Scope, StreamId,
     store::{StoreData, StoreEvent},
-    structs::csb::RegisteredPoliticalGroup,
+    structs::csb::{HearingDetails, RegisteredPoliticalGroup},
 };
 
 /// Fixed stream ID shared by all CSB members for the global committee stream.
@@ -24,6 +24,7 @@ pub const CSB_MAIN_STREAM_ID: StreamId = StreamId(uuid::Uuid::from_u128(
 pub struct CsbMainStoreData {
     pub(crate) events: Vec<StoreEvent<CsbMainEvent>>,
     pub(crate) registered_political_groups: Vec<RegisteredPoliticalGroup>,
+    pub(crate) hearing_details: HearingDetails,
 }
 
 impl StoreData for CsbMainStoreData {
@@ -49,6 +50,7 @@ impl StoreData for CsbMainStoreData {
                 self.registered_political_groups
                     .retain(|group| group.id != id);
             }
+            CsbMainAction::UpdateHearingDetails(hearing_details) => self.hearing_details = hearing_details,
         }
     }
 

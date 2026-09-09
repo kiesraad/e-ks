@@ -118,11 +118,11 @@ group:
 hearing:
   date: Datum zitting
   location: Het betreft de openbare zitting van het centraal stembureau in
+  member_name: Naam lid
+  name: Naam
   place_and_time: Locatie en tijdstip
   signing: Ondertekening
   time: Tijdstip zitting
-  member_name: Naam lid
-  name: Naam
 import:
   error:
     ambiguous_hash: De ingevoerde hash code komt overeen met meer dan één dataset; voer meer tekens in.

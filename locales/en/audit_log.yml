@@ -73,6 +73,7 @@ event:
   update_candidate_list_districts: Updated electoral districts of list
   update_candidate_list_order: Updated order of list of candidates
   update_correction: Update correction
+  update_hearing_details: Update hearing details
   update_list_submitter: Updated submitter of the list
   update_name_authorisation: Updated statutory name and authorised agent
   update_omission: Updated omission

@@ -73,6 +73,7 @@ event:
   update_candidate_list_districts: Kieskringen van lijst bijgewerkt
   update_candidate_list_order: Volgorde van kandidatenlijst bijgewerkt
   update_correction: Correctie bijgewerkt
+  update_hearing_details: Zitting details bijgewerkt
   update_list_submitter: Lijstinleveraar bijgewerkt
   update_name_authorisation: Statutaire naam en gemachtigde bijgewerkt
   update_omission: Verzuim bijgewerkt
