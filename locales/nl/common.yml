@@ -1,10 +1,12 @@
 candidates: Kandidaten
 continue_to_home: Verder naar het startscherm
 date_field:
+  date: Datum
   day: Dag
   day_placeholder: dd
   month: Maand
   month_placeholder: mm
+  time: Tijd
   year: Jaar
   year_placeholder: jjjj
 description: Kandidaatstellen voor verkiezingen in Nederland
