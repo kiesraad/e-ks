@@ -19,7 +19,21 @@ use crate::{
     utils::bag,
 };
 
+/// Whether a router serves the CSB section. The listener configured through
+/// `CSB_BIND_ADDRESS` gets [`Included`](CsbRoutes::Included) and the main one
+/// [`Excluded`](CsbRoutes::Excluded), so `/csb` lives on that domain only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CsbRoutes {
+    Included,
+    Excluded,
+}
+
+/// The complete router, CSB section included.
 pub fn create(state: AppState) -> Router<AppState> {
+    create_with(state, CsbRoutes::Included)
+}
+
+pub fn create_with(state: AppState, csb_routes: CsbRoutes) -> Router<AppState> {
     let app_router = app_feature_router();
 
     #[cfg(feature = "dev-features")]
@@ -39,8 +53,6 @@ pub fn create(state: AppState) -> Router<AppState> {
             store_middleware,
         ));
 
-    let csb_router = csb_router(&state);
-
     // These routes need a session but NOT store middleware: select-election runs
     // before a stream_id is chosen, and /language must stay reachable for CSB
     // (committee) sessions that store_middleware redirects off app routes.
@@ -50,12 +62,17 @@ pub fn create(state: AppState) -> Router<AppState> {
     // request (see `auth::csrf_guard`), so no handler can forget the check.
     let app_router = app_router
         .merge(common::session_only_router())
-        .merge(bag::router())
-        .merge(csb_router)
-        .layer(middleware::from_fn_with_state(
-            state.clone(),
-            session_middleware,
-        ));
+        .merge(bag::router());
+
+    let app_router = match csb_routes {
+        CsbRoutes::Included => app_router.merge(csb_router(&state)),
+        CsbRoutes::Excluded => app_router,
+    };
+
+    let app_router = app_router.layer(middleware::from_fn_with_state(
+        state.clone(),
+        session_middleware,
+    ));
 
     #[cfg(feature = "dev-features")]
     let router = Router::new().merge(dev_router).merge(app_router);
@@ -63,7 +80,7 @@ pub fn create(state: AppState) -> Router<AppState> {
     #[cfg(not(feature = "dev-features"))]
     let router = app_router;
 
-    let router = router.merge(public_router());
+    let router = router.merge(public_router(csb_routes));
 
     let router = router
         .layer(middleware::from_fn_with_state(
@@ -111,10 +128,13 @@ fn csrf_layer() -> CsrfLayer {
 /// Routes mounted outside the session middleware (no session required): the
 /// SAML auth-service endpoints, the PG login and logged-out pages, and the
 /// CSB GitHub login.
-fn public_router() -> Router<AppState> {
-    auth_service::router()
-        .merge(common::public_router())
-        .merge(csb::login::public_router())
+fn public_router(csb_routes: CsbRoutes) -> Router<AppState> {
+    let router = auth_service::router().merge(common::public_router());
+
+    match csb_routes {
+        CsbRoutes::Included => router.merge(csb::login::public_router()),
+        CsbRoutes::Excluded => router,
+    }
 }
 
 /// The application's feature routes (everything that sits behind the session
@@ -431,6 +451,33 @@ mod tests {
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
         let body = response_body_string(response).await;
         assert!(body.contains("Stream not found"), "{body}");
+    }
+
+    /// With the CSB section on its own listener, its routes (and its login)
+    /// must be gone from the main router; the political-group routes stay.
+    #[tokio::test]
+    async fn excluded_csb_routes_are_unreachable_on_the_main_router() {
+        let state = AppState::new_for_tests_with_config(
+            crate::csb::login::test_support::github_test_config(),
+        )
+        .await;
+        let app: Router = create_with(state.clone(), CsbRoutes::Excluded).with_state(state.clone());
+
+        for uri in ["/csb", "/csb/import", "/csb/login", "/csb/login/start"] {
+            let request = committee_request(&state, uri).await;
+            let response = app.clone().oneshot(request).await.expect("response");
+
+            // The political-group fallback answers instead: its store
+            // middleware redirects a committee session off app routes.
+            assert_eq!(response.status(), StatusCode::SEE_OTHER, "{uri}");
+        }
+
+        let request = Request::builder()
+            .uri("/login")
+            .body(Body::empty())
+            .unwrap();
+        let response = app.oneshot(request).await.expect("response");
+        assert_eq!(response.status(), StatusCode::OK);
     }
 
     #[tokio::test]
