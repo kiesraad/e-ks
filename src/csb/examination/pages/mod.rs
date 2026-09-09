@@ -58,4 +58,5 @@ pub fn router<S: AppRequestState>() -> Router<S> {
         .typed_post(correction::person_correction_submit)
         .typed_get(finish_examination::finish)
         .typed_get(hearing_details::hearing_details)
+        .typed_post(hearing_details::hearing_details_submit)
 }

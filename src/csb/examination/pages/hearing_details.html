@@ -1,4 +1,5 @@
 {% extends "csb/components/layout.html" %}
+{% import "pg/common/components/macros.html" as macros %}
 {% block breadcrumbs %}
   {{ breadcrumb(crate::csb::examination::CsbExaminationOverviewPath, "csb.examination") }}
   {{ breadcrumb(crate::csb::examination::CsbFinishExaminationPath, "csb.finish_examination.title") }}
@@ -8,6 +9,7 @@
 
 {% block content %}
 <form method="post" class="page-form form">
+  {{ macros::csrf_field() }}
   <h3>{{ "csb.hearing.place_and_time"|trans }}</h3>
   <div class="form-row">
     <p class="form-field form-field-xl">
