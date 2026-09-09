@@ -19,15 +19,12 @@ fields:
   last_name_prefix: Last name prefix
   locality: Locality
   locality_suggestion: "Did you mean:"
-  month: Month
   name: Name
   place_of_residence: Place of residence
   postal_code: Postal code
   state_or_province: State / province
   street_name: Street name
   updated_at: Updated at
-  year: Year
-  year_placeholder: yyyy
 form:
   create:
     title: Add candidate
