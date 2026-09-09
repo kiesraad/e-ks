@@ -1,3 +1,4 @@
+appellation_already_exists: A political group with this appellation is already registered.
 bsn_already_exists: This BSN is already in use.
 choose_at_least_one_option: Please choose at least one option.
 date_of_birth_in_future: Date of birth cannot be in the future.

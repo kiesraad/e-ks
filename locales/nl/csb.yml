@@ -69,7 +69,17 @@ declarations_of_support:
   instruction: Meld problemen met de ondersteunings\u00ADverklaringen
   title: Ondersteunings\u00ADverklaringen
 examination: Onderzoek
-finish_examination: Afronden onderzoek
+finish_examination:
+  download_note: Download hier alle verzuimbrieven als Word en PDF in één ZIP
+  download_pdf: Download PDF
+  download_word: Download Word
+  hearing_details: Zitting details
+  i1_note: Onderzoek ingeleverde kandidatenlijsten. Maak het formulier aan van verslag van het onderzoek naar de kandidatenlijsten
+  i1_title: I 1 Proces-verbaal
+  no_omission_letters: Er zijn geen verzuimbrieven aan te maken.
+  omission_letters: Verzuimbrieven
+  omission_letters_note: Maak de verzuimbrieven aan voor de politieke groeperingen waarbij verzuimen zijn vastgesteld.
+  title: Afronden onderzoek
 finish_instruction:
   create_defects: Aanmaken verzuimbrief
   create_model_i1: Aanmaken model I 1
@@ -116,16 +126,22 @@ import:
 index:
   closes_on: Sluit op
   download_election_definition: Verkiezings\u00ADdefinitie downloaden
+  download_i4: I 4 downloaden
   feature:
     add_omissions: Verzuimen en correcties toevoegen
     create_i1_letters: I 1 en verzuimbrieven aanmaken
     create_i4: I 4 aanmaken
     recover_omissions: Verzuimen herstellen
+    register_appellations: Geregistreerde aanduidingen vastleggen
+    register_previous_results: Uitslag van de laatstgehouden verkiezing vastleggen
     report_errors: Fouten doorgeven
     view_candidate_lists: Inzage kandidatenlijsten
   go_to_examination: Ga naar onderzoek
   go_to_recovery: Ga naar herstelde lijsten
+  go_to_registered_political_groups: Ga naar registratie
   phase: "Fase {}"
+  phase_0:
+    title: Registratie
   phase_1:
     title: Voorinlevering
   phase_2:
@@ -201,6 +217,13 @@ recovery:
   recovered: Hersteld
   scrapped: Geschrapt
   title: Herstelde lijsten
+registered_political_groups:
+  edit: Politieke groepering bewerken
+  none: Er zijn nog geen politieke groeperingen geregistreerd.
+  numbering_hint: "Alleen politieke groeperingen die ten minste één zetel hebben behaald, worden op stemmen genummerd. De overige lijsten worden door loting genummerd."
+  previous_seats: Zetels bij de laatstgehouden verkiezing
+  previous_votes: Stemmen bij de laatstgehouden verkiezing
+  title: Geregistreerde politieke groeperingen
 status:
   approved: Goedgekeurd
   correction: Ambtshalve correcties toegevoegd

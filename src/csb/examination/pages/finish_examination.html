@@ -1,0 +1,59 @@
+{% extends "csb/components/layout.html" %}
+{% block breadcrumbs %}
+  {{ breadcrumb(crate::csb::examination::CsbExaminationOverviewPath, "csb.examination") }}
+  {{ breadcrumb(crate::csb::examination::CsbFinishExaminationPath, "csb.finish_examination.title") }}
+{% endblock %}
+{% block page_title %}{{ "csb.finish_examination.title"|trans }}{% endblock %}
+{% block content %}
+  <div class="examination-panels">
+    <div class="examination-panel">
+      <div class="examination-panel-header">
+        <div>
+          <h3>{{ "csb.finish_examination.i1_title"|trans }}</h3>
+          <p>{{ "csb.finish_examination.i1_note"|trans }}</p>
+        </div>
+        <a class="button secondary icon-plus-end" href="#">{{ "csb.finish_examination.hearing_details"|trans }}</a>
+      </div>
+      <div class="examination-strip">
+        <a href="{{ CsbI1DocxDownloadPath }}"
+           class="button secondary icon-download">{{ "csb.finish_examination.download_word"|trans }}</a>
+        <a href="{{ CsbI1DownloadPath }}" class="button primary icon-download">{{ "csb.finish_examination.download_pdf"|trans }}</a>
+      </div>
+    </div>
+    <div class="examination-panel">
+      <div class="examination-panel-header">
+        <div>
+          <h3>{{ "csb.finish_examination.omission_letters"|trans }}</h3>
+          <p>{{ "csb.finish_examination.omission_letters_note"|trans }}</p>
+        </div>
+      </div>
+      <table class="omission-table">
+        <thead>
+          <tr>
+            <th colspan="2">{{ "common.political_group"|trans }}</th>
+          </tr>
+        </thead>
+        {% for pg in political_groups %}
+          <tr class="clickable">
+            <td>
+              <h5>{{ pg.csb_appellation() }}</h5>
+            </td>
+            <td>
+              <a href="{{ pg.group_path() }}" title="{{ "csb.action.examine"|trans }}"></a>
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="2">
+              <p class="font-italic">{{ "csb.finish_examination.no_omission_letters"|trans }}</p>
+            </td>
+          </tr>
+        {% endfor %}
+      </table>
+      <div class="omission-download-row">
+        <p class="w-16">{{ "csb.finish_examination.download_note"|trans }}</p>
+        <a href="" class="button primary icon-download">Download</a>
+      </div>
+    </div>
+  </div>
+{% endblock %}

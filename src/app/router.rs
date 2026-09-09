@@ -135,6 +135,7 @@ fn csb_router(state: &AppState) -> Router<AppState> {
         .merge(csb::common::router())
         .merge(csb::examination::router())
         .merge(csb::recovery::router())
+        .merge(csb::registered_political_groups::router())
         .merge(csb::import::router())
         .merge(csb::monitoring::router())
         .layer(middleware::from_fn_with_state(
@@ -380,6 +381,34 @@ mod tests {
         assert!(body.contains("Foutcode 404"), "{body}");
         assert!(body.contains("Stream not found"), "{body}");
         assert!(body.contains("href=\"/csb\""), "{body}");
+    }
+
+    /// The model download routes are static segments under the same prefix as
+    /// `/csb/examination/{stream_id}`; they must resolve to their own handlers
+    /// rather than being parsed as a (bogus) stream id.
+    #[tokio::test]
+    async fn model_download_routes_win_over_the_political_group_route() {
+        let state = AppState::new_for_tests().await;
+
+        for (uri, content_type) in [
+            ("/csb/examination/i1.pdf", "application/pdf"),
+            (
+                "/csb/examination/i1.docx",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ),
+            ("/csb/examination/i4.pdf", "application/pdf"),
+        ] {
+            let app: Router = create(state.clone()).with_state(state.clone());
+            let request = committee_request(&state, uri).await;
+            let response = app.oneshot(request).await.expect("response");
+
+            assert_eq!(response.status(), StatusCode::OK, "{uri}");
+            assert_eq!(
+                response.headers().get(header::CONTENT_TYPE).expect("type"),
+                content_type,
+                "{uri}"
+            );
+        }
     }
 
     #[tokio::test]

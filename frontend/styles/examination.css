@@ -1,0 +1,36 @@
+.examination-strip {
+  --examination-strip-color: var(--gray-100);
+  align-items: center;
+  background-color: var(--bg-gray);
+  border: 1px solid var(--gray-100);
+  border-radius: var(--rounded-md);
+  column-gap: var(--space-2);
+  display: flex;
+  min-height: 3.5rem;
+  padding: var(--space-2);
+}
+
+table.omission-table {
+  margin: var(--space-lg) 0;
+  background-color: var(--bg-gray);
+
+  thead > tr > th {
+    font-weight: var(--font-weight-bold);
+    padding: 0 var(--space-lg);
+  }
+
+  tr > td {
+    padding: var(--space-lg);
+  }
+}
+
+.omission-download-row {
+  align-items: center;
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-8);
+
+  p {
+    text-align: right;
+  }
+}

@@ -29,6 +29,7 @@ const PER_PAGE: usize = 20;
 /// trans!("audit_log.filter.category.set_finished", _)
 /// trans!("audit_log.filter.category.omission", _)
 /// trans!("audit_log.filter.category.system", _)
+/// trans!("audit_log.filter.category.registered_political_group", _)
 ///
 /// Event type option labels (referenced dynamically in the template):
 /// trans!("audit_log.event.paper_correction", _)
@@ -57,6 +58,14 @@ pub const EVENT_TYPES_BY_CATEGORY: &[EventTypeCategory] = &[
     EventTypeCategory {
         key: "omission",
         event_types: &["create_omission", "update_omission", "delete_omission"],
+    },
+    EventTypeCategory {
+        key: "registered_political_group",
+        event_types: &[
+            "create_registered_political_group",
+            "update_registered_political_group",
+            "delete_registered_political_group",
+        ],
     },
     EventTypeCategory {
         key: "system",

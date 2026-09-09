@@ -52,11 +52,25 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
+        assert!(body.contains("Registration"));
         assert!(body.contains("Pre-submission"));
         assert!(body.contains("Examination"));
         assert!(body.contains("Rectified lists"));
         assert!(body.contains("List numbering"));
         assert!(body.contains("Finalise candidate lists"));
+    }
+
+    #[tokio::test]
+    async fn index_links_registered_political_groups_as_phase_0() {
+        let response = index(CsbIndexPath {}, CsbContext::new_test())
+            .await
+            .unwrap()
+            .into_response();
+
+        let body = response_body_string(response).await;
+        assert!(body.contains("Phase 0"));
+        assert!(body.contains("href=\"/csb/registered-political-groups\""));
+        assert!(body.contains("Go to registered political groups"));
     }
 
     #[tokio::test]
