@@ -115,6 +115,10 @@ group:
   instruction_submitter: Examine information about the list submitter(s)
   toggle: Finish or reopen examination
   unfinished: Finish examination
+hearing:
+  date: Date
+  location: This concerns the public session of the central electoral committee in
+  place_and_time: Location and time
 import:
   error:
     ambiguous_hash: The entered hash code matches more than one data set; enter more characters.

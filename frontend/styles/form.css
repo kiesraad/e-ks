@@ -357,6 +357,11 @@
   box-shadow: 0 0 0 3px var(--shadow-color-focus);
 }
 
+.form input[type="text"]:disabled {
+  background-color: var(--bg-gray-darker);
+  font-weight: var(--font-weight-bold);
+}
+
 .form input[type="number"] {
   appearance: textfield;
 }

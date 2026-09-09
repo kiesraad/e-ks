@@ -1,5 +1,12 @@
 candidates: Kandidaten
 continue_to_home: Verder naar het startscherm
+date_field:
+  day: Dag
+  day_placeholder: dd
+  month: Maand
+  month_placeholder: mm
+  year: Jaar
+  year_placeholder: jjjj
 description: Kandidaatstellen voor verkiezingen in Nederland
 development:
   login_as_csb: Login als CSB

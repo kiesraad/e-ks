@@ -86,8 +86,8 @@ pub struct CsbGeneralInformationPath {
 pub struct CsbFinishExaminationPath;
 
 #[derive(TypedPath, Deserialize)]
-#[typed_path("/csb/examination/session-details", rejection(AppError))]
-pub struct CsbSessionDetailsPath;
+#[typed_path("/csb/examination/hearing-details", rejection(AppError))]
+pub struct CsbHearingDetailsPath;
 
 #[derive(TypedPath, Deserialize)]
 #[typed_path("/csb/examination/{stream_id}/paper-corrections", rejection(AppError))]

@@ -12,7 +12,7 @@
           <h3>{{ "csb.finish_examination.i1_title"|trans }}</h3>
           <p>{{ "csb.finish_examination.i1_note"|trans }}</p>
         </div>
-        <a class="button secondary icon-plus-end" href="/csb/examination/session-details">{{ "csb.finish_examination.hearing_details"|trans }}</a>
+        <a class="button secondary icon-plus-end" href="{{crate::csb::examination::CsbHearingDetailsPath.to_string()}}">{{ "csb.finish_examination.hearing_details"|trans }}</a>
       </div>
       <div class="examination-strip">
         <a href="{{ CsbI1DocxDownloadPath }}"

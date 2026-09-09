@@ -115,6 +115,10 @@ group:
   instruction_submitter: Controleer de gegevens van de lijstinleveraar(s)
   toggle: Onderzoek afronden of heropenen
   unfinished: Onderzoek afronden
+hearing:
+  date: Datum
+  location: Het betreft de openbare zitting van het centraal stembureau in
+  place_and_time: Locatie en tijdstip
 import:
   error:
     ambiguous_hash: De ingevoerde hash code komt overeen met meer dan één dataset; voer meer tekens in.

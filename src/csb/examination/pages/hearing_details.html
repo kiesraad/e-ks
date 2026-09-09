@@ -1,0 +1,58 @@
+{% extends "csb/components/layout.html" %}
+{% block breadcrumbs %}
+  {{ breadcrumb(crate::csb::examination::CsbExaminationOverviewPath, "csb.examination") }}
+  {{ breadcrumb(crate::csb::examination::CsbFinishExaminationPath, "csb.finish_examination.title") }}
+  {{ breadcrumb(crate::csb::examination::CsbHearingDetailsPath, "csb.finish_examination.hearing_details") }}
+{% endblock %}
+{% block page_title %}{{ "csb.finish_examination.hearing_details"|trans }}{% endblock %}
+
+{% block content %}
+<form method="post" class="page-form form">
+  <h3>{{ "csb.hearing.place_and_time"|trans }}</h3>
+  <div class="form-row">
+    <p class="form-field form-field-xl">
+      <label for="hearing-location">{{ "csb.hearing.location"|trans }}</label>
+      <input class="disabled" type="text" name="hearing-location" id="hearing-location" value="{{election_config.public_session().location}}" disabled>
+    </p>
+  </div>
+  <div class="form-row">
+    <p class="form-field form-field-md">
+      <label for="hearing-date">{{ "csb.hearing.date"|trans }}</label>
+      <span class="date-input-row">
+        <span class="date-separate hidden">
+          <input type="text"
+                  class="day"
+                  name="hearing-date"
+                  id="hearing-date"
+                  placeholder="{{ "common.date_field.day_placeholder"|trans }}"
+                  aria-label="{{ "common.date_field.day"|trans }}"
+                  inputmode="numeric" />
+          <span class="dash">-</span>
+          <input type="text"
+                  class="month"
+                  name="month_of_birth"
+                  id="month_of_birth"
+                  placeholder="{{ "common.date_field.month_placeholder"|trans }}"
+                  aria-label="{{ "common.date_field.month"|trans }}"
+                  inputmode="numeric" />
+          <span class="dash">-</span>
+          <input type="text"
+                  class="year"
+                  placeholder="{{ "common.date_field.year_placeholder"|trans }}"
+                  aria-label="{{ "common.date_field.year"|trans }}"
+                  name="year_of_birth"
+                  id="year_of_birth"
+                  inputmode="numeric" />
+        </span>
+        <input type="text"
+                placeholder=""
+                name="date_of_birth"
+                id="date_of_birth"
+                value=""
+                aria-label="{{ "person.fields.date_of_birth"|trans }}"
+                inputmode="numeric" />
+      </span>
+    </p>
+  </div>
+</form>
+{% endblock %}
