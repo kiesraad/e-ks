@@ -52,8 +52,9 @@
 
   &:not(.no-animation) {
     .sticky-nav-bar {
-      transition: box-shadow 200ms;
-      transition: padding 200ms;
+      transition:
+        box-shadow 200ms,
+        padding 200ms;
 
       p {
         transition: all 200ms;
