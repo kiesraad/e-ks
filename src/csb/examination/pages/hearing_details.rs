@@ -2,8 +2,7 @@ use askama::Template;
 use axum::response::{IntoResponse, Redirect, Response};
 
 use crate::{
-    AppError, Context, CsbContext, CsbMainAction, CsbMainStore,
-    ElectionConfig, Form, HtmlTemplate,
+    AppError, Context, CsbContext, CsbMainAction, CsbMainStore, ElectionConfig, Form, HtmlTemplate,
     csb::examination::{
         CsbFinishExaminationPath, CsbHearingDetailsPath, forms::HearingDetailsForm,
     },
@@ -24,7 +23,7 @@ pub async fn hearing_details(
     store: CsbMainStore,
     context: CsbContext,
 ) -> Result<Response, AppError> {
-    let hearing_details = store.get_hearing_details();
+    let hearing_details = store.get_hearing_details().unwrap_or_default();
     let form_data = FormData::new_with_data(HearingDetailsForm::from(hearing_details));
     Ok(HtmlTemplate(
         CsbHearingDetailsTemplate {

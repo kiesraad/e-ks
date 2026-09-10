@@ -24,7 +24,7 @@ pub const CSB_MAIN_STREAM_ID: StreamId = StreamId(uuid::Uuid::from_u128(
 pub struct CsbMainStoreData {
     pub(crate) events: Vec<StoreEvent<CsbMainEvent>>,
     pub(crate) registered_political_groups: Vec<RegisteredPoliticalGroup>,
-    pub(crate) hearing_details: HearingDetails,
+    pub(crate) hearing_details: Option<HearingDetails>,
     pub(crate) list_order: Vec<StreamId>,
 }
 
@@ -51,7 +51,9 @@ impl StoreData for CsbMainStoreData {
                 self.registered_political_groups
                     .retain(|group| group.id != id);
             }
-            CsbMainAction::UpdateHearingDetails(hearing_details) => self.hearing_details = hearing_details,
+            CsbMainAction::UpdateHearingDetails(hearing_details) => {
+                self.hearing_details = Some(hearing_details)
+            }
             CsbMainAction::UpdateListOrder(order) => {
                 self.list_order = order;
             }

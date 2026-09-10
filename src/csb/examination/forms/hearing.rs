@@ -119,9 +119,9 @@ impl FromStr for TimeOfHearing {
     type Err = ValidationError;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        let time =
-            NaiveTime::parse_from_str(value, TIME_FORMAT).map_err(|_| ValidationError::InvalidValue)?;
-        Ok(Self(time))
+        NaiveTime::parse_from_str(value, TIME_FORMAT)
+            .map_err(|_| ValidationError::InvalidValue)
+            .map(Self)
     }
 }
 
