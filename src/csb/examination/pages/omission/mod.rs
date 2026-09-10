@@ -328,6 +328,7 @@ pub async fn delete_omission(
         &overview
             .with_query_params(QueryParamState::overlay(
                 query.redirect_url().map(str::to_owned),
+                query.is_initial(),
             ))
             .to_string(),
     )

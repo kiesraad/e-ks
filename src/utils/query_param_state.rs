@@ -121,10 +121,11 @@ impl QueryParamState {
 
     /// Query params for links between pages of an already-open overlay:
     /// `overlay=true` suppresses the open animation on the target page.
-    pub fn overlay(redirect_to: Option<String>) -> Self {
+    pub fn overlay(redirect_to: Option<String>, initial: bool) -> Self {
         Self {
             overlay: true,
             redirect_to,
+            initial,
             ..Default::default()
         }
     }

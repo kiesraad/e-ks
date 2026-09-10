@@ -40,18 +40,43 @@ impl Overlay {
     }
 
     /// Returns `path` with `overlay=true` appended (the target is another page
-    /// of the already-open overlay, so it skips the open animation), plus
-    /// `redirect_to=<value>` when a redirect is set, so the target step can
-    /// return to the right place after saving
+    /// of the already-open overlay, so it skips the open animation), while
+    /// preserving `redirect_to` and `initial=true` query params when set,
+    /// so the target step can return to the right place after saving
     pub fn forward(&self, path: impl TypedPath) -> String {
-        path.with_query_params(QueryParamState::overlay(self.redirect_to.clone()))
-            .to_string()
+        path.with_query_params(QueryParamState::overlay(
+            self.redirect_to.clone(),
+            self.initial,
+        ))
+        .to_string()
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use axum_extra::routing::TypedPath;
+
     use super::*;
+
+    #[derive(TypedPath)]
+    #[typed_path("/foo")]
+    struct FooPath;
+
+    #[test]
+    fn forward_preserves_initial() {
+        let query = QueryParamState::initial();
+        let overlay = Overlay::new(&query);
+
+        assert_eq!(overlay.forward(FooPath), "/foo?&initial=true&overlay=true");
+    }
+
+    #[test]
+    fn forward_without_initial_does_not_add_it() {
+        let query = QueryParamState::default();
+        let overlay = Overlay::new(&query);
+
+        assert_eq!(overlay.forward(FooPath), "/foo?&overlay=true");
+    }
 
     #[test]
     fn close_url_preserves_initial() {
