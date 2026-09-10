@@ -585,17 +585,20 @@ alerts on that marker.
 ### Cargo features
 
 The build is tailored through Cargo features (`Cargo.toml`). The `default` set
-is development-oriented; a production build typically disables `dev-features`
-and enables the embedding and TLS features.
+is empty, so a plain `cargo build` never compiles in development behaviour:
+`bin/dev` and `bin/check` ask for `development`, while `bin/build` enables the
+embedding and TLS features for a production build.
 
 | Feature | Effect |
 |---------|--------|
+| `development` | The development set: everything `bin/dev` and the local test run need. |
 | `dev-features` | Relaxes config (dev defaults), enables the dev login. |
 | `database` | Postgres / SQLx storage backend. |
 | `migrations` | Run database migrations on startup. |
 | `fixtures` | Optionally load sample data into the store when an election is selected. |
 | `verify-event-hash-chain` | Recompute and verify the event hash chain when replaying. |
 | `livereload` | Live-reload assets and templates during development. |
+| `tvs-mock` | Authenticate against the online TVS mock instead of a real TVS. |
 | `memory-serve` | Serve the frontend assets embedded in the binary. |
 | `tls` | Serve over HTTPS via rustls. |
 | `acme` | Renew the TLS certificate via ACME (Let's Encrypt) http-01. |
