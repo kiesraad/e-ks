@@ -24,11 +24,12 @@ pub async fn finish(
     context: CsbContext,
     CsbPoliticalGroups(political_groups): CsbPoliticalGroups,
 ) -> Result<Response, AppError> {
-    // A letter of omission is only written for a group that has omissions, and
-    // only once its examination is finished, so those are the groups listed.
+    // A letter of omission is only written for a group that has omissions;
+    // whether its examination is already finished does not matter, so the
+    // letters can be drawn up while the examination is still running.
     let groups_with_omissions = political_groups
         .into_iter()
-        .filter(|pg| !pg.is_deleted && pg.is_examination_finished && pg.omission_count > 0)
+        .filter(|pg| !pg.is_deleted && pg.omission_count > 0)
         .collect();
 
     Ok(HtmlTemplate(
@@ -126,13 +127,9 @@ mod tests {
         assert!(!render(vec![]).await.contains(zip_link));
     }
 
-    /// Only finished, undeleted groups with omissions get a letter.
+    /// Only undeleted groups with omissions get a letter.
     #[tokio::test]
     async fn finish_skips_groups_without_a_letter_of_omission() {
-        let unfinished = CsbPoliticalGroup {
-            is_examination_finished: false,
-            ..letter_group()
-        };
         let deleted = CsbPoliticalGroup {
             is_deleted: true,
             ..letter_group()
@@ -142,10 +139,24 @@ mod tests {
             ..letter_group()
         };
 
-        for group in [unfinished, deleted, without_omissions] {
+        for group in [deleted, without_omissions] {
             let body = render(vec![group]).await;
             assert!(!body.contains("Kiesraad Demo"));
             assert!(body.contains("There are no letters of omission to create."));
         }
+    }
+
+    /// A group with omissions is listed while its examination is still
+    /// running: its letter can be drawn up before the examination is
+    /// finished.
+    #[tokio::test]
+    async fn finish_lists_groups_whose_examination_is_unfinished() {
+        let unfinished = CsbPoliticalGroup {
+            is_examination_finished: false,
+            ..letter_group()
+        };
+
+        let body = render(vec![unfinished]).await;
+        assert!(body.contains("Kiesraad Demo"));
     }
 }

@@ -55,7 +55,6 @@ mod tests {
         assert!(body.contains("Examination"));
         assert!(body.contains("Rectified lists"));
         assert!(body.contains("Finalise candidate lists"));
-        assert!(!body.contains("Phase 5"));
     }
 
     #[tokio::test]

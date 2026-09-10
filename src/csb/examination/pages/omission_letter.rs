@@ -132,9 +132,9 @@ pub async fn gen_omission_letter_docx(
 }
 
 /// Every omission letter of the election, as PDF and Word, in one ZIP: the
-/// letters of the finished groups with omissions, as the finish page lists
-/// them. The archive is streamed while the letters render one at a time, so
-/// only one letter is held in memory and the download starts at once.
+/// letters of the groups with omissions, as the finish page lists them. The
+/// archive is streamed while the letters render one at a time, so only one
+/// letter is held in memory and the download starts at once.
 pub async fn gen_omission_letters_zip<S: AppRequestState>(
     _: CsbOmissionLettersDownloadPath,
     main_store: CsbMainStore,
@@ -149,8 +149,7 @@ pub async fn gen_omission_letters_zip<S: AppRequestState>(
         .stores_for_election(election)
         .await?
     {
-        if store.is_deleted() || !store.is_examination_finished() || store.get_omission_count() == 0
-        {
+        if store.is_deleted() || store.get_omission_count() == 0 {
             continue;
         }
         letters.push(omission_letter_model(&store)?);
@@ -453,11 +452,12 @@ mod tests {
         Ok(())
     }
 
-    /// The archive holds the PDF and Word letter of every finished group with
-    /// omissions and nothing of the other groups; equal names are numbered.
+    /// The archive holds the PDF and Word letter of every group with
+    /// omissions, whether or not its examination is finished, and nothing of
+    /// the groups without omissions; equal names are numbered.
     #[tokio::test]
-    async fn gen_omission_letters_zip_streams_a_letter_per_finished_group() -> Result<(), AppError>
-    {
+    async fn gen_omission_letters_zip_streams_a_letter_per_group_with_omissions()
+    -> Result<(), AppError> {
         let state = AppState::new_for_tests().await;
         seed_group(&state, "Kiesraad Demo", true, true).await?;
         seed_group(&state, "Kiesraad Demo", true, true).await?;
@@ -494,6 +494,8 @@ mod tests {
                 "verzuimbrief-kiesraad-demo-ek27-2.pdf",
                 "verzuimbrief-kiesraad-demo-ek27.docx",
                 "verzuimbrief-kiesraad-demo-ek27.pdf",
+                "verzuimbrief-nog-bezig-ek27.docx",
+                "verzuimbrief-nog-bezig-ek27.pdf",
             ]
         );
 

@@ -25,6 +25,8 @@ AANTEKENEN\
 
 Verzuim kandidatenlijst voor de verkiezing van {{ election_name }}
 
+@spacer(3em)
+
 Geachte lijstinleveraar,
 
 {% if omission_groups.is_empty() %}

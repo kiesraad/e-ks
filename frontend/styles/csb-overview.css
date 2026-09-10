@@ -99,25 +99,6 @@
   }
 }
 
-.political-group-table {
-  thead {
-    /* Fits "Onderzoek afgerond" and "Verzuimen toegevoegd" side by side. */
-    th:nth-child(2) {
-      width: 24rem;
-    }
-
-    /* Wide enough for the longest BRP state ("Controle niet afgerond"), which
-       must not spill over the action column. */
-    th:nth-child(3) {
-      width: 14rem;
-    }
-
-    th:nth-child(4) {
-      width: 2rem;
-    }
-  }
-}
-
 .pre-submission-table {
   table-layout: fixed;
 
@@ -135,10 +116,17 @@
 
 .political-group-table,
 .political-group-recovery-table {
-  table-layout: fixed;
+  :is(th, td) {
+    padding-inline: var(--space-4);
+  }
+
+  /* Only holds the chevron that opens the row. */
+  thead th:last-child {
+    width: 2rem;
+  }
 
   td:nth-child(2) {
-    padding: var(--space-2) var(--space-4);
+    padding-block: var(--space-2);
   }
 
   .status-list {
