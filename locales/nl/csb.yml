@@ -215,7 +215,10 @@ recovery:
   assess: Beoordelen
   assessed: Beoordeeld
   assessed_count: "{} van {} beoordeeld"
+  download_i4: I 4 downloaden
   explanation: "Leg per verzuim vast of het is hersteld. Kandidaten, lijsten en kieskringen met een niet hersteld verzuim worden geschrapt."
+  finish_note: "Zolang nog niet alle verzuimen zijn beoordeeld, is het model I 4 nog niet definitief."
+  finish_title: Afronden herstel
   no_omissions: Geen verzuimen
   not_recovered: Niet hersteld
   omissions_explanation: Leg per verzuim vast of het is hersteld.
