@@ -1,6 +1,11 @@
+function isInViewport(element: Element): boolean {
+  const { top, bottom } = element.getBoundingClientRect();
+  return top >= 0 && bottom <= window.innerHeight;
+}
+
 function getRows(personId: string | null, last: number): Element[] | null {
   if (personId) {
-    const row = document.querySelector(`tr[data-id="${personId}"]`);
+    const row = document.querySelector(`[data-id="${personId}"]`);
     if (row) {
       return [row];
     }
@@ -33,7 +38,7 @@ export default function highlightRow() {
     return;
   }
 
-  // Match rows by data-id so deep links can target a specific person.
+  // Match rows by data-id so deep links can target a specific row.
   const rows = getRows(personId, last);
 
   // Clean the URL once we've captured the ID.
@@ -45,11 +50,15 @@ export default function highlightRow() {
     return;
   }
 
-  // Apply the highlight and bring the row into view.
+  // Apply the highlight and bring the row into view, unless a restored
+  // scroll position (see keep-scroll) already shows it.
   rows.forEach((row) => {
     row.classList.add("highlighted");
   });
-  rows.at(-1)?.scrollIntoView({ behavior: "auto", block: "center" });
+  const lastRow = rows.at(-1);
+  if (lastRow && !isInViewport(lastRow)) {
+    lastRow.scrollIntoView({ behavior: "auto", block: "center" });
+  }
 
   // Do not animate the sticky nav to avoid glitches on page load
   if (sticky) {

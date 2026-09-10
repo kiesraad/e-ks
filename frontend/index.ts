@@ -15,6 +15,7 @@ import staleErrors from "./scripts/form-inputs/stale-errors";
 import setupBfcacheReload from "./scripts/generic-ui/bfcache-reload";
 import setupModal from "./scripts/generic-ui/modal";
 import setupHintPopover from "./scripts/generic-ui/hint-popover";
+import setupKeepScroll from "./scripts/generic-ui/keep-scroll";
 import setupOverlay from "./scripts/generic-ui/overlay";
 import setupRememberScroll from "./scripts/generic-ui/remember-scroll";
 import setupTextSearch from "./scripts/generic-ui/search";
@@ -28,6 +29,9 @@ import setupClickRow from "./scripts/table-interaction/click-row";
 import setupSortable from "./scripts/table-interaction/sortable";
 
 import "./styles/index.css";
+
+// first: restore the scroll position before highlights check the viewport
+setupKeepScroll();
 
 // table interaction
 setupClickRow();

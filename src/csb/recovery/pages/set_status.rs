@@ -6,7 +6,7 @@ use crate::{
     csb::{examination::extractors::CsbPoliticalGroup, recovery::paths::CsbSetOmissionStatusPath},
     structs::{
         candidate_lists::CandidateListId,
-        csb::{CsbPhase, OmissionPart, OmissionStatus},
+        csb::{CsbPhase, Omission, OmissionId, OmissionPart, OmissionStatus},
     },
 };
 
@@ -55,14 +55,43 @@ pub async fn set_status(
         OmissionStatusFormValue::Recovered => OmissionStatus::Recovered,
         OmissionStatusFormValue::NotRecovered => OmissionStatus::NotRecovered,
     };
-    match form.part() {
+    let part = form.part();
+    match part {
         Some(part) => omission.set_part_status(&store, part, status).await?,
         None => omission.set_status(&store, status).await?,
     }
 
     let political_group =
         CsbPoliticalGroup::new_from_csb_store(&store).with_mode(CsbPhase::Recovery);
-    Ok(query.redirect_or(political_group.all_restorations_path()))
+    Ok(query.redirect_or_highlighting(
+        political_group.all_restorations_path(),
+        decided_omission(&store, &omission, part, status).into(),
+    ))
+}
+
+/// The omission that holds the decision now: the omission itself, or the one
+/// the decided part was split off into or merged with.
+fn decided_omission(
+    store: &CsbStore,
+    omission: &Omission,
+    part: Option<OmissionPart>,
+    status: OmissionStatus,
+) -> OmissionId {
+    let holds_decision = |candidate: &Omission| {
+        candidate.status == status
+            && part.is_none_or(|part| candidate.covers(&store.election, part))
+    };
+    if store
+        .get_omission(omission.id)
+        .is_ok_and(|o| holds_decision(&o))
+    {
+        return omission.id;
+    }
+    store
+        .get_omissions()
+        .into_iter()
+        .find(|o| o.has_same_details(omission) && holds_decision(o))
+        .map_or(omission.id, |o| o.id)
 }
 
 #[cfg(test)]
@@ -204,6 +233,7 @@ mod tests {
             .to_str()
             .unwrap();
         assert!(location.contains(&format!("/csb/recovery/{stream_id}/omissions")));
+        assert!(location.ends_with(&format!("&highlight={}", omission.id)));
     }
 
     #[tokio::test]
@@ -278,7 +308,7 @@ mod tests {
         // Three districts, so three decisions.
         assert_progress(&store, 3, 3);
 
-        set_status(
+        let response = set_status(
             CsbSetOmissionStatusPath {
                 stream_id,
                 omission_id: omission.id,
@@ -292,7 +322,8 @@ mod tests {
             ),
         )
         .await
-        .unwrap();
+        .unwrap()
+        .into_response();
 
         // The omission keeps the districts still waiting.
         let original = store.get_omission(omission.id).unwrap();
@@ -318,6 +349,15 @@ mod tests {
         assert_eq!(split.status, OmissionStatus::NotRecovered);
         assert_eq!(split.title, omission.title);
         assert_eq!(split.description, omission.description);
+
+        // The split-off omission is the one to highlight.
+        let location = response
+            .headers()
+            .get("Location")
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert!(location.ends_with(&format!("&highlight={}", split.id)));
 
         // Counting per district keeps the progress from jumping.
         assert_progress(&store, 2, 3);
@@ -448,18 +488,19 @@ mod tests {
     }
 
     /// Decide `district` on whichever part covers it.
+    /// Decide `district` on the part covering it; returns the redirect location.
     async fn decide_district(
         store: &CsbStore,
         district: ElectoralDistrict,
         decision: OmissionStatusFormValue,
-    ) {
+    ) -> String {
         let omission = store
             .get_all_declarations_of_support_omissions()
             .into_iter()
             .find(|o| o.electoral_districts(&store.election).contains(&district))
             .expect("every district stays covered by one of the parts");
 
-        set_status(
+        let response = set_status(
             CsbSetOmissionStatusPath {
                 stream_id: store.stream_id,
                 omission_id: omission.id,
@@ -470,7 +511,15 @@ mod tests {
             district_form(decision, district),
         )
         .await
-        .unwrap();
+        .unwrap()
+        .into_response();
+        response
+            .headers()
+            .get("Location")
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string()
     }
 
     #[tokio::test]
@@ -490,7 +539,7 @@ mod tests {
         .await;
         assert_eq!(store.get_omission_count(), 2);
 
-        decide_district(
+        let location = decide_district(
             &store,
             ElectoralDistrict::Fryslan,
             OmissionStatusFormValue::Recovered,
@@ -501,6 +550,8 @@ mod tests {
         let all = store.get_all_declarations_of_support_omissions();
         assert_eq!(all.len(), 1);
         assert_ne!(all[0].id, omission.id);
+        // The highlight follows the district to the part that holds it now.
+        assert!(location.ends_with(&format!("&highlight={}", all[0].id)));
         assert_eq!(
             all[0].category,
             OmissionCategory::DeclarationsOfSupport(vec![
