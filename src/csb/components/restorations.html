@@ -28,6 +28,7 @@
 {% macro status_buttons(political_group, omission, redirect, part, size="", part_field="electoral_district") %}
   <form method="post"
         class="omission-status-control"
+        data-keep-scroll
         action="{{ political_group.set_omission_status_path(omission.id, redirect) }}">
     <input type="hidden" name="csrf_token" value="{{ "csrf_token"|str_value }}">
     {% if !part.is_empty() %}<input type="hidden" name="{{ part_field }}" value="{{ part }}">{% endif %}
@@ -116,7 +117,8 @@
   {% let districts = omission.electoral_districts(election) %}
   {% let lists = omission.candidate_lists() %}
   {% let per_part = scope_list.is_empty() && omission.is_assessed_per_part(election) %}
-  <li class="omission-status-row{% if per_part %} omission-status-row-per-part{% endif %}{% if omission.is_pending() %} omission-status-row-pending{% endif %}">
+  <li class="omission-status-row{% if per_part %} omission-status-row-per-part{% endif %}{% if omission.is_pending() %} omission-status-row-pending{% endif %}"
+      data-id="{{ omission.id }}">
     <div class="omission-status-text">
       {% if path.is_empty() %}
         <span class="restoration-tag{% if !omission.recoverable %} restoration-tag-unrecoverable{% endif %}">{{ omission.title }}</span>
