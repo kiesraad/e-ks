@@ -1,4 +1,4 @@
-use crate::structs::{common::PlaceOfResidence, persons::Person};
+use crate::structs::persons::Person;
 use askama::Template;
 use axum::{
     extract::Query,
@@ -31,9 +31,9 @@ pub async fn update_person(
         PersonUpdateTemplate {
             form: FormData::new_with_data(PersonalDataForm::from(person.clone())),
             overlay: Overlay::new(&query),
-            locality_unknown: PlaceOfResidence::is_unknown_opt(
-                &person.personal_data.place_of_residence,
-            ),
+            locality_unknown: person
+                .personal_data
+                .show_unknown_place_of_residence_warning(),
             person,
         },
         context,
@@ -51,9 +51,9 @@ pub async fn update_person_submit(
     match form.validate_update_with_checks(&person, &store) {
         Err(form_data) => Ok(HtmlTemplate(
             PersonUpdateTemplate {
-                locality_unknown: PlaceOfResidence::is_unknown_opt(
-                    &person.personal_data.place_of_residence,
-                ),
+                locality_unknown: person
+                    .personal_data
+                    .show_unknown_place_of_residence_warning(),
                 person,
                 form: *form_data,
                 overlay: Overlay::new(&query),
