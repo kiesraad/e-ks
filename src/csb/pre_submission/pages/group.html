@@ -2,23 +2,22 @@
 {% import "pg/common/components/macros.html" as macros %}
 {% import "csb/components/restorations.html" as restorations %}
 {% block breadcrumbs %}
-  {{ breadcrumb(crate::csb::examination::CsbExaminationOverviewPath, "csb.examination") }}
-  {{ breadcrumb(political_group.group_path() , political_group.csb_appellation(), is_translatable=false) }}
-  {{ breadcrumb(political_group.all_brp_findings_path() , "csb.all_brp_findings.title") }}
+  {{ breadcrumb(crate::csb::pre_submission::CsbPreSubmissionOverviewPath, "csb.pre_submission.title") }}
+  {{ breadcrumb(group.path() , group.appellation, is_translatable=false) }}
 {% endblock %}
 {% block page_title %}
-  {{ "csb.all_brp_findings.title"|trans }}
+  {{ group.appellation }}
 {% endblock %}
 {% block page_sub_title %}
-  <span class="subtitle">{{ "csb.all_brp_findings.explanation"|trans }}</span>
+  <span class="subtitle">{{ "csb.pre_submission.group_explanation"|trans }}</span>
 {% endblock %}
 {% block header_action %}
-  {% set back_url = political_group.group_path() %}
-  {% include "csb/components/header_examination_actions.html" %}
+  <div class="header-buttons">
+    <a href="{{ crate::csb::pre_submission::CsbPreSubmissionOverviewPath }}"
+       class="button secondary">{{ "action.back"|trans }}</a>
+  </div>
 {% endblock %}
 {% block content %}
-  {% set toggle_redirect_url = political_group.all_brp_findings_path() %}
-  {% include "csb/components/examination_controls.html" %}
   <div class="examination-panels">
     <div class="examination-panel">
       <div class="examination-panel-header">
@@ -27,24 +26,23 @@
         </div>
         {% if brp_running %}
           <div class="examination-panel-actions">
-            <a class="button secondary"
-               href="{{ political_group.all_brp_findings_path() }}">{{ "csb.brp.refresh"|trans }}</a>
+            <a class="button secondary" href="{{ group.path() }}">{{ "csb.brp.refresh"|trans }}</a>
           </div>
         {% else if brp_incomplete.is_some() %}
           <div class="examination-panel-actions">
-            <form method="post" action="{{ political_group.start_brp_check_path() }}">
+            <form method="post" action="{{ group.brp_check_path() }}">
               {{ macros::csrf_field() }}
               <button type="submit" class="button secondary">{{ "csb.brp.start_check"|trans }}</button>
             </form>
           </div>
         {% endif %}
       </div>
-      {{ restorations::brp_strip(brp, brp_incomplete.as_deref() ) }}
+      <div class="mb-lg">{{ restorations::brp_strip(group.brp, brp_incomplete.as_deref() ) }}</div>
       {% if !all_findings.candidates.is_empty() %}
         {% for candidate in all_findings.candidates %}
           {{ restorations::brp_group(candidate.person.name.display() , candidate.path.as_deref(), candidate.messages.as_slice()) }}
         {% endfor %}
-      {% else if brp.is_correct() %}
+      {% else if group.brp.is_correct() %}
         <p class="font-italic">{{ "csb.all_brp_findings.none"|trans }}</p>
       {% endif %}
     </div>

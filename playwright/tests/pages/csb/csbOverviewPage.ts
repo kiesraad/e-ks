@@ -7,6 +7,7 @@ export class CsbOverviewPage {
   readonly buttonLanguageEN: Locator;
   readonly headerElection: Locator;
   readonly linkExamination: Locator;
+  readonly linkPreSubmission: Locator;
   readonly linkRegisteredPoliticalGroups: Locator;
 
   constructor(protected readonly page: Page) {
@@ -32,6 +33,9 @@ export class CsbOverviewPage {
     // can change freely.
     this.linkRegisteredPoliticalGroups = this.page.getByRole("link", {
       name: "Fase 0",
+    });
+    this.linkPreSubmission = this.page.getByRole("link", {
+      name: "Fase 1",
     });
   }
 }

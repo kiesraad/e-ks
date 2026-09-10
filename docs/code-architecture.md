@@ -241,8 +241,11 @@ Streams carry a `Scope` (`src/core/scope.rs`) of one of the following variants:
 
 - **`PoliticalGroup`**: a political group's own stream.
 - **`CentralElectoralCommittee`**: the shared CSB main stream.
-- **`ImportedByCsb`**: a candidate-list package imported by the CSB; one
-  stream per import action.
+- **`ImportedByCsb`**: a candidate-list package imported by the CSB for the
+  examination; one stream per import action.
+- **`PreSubmittedToCsb`**: a package imported for the pre-submission check
+  (Fase 1, *voorinlevering*); one stream per import action, kept apart from
+  the examination's imports.
 
 Every persisted stream records its scope, and each store registry only sees
 streams matching its projection's scope, so the separation between the two
@@ -273,7 +276,10 @@ The CSB section has two projections of its own on the shared store machinery
   (scope `ImportedByCsb`), driven by `CsbEvent`. The projection holds the
   imported snapshot (`imported_data`), a second projection with the paper
   corrections replayed on top (`paper_corrected_data`), the recorded
-  omissions and person corrections, and the examination-finished flag.
+  omissions and person corrections, and the examination-finished flag. A
+  second registry over the same projection, under scope `PreSubmittedToCsb`,
+  holds the packages imported for the pre-submission check; a registry only
+  lists streams of its own scope, so the two never see each other's imports.
 - **`CsbMainStoreData`** (`src/csb/store_main/`), a single stream per
   election shared by all committee members under the fixed
   `CSB_MAIN_STREAM_ID` (scope `CentralElectoralCommittee`). It records
@@ -292,6 +298,12 @@ The CSB section has two projections of its own on the shared store machinery
   persists the snapshot as a `CsbAction::Import` on a **fresh** `ImportedByCsb`
   stream keyed on the session's election. A package handed in for another
   election is refused.
+- **`pre_submission`**: Fase 1, the pre-submission check (*voorinlevering*).
+  Political groups hand in their package ahead of nomination day; the CSB
+  imports it by hash (the same routine as `import`, into the
+  `PreSubmittedToCsb` registry), runs the BRP check, and reads the findings
+  per candidate off one page, so the group can fix them before the official
+  submission. No omissions, corrections or examination state.
 - **`examination`**: the examination of the imported lists. An overview
   groups the imported political groups by finished/unfinished; detail pages
   render the imported data read-only; omissions and corrections are recorded

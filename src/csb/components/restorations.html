@@ -206,14 +206,17 @@
   </div>
   {% if let Some(reason) = incomplete_reason %}<p class="restoration-strip-note">{{ reason }}</p>{% endif %}
 {% endmacro brp_strip %}
-{# The BRP findings of one candidate, each linking to the candidate's page. #}
 {% macro brp_group(label, url, messages) %}
   <h3 class="examination-panel-group">{{ label }}</h3>
   <div class="restoration-strip restoration-strip-error">
     <ul class="restoration-tags">
       {% for message in messages %}
         <li>
-          <a class="restoration-tag restoration-tag-error" href="{{ url }}">{{ message }}</a>
+          {% if let Some(url) = url %}
+            <a class="restoration-tag restoration-tag-error" href="{{ url }}">{{ message }}</a>
+          {% else %}
+            <span class="restoration-tag restoration-tag-error">{{ message }}</span>
+          {% endif %}
         </li>
       {% endfor %}
     </ul>

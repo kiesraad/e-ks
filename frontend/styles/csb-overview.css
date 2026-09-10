@@ -82,6 +82,7 @@
 
 .political-group-table,
 .political-group-recovery-table,
+.pre-submission-table,
 .registered-political-groups-table {
   thead {
     tr {
@@ -111,6 +112,21 @@
     }
 
     th:nth-child(4) {
+      width: 2rem;
+    }
+  }
+}
+
+.pre-submission-table {
+  table-layout: fixed;
+
+  thead {
+    /* Wide enough for the longest BRP state ("Controle niet afgerond"). */
+    th:nth-child(2) {
+      width: 14rem;
+    }
+
+    th:nth-child(3) {
       width: 2rem;
     }
   }

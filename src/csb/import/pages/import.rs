@@ -12,12 +12,13 @@ use axum::{
 use serde::Deserialize;
 
 use crate::{
-    AppError, AppRequestState, Context, CsbAction, CsbContext, CsbStore, CsbUser, ElectionConfig,
-    Form, HtmlTemplate, Locale, PgStoreData, StreamId,
+    AppError, AppRequestState, Context, CsbAction, CsbContext, CsbStore, CsbStoreData, CsbUser,
+    ElectionConfig, Form, HtmlTemplate, Locale, PgStoreData, StreamId,
     csb::examination::{CsbExaminationOverviewPath, CsbPoliticalGroupPath},
     filters,
     projection::WithCorrections,
     redirect_success,
+    store::StoreRegistry,
     structs::{
         brp::{BRP_BSN_BATCH_SIZE, BrpClient, BrpStatus},
         persons::Person,
@@ -70,7 +71,7 @@ pub struct ImportForm {
 
 /// Outcome of an import attempt that did not fail outright.
 enum ImportOutcome {
-    Imported(Response),
+    Imported(StreamId),
     /// The source stream was already imported into a live CSB store carrying
     /// this appellation; the user must confirm before importing again.
     AlreadyImported {
@@ -78,7 +79,51 @@ enum ImportOutcome {
     },
 }
 
-/// Import the package identified by the submitted chain hash.
+/// What an import attempt leaves the import page to do.
+pub(in crate::csb) enum ImportResult {
+    /// Imported under this fresh stream; show it.
+    Imported(StreamId),
+    /// Nothing imported; re-render the form with this feedback.
+    Retry {
+        error: Option<String>,
+        warning: Option<String>,
+    },
+}
+
+/// Import the package identified by the submitted chain hash into a fresh
+/// stream of `registry`. Shared by the examination and the pre-submission
+/// check, which differ only in the registry they import into.
+pub(in crate::csb) async fn import_package<S: AppRequestState>(
+    state: &S,
+    registry: &StoreRegistry<CsbStoreData>,
+    form: ImportForm,
+    user: CsbUser,
+    election: ElectionConfig,
+    locale: Locale,
+) -> Result<ImportResult, AppError> {
+    match do_import(state, registry, form, user, election, locale).await {
+        Ok(ImportOutcome::Imported(stream_id)) => Ok(ImportResult::Imported(stream_id)),
+        Ok(ImportOutcome::AlreadyImported { appellation }) => Ok(ImportResult::Retry {
+            error: None,
+            warning: Some(trans!(
+                "csb.import.warning.already_imported",
+                locale,
+                appellation
+            )),
+        }),
+        Err(AppError::UserError(msg)) => Ok(ImportResult::Retry {
+            error: Some(msg),
+            warning: None,
+        }),
+        Err(AppError::AmbiguousHash) => Ok(ImportResult::Retry {
+            error: Some(trans!("csb.import.error.ambiguous_hash", locale)),
+            warning: None,
+        }),
+        Err(e) => Err(e),
+    }
+}
+
+/// Import the package identified by the submitted chain hash for examination.
 pub async fn import_submit<S: AppRequestState>(
     _: CsbImportPath,
     State(state): State<S>,
@@ -86,29 +131,20 @@ pub async fn import_submit<S: AppRequestState>(
     Form(form): Form<ImportForm>,
 ) -> Result<Response, AppError> {
     let hash = form.hash.clone();
-    let locale = context.session.locale;
-    let user = context.user()?;
-    match do_import(&state, form, user, context.election, locale).await {
-        Ok(ImportOutcome::Imported(response)) => Ok(response),
-        Ok(ImportOutcome::AlreadyImported { appellation }) => Ok(render_import(
-            context,
-            hash,
-            None,
-            Some(trans!(
-                "csb.import.warning.already_imported",
-                locale,
-                appellation
-            )),
-        )),
-        Err(AppError::UserError(msg)) => Ok(render_import(context, hash, Some(msg), None)),
-        Err(AppError::AmbiguousHash) => Ok(render_import(
-            context,
-            hash,
-            Some(trans!("csb.import.error.ambiguous_hash", locale)),
-            None,
-        )),
-        Err(e) => Err(e),
-    }
+    let result = import_package(
+        &state,
+        state.csb_store_registry(),
+        form,
+        context.user()?,
+        context.election,
+        context.session.locale,
+    )
+    .await?;
+
+    Ok(match result {
+        ImportResult::Imported(stream_id) => redirect_success(CsbPoliticalGroupPath { stream_id }),
+        ImportResult::Retry { error, warning } => render_import(context, hash, error, warning),
+    })
 }
 
 fn election_label(election: ElectionConfig, locale: Locale) -> String {
@@ -119,16 +155,13 @@ fn election_label(election: ElectionConfig, locale: Locale) -> String {
     }
 }
 
-async fn imported_appellation<S: AppRequestState>(
-    state: &S,
+/// The appellation `source_stream_id` was already imported under, if any.
+async fn imported_appellation(
+    registry: &StoreRegistry<CsbStoreData>,
     election: ElectionConfig,
     source_stream_id: StreamId,
 ) -> Result<Option<String>, AppError> {
-    for store in state
-        .csb_store_registry()
-        .stores_for_election(election)
-        .await?
-    {
+    for store in registry.stores_for_election(election).await? {
         let already_imported_and_not_deleted = store.data.read().events.first().is_some_and(|e| {
             matches!(&e.payload.action, CsbAction::Import { source_stream_id: sid, .. } if *sid == source_stream_id) &&
             !store.is_deleted()
@@ -144,12 +177,13 @@ async fn imported_appellation<S: AppRequestState>(
 /// Locates the political-group event whose hash matches the entry, replays that
 /// stream up to the event into an [`PgStoreData`] snapshot (its event log
 /// excluded), and records the snapshot in a [`CsbAction::Import`] persisted under
-/// a fresh CSB stream keyed on `election`, the election the session works on.
-/// The source `stream_id` is carried on the event for reference; it is never
-/// reused as the CSB partition, which would collide with the PG stream's own
-/// events there.
+/// a fresh stream of `registry` keyed on `election`, the election the session
+/// works on. The source `stream_id` is carried on the event for reference; it
+/// is never reused as the CSB partition, which would collide with the PG
+/// stream's own events there.
 async fn do_import<S: AppRequestState>(
     state: &S,
+    registry: &StoreRegistry<CsbStoreData>,
     form: ImportForm,
     user: CsbUser,
     election: ElectionConfig,
@@ -177,7 +211,8 @@ async fn do_import<S: AppRequestState>(
     // after the user confirms the warning for this exact hash entry.
     let confirmed = form.confirmed_hash.as_deref() == Some(form.hash.as_str());
     if !confirmed
-        && let Some(appellation) = imported_appellation(state, election, source_stream_id).await?
+        && let Some(appellation) =
+            imported_appellation(registry, election, source_stream_id).await?
     {
         return Ok(ImportOutcome::AlreadyImported { appellation });
     }
@@ -199,11 +234,9 @@ async fn do_import<S: AppRequestState>(
         .ok_or(AppError::GenericNotFound)?;
     let snapshot = PgStoreData::snapshot_until(&events, event_id);
 
-    // Persist the import under a fresh CSB stream.
+    // Persist the import under a fresh stream.
     let csb_store = CsbStore::acting_as(
-        state
-            .csb_store_for_stream(StreamId::new(), election)
-            .await?,
+        registry.get_or_create(StreamId::new(), election).await?,
         user,
     );
     csb_store
@@ -216,11 +249,7 @@ async fn do_import<S: AppRequestState>(
 
     do_brp_verification(&csb_store, state.brp_client()).await?;
 
-    Ok(ImportOutcome::Imported(redirect_success(
-        CsbPoliticalGroupPath {
-            stream_id: csb_store.stream_id,
-        },
-    )))
+    Ok(ImportOutcome::Imported(csb_store.stream_id))
 }
 
 /// Create a new empty CSB store without importing from a political-group stream.

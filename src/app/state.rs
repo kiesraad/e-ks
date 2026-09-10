@@ -7,7 +7,8 @@ use secrecy::ExposeSecret;
 
 use crate::{
     AppError, AppRequestState, Config, CsbMainStore, CsbMainStoreData, CsbStoreData, CsbStream,
-    DbHealth, ElectionConfig, IdDeriver, PendingRequestStore, PgStoreData, SessionStore, StreamId,
+    DbHealth, ElectionConfig, IdDeriver, PendingRequestStore, PgStoreData, Scope, SessionStore,
+    StreamId,
     crypto::MasterKey,
     projection::CSB_MAIN_STREAM_ID,
     store::{Store, StoreRegistry},
@@ -24,6 +25,11 @@ pub struct AppState {
     pub store_registry: StoreRegistry<PgStoreData>,
     /// Registry for per-import CSB stores (one per imported political group)
     pub csb_store_registry: StoreRegistry<CsbStoreData>,
+    /// Registry for the pre-submission imports, kept apart from the
+    /// examination's under [`Scope::PreSubmittedToCsb`]. Reached through
+    /// [`AppRequestState`], hence no `FromRef` (same type as the field above).
+    #[from_ref(skip)]
+    pub pre_submission_store_registry: StoreRegistry<CsbStoreData>,
     /// Registry for the single global CSB main stream shared by all committee members
     pub csb_main_store_registry: StoreRegistry<CsbMainStoreData>,
     /// Active sessions for this application instance (backed by the configured storage).
@@ -60,6 +66,10 @@ impl AppRequestState for AppState {
 
     fn csb_store_registry(&self) -> &StoreRegistry<CsbStoreData> {
         &self.csb_store_registry
+    }
+
+    fn pre_submission_store_registry(&self) -> &StoreRegistry<CsbStoreData> {
+        &self.pre_submission_store_registry
     }
 
     fn store_registry(&self) -> &StoreRegistry<PgStoreData> {
@@ -117,9 +127,14 @@ impl AppState {
             master.clone(),
         )
         .await?;
-        // Both CSB registries reuse the PG registry's persistence backend
+        // The CSB registries reuse the PG registry's persistence backend
         let csb_store_registry =
             StoreRegistry::with_persistence(store_registry.persistence().clone(), master.clone());
+        let pre_submission_store_registry = StoreRegistry::with_persistence_in_scope(
+            store_registry.persistence().clone(),
+            master.clone(),
+            Scope::PreSubmittedToCsb,
+        );
         let csb_main_store_registry =
             StoreRegistry::with_persistence(store_registry.persistence().clone(), master);
         let sessions = SessionStore::from_storage_url(config.storage_url.expose_secret())?;
@@ -147,6 +162,7 @@ impl AppState {
             config: Box::leak(Box::new(config)),
             store_registry,
             csb_store_registry,
+            pre_submission_store_registry,
             csb_main_store_registry,
             sessions,
             pending_requests,
@@ -241,6 +257,11 @@ impl AppState {
         .expect("test StoreRegistry must initialize");
         let csb_store_registry =
             StoreRegistry::with_persistence(store_registry.persistence().clone(), master.clone());
+        let pre_submission_store_registry = StoreRegistry::with_persistence_in_scope(
+            store_registry.persistence().clone(),
+            master.clone(),
+            Scope::PreSubmittedToCsb,
+        );
         let csb_main_store_registry =
             StoreRegistry::with_persistence(store_registry.persistence().clone(), master);
 
@@ -258,6 +279,7 @@ impl AppState {
         Self {
             store_registry,
             csb_store_registry,
+            pre_submission_store_registry,
             csb_main_store_registry,
             config: Box::leak(Box::new(config)),
             sessions,

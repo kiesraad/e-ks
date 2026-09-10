@@ -134,6 +134,7 @@ fn csb_router(state: &AppState) -> Router<AppState> {
         .merge(csb::audit_log::router())
         .merge(csb::common::router())
         .merge(csb::examination::router())
+        .merge(csb::pre_submission::router())
         .merge(csb::recovery::router())
         .merge(csb::registered_political_groups::router())
         .merge(csb::import::router())

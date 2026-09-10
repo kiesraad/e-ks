@@ -13,7 +13,7 @@ use parking_lot::RwLock;
 use serde::{Serialize, de::DeserializeOwned};
 
 use super::{Store, StoreData, StorePersistence, StreamMeta};
-use crate::{AppError, ElectionConfig, StreamId, crypto::MasterKey};
+use crate::{AppError, ElectionConfig, Scope, StreamId, crypto::MasterKey};
 
 type StoreKey = (StreamId, ElectionConfig);
 type StoreMap<D> = Arc<RwLock<HashMap<StoreKey, Store<D>>>>;
@@ -30,6 +30,9 @@ where
 {
     persistence: StorePersistence,
     master: MasterKey,
+    /// Scope the streams are recorded with and listed by; `D::scope()` unless
+    /// built with [`Self::with_persistence_in_scope`].
+    scope: Scope,
     inner: StoreMap<D>,
 }
 
@@ -42,6 +45,7 @@ where
         Self {
             persistence: self.persistence.clone(),
             master: self.master.clone(),
+            scope: self.scope,
             inner: self.inner.clone(),
         }
     }
@@ -53,28 +57,39 @@ where
     D::Event: Serialize + DeserializeOwned,
 {
     /// Create a new registry for stores backed by the given storage URL. Every
-    /// stream row it creates is recorded with `scope`.
+    /// stream row it creates is recorded with the projection's scope.
     pub async fn new(storage_url: String, master: MasterKey) -> Result<Self, AppError> {
         let persistence = StorePersistence::from_storage_url(&storage_url)?;
         persistence.init().await?;
 
-        Ok(Self {
-            persistence,
-            master,
-            inner: Arc::new(RwLock::new(HashMap::new())),
-        })
+        Ok(Self::with_persistence(persistence, master))
     }
 
     /// Create a registry that shares an already-initialized persistence backend
     /// (e.g. the same Postgres pool) with another registry, but caches a
-    /// different `Store<D>` projection and records its own `scope`. Skips
-    /// re-initialization since the backend is assumed to be initialized already.
+    /// different `Store<D>` projection under the projection's own scope.
     pub fn with_persistence(persistence: StorePersistence, master: MasterKey) -> Self {
+        Self::with_persistence_in_scope(persistence, master, D::scope())
+    }
+
+    /// As [`Self::with_persistence`], under `scope` instead of the projection's
+    /// own, so two registries over one projection never see each other's streams.
+    pub fn with_persistence_in_scope(
+        persistence: StorePersistence,
+        master: MasterKey,
+        scope: Scope,
+    ) -> Self {
         Self {
             persistence,
             master,
+            scope,
             inner: Arc::new(RwLock::new(HashMap::new())),
         }
+    }
+
+    /// The scope this registry's streams are recorded with.
+    pub fn scope(&self) -> Scope {
+        self.scope
     }
 
     /// Expose the underlying persistence backend (used by the app to share a
@@ -152,10 +167,11 @@ where
             return Err(AppError::NotFound("Stream not found".to_string()));
         }
 
-        let store = Store::new_for_stream_with_persistence(
+        let store = Store::new_for_stream_in_scope(
             self.persistence.clone(),
             stream_id,
             election,
+            self.scope,
             &self.master,
         )
         .await?;
@@ -170,16 +186,16 @@ where
         Ok(entry.clone())
     }
 
-    /// List every `(stream_id, election)` stream matching the [crate::Scope]
-    /// of the related data type of the store.
+    /// List every `(stream_id, election)` stream matching this registry's
+    /// [`Scope`].
     pub async fn streams_by_scope(&self) -> Result<Vec<(StreamId, ElectionConfig)>, AppError> {
-        self.persistence.streams_by_scope(D::scope()).await
+        self.persistence.streams_by_scope(self.scope).await
     }
 
     /// List [`StreamMeta`] for every stream matching this registry's scope,
     /// without decrypting or warming any projection.
     pub async fn stream_metadata_by_scope(&self) -> Result<Vec<StreamMeta>, AppError> {
-        self.persistence.stream_metadata_by_scope(D::scope()).await
+        self.persistence.stream_metadata_by_scope(self.scope).await
     }
 
     /// Return the store for `(stream_id, election)` only if it is already warm in
@@ -188,8 +204,8 @@ where
         self.inner.read().get(&(stream_id, election)).cloned()
     }
 
-    /// Fetch (or create and load) every store matching the [crate::Scope]
-    /// of the related data type of the store.
+    /// Fetch (or create and load) every store matching this registry's
+    /// [`Scope`].
     pub async fn stores_by_scope(&self) -> Result<Vec<Store<D>>, AppError> {
         let mut stores = Vec::new();
         for (stream_id, election) in self.streams_by_scope().await? {
@@ -231,5 +247,62 @@ where
         found.extend(persisted);
 
         Ok(found.into_iter().collect())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Config, CsbAction, CsbStoreData, CsbUser, ElectionConfig};
+
+    /// Two registries over one projection and backend, under different scopes.
+    async fn two_scopes() -> (StoreRegistry<CsbStoreData>, StoreRegistry<CsbStoreData>) {
+        let config = Config::new_test();
+        let master = MasterKey::new(&config.master_encryption_key);
+        let first = StoreRegistry::<CsbStoreData>::new("memory://".to_string(), master.clone())
+            .await
+            .expect("memory registry");
+        let second = StoreRegistry::with_persistence_in_scope(
+            first.persistence().clone(),
+            master,
+            Scope::PreSubmittedToCsb,
+        );
+        (first, second)
+    }
+
+    #[test]
+    fn a_registry_defaults_to_the_scope_of_its_projection() {
+        let config = Config::new_test();
+        let registry = StoreRegistry::<CsbStoreData>::with_persistence(
+            StorePersistence::from_storage_url("memory://").expect("memory backend"),
+            MasterKey::new(&config.master_encryption_key),
+        );
+
+        assert_eq!(registry.scope(), CsbStoreData::scope());
+    }
+
+    #[tokio::test]
+    async fn registries_under_different_scopes_do_not_see_each_others_streams()
+    -> Result<(), AppError> {
+        let (examination, pre_submission) = two_scopes().await;
+        let stream_id = StreamId::new();
+
+        pre_submission
+            .get_or_create(stream_id, ElectionConfig::EK27)
+            .await?
+            .update(CsbAction::CreateEmpty.by(CsbUser::new_test()))
+            .await?;
+
+        assert_eq!(
+            pre_submission.streams_by_scope().await?,
+            vec![(stream_id, ElectionConfig::EK27)]
+        );
+        assert!(examination.streams_by_scope().await?.is_empty());
+        assert!(matches!(
+            examination.get_store(stream_id, ElectionConfig::EK27).await,
+            Err(AppError::NotFound(_))
+        ));
+
+        Ok(())
     }
 }

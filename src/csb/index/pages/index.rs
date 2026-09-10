@@ -74,6 +74,18 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn index_links_pre_submission_as_phase_1() {
+        let response = index(CsbIndexPath {}, CsbContext::new_test())
+            .await
+            .unwrap()
+            .into_response();
+
+        let body = response_body_string(response).await;
+        assert!(body.contains("href=\"/csb/pre-submission\""));
+        assert!(body.contains("Go to pre-submission"));
+    }
+
+    #[tokio::test]
     async fn index_links_examination_and_recovery_phases() {
         let response = index(CsbIndexPath {}, CsbContext::new_test())
             .await

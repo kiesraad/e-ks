@@ -137,6 +137,7 @@ index:
     report_errors: Fouten doorgeven
     view_candidate_lists: Inzage kandidatenlijsten
   go_to_examination: Ga naar onderzoek
+  go_to_pre_submission: Ga naar voorinlevering
   go_to_recovery: Ga naar herstelde lijsten
   go_to_registered_political_groups: Ga naar registratie
   phase: "Fase {}"
@@ -204,6 +205,12 @@ paper_corrections:
   start: Ga naar gegevens
   stop: Terug naar onderzoek
   title: Papieren correcties
+pre_submission:
+  explanation: "Controleer de kandidatenlijsten die politieke groeperingen vóór de dag van kandidaatstelling aanleveren tegen de BRP, zodat zij fouten vóór de officiële inlevering kunnen herstellen."
+  group_explanation: "Alle verschillen die de controle tegen de BRP heeft gevonden, per kandidaat. Geef ze door aan de politieke groepering, zodat ze vóór de dag van kandidaatstelling hersteld kunnen worden."
+  none: Er zijn nog geen politieke groeperingen geïmporteerd voor de voorinlevering.
+  title: Voorinlevering
+  view: BRP fouten bekijken
 progress: Voortgang
 recovery:
   assess: Beoordelen
