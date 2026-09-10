@@ -64,7 +64,7 @@ pub async fn update_substitute_submitter_submit(
             let updated = substitute_submitter.updated_from(substitute_submitter_data);
             updated.update_substitute(&store).await?;
 
-            Ok(query.redirect_or(ListSubmitter::view_path()))
+            Ok(query.redirect_or_preserving_initial(ListSubmitter::view_path()))
         }
     }
 }

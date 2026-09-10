@@ -8,7 +8,7 @@ use axum::{
 use super::SubstituteSubmitterCreatePath;
 use crate::{
     AppError, Context, Form, HtmlTemplate, Overlay, PgStore, QueryParamState, filters,
-    form::FormData, list_submitters::ListSubmitterForm, redirect_success,
+    form::FormData, list_submitters::ListSubmitterForm,
 };
 
 #[derive(Template)]
@@ -36,13 +36,14 @@ pub async fn create_substitute_submitter_submit(
     _: SubstituteSubmitterCreatePath,
     context: Context,
     store: PgStore,
+    Query(query): Query<QueryParamState>,
     Form(form): Form<ListSubmitterForm>,
 ) -> Result<Response, AppError> {
     match form.validate_create_with_checks() {
         Err(form_data) => Ok(HtmlTemplate(
             SubstituteSubmitterCreateTemplate {
                 form: *form_data,
-                overlay: Overlay::default(),
+                overlay: Overlay::new(&query),
             },
             context,
         )
@@ -52,7 +53,7 @@ pub async fn create_substitute_submitter_submit(
             substitute_submitter.address.update_is_known_in_bag();
             substitute_submitter.create_substitute(&store).await?;
 
-            Ok(redirect_success(ListSubmitter::view_path()))
+            Ok(query.redirect_or_preserving_initial(ListSubmitter::view_path()))
         }
     }
 }
@@ -65,7 +66,6 @@ mod tests {
         http::{StatusCode, header},
         response::IntoResponse,
     };
-    use axum_extra::routing::TypedPath;
 
     use crate::{
         AppError, Context, PgStore,
@@ -100,6 +100,7 @@ mod tests {
             SubstituteSubmitterCreatePath {},
             context,
             store.clone(),
+            Query(QueryParamState::default()),
             Form(form),
         )
         .await
@@ -116,9 +117,7 @@ mod tests {
         assert_eq!(submitters.len(), 1);
         assert_eq!(
             location,
-            ListSubmitter::view_path()
-                .with_query_params(QueryParamState::success())
-                .to_string()
+            format!("{}?&success=true", ListSubmitter::view_path())
         );
 
         Ok(())
@@ -136,6 +135,7 @@ mod tests {
             SubstituteSubmitterCreatePath {},
             context,
             store,
+            Query(QueryParamState::default()),
             Form(form),
         )
         .await

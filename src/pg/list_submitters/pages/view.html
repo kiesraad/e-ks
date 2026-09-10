@@ -10,12 +10,12 @@
       {% if list_submitter.is_empty() %}
         <p class="mt-md font-italic">{{ "political_group.no_list_submitter"|trans }}</p>
         <p class="mt-lg mb-lg">
-          <a href="{{ ListSubmitter::update_path() }}"
+          <a href="{{ steps.step_url(ListSubmitter::update_path() ) }}"
              class="button secondary icon-plus"
              type="button">{{ "political_group.add_list_submitter"|trans }}</a>
         </p>
       {% else %}
-        <a href="{{ ListSubmitter::update_path() }}"
+        <a href="{{ steps.step_url(ListSubmitter::update_path() ) }}"
            class="person-block {{ list_submitter.get_problems(*() ).highest_severity_class() }}">
           {{ list_submitter.name.display() }}
           <br />
@@ -31,7 +31,7 @@
       {% else %}
         <div class="substitute-list-submitters">
           {% for submitter in substitute_submitters %}
-            <a href="{{ submitter.substitute_update_path() }}"
+            <a href="{{ steps.step_url(submitter.substitute_update_path() ) }}"
                class="person-block {{ submitter.get_problems(*() ).highest_severity_class() }}">
               {{ submitter.name.display() }}
               <br />
@@ -43,7 +43,7 @@
         </div>
       {% endif %}
       <p class="mt-lg">
-        <a href="{{ ListSubmitter::substitute_create_path() }}"
+        <a href="{{ steps.step_url(ListSubmitter::substitute_create_path() ) }}"
            class="button secondary icon-plus"
            type="button">{{ "political_group.add_substitute_submitter"|trans }}</a>
       </p>
