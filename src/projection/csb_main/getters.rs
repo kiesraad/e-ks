@@ -30,7 +30,7 @@ impl CsbMainStore {
             .ok_or(AppError::GenericNotFound)
     }
 
-    pub fn get_hearing_details(&self) -> HearingDetails {
+    pub fn get_hearing_details(&self) -> Option<HearingDetails> {
         self.data.read().hearing_details.clone()
     }
 
