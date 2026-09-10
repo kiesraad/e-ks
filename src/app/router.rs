@@ -398,6 +398,10 @@ mod tests {
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             ),
             ("/csb/examination/i4.pdf", "application/pdf"),
+            (
+                "/csb/examination/finish/verzuimbrieven.zip",
+                "application/zip",
+            ),
         ] {
             let app: Router = create(state.clone()).with_state(state.clone());
             let request = committee_request(&state, uri).await;
@@ -410,6 +414,23 @@ mod tests {
                 "{uri}"
             );
         }
+    }
+
+    /// `/csb/examination/finish/{stream_id}` shares its first segments with
+    /// the static finish page and the `{stream_id}` group route; it must reach
+    /// the omission letter page's stream extractor rather than fall through.
+    #[tokio::test]
+    async fn omission_letter_page_route_resolves_under_the_finish_page() {
+        let state = AppState::new_for_tests().await;
+        let app: Router = create(state.clone()).with_state(state.clone());
+
+        let uri = format!("/csb/examination/finish/{}", crate::StreamId::new());
+        let request = committee_request(&state, &uri).await;
+        let response = app.oneshot(request).await.expect("response");
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let body = response_body_string(response).await;
+        assert!(body.contains("Stream not found"), "{body}");
     }
 
     #[tokio::test]
