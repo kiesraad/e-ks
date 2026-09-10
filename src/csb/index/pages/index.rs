@@ -98,7 +98,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn index_links_i4_download_as_phase_4() {
+    async fn index_links_finalise_as_phase_4() {
         let response = index(CsbIndexPath {}, CsbContext::new_test())
             .await
             .unwrap()
@@ -106,8 +106,8 @@ mod tests {
 
         let body = response_body_string(response).await;
         assert!(body.contains("Phase 4"));
-        assert!(body.contains("href=\"/csb/examination/i4.pdf\""));
-        assert!(body.contains("Download I 4"));
+        assert!(body.contains("href=\"/csb/finalise\""));
+        assert!(body.contains("Go to finalise candidate lists"));
     }
 
     #[test]

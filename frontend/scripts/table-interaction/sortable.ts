@@ -642,8 +642,9 @@ export class SortableTable {
   }
 }
 
-// Helper function to send the new order to the server after a drag-and-drop interaction.
-export function reorderList(updateUrl: string, person_ids: string[]) {
+// Helper function to send the new order to the server after a drag-and-drop
+// interaction, as a JSON object with the row ids under `key`.
+export function reorderList(updateUrl: string, key: string, ids: string[]) {
   // CSRF token from the layout's meta tag; the CSRF guard requires it.
   const csrfToken =
     document
@@ -655,15 +656,15 @@ export function reorderList(updateUrl: string, person_ids: string[]) {
       "Content-Type": "application/json",
       "X-CSRF-Token": csrfToken,
     },
-    body: JSON.stringify({ person_ids }),
+    body: JSON.stringify({ [key]: ids }),
   })
     .then((response) => {
       if (!response.ok) {
-        console.error("Failed to update candidate order", response.status);
+        console.error("Failed to update order", response.status);
       }
     })
     .catch((error) => {
-      console.error("Failed to update candidate order", error);
+      console.error("Failed to update order", error);
     });
 }
 
@@ -678,6 +679,7 @@ export default function setupSortable() {
   }
 
   const updateUrl = table.dataset.sortableUpdateUrl;
+  const updateKey = table.dataset.sortableUpdateKey ?? "person_ids";
   const sortable = new SortableTable(tbody);
 
   sortable.attachHandleEvents();
@@ -685,7 +687,7 @@ export default function setupSortable() {
 
   if (updateUrl) {
     sortable.setOnChange((order: string[]) => {
-      reorderList(updateUrl, order);
+      reorderList(updateUrl, updateKey, order);
     });
   }
 

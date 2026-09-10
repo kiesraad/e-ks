@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    CsbUser, Event, HasCsbUser,
+    CsbUser, Event, HasCsbUser, StreamId,
     structs::csb::{RegisteredPoliticalGroup, RegisteredPoliticalGroupId},
     trans,
 };
@@ -30,6 +30,7 @@ pub enum CsbMainAction {
     CreateRegisteredPoliticalGroup(RegisteredPoliticalGroup),
     UpdateRegisteredPoliticalGroup(RegisteredPoliticalGroup),
     DeleteRegisteredPoliticalGroup(RegisteredPoliticalGroupId),
+    UpdateListOrder(Vec<StreamId>),
 }
 
 impl CsbMainAction {
@@ -52,6 +53,7 @@ impl Event for CsbMainEvent {
             CsbMainAction::CreateRegisteredPoliticalGroup(_)
             | CsbMainAction::UpdateRegisteredPoliticalGroup(_)
             | CsbMainAction::DeleteRegisteredPoliticalGroup(_) => "registered_political_group",
+            CsbMainAction::UpdateListOrder(_) => "numbering",
         }
     }
 
@@ -62,6 +64,7 @@ impl Event for CsbMainEvent {
             CsbMainAction::CreateRegisteredPoliticalGroup(_) => "create_registered_political_group",
             CsbMainAction::UpdateRegisteredPoliticalGroup(_) => "update_registered_political_group",
             CsbMainAction::DeleteRegisteredPoliticalGroup(_) => "delete_registered_political_group",
+            CsbMainAction::UpdateListOrder(_) => "update_list_order",
         }
     }
 
@@ -78,6 +81,9 @@ impl Event for CsbMainEvent {
             CsbMainAction::DeleteRegisteredPoliticalGroup(_) => {
                 trans!("audit_log.event.delete_registered_political_group", locale)
             }
+            CsbMainAction::UpdateListOrder(_) => {
+                trans!("audit_log.event.update_list_order", locale)
+            }
         }
     }
 
@@ -90,6 +96,11 @@ impl Event for CsbMainEvent {
                 group.appellation, group.previous_votes, group.previous_seats
             ),
             CsbMainAction::DeleteRegisteredPoliticalGroup(id) => id.to_string(),
+            CsbMainAction::UpdateListOrder(order) => order
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(", "),
         }
     }
 }
@@ -118,5 +129,17 @@ mod tests {
         assert_eq!(create.description(Locale::En), "Registered political group");
         assert_eq!(create.details(), "Test Partij: 1234 votes, 2 seats");
         assert_eq!(delete.details(), group.id.to_string());
+    }
+
+    #[test]
+    fn list_order_event_lists_the_streams_in_order() {
+        let first = StreamId::new();
+        let second = StreamId::new();
+        let event = CsbMainAction::UpdateListOrder(vec![first, second]).by(CsbUser::new_test());
+
+        assert_eq!(event.category(), "numbering");
+        assert_eq!(event.key(), "update_list_order");
+        assert_eq!(event.description(Locale::En), "Updated list order");
+        assert_eq!(event.details(), format!("{first}, {second}"));
     }
 }

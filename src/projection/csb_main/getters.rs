@@ -1,7 +1,7 @@
 //! Read accessors over the CSB main projection.
 
 use crate::{
-    AppError, CsbMainStore,
+    AppError, CsbMainStore, StreamId,
     structs::{
         common::Appellation,
         csb::{RegisteredPoliticalGroup, RegisteredPoliticalGroupId},
@@ -15,6 +15,12 @@ impl CsbMainStore {
         let mut groups = self.data.read().registered_political_groups.clone();
         groups.sort_by(RegisteredPoliticalGroup::numbering_order);
         groups
+    }
+
+    /// The order the lists numbered by lot were drawn in, as the streams of
+    /// their political groups; empty until the order is recorded.
+    pub fn list_order(&self) -> Vec<StreamId> {
+        self.data.read().list_order.clone()
     }
 
     pub fn get_registered_political_group(
@@ -110,6 +116,26 @@ mod tests {
             Err(AppError::GenericNotFound)
         ));
         assert!(store.registered_political_groups().is_empty());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn list_order_is_empty_until_recorded_and_then_replaced() -> Result<(), AppError> {
+        let store = store_with(&[]).await;
+        assert!(store.list_order().is_empty());
+
+        let first = StreamId::new();
+        let second = StreamId::new();
+        store
+            .update(CsbMainAction::UpdateListOrder(vec![first, second]).by(CsbUser::new_test()))
+            .await?;
+        assert_eq!(store.list_order(), vec![first, second]);
+
+        store
+            .update(CsbMainAction::UpdateListOrder(vec![second, first]).by(CsbUser::new_test()))
+            .await?;
+        assert_eq!(store.list_order(), vec![second, first]);
 
         Ok(())
     }

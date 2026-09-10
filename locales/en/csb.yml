@@ -69,6 +69,18 @@ declarations_of_support:
   instruction: Report problems with the declarations of support
   title: Declarations of support
 examination: Examination
+finalise:
+  add_objection: Add objection
+  district_count: Electoral districts
+  i4_note: Official report on the validity and numbering of the candidate lists. Create the form for the report of the public session.
+  i4_title: I 4 Official report
+  no_lists: There are no lists to number.
+  objections_note: Did anyone raise an objection during the session? Add it below.
+  objections_title: Enter objection
+  order_note: "Political groups that obtained one or more seats at the previous election start at the top, in the order of their votes. Drag the lists into the order determined during the session."
+  order_title: Party order
+  position: Position
+  title: Finalise candidate lists
 finish_examination:
   download_note: Download all letters of omission as Word and PDF files in a single ZIP
   download_pdf: Download PDF
@@ -127,17 +139,19 @@ import:
 index:
   closes_on: Closes on
   download_election_definition: Download election definition
-  download_i4: Download I 4
   feature:
     add_omissions: Add omissions and corrections
     create_i1_letters: Create I 1 and omission letters
     create_i4: Create I 4
+    record_list_order: Record the order drawn by lot
+    record_objections: Record objections
     recover_omissions: Recover omissions
     register_appellations: Record registered appellations
     register_previous_results: Record previous election results
     report_errors: Report errors
     view_candidate_lists: View candidate lists
   go_to_examination: Go to examination
+  go_to_finalise: Go to finalise candidate lists
   go_to_pre_submission: Go to pre-submission
   go_to_recovery: Go to recovered lists
   go_to_registered_political_groups: Go to registered political groups
