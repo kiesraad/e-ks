@@ -1,0 +1,88 @@
+{% extends "csb/components/layout.html" %}
+{% block breadcrumbs %}
+  {{ breadcrumb(crate::csb::finalise::CsbFinalisePath, "csb.finalise.title") }}
+{% endblock %}
+{% block page_title %}{{ "csb.finalise.title"|trans }}{% endblock %}
+{% block content %}
+  <div class="examination-panels">
+    <div class="examination-panel">
+      <div class="examination-panel-header">
+        <div>
+          <h3>{{ "csb.finalise.i4_title"|trans }}</h3>
+          <p>{{ "csb.finalise.i4_note"|trans }}</p>
+        </div>
+        <a class="button secondary icon-plus-end" href="#">{{ "csb.finish_examination.hearing_details"|trans }}</a>
+      </div>
+      <div class="examination-strip">
+        <a href="{{ CsbI4DocxDownloadPath }}"
+           class="button secondary icon-download">{{ "csb.finish_examination.download_word"|trans }}</a>
+        <a href="{{ CsbI4DownloadPath }}" class="button primary icon-download">{{ "csb.finish_examination.download_pdf"|trans }}</a>
+      </div>
+    </div>
+    <div class="examination-panel">
+      <div class="examination-panel-header">
+        <div>
+          <h3>{{ "csb.finalise.order_title"|trans }}</h3>
+          <p>{{ "csb.finalise.order_note"|trans }}</p>
+        </div>
+      </div>
+      {% if numbering.groups.is_empty() %}
+        <p class="font-italic">{{ "csb.finalise.no_lists"|trans }}</p>
+      {% else %}
+        <table class="sortable list-order-table"
+               id="list-order-table"
+               data-sortable-update-url="{{ CsbListOrderPath }}"
+               data-sortable-update-key="stream_ids">
+          <thead>
+            <tr>
+              <th scope="col" colspan="2">{{ "csb.finalise.position"|trans }}</th>
+              <th scope="col">{{ "common.political_group"|trans }}</th>
+              <th scope="col" class="statistic">{{ "csb.registered_political_groups.previous_votes"|trans }}</th>
+              <th scope="col" class="statistic">{{ "csb.registered_political_groups.previous_seats"|trans }}</th>
+              {% if has_multiple_districts %}
+                <th scope="col" class="statistic">{{ "csb.finalise.district_count"|trans }}</th>
+              {% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for group in numbering.groups %}
+              <tr data-id="{{ group.stream_id }}">
+                <td class="drag-handle"></td>
+                <td>
+                  <span class="badge position-badge">{{ loop.index }}</span>
+                </td>
+                <td>
+                  <strong>{{ group.appellation }}</strong>
+                </td>
+                <td class="font-number statistic">
+                  {% if let Some(votes) = group.previous_votes %}
+                    {{ votes }}
+                  {% endif %}
+                </td>
+                <td class="font-number statistic">
+                  {% if let Some(seats) = group.previous_seats %}
+                    {{ seats }}
+                  {% endif %}
+                </td>
+                {% if has_multiple_districts %}
+                  <td class="font-number statistic">{{ group.district_count }}</td>
+                {% endif %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
+    </div>
+    <div class="examination-panel">
+      <div class="examination-panel-header">
+        <div>
+          <h3>{{ "csb.finalise.objections_title"|trans }}</h3>
+          <p>{{ "csb.finalise.objections_note"|trans }}</p>
+        </div>
+      </div>
+      <div class="examination-strip">
+        <a class="button secondary icon-plus" href="#">{{ "csb.finalise.add_objection"|trans }}</a>
+      </div>
+    </div>
+  </div>
+{% endblock %}

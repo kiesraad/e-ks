@@ -8,7 +8,7 @@ use crate::{
     projection::Scrapped,
     structs::{
         candidate_lists::CandidateListId,
-        common::FullName,
+        common::{Appellation, FullName},
         csb::{CsbPhase, RecoveryProgress},
         list_designation::ListDesignation,
         political_groups::PoliticalGroup,
@@ -81,15 +81,57 @@ impl CsbPoliticalGroup {
     /// The name shown for the group. Once its appellation is scrapped, the
     /// recovery phase names it as the blank list it continues as.
     pub fn csb_appellation(&self) -> String {
-        let first_candidate_name = self.first_candidate_name.as_ref();
         if self.mode.is_recovery() && self.is_appellation_scrapped() {
-            return PoliticalGroup {
-                list_designation: Some(ListDesignation::Blank),
-                ..self.political_group.clone()
-            }
-            .csb_appellation(first_candidate_name);
+            return self.blank_appellation();
         }
-        self.political_group.csb_appellation(first_candidate_name)
+        self.political_group
+            .csb_appellation(self.first_candidate_name.as_ref())
+    }
+
+    /// The name the group's lists are numbered under: the appellation, or
+    /// the blank list the group continues as once its appellation is scrapped.
+    pub fn numbering_appellation(&self) -> String {
+        if self.is_appellation_scrapped() {
+            return self.blank_appellation();
+        }
+        self.political_group
+            .csb_appellation(self.first_candidate_name.as_ref())
+    }
+
+    /// The group named as a blank list, e.g. `Blanco (Nagelhout, H.)`.
+    fn blank_appellation(&self) -> String {
+        PoliticalGroup {
+            list_designation: Some(ListDesignation::Blank),
+            ..self.political_group.clone()
+        }
+        .csb_appellation(self.first_candidate_name.as_ref())
+    }
+
+    /// The registered appellation to match the group on: none for a blank
+    /// list or once the appellation is scrapped.
+    pub fn registered_appellation(&self) -> Option<&Appellation> {
+        if self.is_appellation_scrapped()
+            || self.political_group.list_designation == Some(ListDesignation::Blank)
+        {
+            return None;
+        }
+        self.political_group.appellation.as_ref()
+    }
+
+    /// The districts in which the group still has a valid list.
+    pub fn valid_districts(&self) -> Vec<ElectoralDistrict> {
+        let mut districts = Vec::new();
+        for (list, list_districts) in &self.candidate_list_districts {
+            if self.scrapped.is_list_scrapped(*list) {
+                continue;
+            }
+            for district in list_districts {
+                if !self.scrapped.is_district_scrapped(*district) && !districts.contains(district) {
+                    districts.push(*district);
+                }
+            }
+        }
+        districts
     }
 
     pub fn is_appellation_scrapped(&self) -> bool {

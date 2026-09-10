@@ -69,6 +69,18 @@ declarations_of_support:
   instruction: Meld problemen met de ondersteunings\u00ADverklaringen
   title: Ondersteunings\u00ADverklaringen
 examination: Onderzoek
+finalise:
+  add_objection: Bezwaar toevoegen
+  district_count: Kieskringen
+  i4_note: Proces-verbaal over geldigheid en nummering kandidatenlijsten. Maak het formulier aan van het verslag van de openbare zitting.
+  i4_title: I 4 Proces-verbaal
+  no_lists: Er zijn geen lijsten om te nummeren.
+  objections_note: Heeft iemand tijdens de zitting bezwaar gemaakt? Voeg het hieronder toe.
+  objections_title: Bezwaar invoeren
+  order_note: "Politieke groeperingen die bij de laatstgehouden verkiezing een of meer zetels hebben behaald, staan vooraan op volgorde van het aantal stemmen. Versleep de lijsten in de volgorde die tijdens de zitting is vastgesteld."
+  order_title: Partij volgorde
+  position: Positie
+  title: Vaststellen kandidatenlijsten
 finish_examination:
   download_note: Download hier alle verzuimbrieven als Word en PDF in één ZIP
   download_pdf: Download PDF
@@ -127,17 +139,19 @@ import:
 index:
   closes_on: Sluit op
   download_election_definition: Verkiezings\u00ADdefinitie downloaden
-  download_i4: I 4 downloaden
   feature:
     add_omissions: Verzuimen en correcties toevoegen
     create_i1_letters: I 1 en verzuimbrieven aanmaken
     create_i4: I 4 aanmaken
+    record_list_order: Uitslag van de loting vastleggen
+    record_objections: Bezwaren vastleggen
     recover_omissions: Verzuimen herstellen
     register_appellations: Geregistreerde aanduidingen vastleggen
     register_previous_results: Uitslag van de laatstgehouden verkiezing vastleggen
     report_errors: Fouten doorgeven
     view_candidate_lists: Inzage kandidatenlijsten
   go_to_examination: Ga naar onderzoek
+  go_to_finalise: Ga naar vaststellen kandidatenlijsten
   go_to_pre_submission: Ga naar voorinlevering
   go_to_recovery: Ga naar herstelde lijsten
   go_to_registered_political_groups: Ga naar registratie
