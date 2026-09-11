@@ -1,7 +1,8 @@
 use axum::response::IntoResponse;
 
 use crate::{
-    AppError, Context, PgStore, finalise::pages::DownloadDocumentsPath,
+    AppError, Context, PgStore,
+    finalise::{AllProblems, pages::DownloadDocumentsPath},
     models::documents::DocumentData,
 };
 
@@ -10,6 +11,11 @@ pub async fn gen_documents(
     store: PgStore,
     context: Context,
 ) -> Result<impl IntoResponse, AppError> {
+    // same gate as the finalise page, before generating anything
+    if !AllProblems::find_all(&store)?.models_downloadable() {
+        return Err(AppError::NotDownloadable);
+    }
+
     let (bundles, filename) = DocumentData::from_store_and_context(&store, &context, locale)?;
 
     DocumentData::serve_download(bundles, filename, path.to_string(), &store, &store).await
@@ -24,6 +30,7 @@ mod tests {
         ElectionConfig,
         core::ModelLocale,
         structs::{
+            candidate_lists::CandidateList,
             common::{BsnOrNoneConfirmed, CountryCode, FullName},
             name_authorisations::NameAuthorisationId,
             persons::Representative,
@@ -44,10 +51,7 @@ mod tests {
         )
         .await;
 
-        match result {
-            Err(AppError::IncompleteData(_)) => {}
-            _ => panic!("expected incomplete list submitter data error"),
-        }
+        assert!(matches!(result, Err(AppError::NotDownloadable)));
 
         Ok(())
     }
@@ -63,12 +67,14 @@ mod tests {
             DownloadDocumentsPath {
                 locale: crate::core::ModelLocale::Nl,
             },
-            store,
-            context,
+            store.clone(),
+            context.clone(),
         )
         .await;
 
-        match result {
+        // the gate refuses before document generation can
+        assert!(matches!(result, Err(AppError::NotDownloadable)));
+        match DocumentData::from_store_and_context(&store, &context, ModelLocale::Nl) {
             Err(AppError::IncompleteData(message)) => {
                 assert_eq!(message, "Expected no more than 1 name authorisation")
             }
@@ -152,10 +158,7 @@ mod tests {
         )
         .await;
 
-        match result {
-            Err(AppError::IncompleteData(_)) => {}
-            _ => panic!("expected missing data error"),
-        }
+        assert!(matches!(result, Err(AppError::NotDownloadable)));
 
         Ok(())
     }
@@ -193,6 +196,44 @@ mod tests {
     /// The download rate limit is enforced before any PDF is rendered: the
     /// download event is recorded first, and the render only starts once that
     /// event is accepted.
+    #[tokio::test]
+    async fn gen_documents_refuses_a_submission_with_errors() -> Result<(), AppError> {
+        let (store, list_ids, context) =
+            setup_documents_test_state(2, 2, true, true, ElectionConfig::EK27).await?;
+
+        // duplicate districts: an error document generation itself does not catch
+        let first = store.get_candidate_list(list_ids[0])?;
+        let second = CandidateList {
+            electoral_districts: first.electoral_districts.clone(),
+            ..store.get_candidate_list(list_ids[1])?
+        };
+        second.update_districts(&store).await?;
+        assert!(!AllProblems::find_all(&store)?.models_downloadable());
+
+        match gen_documents(
+            DownloadDocumentsPath {
+                locale: ModelLocale::Nl,
+            },
+            store.clone(),
+            context,
+        )
+        .await
+        {
+            Err(AppError::NotDownloadable) => {}
+            Err(err) => panic!("expected the download gate, got {err:?}"),
+            Ok(_) => panic!("download must be refused"),
+        }
+        assert!(
+            !store
+                .get_events()
+                .iter()
+                .any(|e| matches!(e.payload, crate::PgEvent::DownloadFile { .. })),
+            "a refused download is not recorded"
+        );
+
+        Ok(())
+    }
+
     #[tokio::test]
     async fn gen_documents_is_rate_limited() -> Result<(), AppError> {
         let (store, _, context) =

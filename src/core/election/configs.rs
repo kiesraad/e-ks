@@ -256,6 +256,15 @@ impl ElectionConfig {
             .collect()
     }
 
+    /// The submitted districts of this election, deduplicated, in election order.
+    pub fn known_districts(&self, submitted: &[ElectoralDistrict]) -> Vec<ElectoralDistrict> {
+        self.electoral_districts()
+            .iter()
+            .filter(|district| submitted.contains(district))
+            .copied()
+            .collect()
+    }
+
     pub fn has_only_one_district(&self) -> bool {
         self.electoral_districts().len() == 1
     }

@@ -26,6 +26,9 @@ districts:
   all: Alle
   duplicate_hint: Een of meerdere kieskringen komen op meerdere kandidatenlijsten voor
 edit_position: Volgorde op de lijst
+errors:
+  candidate_set_changed: Bij het herordenen kan alleen de volgorde van de huidige kandidaten veranderen.
+  duplicate_candidate: Een persoon kan maar één keer op een kandidatenlijst staan.
 fields:
   electoral_districts: Kieskringen
   position: Positie

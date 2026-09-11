@@ -39,8 +39,12 @@ impl CandidateList {
             .join("-")
     }
 
+    /// Every election district is on the list; repeats do not count.
     pub fn contains_all_districts(&self, election: &ElectionConfig) -> bool {
-        self.electoral_districts.len() == election.electoral_districts().len()
+        election
+            .electoral_districts()
+            .iter()
+            .all(|district| self.electoral_districts.contains(district))
     }
 }
 
@@ -75,7 +79,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn contains_all_districts_compares_to_election_config_length() {
+    async fn contains_all_districts_requires_every_election_district() {
         let election = ElectionConfig::EK27;
         let list = base_candidate_list(election.electoral_districts().to_vec());
         assert!(list.contains_all_districts(&election));
@@ -85,6 +89,13 @@ mod tests {
             ElectoralDistrict::NoordHolland,
         ]);
         assert!(!list.contains_all_districts(&election));
+
+        // same length, one district repeated
+        let mut districts = election.electoral_districts().to_vec();
+        districts.pop();
+        districts.push(ElectoralDistrict::Utrecht);
+        assert_eq!(districts.len(), election.electoral_districts().len());
+        assert!(!base_candidate_list(districts).contains_all_districts(&election));
     }
 
     async fn insert_list(
@@ -571,6 +582,26 @@ mod tests {
         let err = list.update_order(&store, &person_ids).await.unwrap_err();
 
         assert!(matches!(err, AppError::TooManyCandidates { .. }));
+        assert!(store.get_candidate_list(list_id)?.candidates.is_empty());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn update_order_rejects_duplicates() -> Result<(), AppError> {
+        let store = PgStore::new_for_test();
+        let list_id = CandidateListId::new();
+        let mut list = sample_candidate_list(list_id);
+        let person = sample_person(PersonId::new());
+        list.create(&store).await?;
+        person.create(&store).await?;
+
+        let err = list
+            .update_order(&store, &[person.id, person.id])
+            .await
+            .unwrap_err();
+
+        assert!(matches!(err, AppError::DuplicateCandidate));
         assert!(store.get_candidate_list(list_id)?.candidates.is_empty());
 
         Ok(())

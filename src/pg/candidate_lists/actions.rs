@@ -67,6 +67,12 @@ impl CandidateList {
             });
         }
 
+        // a person holds at most one position on a list
+        let distinct = person_ids.iter().collect::<BTreeSet<_>>();
+        if distinct.len() != person_ids.len() {
+            return Err(AppError::DuplicateCandidate);
+        }
+
         // check all new ids exist
         if !person_ids.iter().all(|id| existing_person_ids.contains(id)) {
             return Err(AppError::GenericNotFound);

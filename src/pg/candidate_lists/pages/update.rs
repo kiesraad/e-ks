@@ -61,8 +61,7 @@ pub async fn update_candidate_list_submit(
     }
     let available_districts = CandidateList::available_districts(&store, &context.election);
     let duplicate_districts = candidate_list.duplicate_districts(&store);
-    form.electoral_districts
-        .retain(|district| context.election.electoral_districts().contains(district));
+    form.electoral_districts = context.election.known_districts(&form.electoral_districts);
     match form.validate_update(&candidate_list) {
         Err(form_data) => Ok(HtmlTemplate(
             CandidateListUpdateTemplate {
@@ -220,6 +219,46 @@ mod tests {
         assert_eq!(
             candidate_list.electoral_districts,
             updated_list.electoral_districts
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn update_candidate_list_stores_a_repeated_district_once() -> Result<(), AppError> {
+        let store = PgStore::new_for_test();
+        let context = Context::new_test_without_db();
+        let candidate_list = CandidateList {
+            electoral_districts: vec![ElectoralDistrict::Utrecht],
+            ..Default::default()
+        };
+        candidate_list.create(&store).await?;
+
+        let form = CandidateListForm {
+            electoral_districts: vec![
+                ElectoralDistrict::Utrecht,
+                ElectoralDistrict::Drenthe,
+                ElectoralDistrict::Utrecht,
+            ],
+        };
+        update_candidate_list_submit(
+            CandidateListUpdatePath {
+                list_id: candidate_list.id,
+            },
+            context,
+            candidate_list.clone(),
+            store.clone(),
+            Query(QueryParamState::default()),
+            Form(form),
+        )
+        .await?;
+
+        // deduplicated, in the election's district order
+        assert_eq!(
+            store
+                .get_candidate_list(candidate_list.id)?
+                .electoral_districts,
+            vec![ElectoralDistrict::Drenthe, ElectoralDistrict::Utrecht]
         );
 
         Ok(())

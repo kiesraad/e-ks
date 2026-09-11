@@ -68,8 +68,7 @@ pub async fn create_candidate_list_submit(
     }
     let available_districts = CandidateList::available_districts(&store, &context.election);
     let should_copy_candidates = form.copy_candidates;
-    form.electoral_districts
-        .retain(|district| context.election.electoral_districts().contains(district));
+    form.electoral_districts = context.election.known_districts(&form.electoral_districts);
 
     match form.validate_create() {
         Err(form_data) => Ok(HtmlTemplate(
@@ -222,6 +221,38 @@ mod test {
         assert_eq!(lists.len(), 2);
         let new_list = &lists[1].list;
         assert_eq!(new_list.candidates, vec![person_a.id, person_b.id]);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn create_candidate_list_stores_a_repeated_district_once() -> Result<(), AppError> {
+        let store = PgStore::new_for_test();
+        let context = Context::new_test_without_db();
+
+        let form = CandidateListCreateForm {
+            electoral_districts: vec![
+                ElectoralDistrict::Drenthe,
+                ElectoralDistrict::Utrecht,
+                ElectoralDistrict::Drenthe,
+            ],
+            copy_candidates: false,
+        };
+        create_candidate_list_submit(
+            CandidateListCreatePath {},
+            context,
+            store.clone(),
+            Form(form),
+        )
+        .await?;
+
+        let lists = CandidateListSummary::list(&store);
+        assert_eq!(lists.len(), 1);
+        // deduplicated, in the election's district order
+        assert_eq!(
+            lists[0].list.electoral_districts,
+            vec![ElectoralDistrict::Drenthe, ElectoralDistrict::Utrecht]
+        );
 
         Ok(())
     }
