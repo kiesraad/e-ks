@@ -3,7 +3,8 @@ use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Locale,
+    CsbStream, Locale,
+    projection::WithCorrections,
     structs::{
         audit_log::FieldChange,
         common::{Appellation, DateOfBirth, Initials, LastName, LastNamePrefix, PlaceOfResidence},
@@ -96,7 +97,35 @@ impl PersonCorrection {
         }
     }
 
-    pub fn change(&self, locale: Locale) -> FieldChange {
+    /// The value this correction replaces, as `person` has it.
+    fn current_value(&self, person: &Person) -> String {
+        match self {
+            PersonCorrection::Initials(_) => person.name.initials.to_string(),
+            PersonCorrection::LastNamePrefix(_) => person
+                .name
+                .last_name_prefix
+                .as_ref()
+                .map(ToString::to_string)
+                .unwrap_or_default(),
+            PersonCorrection::LastName(_) => person.name.last_name.to_string(),
+            PersonCorrection::DateOfBirth(_) => person
+                .personal_data
+                .date_of_birth
+                .as_ref()
+                .map(ToString::to_string)
+                .unwrap_or_default(),
+            PersonCorrection::PlaceOfResidence(_) => person
+                .personal_data
+                .place_of_residence
+                .as_ref()
+                .map(ToString::to_string)
+                .unwrap_or_default(),
+        }
+    }
+
+    /// The audit-log change from `before` (the person as corrected so far) to
+    /// this correction's value.
+    pub fn change(&self, before: Option<&Person>, locale: Locale) -> FieldChange {
         let (field, new_value) = match self {
             PersonCorrection::Initials(v) => (
                 trans!("audit_log.detail.fields.initials", locale),
@@ -121,7 +150,7 @@ impl PersonCorrection {
         };
         FieldChange::Regular {
             field,
-            old_value: String::new(),
+            old_value: before.map(|p| self.current_value(p)).unwrap_or_default(),
             new_value,
         }
     }
@@ -138,14 +167,23 @@ impl PersonCorrection {
 }
 
 impl Correction {
-    pub fn change(&self, locale: Locale) -> FieldChange {
+    /// The audit-log change this correction made to `before`, the stream as
+    /// it stood just before the correction.
+    pub fn change(&self, before: &CsbStream, locale: Locale) -> FieldChange {
         match self {
             Correction::Appellation(v) => FieldChange::Regular {
                 field: trans!("audit_log.detail.fields.appellation", locale),
-                old_value: String::new(),
+                old_value: before
+                    .get_political_group(WithCorrections::All)
+                    .appellation
+                    .map(|a| a.to_string())
+                    .unwrap_or_default(),
                 new_value: v.to_string(),
             },
-            Correction::Person(_, person_correction) => person_correction.change(locale),
+            Correction::Person(person_id, person_correction) => person_correction.change(
+                before.get_person(*person_id, WithCorrections::All).as_ref(),
+                locale,
+            ),
         }
     }
 }

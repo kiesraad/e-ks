@@ -51,9 +51,8 @@ impl Event for CsbEvent {
         self.action.details()
     }
 
-    fn changes(&self, locale: crate::Locale) -> Vec<crate::structs::audit_log::FieldChange> {
-        self.action.changes(locale)
-    }
+    // `changes` stays the empty default: a correction's old value needs the
+    // stream as it stood before the event, which the audit detail page replays.
 }
 
 /// Domain actions that mutate the CSB (Centraal Stembureau) store.
@@ -213,13 +212,6 @@ impl CsbAction {
             CsbAction::UpdateCorrection(_) => String::new(),
             CsbAction::BrpPersonChecked { person, .. } => person.to_string(),
             CsbAction::SetBrpStatus(value) => value.to_string(),
-        }
-    }
-
-    fn changes(&self, locale: crate::Locale) -> Vec<crate::structs::audit_log::FieldChange> {
-        match self {
-            CsbAction::UpdateCorrection(correction) => vec![correction.change(locale)],
-            _ => vec![],
         }
     }
 }

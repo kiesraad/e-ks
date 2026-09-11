@@ -87,6 +87,7 @@ pub async fn audit_log_gen_documents(
             "Documents cannot be downloaded for this version",
         ));
     }
+    store.check_download_limit()?;
 
     let (bundles, filename) = DocumentData::from_store_and_context(&temp_store, &context, locale)?;
 

@@ -110,6 +110,7 @@ filter:
     system: Systeem
   csb_main_stream: Main CSB stream
   event_type: Type gebeurtenis
+  pre_submission_stream: "{} (voorinlevering)"
   reset: Wissen
   search: Zoeken
   search_placeholder: "Zoek op naam, ID..."

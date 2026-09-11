@@ -3,6 +3,7 @@ use axum_extra::routing::TypedPath;
 use crate::{
     AppError, CsbStream, QueryParamState,
     csb::examination::extractors::CsbPoliticalGroup,
+    projection::WithCorrections,
     structs::{
         candidate_lists::CandidateListId,
         csb::{CsbPhase, Omission, OmissionCategory},
@@ -20,6 +21,8 @@ pub struct AllOmissions {
 pub struct CandidateOmissions {
     pub omissions: Vec<OmissionWithPath>,
     pub person: Person,
+    /// No longer on the corrected list; `person` is the imported data.
+    pub removed: bool,
 }
 
 pub struct OmissionWithPath {
@@ -103,11 +106,19 @@ impl CsbStream {
         if let Some(candidate) = candidates.iter_mut().find(|c| c.person.id == person) {
             candidate.omissions.push(with_path);
         } else {
+            // a candidate deleted on paper keeps their omissions, shown from the imported data
+            let (person, removed) = match self.get_person(person, WithCorrections::All) {
+                Some(current) => (current, false),
+                None => (
+                    self.get_person(person, WithCorrections::None)
+                        .ok_or(AppError::InternalServerError)?,
+                    true,
+                ),
+            };
             candidates.push(CandidateOmissions {
                 omissions: vec![with_path],
-                person: self
-                    .get_person(person, crate::projection::WithCorrections::All)
-                    .ok_or(AppError::InternalServerError)?,
+                person,
+                removed,
             });
         }
 
@@ -333,6 +344,46 @@ mod tests {
 
         assert_eq!(all_omissions.candidates.len(), 1);
         assert_eq!(all_omissions.candidates[0].omissions.len(), 1)
+    }
+
+    /// A candidate deleted on paper keeps their omissions in the overview,
+    /// shown from the imported data, instead of failing the page.
+    #[tokio::test]
+    async fn omissions_of_a_candidate_deleted_on_paper_are_kept() {
+        let store = CsbStore::new_for_test();
+
+        let person_id = PersonId::new();
+        store.add_person(sample_person(person_id));
+        let list_id = CandidateListId::new();
+        store.add_candidate_list(sample_candidate_list(list_id));
+
+        Omission::new(
+            OmissionCategory::Candidate {
+                person: person_id,
+                lists: vec![list_id],
+            },
+            "title".parse().unwrap(),
+            "description".parse().unwrap(),
+            None,
+        )
+        .create(&store)
+        .await
+        .expect("Couldn't create omission");
+
+        store
+            .update(crate::CsbAction::PaperCorrectedUpdate(Box::new(
+                crate::PgEvent::DeletePerson { person_id },
+            )))
+            .await
+            .expect("Couldn't delete the candidate");
+
+        let all_omissions = store
+            .get_all_omissions(&CsbPoliticalGroup::new_from_csb_store(&store))
+            .expect("Couldn't retrieve all omissions");
+
+        assert_eq!(all_omissions.candidates.len(), 1);
+        assert!(all_omissions.candidates[0].removed);
+        assert_eq!(all_omissions.candidates[0].person.id, person_id);
     }
 
     #[tokio::test]

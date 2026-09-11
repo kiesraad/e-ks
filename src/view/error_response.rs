@@ -21,6 +21,7 @@ use crate::{AppError, Locale, trans};
 enum ErrorResponseVariant {
     Unauthorised,
     BadRequest,
+    Conflict,
     TooManyRequests,
     InternalServerError,
     ServiceUnavailable,
@@ -32,6 +33,7 @@ impl ErrorResponseVariant {
         match self {
             ErrorResponseVariant::NotFound => StatusCode::NOT_FOUND,
             ErrorResponseVariant::BadRequest => StatusCode::BAD_REQUEST,
+            ErrorResponseVariant::Conflict => StatusCode::CONFLICT,
             ErrorResponseVariant::TooManyRequests => StatusCode::TOO_MANY_REQUESTS,
             ErrorResponseVariant::Unauthorised => StatusCode::UNAUTHORIZED,
             ErrorResponseVariant::InternalServerError => StatusCode::INTERNAL_SERVER_ERROR,
@@ -43,6 +45,7 @@ impl ErrorResponseVariant {
         match self {
             ErrorResponseVariant::Unauthorised => "Unauthorised",
             ErrorResponseVariant::BadRequest => "Bad request",
+            ErrorResponseVariant::Conflict => "Conflict",
             ErrorResponseVariant::TooManyRequests => "Too many requests",
             ErrorResponseVariant::InternalServerError => "Internal server error",
             ErrorResponseVariant::ServiceUnavailable => "Service unavailable",
@@ -61,6 +64,7 @@ enum LocalisedMessage {
     DuplicateCandidate,
     CandidateSetChanged,
     NotDownloadable,
+    Conflict,
 }
 
 impl LocalisedMessage {
@@ -72,16 +76,18 @@ impl LocalisedMessage {
             AppError::DuplicateCandidate => Some(Self::DuplicateCandidate),
             AppError::CandidateSetChanged => Some(Self::CandidateSetChanged),
             AppError::NotDownloadable => Some(Self::NotDownloadable),
+            AppError::Conflict => Some(Self::Conflict),
             _ => None,
         }
     }
 
-    /// Only the rate-limit pages replace the title.
+    /// The pages with a translated title; bad requests keep the variant title.
     fn title(self, locale: Locale) -> Option<String> {
         match self {
             Self::Downloads | Self::Events | Self::Cap => {
                 Some(trans!("common.rate_limit.title", locale))
             }
+            Self::Conflict => Some(trans!("common.request_error.conflict_title", locale)),
             Self::DuplicateCandidate | Self::CandidateSetChanged | Self::NotDownloadable => None,
         }
     }
@@ -91,6 +97,7 @@ impl LocalisedMessage {
             Self::Downloads => trans!("common.rate_limit.downloads_message", locale),
             Self::Events => trans!("common.rate_limit.events_message", locale),
             Self::Cap => trans!("common.rate_limit.cap_message", locale),
+            Self::Conflict => trans!("common.request_error.conflict_message", locale),
             Self::DuplicateCandidate => {
                 trans!("candidate_list.errors.duplicate_candidate", locale)
             }
@@ -227,6 +234,7 @@ impl ErrorResponse {
             | AppError::CandidateSetChanged
             | AppError::NotDownloadable
             | AppError::AmbiguousHash => (BadRequest, err.to_string()),
+            AppError::Conflict => (Conflict, err.to_string()),
             AppError::TooManyDownloads { .. }
             | AppError::TooManyEvents { .. }
             | AppError::EventLimitReached { .. } => LocalisedMessage::from_error(err)
@@ -280,6 +288,7 @@ fn log_app_error(err: &AppError, response: &ErrorResponse) {
             error!(error = ?err, "5xx error");
         }
         ErrorResponseVariant::BadRequest
+        | ErrorResponseVariant::Conflict
         | ErrorResponseVariant::TooManyRequests
         | ErrorResponseVariant::Unauthorised
         | ErrorResponseVariant::NotFound => log_client_error(err),
@@ -318,6 +327,7 @@ fn message_is_safe_to_log(err: &AppError) -> bool {
             | AppError::DuplicateCandidate
             | AppError::CandidateSetChanged
             | AppError::NotDownloadable
+            | AppError::Conflict
     )
 }
 
@@ -410,6 +420,16 @@ mod tests {
             assert_eq!(page.title, "Bad request");
             assert_eq!(page.message, expected);
         }
+    }
+
+    #[test]
+    fn conflict_is_a_translated_409() {
+        let mut response = AppError::Conflict.into_response();
+        assert_eq!(response.status(), StatusCode::CONFLICT);
+
+        let page = ErrorPage::take_from(&mut response, Locale::Nl).expect("error page");
+        assert_eq!(page.title, "Gegevens gewijzigd");
+        assert!(page.message.contains("opnieuw"), "{}", page.message);
     }
 
     /// Taking the page removes it, so it is rendered by one layer only, and a

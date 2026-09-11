@@ -15,6 +15,8 @@ pub async fn gen_documents(
     if !AllProblems::find_all(&store)?.models_downloadable() {
         return Err(AppError::NotDownloadable);
     }
+    // refused before the documents are rendered, not after
+    store.check_download_limit()?;
 
     let (bundles, filename) = DocumentData::from_store_and_context(&store, &context, locale)?;
 
