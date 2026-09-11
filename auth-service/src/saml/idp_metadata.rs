@@ -553,23 +553,61 @@ pub async fn fetch_and_cache_idp_metadata(
 pub fn load_cached_idp_metadata(certs_dir: &Path, trust: &RdTrust) -> Option<IdpMetadata> {
     let path = metadata_cache_path(certs_dir);
     let xml = std::fs::read_to_string(&path).ok()?;
-    match parse_idp_metadata(&xml, trust) {
-        Ok(metadata) => {
-            info!(
-                "[metadata] Loaded IdP metadata from disk cache {} (entity_id={})",
-                path.display(),
-                metadata.entity_id
-            );
-            Some(metadata)
-        }
+    let metadata = match parse_idp_metadata(&xml, trust) {
+        Ok(metadata) => metadata,
         Err(e) => {
             warn!(
                 "[metadata] Ignoring invalid cached metadata at {}: {e}",
                 path.display()
             );
-            None
+            return None;
         }
+    };
+
+    // eID §8.5: not past cacheDuration, and never past the ceiling
+    let Some(age) = cache_age(&path) else {
+        warn!(
+            "[metadata] Ignoring cached metadata at {}: its age cannot be determined",
+            path.display()
+        );
+        return None;
+    };
+    let max_age = metadata
+        .cache_duration
+        .unwrap_or(DEFAULT_CACHE_AGE)
+        .min(MAX_CACHE_AGE);
+    if age > max_age {
+        warn!(
+            "[metadata] Ignoring cached metadata at {}: written {}s ago, older than its cacheDuration of {}s",
+            path.display(),
+            age.as_secs(),
+            max_age.as_secs()
+        );
+        return None;
     }
+
+    info!(
+        "[metadata] Loaded IdP metadata from disk cache {} (entity_id={}, age={}s)",
+        path.display(),
+        metadata.entity_id,
+        age.as_secs()
+    );
+    Some(metadata)
+}
+
+/// Age limit for a cached descriptor without a usable `cacheDuration`.
+const DEFAULT_CACHE_AGE: std::time::Duration = std::time::Duration::from_secs(24 * 60 * 60);
+/// Age limit for a cached descriptor whatever its `cacheDuration` says.
+const MAX_CACHE_AGE: std::time::Duration = std::time::Duration::from_secs(7 * 24 * 60 * 60);
+
+/// How long ago the cache file was written, from its modification time.
+fn cache_age(path: &Path) -> Option<std::time::Duration> {
+    let written = std::fs::metadata(path).and_then(|m| m.modified()).ok()?;
+    Some(
+        std::time::SystemTime::now()
+            .duration_since(written)
+            .unwrap_or_default(),
+    )
 }
 
 #[cfg(test)]
@@ -938,6 +976,37 @@ mod tests {
     fn load_cached_returns_none_when_absent() {
         // No cache file written, so no fallback available.
         assert!(load_cached_idp_metadata(&unique_temp_dir(), &test_trust("urn:test:rd")).is_none());
+    }
+
+    #[test]
+    fn load_cached_returns_none_past_cache_duration() {
+        let dir = unique_temp_dir();
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = metadata_cache_path(&dir);
+        std::fs::write(
+            &path,
+            signed_rd_metadata_attrs("urn:test:rd", r#" cacheDuration="PT1H""#),
+        )
+        .unwrap();
+        let trust = test_trust("urn:test:rd");
+
+        assert!(
+            load_cached_idp_metadata(&dir, &trust).is_some(),
+            "a fresh cache is used"
+        );
+
+        let two_hours_ago = std::time::SystemTime::now() - std::time::Duration::from_secs(2 * 3600);
+        std::fs::File::options()
+            .write(true)
+            .open(&path)
+            .unwrap()
+            .set_modified(two_hours_ago)
+            .unwrap();
+        assert!(
+            load_cached_idp_metadata(&dir, &trust).is_none(),
+            "a cache past its cacheDuration is not trusted"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

@@ -82,6 +82,47 @@ pub(crate) fn flow_cookie(
         .build()
 }
 
+/// One-shot marker: the failed callback ended a flow this browser started, so
+/// the error landing may end the local session (TVS L10).
+const FAILED_FLOW_COOKIE_HOST: &str = "__Host-eks-saml-failed";
+const FAILED_FLOW_COOKIE_DEV: &str = "eks-saml-failed";
+
+fn failed_flow_cookie_name(secure: bool) -> &'static str {
+    if secure {
+        FAILED_FLOW_COOKIE_HOST
+    } else {
+        FAILED_FLOW_COOKIE_DEV
+    }
+}
+
+/// Only has to survive the redirect to the error landing.
+pub(crate) fn failed_flow_cookie(acs_url: &EndpointUrl) -> Cookie<'static> {
+    let secure = acs_url.is_https();
+    Cookie::build((failed_flow_cookie_name(secure), "1"))
+        .http_only(true)
+        .secure(secure)
+        .same_site(SameSite::Lax)
+        .path("/")
+        .max_age(cookie::time::Duration::minutes(1))
+        .build()
+}
+
+/// Whether the marker is present, plus the jar with it removed. Checks both
+/// names, so the error landing needs no deployment knowledge.
+pub(crate) fn take_failed_flow(jar: CookieJar) -> (bool, CookieJar) {
+    let mut present = false;
+    let mut jar = jar;
+    for secure in [true, false] {
+        let name = failed_flow_cookie_name(secure);
+        if jar.get(name).is_some() {
+            present = true;
+            let removal = Cookie::build((name, "")).path("/").secure(secure).build();
+            jar = jar.remove(removal);
+        }
+    }
+    (present, jar)
+}
+
 /// The AuthnRequest ID this browser's flow cookie is bound to, plus the jar with
 /// the one-shot cookie removed. `None` when the cookie is absent, malformed, or
 /// bound to a different `User-Agent`.
@@ -129,6 +170,17 @@ mod tests {
 
     fn acs(url: &str) -> EndpointUrl {
         EndpointUrl::from_base_url(url, "ACS").expect("test ACS URL")
+    }
+
+    #[test]
+    fn failed_flow_marker_is_taken_once() {
+        let jar = CookieJar::new().add(failed_flow_cookie(&acs("https://dv.example/")));
+        let (present, jar) = take_failed_flow(jar);
+        assert!(present);
+        assert!(jar.get(FAILED_FLOW_COOKIE_HOST).is_none());
+
+        let (present, _) = take_failed_flow(CookieJar::new());
+        assert!(!present);
     }
 
     fn id(value: &str) -> MessageId {

@@ -214,15 +214,17 @@ pub trait AuthState: Clone + Send + Sync + 'static {
     /// the auth-service cannot currently run the flow because the RD metadata is
     /// not loaded ([`AuthFailure::Unavailable`]). The auth-service has already
     /// logged the technical detail, so the embedding application is responsible
-    /// only for the user-facing page (rendered with its own layout/CSS) and
-    /// for tearing down any existing local session (TVS L10). `headers` is
-    /// provided for locale negotiation; `jar` lets the application clear its
-    /// cookie.
+    /// only for the user-facing page (rendered with its own layout/CSS) and,
+    /// when `end_session` is set (the failure ended a flow this browser
+    /// started), for tearing down any existing local session (TVS L10).
+    /// `headers` is provided for locale negotiation; `jar` lets the
+    /// application clear its cookie.
     fn on_authentication_failed(
         &self,
         failure: AuthFailure,
         jar: CookieJar,
         headers: &HeaderMap,
+        end_session: bool,
     ) -> impl std::future::Future<Output = Response> + Send;
 
     /// Terminate the local session for SP-initiated logout. Always returns the
