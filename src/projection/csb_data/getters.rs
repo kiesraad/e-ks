@@ -398,25 +398,57 @@ impl CsbStream {
     }
 
     /// The name of the first candidate across all candidate lists, sorted by list
-    /// creation date. Returns `None` when no candidates are available.
+    /// creation date. Include a [Scrapped] projection to get the first unscrapped
+    /// candidate from the first unscrapped created list.
+    /// Returns `None` when no candidates are available.
     pub fn get_first_candidate_name(
         &self,
         corrections: WithCorrections,
+        scrapped: Option<&Scrapped>,
     ) -> Option<crate::structs::common::FullName> {
         let mut lists = self.get_candidate_lists(corrections);
         lists.sort_unstable_by_key(|l| l.created_at);
         lists
             .into_iter()
-            .flat_map(|list| list.candidates.into_iter())
-            .next()
-            .and_then(|id| self.get_person(id, corrections))
+            .filter(|l| {
+                if let Some(scrapped) = &scrapped {
+                    !scrapped.is_list_scrapped(l.id)
+                } else {
+                    true
+                }
+            })
+            .flat_map(|list| {
+                list.candidates
+                    .into_iter()
+                    .map(move |person| (list.id, person))
+            })
+            .find(|(list, person)| {
+                if let Some(scrapped) = &scrapped {
+                    !scrapped.is_candidate_scrapped(*list, *person)
+                } else {
+                    true
+                }
+            })
+            .and_then(|(_, id)| self.get_person(id, corrections))
             .map(|p| p.name)
     }
 
     /// Short-hand to get the appellation of the political group (including special names for blank lists)
     pub fn get_appellation(&self, corrections: WithCorrections) -> String {
         let political_group = self.get_political_group(corrections);
-        political_group.csb_appellation(self.get_first_candidate_name(corrections).as_ref())
+        political_group.csb_appellation(self.get_first_candidate_name(corrections, None).as_ref())
+    }
+
+    pub fn get_appellation_with_scrapped(
+        &self,
+        corrections: WithCorrections,
+        scrapped: Option<&Scrapped>,
+    ) -> String {
+        let political_group = self.get_political_group(corrections);
+        political_group.csb_appellation(
+            self.get_first_candidate_name(corrections, scrapped)
+                .as_ref(),
+        )
     }
 
     /// Short-hand to get the appellation of the political group (including special names for blank lists).
@@ -427,8 +459,8 @@ impl CsbStream {
         locale: Locale,
     ) -> String {
         let political_group = self.get_political_group(corrections);
-        let appellation =
-            political_group.csb_appellation(self.get_first_candidate_name(corrections).as_ref());
+        let appellation = political_group
+            .csb_appellation(self.get_first_candidate_name(corrections, None).as_ref());
         if self.is_deleted() {
             format!(
                 "{appellation} ({})",

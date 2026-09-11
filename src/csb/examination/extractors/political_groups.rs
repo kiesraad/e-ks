@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use crate::{
     AppError, AppRequestState, CsbStream, ElectoralDistrict, Session, StreamId,
     csb::examination::structs::BrpCheckState,
-    projection::Scrapped,
+    projection::{Scrapped, WithCorrections},
     structs::{
         candidate_lists::CandidateListId,
         common::FullName,
@@ -33,6 +33,7 @@ pub struct CsbPoliticalGroup {
     /// [`CsbPhase::Recovery`].
     pub recovery: RecoveryProgress,
     pub first_candidate_name: Option<FullName>,
+    pub first_non_scrapped_candidate_name: Option<FullName>,
     /// The electoral districts of each candidate list, which is how the
     /// shared templates name a list (see [`Self::candidate_list_districts`]).
     pub candidate_list_districts: HashMap<CandidateListId, Vec<ElectoralDistrict>>,
@@ -40,21 +41,23 @@ pub struct CsbPoliticalGroup {
 
 impl CsbPoliticalGroup {
     pub fn new_from_csb_store(store: &CsbStream) -> Self {
+        let scrapped = store.get_scrapped();
         Self {
-            political_group: store.get_political_group(crate::projection::WithCorrections::All),
+            political_group: store.get_political_group(WithCorrections::All),
             stream_id: store.stream_id,
             brp: BrpCheckState::for_political_group(store),
             mode: CsbPhase::Examination,
             is_examination_finished: store.is_examination_finished(),
             is_deleted: store.is_deleted(),
-            scrapped: store.get_scrapped(),
             restoration_count: store.get_restoration_count(),
             omission_count: store.get_omission_count(),
             recovery: store.get_recovery_progress(),
-            first_candidate_name: store
-                .get_first_candidate_name(crate::projection::WithCorrections::All),
+            first_candidate_name: store.get_first_candidate_name(WithCorrections::All, None),
+            first_non_scrapped_candidate_name: store
+                .get_first_candidate_name(WithCorrections::All, Some(&scrapped)),
+            scrapped,
             candidate_list_districts: store
-                .get_candidate_lists(crate::projection::WithCorrections::All)
+                .get_candidate_lists(WithCorrections::All)
                 .into_iter()
                 .map(|list| (list.id, list.electoral_districts))
                 .collect(),
@@ -81,15 +84,23 @@ impl CsbPoliticalGroup {
     /// The name shown for the group. Once its appellation is scrapped, the
     /// recovery phase names it as the blank list it continues as.
     pub fn csb_appellation(&self) -> String {
-        let first_candidate_name = self.first_candidate_name.as_ref();
-        if self.mode.is_recovery() && self.is_appellation_scrapped() {
-            return PoliticalGroup {
-                list_designation: Some(ListDesignation::Blank),
-                ..self.political_group.clone()
+        match self.mode {
+            CsbPhase::Examination => self
+                .political_group
+                .csb_appellation(self.first_candidate_name.as_ref()),
+            CsbPhase::Recovery => {
+                if self.is_appellation_scrapped() {
+                    PoliticalGroup {
+                        list_designation: Some(ListDesignation::Blank),
+                        ..self.political_group.clone()
+                    }
+                    .csb_appellation(self.first_non_scrapped_candidate_name.as_ref())
+                } else {
+                    self.political_group
+                        .csb_appellation(self.first_non_scrapped_candidate_name.as_ref())
+                }
             }
-            .csb_appellation(first_candidate_name);
         }
-        self.political_group.csb_appellation(first_candidate_name)
     }
 
     pub fn is_appellation_scrapped(&self) -> bool {
@@ -229,6 +240,7 @@ mod tests {
             omission_count: 0,
             recovery: RecoveryProgress::default(),
             first_candidate_name: None,
+            first_non_scrapped_candidate_name: None,
             scrapped: Default::default(),
             candidate_list_districts: HashMap::new(),
         };
@@ -277,6 +289,7 @@ mod tests {
                 initials: "A.B.".parse().unwrap(),
                 ..Default::default()
             }),
+            first_non_scrapped_candidate_name: None,
             scrapped: Default::default(),
             candidate_list_districts: HashMap::new(),
         };
@@ -300,6 +313,7 @@ mod tests {
             omission_count: 0,
             recovery: RecoveryProgress::default(),
             first_candidate_name: None,
+            first_non_scrapped_candidate_name: None,
             scrapped: Default::default(),
             candidate_list_districts: HashMap::new(),
         };

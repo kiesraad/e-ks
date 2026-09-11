@@ -148,7 +148,7 @@ pub async fn i4_inputs(
             .extend(removed_appellation(&store, election, &omissions, &scrapped));
         inputs
             .corrected_appellations
-            .extend(corrected_appellation(&store, election));
+            .extend(corrected_appellation(&store, election, &scrapped));
         for (district, list) in valid_lists(&store, &scrapped)? {
             valid_by_district.entry(district).or_default().push(list);
         }
@@ -311,7 +311,7 @@ fn removed_appellation(
     Some(i4::RemovedAppellation {
         appellation: store.get_appellation(WithCorrections::All),
         electoral_district: format_districts(&group_districts(store), election),
-        first_candidate_name: first_candidate_name(store),
+        first_candidate_name: first_candidate_name(store, scrapped),
         reasons: omissions
             .iter()
             .filter(|omission| scrapped.appellation_omissions().contains(&omission.id))
@@ -323,9 +323,10 @@ fn removed_appellation(
 fn corrected_appellation(
     store: &CsbStream,
     election: &ElectionConfig,
+    scrapped: &Scrapped,
 ) -> Option<i4::CorrectedAppellation> {
     (store.get_political_group_csb_corrections_count() > 0).then(|| i4::CorrectedAppellation {
-        first_candidate_name: first_candidate_name(store),
+        first_candidate_name: first_candidate_name(store, scrapped),
         electoral_district: format_districts(&group_districts(store), election),
         submitted_appellation: store.get_appellation(WithCorrections::Paper),
         edited_appellation: store.get_appellation(WithCorrections::All),
@@ -338,9 +339,9 @@ fn valid_lists(
     scrapped: &Scrapped,
 ) -> Result<Vec<(ElectoralDistrict, i4::ValidList)>, AppError> {
     let appellation = if scrapped.is_appellation_scrapped() {
-        first_candidate_name(store)
+        first_candidate_name(store, scrapped)
     } else {
-        store.get_appellation(WithCorrections::All)
+        store.get_appellation_with_scrapped(WithCorrections::All, Some(scrapped))
     };
 
     let mut valid = Vec::new();
@@ -398,9 +399,9 @@ fn lists_by_creation(store: &CsbStream) -> Vec<CandidateList> {
 }
 
 /// E.g. `van Dijk, A.B. (Anne)`; empty without candidates.
-fn first_candidate_name(store: &CsbStream) -> String {
+fn first_candidate_name(store: &CsbStream, scrapped: &Scrapped) -> String {
     store
-        .get_first_candidate_name(WithCorrections::All)
+        .get_first_candidate_name(WithCorrections::All, Some(scrapped))
         .map(|name| name.display())
         .unwrap_or_default()
 }

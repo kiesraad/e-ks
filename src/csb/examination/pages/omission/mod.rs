@@ -123,7 +123,7 @@ impl OmissionTarget {
     }
 
     fn generate_title_suffix(&self, store: &CsbStream, locale: Locale) -> Result<String, AppError> {
-        let first_candidate = store.get_first_candidate_name(WithCorrections::All);
+        let first_candidate = store.get_first_candidate_name(WithCorrections::All, None);
         let appellation = store
             .get_political_group(WithCorrections::All)
             .csb_appellation(first_candidate.as_ref());
