@@ -26,6 +26,9 @@ districts:
   all: All
   duplicate_hint: One or more electoral districts appear on multiple candidate lists
 edit_position: Position on the list
+errors:
+  candidate_set_changed: Reordering can only change the order of the current candidates.
+  duplicate_candidate: A person can only appear once on a candidate list.
 fields:
   electoral_districts: Electoral districts
   position: Position

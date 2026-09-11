@@ -51,27 +51,39 @@ impl ErrorResponseVariant {
     }
 }
 
-/// The rate-limit (429) page texts. The locale is not known where an
-/// [`AppError`] becomes a response, so these are translated at render time.
+/// User-facing error texts. The locale is not known where an [`AppError`]
+/// becomes a response, so these are translated at render time.
 #[derive(Clone, Copy, Serialize)]
-enum LimitMessage {
+enum LocalisedMessage {
     Downloads,
     Events,
     Cap,
+    DuplicateCandidate,
+    CandidateSetChanged,
+    NotDownloadable,
 }
 
-impl LimitMessage {
+impl LocalisedMessage {
     fn from_error(err: &AppError) -> Option<Self> {
         match err {
             AppError::TooManyDownloads { .. } => Some(Self::Downloads),
             AppError::TooManyEvents { .. } => Some(Self::Events),
             AppError::EventLimitReached { .. } => Some(Self::Cap),
+            AppError::DuplicateCandidate => Some(Self::DuplicateCandidate),
+            AppError::CandidateSetChanged => Some(Self::CandidateSetChanged),
+            AppError::NotDownloadable => Some(Self::NotDownloadable),
             _ => None,
         }
     }
 
-    fn title(self, locale: Locale) -> String {
-        trans!("common.rate_limit.title", locale)
+    /// Only the rate-limit pages replace the title.
+    fn title(self, locale: Locale) -> Option<String> {
+        match self {
+            Self::Downloads | Self::Events | Self::Cap => {
+                Some(trans!("common.rate_limit.title", locale))
+            }
+            Self::DuplicateCandidate | Self::CandidateSetChanged | Self::NotDownloadable => None,
+        }
     }
 
     fn message(self, locale: Locale) -> String {
@@ -79,6 +91,13 @@ impl LimitMessage {
             Self::Downloads => trans!("common.rate_limit.downloads_message", locale),
             Self::Events => trans!("common.rate_limit.events_message", locale),
             Self::Cap => trans!("common.rate_limit.cap_message", locale),
+            Self::DuplicateCandidate => {
+                trans!("candidate_list.errors.duplicate_candidate", locale)
+            }
+            Self::CandidateSetChanged => {
+                trans!("candidate_list.errors.candidate_set_changed", locale)
+            }
+            Self::NotDownloadable => trans!("finalise.print.errors_warning", locale),
         }
     }
 }
@@ -88,8 +107,8 @@ impl LimitMessage {
 pub struct ErrorResponse {
     error: ErrorResponseVariant,
     message: String,
-    /// Set for rate-limit errors, whose texts are translated at render time.
-    limit: Option<LimitMessage>,
+    /// Set for errors whose texts are translated at render time.
+    localised: Option<LocalisedMessage>,
 }
 
 /// The content of an error page. Carried on the response as an extension
@@ -99,17 +118,19 @@ pub struct ErrorPage {
     pub status_code: StatusCode,
     pub title: String,
     pub message: String,
-    /// Set for rate-limit errors, whose texts are translated at render time.
-    limit: Option<LimitMessage>,
+    /// Set for errors whose texts are translated at render time.
+    localised: Option<LocalisedMessage>,
 }
 
 impl ErrorPage {
-    /// Swap in the localised texts where they exist (the 429 pages); other
-    /// errors keep their English text.
+    /// Swap in the localised texts where they exist; other errors keep their
+    /// English text.
     fn localise(mut self, locale: Locale) -> Self {
-        if let Some(limit) = self.limit {
-            self.title = limit.title(locale);
-            self.message = limit.message(locale);
+        if let Some(localised) = self.localised {
+            if let Some(title) = localised.title(locale) {
+                self.title = title;
+            }
+            self.message = localised.message(locale);
         }
         self
     }
@@ -128,7 +149,7 @@ impl IntoResponse for ErrorResponse {
         let ErrorResponse {
             error,
             message,
-            limit,
+            localised,
         } = self;
         let status_code = error.status_code();
 
@@ -136,7 +157,7 @@ impl IntoResponse for ErrorResponse {
             status_code,
             title: error.title().to_string(),
             message,
-            limit,
+            localised,
         };
 
         let mut response = status_code.into_response();
@@ -180,19 +201,12 @@ impl ErrorResponse {
             error: ErrorResponseVariant::ServiceUnavailable,
             message: "The service is temporarily unavailable. Please try again shortly."
                 .to_string(),
-            limit: None,
+            localised: None,
         }
     }
 
     fn build(err: &AppError) -> Self {
         use ErrorResponseVariant::*;
-
-        let internal = || {
-            (
-                InternalServerError,
-                "An internal server error occurred.".to_string(),
-            )
-        };
 
         let (error, message) = match err {
             AppError::NotFound(msg) => (NotFound, msg.to_string()),
@@ -209,10 +223,13 @@ impl ErrorResponse {
             | AppError::QueryRejection(_)
             | AppError::UserError(_)
             | AppError::TooManyCandidates { .. }
+            | AppError::DuplicateCandidate
+            | AppError::CandidateSetChanged
+            | AppError::NotDownloadable
             | AppError::AmbiguousHash => (BadRequest, err.to_string()),
             AppError::TooManyDownloads { .. }
             | AppError::TooManyEvents { .. }
-            | AppError::EventLimitReached { .. } => LimitMessage::from_error(err)
+            | AppError::EventLimitReached { .. } => LocalisedMessage::from_error(err)
                 .map_or_else(internal, |limit| {
                     (TooManyRequests, limit.message(Locale::En))
                 }),
@@ -244,9 +261,16 @@ impl ErrorResponse {
         ErrorResponse {
             error,
             message,
-            limit: LimitMessage::from_error(err),
+            localised: LocalisedMessage::from_error(err),
         }
     }
+}
+
+fn internal() -> (ErrorResponseVariant, String) {
+    (
+        ErrorResponseVariant::InternalServerError,
+        "An internal server error occurred.".to_string(),
+    )
 }
 
 /// Emit a single tracing event for an error response.
@@ -291,6 +315,9 @@ fn message_is_safe_to_log(err: &AppError) -> bool {
             | AppError::TooManyDownloads { .. }
             | AppError::TooManyEvents { .. }
             | AppError::EventLimitReached { .. }
+            | AppError::DuplicateCandidate
+            | AppError::CandidateSetChanged
+            | AppError::NotDownloadable
     )
 }
 
@@ -350,6 +377,38 @@ mod tests {
             assert_eq!(page.status_code, StatusCode::TOO_MANY_REQUESTS);
             let texts = format!("{} {}", page.title, page.message);
             assert!(texts.contains(expected), "{texts}");
+        }
+    }
+
+    /// Bad-request errors with a translation keep the variant title and get
+    /// the message in the layer's locale.
+    #[test]
+    fn localised_bad_requests_are_translated() {
+        let cases = [
+            (
+                AppError::DuplicateCandidate,
+                Locale::Nl,
+                "Een persoon kan maar één keer op een kandidatenlijst staan.",
+            ),
+            (
+                AppError::CandidateSetChanged,
+                Locale::En,
+                "Reordering can only change the order of the current candidates.",
+            ),
+            (
+                AppError::NotDownloadable,
+                Locale::Nl,
+                "Voordat u de documenten kunt printen, moet u eerst alle fouten in stap 1 oplossen.",
+            ),
+        ];
+
+        for (error, locale, expected) in cases {
+            let mut response = error.into_response();
+            assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+            let page = ErrorPage::take_from(&mut response, locale).expect("error page");
+            assert_eq!(page.title, "Bad request");
+            assert_eq!(page.message, expected);
         }
     }
 
