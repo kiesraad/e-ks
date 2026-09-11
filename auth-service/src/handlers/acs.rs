@@ -545,10 +545,11 @@ mod tests {
     use super::*;
     use crate::{config::AuthConfig, handlers::test_support::MockAuthState};
 
-    fn load_signing_key() -> crate::keys::KeyPair {
+    async fn load_signing_key() -> crate::keys::KeyPair {
         let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures");
         let cfg = AuthConfig::default().with_certs_dir(dir);
         crate::keys::load_key_set(&cfg.dv.signing, &cfg.dv.encryption)
+            .await
             .expect("load fixtures")
             .signing
             .remove(0)
@@ -807,8 +808,8 @@ mod tests {
         assert_eq!(end_session(&resp).as_deref(), Some("false"));
     }
 
-    #[test]
-    fn build_artifact_resolve_produces_a_signed_message() {
+    #[tokio::test]
+    async fn build_artifact_resolve_produces_a_signed_message() {
         let cfg = AuthConfig {
             dv: crate::config::DvConfig {
                 entity_id: crate::types::EntityId::from_static("urn:test:dv"),
@@ -817,7 +818,7 @@ mod tests {
             ..AuthConfig::default()
         };
         let rd = rd_metadata();
-        let key = load_signing_key();
+        let key = load_signing_key().await;
 
         let artifact = Artifact::parse("AAQAAartifact").expect("test artifact");
         let msg = build_artifact_resolve(&artifact, &cfg, &rd, &key)
