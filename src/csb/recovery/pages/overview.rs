@@ -55,6 +55,7 @@ mod tests {
             omission_count: total,
             recovery: RecoveryProgress { pending, total },
             first_candidate_name: None,
+            first_non_scrapped_candidate_name: None,
             scrapped: Default::default(),
             candidate_list_districts: Default::default(),
         }

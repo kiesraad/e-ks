@@ -7,9 +7,18 @@ use parking_lot::{
 
 use super::Scrapped;
 use crate::{
-    AppError, CsbStream, ElectoralDistrict, Locale, PgStoreData, structs::{
-        brp::{BrpFinding, BrpStatus}, candidate_lists::{CandidateList, CandidateListId}, csb::{Omission, OmissionCategory, OmissionId, RecoveryProgress}, list_designation::ListDesignation, list_submitters::ListSubmitter, name_authorisations::NameAuthorisation, persons::{Person, PersonId}, political_groups::PoliticalGroup,
-    }, trans,
+    AppError, CsbStream, ElectoralDistrict, Locale, PgStoreData,
+    structs::{
+        brp::{BrpFinding, BrpStatus},
+        candidate_lists::{CandidateList, CandidateListId},
+        csb::{Omission, OmissionCategory, OmissionId, RecoveryProgress},
+        list_designation::ListDesignation,
+        list_submitters::ListSubmitter,
+        name_authorisations::NameAuthorisation,
+        persons::{Person, PersonId},
+        political_groups::PoliticalGroup,
+    },
+    trans,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -549,11 +558,15 @@ impl CsbStream {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::{BTreeMap, BTreeSet};
+
     use super::*;
     use crate::{
         CsbStore, CsbStream, ElectoralDistrict,
+        projection::csb_data::scrapped::ScrappedList,
         structs::{
             candidate_lists::CandidateList,
+            common::UtcDateTime,
             csb::{
                 OmissionCategory, OmissionStatus, PersonCorrection, PersonCorrectionDelta,
                 sample_omission,
@@ -866,6 +879,53 @@ mod tests {
             store.get_appellation(WithCorrections::All),
             "Blanco (Jansen, A.B.)"
         );
+    }
+
+    #[test]
+    fn get_first_candidate_name_honours_scrappings() {
+        let store = CsbStore::new_for_test();
+
+        // create candidates
+        let scrapped_person_id = PersonId::new();
+        let scrapped_person = sample_person_with(scrapped_person_id, None, "Geschrapt", None, "C.");
+        store.add_person(scrapped_person);
+        let scrapped_list_person_id = PersonId::new();
+        let scrapped_list_person =
+            sample_person_with(scrapped_list_person_id, None, "Geschrapt", None, "L.");
+        store.add_person(scrapped_list_person);
+        let present_person_id = PersonId::new();
+        let present_person = sample_person_with(present_person_id, None, "Present", None, "P.");
+        store.add_person(present_person.clone());
+
+        // create lists
+        let scrapped_list_id = CandidateListId::new();
+        let mut scrapped_list = sample_candidate_list(scrapped_list_id);
+        scrapped_list.created_at = UtcDateTime::now();
+        scrapped_list.candidates.push(scrapped_person_id);
+        scrapped_list.candidates.push(scrapped_list_person_id);
+        store.add_candidate_list(scrapped_list);
+        let present_list_id = CandidateListId::new();
+        let mut present_list = sample_candidate_list(present_list_id);
+        present_list.created_at = UtcDateTime::now();
+        present_list.candidates.push(scrapped_person_id);
+        present_list.candidates.push(present_person_id);
+        store.add_candidate_list(present_list);
+
+        // do scrappings
+        let scrapped = Scrapped::new_for_test(
+            BTreeSet::new(),
+            BTreeSet::from([
+                (scrapped_list_id, scrapped_person_id),
+                (present_list_id, scrapped_person_id),
+            ]),
+            BTreeMap::from([(scrapped_list_id, ScrappedList::whole_list())]),
+        );
+
+        assert!(scrapped.is_list_scrapped(scrapped_list_id));
+
+        let name = store.get_first_candidate_name(WithCorrections::All, Some(&scrapped)).unwrap();
+
+        assert_eq!(name, present_person.name);
     }
 
     #[test]

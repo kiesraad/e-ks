@@ -51,6 +51,14 @@ impl ScrappedList {
     pub fn is_scrapped(&self) -> bool {
         self.whole || self.all_districts
     }
+
+    #[cfg(test)]
+    pub fn whole_list() -> Self {
+        Self {
+            whole: true,
+            ..Default::default()
+        }
+    }
 }
 
 impl Scrapped {
@@ -154,6 +162,20 @@ impl Scrapped {
     /// Group and list omissions do not cascade down to the candidates.
     pub fn is_candidate_scrapped(&self, list: CandidateListId, person: PersonId) -> bool {
         self.candidates.contains(&(list, person))
+    }
+
+    #[cfg(test)]
+    pub fn new_for_test(
+        appellation: BTreeSet<OmissionId>,
+        candidates: BTreeSet<(CandidateListId, PersonId)>,
+        lists: BTreeMap<CandidateListId, ScrappedList>,
+    ) -> Self {
+        Self {
+            appellation,
+            candidates,
+            lists,
+            ..Default::default()
+        }
     }
 }
 

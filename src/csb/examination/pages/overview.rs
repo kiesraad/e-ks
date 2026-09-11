@@ -72,6 +72,7 @@ mod tests {
             omission_count: 0,
             recovery: Default::default(),
             first_candidate_name: None,
+            first_non_scrapped_candidate_name: None,
             scrapped: Default::default(),
             candidate_list_districts: Default::default(),
         }]);
@@ -104,6 +105,7 @@ mod tests {
             omission_count: 0,
             recovery: Default::default(),
             first_candidate_name: None,
+            first_non_scrapped_candidate_name: None,
             scrapped: Default::default(),
             candidate_list_districts: Default::default(),
         }]);
@@ -135,6 +137,7 @@ mod tests {
             omission_count: 0,
             recovery: Default::default(),
             first_candidate_name: None,
+            first_non_scrapped_candidate_name: None,
             scrapped: Default::default(),
             candidate_list_districts: Default::default(),
         }]);
@@ -169,6 +172,7 @@ mod tests {
             omission_count: 0,
             first_candidate_name: None,
             scrapped: Default::default(),
+            first_non_scrapped_candidate_name: None,
             candidate_list_districts: Default::default(),
         }]);
 
@@ -200,6 +204,7 @@ mod tests {
             restoration_count: 0, /* omission count should be used and > 0 */
             omission_count: 3,
             first_candidate_name: None,
+            first_non_scrapped_candidate_name: None,
             scrapped: Default::default(),
             candidate_list_districts: Default::default(),
         }]);

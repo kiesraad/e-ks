@@ -132,12 +132,14 @@ impl<S: AppRequestState> FromRequestParts<S> for CsbPoliticalGroups {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::{BTreeMap, BTreeSet};
+
     use super::*;
     use axum::{body::Body, http::Request};
 
     use crate::{
         AppState, CsbAction, CsbStore, CsbUser, ElectionConfig, Locale, PgStoreData, Province,
-        structs::csb::{OmissionCategory, sample_omission},
+        structs::csb::{OmissionCategory, OmissionId, sample_omission},
     };
 
     /// Persist a CSB stream carrying a single import event in the (in-memory)
@@ -319,5 +321,45 @@ mod tests {
         };
 
         assert_eq!(group.csb_appellation(), "Blanco");
+    }
+
+    #[test]
+    fn recovery_mode_appellation_honours_scrapping() {
+        let group = CsbPoliticalGroup {
+            political_group: PoliticalGroup {
+                // should convert to Blank because of appellation scrapping
+                list_designation: Some(ListDesignation::Standalone),
+                ..Default::default()
+            },
+            stream_id: StreamId::new(),
+            brp: BrpCheckState::NotChecked,
+            mode: CsbPhase::Recovery,
+            is_examination_finished: false,
+            is_deleted: false,
+            restoration_count: 0,
+            omission_count: 0,
+            recovery: RecoveryProgress::default(),
+            first_candidate_name: Some(FullName {
+                first_name: None,
+                last_name: "Scrapped".parse().unwrap(),
+                last_name_prefix: None,
+                initials: "S.".parse().unwrap(),
+            }),
+            // should be used as first candidate
+            first_non_scrapped_candidate_name: Some(FullName {
+                first_name: None,
+                last_name: "Present".parse().unwrap(),
+                last_name_prefix: None,
+                initials: "P.".parse().unwrap(),
+            }),
+            scrapped: Scrapped::new_for_test(
+                BTreeSet::from([OmissionId::new()]),
+                BTreeSet::new(),
+                BTreeMap::new(),
+            ),
+            candidate_list_districts: HashMap::new(),
+        };
+
+        assert_eq!("Blanco (Present, P.)", group.csb_appellation());
     }
 }
