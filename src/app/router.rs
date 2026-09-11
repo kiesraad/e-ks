@@ -20,20 +20,21 @@ use crate::{
 };
 
 /// Whether a router serves the CSB section. The listener configured through
-/// `CSB_BIND_ADDRESS` gets [`Included`](CsbRoutes::Included) and the main one
-/// [`Excluded`](CsbRoutes::Excluded), so `/csb` lives on that domain only.
+/// `CSB_BIND_ADDRESS` gets [`Included`](WithCsbRoutes::Included) and the main
+/// one [`Excluded`](WithCsbRoutes::Excluded), so `/csb` lives on that domain
+/// only.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CsbRoutes {
+pub enum WithCsbRoutes {
     Included,
     Excluded,
 }
 
 /// The complete router, CSB section included.
 pub fn create(state: AppState) -> Router<AppState> {
-    create_with(state, CsbRoutes::Included)
+    create_with(state, WithCsbRoutes::Included)
 }
 
-pub fn create_with(state: AppState, csb_routes: CsbRoutes) -> Router<AppState> {
+pub fn create_with(state: AppState, csb_routes: WithCsbRoutes) -> Router<AppState> {
     let app_router = app_feature_router();
 
     #[cfg(feature = "dev-features")]
@@ -65,8 +66,8 @@ pub fn create_with(state: AppState, csb_routes: CsbRoutes) -> Router<AppState> {
         .merge(bag::router());
 
     let app_router = match csb_routes {
-        CsbRoutes::Included => app_router.merge(csb_router(&state)),
-        CsbRoutes::Excluded => app_router,
+        WithCsbRoutes::Included => app_router.merge(csb_router(&state)),
+        WithCsbRoutes::Excluded => app_router,
     };
 
     let app_router = app_router.layer(middleware::from_fn_with_state(
@@ -128,12 +129,12 @@ fn csrf_layer() -> CsrfLayer {
 /// Routes mounted outside the session middleware (no session required): the
 /// SAML auth-service endpoints, the PG login and logged-out pages, and the
 /// CSB GitHub login.
-fn public_router(csb_routes: CsbRoutes) -> Router<AppState> {
+fn public_router(csb_routes: WithCsbRoutes) -> Router<AppState> {
     let router = auth_service::router().merge(common::public_router());
 
     match csb_routes {
-        CsbRoutes::Included => router.merge(csb::login::public_router()),
-        CsbRoutes::Excluded => router,
+        WithCsbRoutes::Included => router.merge(csb::login::public_router()),
+        WithCsbRoutes::Excluded => router,
     }
 }
 
@@ -461,9 +462,15 @@ mod tests {
             crate::csb::login::test_support::github_test_config(),
         )
         .await;
-        let app: Router = create_with(state.clone(), CsbRoutes::Excluded).with_state(state.clone());
+        let app: Router =
+            create_with(state.clone(), WithCsbRoutes::Excluded).with_state(state.clone());
 
-        for uri in ["/csb", "/csb/import", "/csb/login", "/csb/login/start"] {
+        for uri in [
+            csb::index::CsbIndexPath::PATH,
+            csb::import::CsbImportPath::PATH,
+            csb::login::CsbLoginPath::PATH,
+            csb::login::CsbLoginStartPath::PATH,
+        ] {
             let request = committee_request(&state, uri).await;
             let response = app.clone().oneshot(request).await.expect("response");
 

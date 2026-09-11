@@ -1,5 +1,5 @@
 use eks::{
-    AppError, AppState, Config, logging, router, router::CsbRoutes, run_db_prober,
+    AppError, AppState, Config, logging, router, router::WithCsbRoutes, run_db_prober,
     run_session_sweeper, server,
 };
 use tokio::net::TcpListener;
@@ -81,8 +81,8 @@ async fn run(listener: TcpListener, config: Config) -> Result<(), AppError> {
     };
 
     let csb_routes = match csb {
-        Some(_) => CsbRoutes::Excluded,
-        None => CsbRoutes::Included,
+        Some(_) => WithCsbRoutes::Excluded,
+        None => WithCsbRoutes::Included,
     };
 
     // Start the server
@@ -211,9 +211,12 @@ mod tests {
     }
 
     /// Waits until `url` answers, so the spawned server has bound its listener.
+    /// Before the bind the connection is refused rather than held open, so the
+    /// request returns at once and the sleep is what paces the retries.
     async fn wait_until_ready(url: &str) {
         let client = Client::builder()
             .redirect(reqwest::redirect::Policy::none())
+            .timeout(Duration::from_secs(5))
             .build()
             .unwrap();
 
