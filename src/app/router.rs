@@ -134,7 +134,9 @@ fn csb_router(state: &AppState) -> Router<AppState> {
         .merge(csb::audit_log::router())
         .merge(csb::common::router())
         .merge(csb::examination::router())
+        .merge(csb::pre_submission::router())
         .merge(csb::recovery::router())
+        .merge(csb::registered_political_groups::router())
         .merge(csb::import::router())
         .merge(csb::monitoring::router())
         .layer(middleware::from_fn_with_state(
@@ -380,6 +382,55 @@ mod tests {
         assert!(body.contains("Foutcode 404"), "{body}");
         assert!(body.contains("Stream not found"), "{body}");
         assert!(body.contains("href=\"/csb\""), "{body}");
+    }
+
+    /// The model download routes are static segments under the same prefix as
+    /// `/csb/examination/{stream_id}`; they must resolve to their own handlers
+    /// rather than being parsed as a (bogus) stream id.
+    #[tokio::test]
+    async fn model_download_routes_win_over_the_political_group_route() {
+        let state = AppState::new_for_tests().await;
+
+        for (uri, content_type) in [
+            ("/csb/examination/i1.pdf", "application/pdf"),
+            (
+                "/csb/examination/i1.docx",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ),
+            ("/csb/examination/i4.pdf", "application/pdf"),
+            (
+                "/csb/examination/finish/verzuimbrieven.zip",
+                "application/zip",
+            ),
+        ] {
+            let app: Router = create(state.clone()).with_state(state.clone());
+            let request = committee_request(&state, uri).await;
+            let response = app.oneshot(request).await.expect("response");
+
+            assert_eq!(response.status(), StatusCode::OK, "{uri}");
+            assert_eq!(
+                response.headers().get(header::CONTENT_TYPE).expect("type"),
+                content_type,
+                "{uri}"
+            );
+        }
+    }
+
+    /// `/csb/examination/finish/{stream_id}` shares its first segments with
+    /// the static finish page and the `{stream_id}` group route; it must reach
+    /// the omission letter page's stream extractor rather than fall through.
+    #[tokio::test]
+    async fn omission_letter_page_route_resolves_under_the_finish_page() {
+        let state = AppState::new_for_tests().await;
+        let app: Router = create(state.clone()).with_state(state.clone());
+
+        let uri = format!("/csb/examination/finish/{}", crate::StreamId::new());
+        let request = committee_request(&state, &uri).await;
+        let response = app.oneshot(request).await.expect("response");
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let body = response_body_string(response).await;
+        assert!(body.contains("Stream not found"), "{body}");
     }
 
     #[tokio::test]

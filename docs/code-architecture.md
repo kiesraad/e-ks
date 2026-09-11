@@ -241,8 +241,11 @@ Streams carry a `Scope` (`src/core/scope.rs`) of one of the following variants:
 
 - **`PoliticalGroup`**: a political group's own stream.
 - **`CentralElectoralCommittee`**: the shared CSB main stream.
-- **`ImportedByCsb`**: a candidate-list package imported by the CSB; one
-  stream per import action.
+- **`ImportedByCsb`**: a candidate-list package imported by the CSB for the
+  examination; one stream per import action.
+- **`PreSubmittedToCsb`**: a package imported for the pre-submission check
+  (Fase 1, *voorinlevering*); one stream per import action, kept apart from
+  the examination's imports.
 
 Every persisted stream records its scope, and each store registry only sees
 streams matching its projection's scope, so the separation between the two
@@ -273,11 +276,15 @@ The CSB section has two projections of its own on the shared store machinery
   (scope `ImportedByCsb`), driven by `CsbEvent`. The projection holds the
   imported snapshot (`imported_data`), a second projection with the paper
   corrections replayed on top (`paper_corrected_data`), the recorded
-  omissions and person corrections, and the examination-finished flag.
+  omissions and person corrections, and the examination-finished flag. A
+  second registry over the same projection, under scope `PreSubmittedToCsb`,
+  holds the packages imported for the pre-submission check; a registry only
+  lists streams of its own scope, so the two never see each other's imports.
 - **`CsbMainStoreData`** (`src/csb/store_main/`), a single stream per
   election shared by all committee members under the fixed
   `CSB_MAIN_STREAM_ID` (scope `CentralElectoralCommittee`). It records
-  committee-wide events (currently logins) and backs the main CSB audit log.
+  committee-wide events (logins, and the registered political groups with
+  their previous election results) and backs the main CSB audit log.
 
 #### Domains
 
@@ -291,11 +298,22 @@ The CSB section has two projections of its own on the shared store machinery
   persists the snapshot as a `CsbAction::Import` on a **fresh** `ImportedByCsb`
   stream keyed on the session's election. A package handed in for another
   election is refused.
+- **`pre_submission`**: Fase 1, the pre-submission check (*voorinlevering*).
+  Political groups hand in their package ahead of nomination day; the CSB
+  imports it by hash (the same routine as `import`, into the
+  `PreSubmittedToCsb` registry), runs the BRP check, and reads the findings
+  per candidate off one page, so the group can fix them before the official
+  submission. No omissions, corrections or examination state.
 - **`examination`**: the examination of the imported lists. An overview
   groups the imported political groups by finished/unfinished; detail pages
   render the imported data read-only; omissions and corrections are recorded
-  in overlays; and the models **I 1** and **I 4** are generated here, their
-  inputs collected across all imported streams in `model_inputs.rs`.
+  in overlays; and the models **I 1** and **I 4** plus the per-group omission
+  letter (*verzuimbrief*) are generated here, their inputs collected in
+  `model_inputs.rs` (I 1 and I 4 across all imported streams, the letter per
+  group). The finish-examination page lists the groups that get a letter;
+  each links to a read-only page with the letter's omissions and its PDF and
+  Word downloads, and the page bundles every letter in a ZIP that streams
+  while the letters render one at a time.
 - **`recovery`**: the "Herstelde lijsten" phase that follows the examination.
   Once the omission letters have gone out, the CSB marks every recoverable
   omission as recovered or not recovered; candidates, lists and districts
@@ -311,6 +329,12 @@ The CSB section has two projections of its own on the shared store machinery
   data.
 - **`audit_log`**: the CSB audit log, a read view over either the main
   committee stream or a single imported stream.
+- **`registered_political_groups`**: administration of the political groups
+  registered for the election with their result at the previous election of
+  the same body (appellation, votes, seats), kept on the CSB main stream. The
+  lists of groups that obtained one or more seats are numbered first on model
+  I 4, in the order of their votes (Kieswet Art. I 14); the remaining list order
+  is decided by lot (Art. I 15).
 - **`common`**: the not-found page for paths under `/csb` that no CSB route
   claims. The error pages for the CSB routes (`csb/error_response.rs`) render
   the page an `AppError` carries in the CSB layout, the counterpart of the
@@ -578,17 +602,20 @@ alerts on that marker.
 ### Cargo features
 
 The build is tailored through Cargo features (`Cargo.toml`). The `default` set
-is development-oriented; a production build typically disables `dev-features`
-and enables the embedding and TLS features.
+is empty, so a plain `cargo build` never compiles in development behaviour:
+`bin/dev` and `bin/check` ask for `development`, while `bin/build` enables the
+embedding and TLS features for a production build.
 
 | Feature | Effect |
 |---------|--------|
+| `development` | The development set: everything `bin/dev` and the local test run need. |
 | `dev-features` | Relaxes config (dev defaults), enables the dev login. |
 | `database` | Postgres / SQLx storage backend. |
 | `migrations` | Run database migrations on startup. |
 | `fixtures` | Optionally load sample data into the store when an election is selected. |
 | `verify-event-hash-chain` | Recompute and verify the event hash chain when replaying. |
 | `livereload` | Live-reload assets and templates during development. |
+| `tvs-mock` | Authenticate against the online TVS mock instead of a real TVS. |
 | `memory-serve` | Serve the frontend assets embedded in the binary. |
 | `tls` | Serve over HTTPS via rustls. |
 | `acme` | Renew the TLS certificate via ACME (Let's Encrypt) http-01. |

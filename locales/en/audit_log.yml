@@ -46,12 +46,14 @@ event:
   create_name_authorisation: Created statutory name and authorised agent
   create_omission: Created omission
   create_person: Created person
+  create_registered_political_group: Registered political group
   create_substitute_submitter: Created substitute submitter of the list
   delete: Deleted political group
   delete_candidate_list: Deleted list of candidates
   delete_name_authorisation: Deleted statutory name and authorised agent
   delete_omission: Deleted omission
   delete_person: Deleted person
+  delete_registered_political_group: Deleted registered political group
   delete_substitute_submitter: Deleted substitute submitter of the list
   developer_login: Developer login
   download_file: Downloaded file
@@ -78,6 +80,7 @@ event:
   update_person_address: Updated person address
   update_person_representative: Updated person representative
   update_political_group: Updated political group
+  update_registered_political_group: Updated registered political group
   update_substitute_submitter: Updated substitute submitter of the list
 fields:
   details: Details
@@ -101,6 +104,7 @@ filter:
     paper_correction: Paper corrections
     person: Person
     political_group: Political group
+    registered_political_group: Registered political groups
     set_finished: Finished state
     substitute_submitter: Substitute submitter
     system: System

@@ -55,10 +55,7 @@ pub struct DocumentData {
 
 impl DocumentData {
     pub fn archive_filename(&self) -> String {
-        let mut election_slug = self.election.code().to_lowercase();
-        if let Some(region) = self.election.region_code() {
-            election_slug.push_str(&region.to_lowercase());
-        }
+        let election_slug = self.election.filename_slug();
         let version = self.model_data.event_id;
 
         let name_slug = if self.list_designation == ListDesignation::Blank {

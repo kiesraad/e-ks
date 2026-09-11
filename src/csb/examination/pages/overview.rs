@@ -6,7 +6,7 @@ use crate::{
     csb::{
         examination::{
             extractors::{CsbPoliticalGroup, CsbPoliticalGroups},
-            pages::{CsbExaminationOverviewPath, CsbI1DownloadPath, CsbI4DownloadPath},
+            pages::{CsbExaminationOverviewPath, CsbFinishExaminationPath},
         },
         import::CsbImportPath,
     },
@@ -18,6 +18,9 @@ use crate::{
 struct CsbExaminationOverviewTemplate {
     unfinished_political_groups: Vec<CsbPoliticalGroup>,
     finished_political_groups: Vec<CsbPoliticalGroup>,
+    /// Every imported group has its examination finished, which opens the
+    /// lock on the finish card.
+    all_examinations_finished: bool,
 }
 
 /// Render the placeholder overview page.
@@ -38,10 +41,13 @@ pub async fn overview(
             unfinished_political_groups.push(political_group);
         }
     }
+    let all_examinations_finished =
+        unfinished_political_groups.is_empty() && !finished_political_groups.is_empty();
     Ok(HtmlTemplate(
         CsbExaminationOverviewTemplate {
             unfinished_political_groups,
             finished_political_groups,
+            all_examinations_finished,
         },
         context,
     )
@@ -221,6 +227,75 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
         assert!(body.contains("Omissions added"));
+    }
+
+    fn group(is_examination_finished: bool) -> CsbPoliticalGroup {
+        CsbPoliticalGroup {
+            political_group: sample_political_group(),
+            stream_id: StreamId::new(),
+            brp: BrpCheckState::NotChecked,
+            mode: crate::structs::csb::CsbPhase::Examination,
+            is_examination_finished,
+            is_deleted: false,
+            restoration_count: 0,
+            omission_count: 0,
+            recovery: Default::default(),
+            first_candidate_name: None,
+            scrapped: Default::default(),
+            candidate_list_districts: Default::default(),
+        }
+    }
+
+    async fn render(groups: Vec<CsbPoliticalGroup>) -> String {
+        let response = overview(
+            CsbExaminationOverviewPath {},
+            CsbContext::new_test(),
+            CsbPoliticalGroups(groups),
+        )
+        .await
+        .unwrap()
+        .into_response();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        response_body_string(response).await
+    }
+
+    /// The finish card stays locked until every group's examination is
+    /// finished; without any group there is nothing to finish either.
+    #[tokio::test]
+    async fn finish_card_unlocks_once_every_examination_is_finished() {
+        let body = render(vec![group(true), group(false)]).await;
+        assert!(body.contains("badge locked"));
+        assert!(!body.contains("badge unlocked"));
+
+        let body = render(vec![group(true), group(true)]).await;
+        assert!(body.contains("badge unlocked"));
+        assert!(!body.contains("badge locked"));
+
+        let body = render(vec![]).await;
+        assert!(body.contains("badge locked"));
+    }
+
+    #[tokio::test]
+    async fn a_deleted_unfinished_group_does_not_keep_the_finish_card_locked() {
+        let deleted = CsbPoliticalGroup {
+            is_deleted: true,
+            ..group(false)
+        };
+        let body = render(vec![group(true), deleted]).await;
+        assert!(body.contains("badge unlocked"));
+    }
+
+    /// Finished groups are badged as such next to their verdict.
+    #[tokio::test]
+    async fn finished_groups_carry_the_examination_finished_badge() {
+        let body = render(vec![group(true)]).await;
+        assert!(body.contains("Examination finished"));
+        assert!(body.contains("Approved"));
+
+        let body = render(vec![group(false)]).await;
+        assert!(!body.contains("Examination finished"));
+        assert!(body.contains("In progress"));
     }
 
     #[tokio::test]

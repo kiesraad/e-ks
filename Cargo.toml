@@ -90,7 +90,7 @@ serde-saphyr = { version = "1.0.0", default-features = false, features = ["deser
 
 # tweedegolf
 memory-serve = "2.1.0"
-textris-pdf = "0.10.1"
+textris-pdf = { version = "0.10.3", features = ["docx"] }
 bagatel = "0.8.3"
 
 # kiesraad
@@ -121,10 +121,10 @@ documentation = "https://kiesraad.github.io/e-KS/e_ks/"
 repository = "https://github.com/kiesraad/e-KS"
 
 [features]
-# Default development-oriented feature set.
-default = ["database", "migrations", "fixtures", "livereload", "dev-features", "db-tests", "net-tests", "tvs-mock"]
+default = []
+development = ["database", "migrations", "fixtures", "livereload", "dev-features", "db-tests", "net-tests", "tvs-mock"]
 # Production build feature set
-production = ["database", "memory-serve", "tls"]
+production = ["database", "memory-serve", "tls", "acme"]
 # Development-only defaults (relaxes some config requirements) + dev login endpoint
 dev-features = []
 # Talk to the online TVS mock service, never enable for a real deployment.

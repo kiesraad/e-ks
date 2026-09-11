@@ -37,8 +37,6 @@
 {% endmacro %}
 {% block content %}
   <section class="general-information">
-    {# A blank list has no appellation to add omissions for; omissions added
-       before a paper correction blanked the list stay visible. #}
     {% let show_appellation_omissions = !group_info.is_blank || !appellation_omissions.is_empty() %}
     {% if political_group.mode.is_examination() %}
       {{ restorations::omission_panel("csb.omission.title_for.general"|trans, "csb.general.add_text"|trans, political_group.add_political_group_omission_path() , political_group.manage_political_group_omissions_path() , political_group_omissions.as_slice()) }}

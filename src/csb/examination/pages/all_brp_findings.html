@@ -42,7 +42,7 @@
       {{ restorations::brp_strip(brp, brp_incomplete.as_deref() ) }}
       {% if !all_findings.candidates.is_empty() %}
         {% for candidate in all_findings.candidates %}
-          {{ restorations::brp_group(candidate.person.name.display() , candidate.path.as_str(), candidate.messages.as_slice()) }}
+          {{ restorations::brp_group(candidate.person.name.display() , candidate.path.as_deref(), candidate.messages.as_slice()) }}
         {% endfor %}
       {% else if brp.is_correct() %}
         <p class="font-italic">{{ "csb.all_brp_findings.none"|trans }}</p>

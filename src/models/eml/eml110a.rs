@@ -12,7 +12,7 @@ use eml_nl::{
     utils::{ElectionCategory, RegionCategory, VotingMethod},
 };
 
-use crate::{AppError, ElectionConfig};
+use crate::{AppError, ElectionConfig, structs::csb::RegisteredPoliticalGroup};
 
 impl ElectionConfig {
     fn build_election_tree(&self) -> ElectionTree {
@@ -70,10 +70,10 @@ impl ElectionConfig {
 }
 
 /// Build the EML 110a election definition XML for the given election and
-/// the list of registered party names.
+/// its registered political groups, in the order they are given.
 pub fn eml110a(
     election: &ElectionConfig,
-    registered_party_names: Vec<String>,
+    registered_groups: &[RegisteredPoliticalGroup],
 ) -> Result<Vec<u8>, AppError> {
     let contest_identifier = if election.has_only_one_district() {
         ContestIdentifier::geen()
@@ -95,9 +95,9 @@ pub fn eml110a(
         .number_of_seats(election.number_of_seats())
         .election_tree(election.build_election_tree())
         .registered_parties(
-            registered_party_names
-                .into_iter()
-                .map(ElectionDefinitionRegisteredParty::new)
+            registered_groups
+                .iter()
+                .map(|group| ElectionDefinitionRegisteredParty::new(group.appellation.to_string()))
                 .collect::<Vec<_>>(),
         )
         .build()?;
@@ -108,7 +108,9 @@ pub fn eml110a(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ElectionConfig, Province, WaterCouncil};
+    use crate::{
+        ElectionConfig, Province, WaterCouncil, structs::csb::sample_registered_political_group,
+    };
 
     fn check_eml(response: &str, expected: &str) {
         let stringify_election_event = |eml: EML| {
@@ -128,7 +130,10 @@ mod tests {
     fn ek_export() {
         let eml = eml110a(
             &ElectionConfig::EK27,
-            vec!["Kiesraad Demo".to_string(), "Andere Partij".to_string()],
+            &[
+                sample_registered_political_group("Kiesraad Demo", 1000, 5),
+                sample_registered_political_group("Andere Partij", 100, 1),
+            ],
         )
         .unwrap();
         check_eml(
@@ -141,7 +146,10 @@ mod tests {
     fn ps1_export() {
         let eml = eml110a(
             &ElectionConfig::PS27(Province::Groningen),
-            vec!["Kiesraad Demo".to_string(), "Andere Partij".to_string()],
+            &[
+                sample_registered_political_group("Kiesraad Demo", 1000, 5),
+                sample_registered_political_group("Andere Partij", 100, 1),
+            ],
         )
         .unwrap();
         check_eml(
@@ -154,7 +162,10 @@ mod tests {
     fn ps2_export() {
         let eml = eml110a(
             &ElectionConfig::PS27(Province::Limburg),
-            vec!["Kiesraad Demo".to_string(), "Andere Partij".to_string()],
+            &[
+                sample_registered_political_group("Kiesraad Demo", 1000, 5),
+                sample_registered_political_group("Andere Partij", 100, 1),
+            ],
         )
         .unwrap();
         check_eml(
@@ -167,7 +178,7 @@ mod tests {
     fn ws_export() {
         let eml = eml110a(
             &ElectionConfig::WS27(WaterCouncil::Fryslan),
-            vec!["Water Water".to_string()],
+            &[sample_registered_political_group("Water Water", 1000, 5)],
         )
         .unwrap();
         check_eml(

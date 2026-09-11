@@ -46,12 +46,14 @@ event:
   create_name_authorisation: Statutaire naam en gemachtigde aangemaakt
   create_omission: Verzuim aangemaakt
   create_person: Persoon aangemaakt
+  create_registered_political_group: Politieke groepering geregistreerd
   create_substitute_submitter: Vervanger herstel verzuim aangemaakt
   delete: Politieke groepering verwijderd
   delete_candidate_list: Kandidatenlijst verwijderd
   delete_name_authorisation: Statutaire naam en gemachtigde verwijderd
   delete_omission: Verzuim verwijderd
   delete_person: Persoon verwijderd
+  delete_registered_political_group: Geregistreerde politieke groepering verwijderd
   delete_substitute_submitter: Vervanger herstel verzuim verwijderd
   developer_login: Ontwikkelaar ingelogd
   download_file: Bestand gedownload
@@ -78,6 +80,7 @@ event:
   update_person_address: Adres van persoon bijgewerkt
   update_person_representative: Gemachtigde van persoon bijgewerkt
   update_political_group: Politieke groepering bijgewerkt
+  update_registered_political_group: Geregistreerde politieke groepering bijgewerkt
   update_substitute_submitter: Vervanger herstel verzuim bijgewerkt
 fields:
   details: Details
@@ -101,6 +104,7 @@ filter:
     paper_correction: Papieren correcties
     person: Persoon
     political_group: Politieke groepering
+    registered_political_group: Geregistreerde politieke groeperingen
     set_finished: Afgerond
     substitute_submitter: Vervanger herstel verzuim
     system: Systeem

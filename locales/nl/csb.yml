@@ -69,7 +69,18 @@ declarations_of_support:
   instruction: Meld problemen met de ondersteunings\u00ADverklaringen
   title: Ondersteunings\u00ADverklaringen
 examination: Onderzoek
-finish_examination: Afronden onderzoek
+finish_examination:
+  download_note: Download hier alle verzuimbrieven als Word en PDF in één ZIP
+  download_pdf: Download PDF
+  download_word: Download Word
+  download_zip: Download ZIP
+  hearing_details: Zitting details
+  i1_note: Onderzoek ingeleverde kandidatenlijsten. Maak het formulier aan van verslag van het onderzoek naar de kandidatenlijsten
+  i1_title: I 1 Proces-verbaal
+  no_omission_letters: Er zijn geen verzuimbrieven aan te maken.
+  omission_letters: Verzuimbrieven
+  omission_letters_note: Maak de verzuimbrieven aan voor de politieke groeperingen waarbij verzuimen zijn vastgesteld.
+  title: Afronden onderzoek
 finish_instruction:
   create_defects: Aanmaken verzuimbrief
   create_model_i1: Aanmaken model I 1
@@ -116,16 +127,23 @@ import:
 index:
   closes_on: Sluit op
   download_election_definition: Verkiezings\u00ADdefinitie downloaden
+  download_i4: I 4 downloaden
   feature:
     add_omissions: Verzuimen en correcties toevoegen
     create_i1_letters: I 1 en verzuimbrieven aanmaken
     create_i4: I 4 aanmaken
     recover_omissions: Verzuimen herstellen
+    register_appellations: Geregistreerde aanduidingen vastleggen
+    register_previous_results: Uitslag van de laatstgehouden verkiezing vastleggen
     report_errors: Fouten doorgeven
     view_candidate_lists: Inzage kandidatenlijsten
   go_to_examination: Ga naar onderzoek
+  go_to_pre_submission: Ga naar voorinlevering
   go_to_recovery: Ga naar herstelde lijsten
+  go_to_registered_political_groups: Ga naar registratie
   phase: "Fase {}"
+  phase_0:
+    title: Registratie
   phase_1:
     title: Voorinlevering
   phase_2:
@@ -133,8 +151,6 @@ index:
   phase_3:
     title: Herstelde lijsten
   phase_4:
-    title: Lijstnummering
-  phase_5:
     title: Vaststellen kandidatenlijsten
 list:
   add_text: Voeg verzuimen toe voor deze kandidatenlijst
@@ -159,6 +175,7 @@ omission:
     applies_to: "Dit verzuim geldt voor:"
     description_label: I 1 verzuim toevoegen
     edit_heading: Type of bewerk hier het verzuim
+    help_text_hint: Alleen bij een herstelbaar verzuim. Onherstelbare verzuimen komen niet in de verzuimbrief.
     help_text_label: Verzuimbriefnotitie toevoegen
     placeholder_warning: De tekst bevat nog niet ingevulde placeholders.
     presets_heading: Gebruik deze verzuimen als sjabloon (optioneel)
@@ -180,6 +197,12 @@ omission:
     candidate: "Verzuimen {}"
     candidate_list: Verzuimen kandidatenlijst
     general: Verzuimen basisgegevens
+omission_letter:
+  download_note: Download de verzuimbrief voor deze politieke groepering als Word- of PDF-bestand.
+  explanation: In de verzuimbrief staan alle verzuimen die bij deze politieke groepering zijn vastgesteld.
+  omissions_explanation: "Alle vastgestelde verzuimen van deze politieke groepering, zoals ze in de verzuimbrief staan."
+  omissions_title: Verzuimen in de brief
+  title: Verzuimbrief
 paper_corrections:
   added: Papieren correctie toegevoegd
   banner: "U corrigeert {}. Neem alleen correcties over die met de hand op de ingeleverde papieren documenten zijn geschreven, verder niets."
@@ -188,12 +211,21 @@ paper_corrections:
   start: Ga naar gegevens
   stop: Terug naar onderzoek
   title: Papieren correcties
+pre_submission:
+  explanation: "Controleer de kandidatenlijsten die politieke groeperingen vóór de dag van kandidaatstelling aanleveren tegen de BRP, zodat zij fouten vóór de officiële inlevering kunnen herstellen."
+  group_explanation: "Alle verschillen die de controle tegen de BRP heeft gevonden, per kandidaat. Geef ze door aan de politieke groepering, zodat ze vóór de dag van kandidaatstelling hersteld kunnen worden."
+  none: Er zijn nog geen politieke groeperingen geïmporteerd voor de voorinlevering.
+  title: Voorinlevering
+  view: BRP fouten bekijken
 progress: Voortgang
 recovery:
   assess: Beoordelen
   assessed: Beoordeeld
   assessed_count: "{} van {} beoordeeld"
+  download_i4: I 4 downloaden
   explanation: "Leg per verzuim vast of het is hersteld. Kandidaten, lijsten en kieskringen met een niet hersteld verzuim worden geschrapt."
+  finish_note: "Zolang nog niet alle verzuimen zijn beoordeeld, is het model I 4 nog niet definitief."
+  finish_title: Afronden herstel
   no_omissions: Geen verzuimen
   not_recovered: Niet hersteld
   omissions_explanation: Leg per verzuim vast of het is hersteld.
@@ -201,6 +233,13 @@ recovery:
   recovered: Hersteld
   scrapped: Geschrapt
   title: Herstelde lijsten
+registered_political_groups:
+  edit: Politieke groepering bewerken
+  none: Er zijn nog geen politieke groeperingen geregistreerd.
+  numbering_hint: "Alleen politieke groeperingen die ten minste één zetel hebben behaald, worden op stemmen genummerd. De overige lijsten worden door loting genummerd."
+  previous_seats: Zetels bij de laatstgehouden verkiezing
+  previous_votes: Stemmen bij de laatstgehouden verkiezing
+  title: Geregistreerde politieke groeperingen
 status:
   approved: Goedgekeurd
   correction: Ambtshalve correcties toegevoegd

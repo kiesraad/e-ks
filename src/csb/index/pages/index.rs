@@ -24,10 +24,8 @@ fn current_phase(election: &ElectionConfig, today: NaiveDate) -> u8 {
         2
     } else if today <= election.public_session().datetime.date() {
         3
-    } else if today <= election.election_date() {
-        4
     } else {
-        5
+        4
     }
 }
 
@@ -52,11 +50,36 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
+        assert!(body.contains("Registration"));
         assert!(body.contains("Pre-submission"));
         assert!(body.contains("Examination"));
         assert!(body.contains("Rectified lists"));
-        assert!(body.contains("List numbering"));
         assert!(body.contains("Finalise candidate lists"));
+    }
+
+    #[tokio::test]
+    async fn index_links_registered_political_groups_as_phase_0() {
+        let response = index(CsbIndexPath {}, CsbContext::new_test())
+            .await
+            .unwrap()
+            .into_response();
+
+        let body = response_body_string(response).await;
+        assert!(body.contains("Phase 0"));
+        assert!(body.contains("href=\"/csb/registered-political-groups\""));
+        assert!(body.contains("Go to registered political groups"));
+    }
+
+    #[tokio::test]
+    async fn index_links_pre_submission_as_phase_1() {
+        let response = index(CsbIndexPath {}, CsbContext::new_test())
+            .await
+            .unwrap()
+            .into_response();
+
+        let body = response_body_string(response).await;
+        assert!(body.contains("href=\"/csb/pre-submission\""));
+        assert!(body.contains("Go to pre-submission"));
     }
 
     #[tokio::test]
@@ -72,6 +95,19 @@ mod tests {
         assert!(body.contains("href=\"/csb/examination\""));
         assert!(body.contains("Go to examination"));
         assert!(body.contains("href=\"/csb/recovery\""));
+    }
+
+    #[tokio::test]
+    async fn index_links_i4_download_as_phase_4() {
+        let response = index(CsbIndexPath {}, CsbContext::new_test())
+            .await
+            .unwrap()
+            .into_response();
+
+        let body = response_body_string(response).await;
+        assert!(body.contains("Phase 4"));
+        assert!(body.contains("href=\"/csb/examination/i4.pdf\""));
+        assert!(body.contains("Download I 4"));
     }
 
     #[test]
@@ -105,9 +141,10 @@ mod tests {
             ),
             4
         );
+        assert_eq!(current_phase(&election, election.election_date()), 4);
         assert_eq!(
             current_phase(&election, day_after(election.election_date())),
-            5
+            4
         );
     }
 }

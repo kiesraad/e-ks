@@ -310,8 +310,20 @@ where
         election: ElectionConfig,
         master: &MasterKey,
     ) -> Result<Self, AppError> {
+        Self::new_for_stream_in_scope(persistence, stream_id, election, D::scope(), master).await
+    }
+
+    /// As [`Self::new_for_stream_with_persistence`], recording `scope` instead
+    /// of the projection's own.
+    pub async fn new_for_stream_in_scope(
+        persistence: StorePersistence,
+        stream_id: StreamId,
+        election: ElectionConfig,
+        scope: Scope,
+        master: &MasterKey,
+    ) -> Result<Self, AppError> {
         let backend = persistence
-            .into_backend_for_stream(stream_id, election, D::scope(), master)
+            .into_backend_for_stream(stream_id, election, scope, master)
             .await?;
 
         Ok(Store {

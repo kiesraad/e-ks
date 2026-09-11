@@ -28,8 +28,6 @@
     </div>
   {% endif %}
 {% endmacro omission_badge %}
-{# A partial check is reported as such even when it already found something:
-   one tag cannot pass for a verdict the check did not reach. #}
 {% macro brp_badge(brp, url) %}
   <ul class="tags-list">
     {% if brp.is_not_checked() %}

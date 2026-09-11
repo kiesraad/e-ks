@@ -1,11 +1,11 @@
 tools:
   - name: esbuild
     # https://github.com/evanw/esbuild/releases
-    version: "0.27.3"
+    version: "0.28.2"
     base_url: "https://registry.npmjs.org/@esbuild"
   - name: biome
     # https://github.com/biomejs/biome/releases
-    version: "2.4.2"
+    version: "2.5.12"
     base_url: "https://github.com/biomejs/biome/releases/download/@biomejs/biome@"
 commands:
   docker_compose_rm:

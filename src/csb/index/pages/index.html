@@ -10,7 +10,29 @@
 {% block content %}
   {% let election = "election"|election_value %}
   <div class="cards cards-csb-phases">
-    <div class="card csb-phase-card {% if current_phase == 1 %}csb-phase-active{% else %}csb-phase-completed{% endif %}">
+    <a class="card csb-phase-card {% if current_phase == 1 %}csb-phase-active{% else %}csb-phase-completed{% endif %}"
+       href="{{ crate::csb::registered_political_groups::CsbRegisteredPoliticalGroupsPath }}">
+      <div class="card-header">
+        <div class="csb-phase-badge {% if current_phase == 1 %}csb-phase-badge-unlocked{% else %}csb-phase-badge-check{% endif %}">
+        </div>
+        <div>
+          <h4>{{ "csb.index.phase"|trans("0") }}</h4>
+        </div>
+      </div>
+      <div class="card-content">
+        <div class="csb-phase-text">
+          <h2 class="card-title">{{ "csb.index.phase_0.title"|trans }}</h2>
+          <ul class="card-instruction">
+            <li>{{ "csb.index.feature.register_appellations"|trans }}</li>
+            <li>{{ "csb.index.feature.register_previous_results"|trans }}</li>
+          </ul>
+        </div>
+        <div class="csb-phase-illustration csb-phase-illustration-1"></div>
+      </div>
+      <p class="card-footer">{{ "csb.index.go_to_registered_political_groups"|trans }}</p>
+    </a>
+    <a class="card csb-phase-card {% if current_phase == 1 %}csb-phase-active{% else %}csb-phase-completed{% endif %}"
+       href="{{ crate::csb::pre_submission::CsbPreSubmissionOverviewPath }}">
       <div class="card-header">
         <div class="csb-phase-badge {% if current_phase == 1 %}csb-phase-badge-unlocked{% else %}csb-phase-badge-check{% endif %}">
         </div>
@@ -32,7 +54,8 @@
         </div>
         <div class="csb-phase-illustration csb-phase-illustration-1"></div>
       </div>
-    </div>
+      <p class="card-footer">{{ "csb.index.go_to_pre_submission"|trans }}</p>
+    </a>
     <a class="card csb-phase-card {% if current_phase == 2 %}csb-phase-active{% else %}csb-phase-muted{% endif %}"
        href="{{ crate::csb::examination::CsbExaminationOverviewPath }}">
       <div class="card-header">
@@ -85,9 +108,10 @@
       </div>
       <p class="card-footer">{{ "csb.index.go_to_recovery"|trans }}</p>
     </a>
-    <div class="card csb-phase-card {% if current_phase == 4 %}csb-phase-active{% else if current_phase > 4 %}csb-phase-completed{% else %}csb-phase-locked{% endif %}">
+    <a class="card csb-phase-card {% if current_phase == 4 %}csb-phase-active{% else %}csb-phase-locked{% endif %}"
+       href="{{ crate::csb::examination::CsbI4DownloadPath }}">
       <div class="card-header">
-        <div class="csb-phase-badge {% if current_phase > 4 %}csb-phase-badge-check{% else if current_phase == 4 %}csb-phase-badge-unlocked{% else %}csb-phase-badge-lock{% endif %}">
+        <div class="csb-phase-badge {% if current_phase == 4 %}csb-phase-badge-unlocked{% else %}csb-phase-badge-lock{% endif %}">
         </div>
         <div>
           <h4>{{ "csb.index.phase"|trans("4") }}</h4>
@@ -108,30 +132,7 @@
         </div>
         <div class="csb-phase-illustration csb-phase-illustration-4"></div>
       </div>
-    </div>
-    <div class="card csb-phase-card {% if current_phase == 5 %}csb-phase-active{% else %}csb-phase-locked{% endif %}">
-      <div class="card-header">
-        <div class="csb-phase-badge {% if current_phase == 5 %}csb-phase-badge-unlocked{% else %}csb-phase-badge-lock{% endif %}">
-        </div>
-        <div>
-          <h4>{{ "csb.index.phase"|trans("5") }}</h4>
-        </div>
-        <div class="csb-phase-close-date">
-          <span>{{ "csb.index.closes_on"|trans }}</span>
-          <span>{{ election.election_date().format("%d-%m-%y") }}</span>
-        </div>
-      </div>
-      <div class="card-content">
-        <div class="csb-phase-text">
-          <h2 class="card-title">{{ "csb.index.phase_5.title"|trans }}</h2>
-          <ul class="card-instruction">
-            <li>{{ "csb.index.feature.view_candidate_lists"|trans }}</li>
-            <li>{{ "csb.index.feature.report_errors"|trans }}</li>
-            <li>{{ "csb.index.feature.create_i4"|trans }}</li>
-          </ul>
-        </div>
-        <div class="csb-phase-illustration csb-phase-illustration-5"></div>
-      </div>
-    </div>
+      <p class="card-footer">{{ "csb.index.download_i4"|trans }}</p>
+    </a>
   </div>
 {% endblock %}

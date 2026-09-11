@@ -24,6 +24,12 @@ pub enum Scope {
     /// A candidate-list package that was imported by the CSB from a political
     /// group's stream. One stream per import action.
     ImportedByCsb,
+    /// A candidate-list package a political group handed in ahead of
+    /// nomination day for the pre-submission check (*voorinlevering*), imported
+    /// by the CSB to check it against the BRP. One stream per import action,
+    /// kept apart from the [`Scope::ImportedByCsb`] streams of the
+    /// examination.
+    PreSubmittedToCsb,
 }
 
 impl Scope {
@@ -33,6 +39,7 @@ impl Scope {
             Scope::PoliticalGroup => "political_group",
             Scope::CentralElectoralCommittee => "central_electoral_committee",
             Scope::ImportedByCsb => "imported_by_csb",
+            Scope::PreSubmittedToCsb => "pre_submitted_to_csb",
         }
     }
 }
@@ -45,6 +52,7 @@ impl FromStr for Scope {
             "political_group" => Ok(Scope::PoliticalGroup),
             "central_electoral_committee" => Ok(Scope::CentralElectoralCommittee),
             "imported_by_csb" => Ok(Scope::ImportedByCsb),
+            "pre_submitted_to_csb" => Ok(Scope::PreSubmittedToCsb),
             _ => Err("invalid scope"),
         }
     }
@@ -65,6 +73,7 @@ mod tests {
             Scope::PoliticalGroup,
             Scope::CentralElectoralCommittee,
             Scope::ImportedByCsb,
+            Scope::PreSubmittedToCsb,
         ] {
             assert_eq!(Scope::from_str(scope.as_str()), Ok(scope));
         }

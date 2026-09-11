@@ -9,45 +9,62 @@
   <span class="subtitle">{{ "csb.recovery.explanation"|trans }}</span>
 {% endblock %}
 {% block content %}
-  <div class="examination-main card card-plain">
-    {% if political_groups.is_empty() %}
-      <p class="font-italic">{{ "csb.no_political_groups_added"|trans }}</p>
-    {% else %}
-      <table class="political-group-recovery-table mb-xl mt-md">
-        <thead>
-          <tr>
-            <th>{{ "common.political_group"|trans }}</th>
-            <th>{{ "csb.status.name"|trans }}</th>
-            <th>{{ "csb.progress"|trans }}</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for pg in political_groups %}
-            <tr class="clickable">
-              <td>{{ pg.csb_appellation() }}</td>
-              <td>
-                {% if pg.omission_count == 0 %}
-                  <div class="status approved">{{ "csb.recovery.no_omissions"|trans }}</div>
-                {% else if !pg.recovery.is_complete() %}
-                  <div class="status in-progress">{{ "csb.status.in_progress"|trans }}</div>
-                {% else %}
-                  <div class="status approved">{{ "csb.recovery.assessed"|trans }}</div>
-                {% endif %}
-              </td>
-              <td>
-                {% if pg.recovery.total > 0 %}
-                  {{ "csb.recovery.assessed_count"|trans(&pg.recovery.decided().to_string() , &pg.recovery.total.to_string() ) }}
-                {% endif %}
-              </td>
-              <td>
-                <a href="{{ pg.group_path() }}"
-                   title="{{ "csb.recovery.assess"|trans }}"></a>
-              </td>
+  <div class="examination">
+    <div class="examination-side">
+      <div class="card mb-md">
+        <div class="card-header">
+          <div class="badge {% if all_omissions_assessed %}unlocked{% else %}locked{% endif %} info"></div>
+          <div>
+            <h4>{{ "csb.recovery.finish_title"|trans }}</h4>
+          </div>
+        </div>
+        <div class="card-content">
+          <p>{{ "csb.recovery.finish_note"|trans }}</p>
+          <a href="{{ CsbI4DownloadPath }}"
+             class="button {% if all_omissions_assessed %}primary{% else %}secondary{% endif %} icon-download mt-md">{{ "csb.recovery.download_i4"|trans }}</a>
+        </div>
+      </div>
+    </div>
+    <div class="examination-main card card-plain">
+      {% if political_groups.is_empty() %}
+        <p class="font-italic">{{ "csb.no_political_groups_added"|trans }}</p>
+      {% else %}
+        <table class="political-group-recovery-table mb-xl mt-md">
+          <thead>
+            <tr>
+              <th>{{ "common.political_group"|trans }}</th>
+              <th>{{ "csb.status.name"|trans }}</th>
+              <th>{{ "csb.progress"|trans }}</th>
+              <th></th>
             </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    {% endif %}
+          </thead>
+          <tbody>
+            {% for pg in political_groups %}
+              <tr class="clickable">
+                <td>{{ pg.csb_appellation() }}</td>
+                <td>
+                  {% if pg.omission_count == 0 %}
+                    <div class="status approved">{{ "csb.recovery.no_omissions"|trans }}</div>
+                  {% else if !pg.recovery.is_complete() %}
+                    <div class="status in-progress">{{ "csb.status.in_progress"|trans }}</div>
+                  {% else %}
+                    <div class="status approved">{{ "csb.recovery.assessed"|trans }}</div>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if pg.recovery.total > 0 %}
+                    {{ "csb.recovery.assessed_count"|trans(&pg.recovery.decided().to_string() , &pg.recovery.total.to_string() ) }}
+                  {% endif %}
+                </td>
+                <td>
+                  <a href="{{ pg.group_path() }}"
+                     title="{{ "csb.recovery.assess"|trans }}"></a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
+    </div>
   </div>
 {% endblock %}

@@ -9,36 +9,8 @@
   <a href="{{ CsbExaminationOverviewPath }}" class="button secondary">{{ "action.back"|trans }}</a>
 {% endblock %}
 {% block content %}
-  <form action="{{ CsbImportPath{}.to_string() }}" method="post" class="form">
-    {{ macros::csrf_field() }}
-    <fieldset>
-      {% if let Some(msg) = warning %}
-        <div class="alert alert-warning mb-md">{{ msg }}</div>
-      {% endif %}
-      <div class="form-field form-field-lg {% if error.is_some() %}error{% endif %}">
-        <label for="hash">{{ "csb.form.hash"|trans }}</label>
-        <input id="hash"
-               type="text"
-               name="hash"
-               value="{{ hash }}"
-               required
-               autocomplete="off"
-               minlength="8"
-               class="font-number uppercase"
-               data-hash-input
-               data-invalid-hash-message="{{ "csb.import.error.invalid_hash"|trans }}" />
-        {% if let Some(msg) = error %}<span class="error">{{ msg }}</span>{% endif %}
-      </div>
-      <div class="form-actions">
-        {% if warning.is_some() %}
-          <input type="hidden" name="confirmed_hash" value="{{ hash }}" />
-          <button type="submit" class="button lg" name="action" value="save">{{ "csb.form.import_anyway"|trans }}</button>
-        {% else %}
-          <button type="submit" class="button lg" name="action" value="save">{{ "csb.form.import"|trans }}</button>
-        {% endif %}
-      </div>
-    </fieldset>
-  </form>
+  {% set import_action = CsbImportPath{}.to_string() %}
+  {% include "csb/components/import_hash_form.html" %}
   <form action="{{ crate::csb::import::CsbCreateEmptyPath{}.to_string() }}"
         method="post"
         class="form mt-xl">

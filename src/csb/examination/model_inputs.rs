@@ -1,13 +1,14 @@
-//! Model I 1 and I 4 inputs, collected over every imported political group.
-//! What the omissions scrap is read from the store's [`Scrapped`] state, so
-//! the models report the same outcome as the recovery pages.
+//! Model I 1 and I 4 inputs, collected over every imported political group,
+//! plus the omission letter inputs of a single group. What the omissions
+//! scrap is read from the store's [`Scrapped`] state, so the models report
+//! the same outcome as the recovery pages.
 
 use std::collections::BTreeMap;
 
 use crate::{
     AppError, CsbStoreData, CsbStream, ElectionConfig, ElectoralDistrict,
     core::AnyLocale,
-    models::{i1, i4},
+    models::{i1, i4, omission_letter},
     projection::{Scrapped, WithCorrections},
     store::StoreRegistry,
     structs::{
@@ -99,6 +100,116 @@ pub async fn found_omissions(
     Ok(found)
 }
 
+/// The omission letter sections of one political group: its recoverable
+/// omissions, one section per set of districts, the all-districts one first
+/// and the partial ones after it in district-label order. Within a section
+/// the omissions about the group, its lists and the declarations of support
+/// come first as plain bullets; the candidates follow, each with their own
+/// omissions grouped under their name. Irreparable omissions are left out;
+/// the letter has nothing to ask for.
+pub fn omission_letter_sections(
+    store: &CsbStream,
+    election: &ElectionConfig,
+) -> Result<Vec<omission_letter::DistrictOmissions>, AppError> {
+    let mut omissions: Vec<Omission> = sorted_omissions(store)
+        .into_iter()
+        .filter(|omission| omission.recoverable)
+        .collect();
+    // Unlike the models, the letter puts the declarations of support last
+    // among the plain bullets (the sort is stable, so the rest keeps its
+    // reading order).
+    omissions.sort_by_key(|omission| {
+        matches!(
+            omission.category,
+            OmissionCategory::DeclarationsOfSupport(_)
+        )
+    });
+
+    let mut by_district: BTreeMap<String, SectionOmissions> = BTreeMap::new();
+    for omission in &omissions {
+        let district = omission.category.electoral_district(store, election)?;
+        let section = by_district.entry(district).or_default();
+        let letter_omission = omission_letter::LetterOmission {
+            description: omission.description.to_string(),
+            help_text: omission.help_text().map(ToString::to_string),
+        };
+        match &omission.category {
+            OmissionCategory::Candidate { person, lists } => {
+                section.push_candidate_omission(store, *person, lists, letter_omission)?;
+            }
+            _ => section.omissions.push(letter_omission),
+        }
+    }
+
+    let all_districts = by_district
+        .remove(ALL_DISTRICTS)
+        .map(|section| section.into_district_omissions(ALL_DISTRICTS.to_string(), true));
+
+    Ok(all_districts
+        .into_iter()
+        .chain(
+            by_district
+                .into_iter()
+                .map(|(districts, section)| section.into_district_omissions(districts, false)),
+        )
+        .collect())
+}
+
+/// A letter section being collected: the plain bullets plus one group per
+/// candidate, in order of first appearance (list order, as the omissions
+/// arrive sorted).
+#[derive(Default)]
+struct SectionOmissions {
+    omissions: Vec<omission_letter::LetterOmission>,
+    candidates: Vec<(PersonId, omission_letter::CandidateOmissions)>,
+}
+
+impl SectionOmissions {
+    fn push_candidate_omission(
+        &mut self,
+        store: &CsbStream,
+        person: PersonId,
+        lists: &[CandidateListId],
+        omission: omission_letter::LetterOmission,
+    ) -> Result<(), AppError> {
+        if let Some((_, candidate)) = self.candidates.iter_mut().find(|(id, _)| *id == person) {
+            candidate.omissions.push(omission);
+        } else {
+            let name = store
+                .get_person(person, WithCorrections::All)
+                .ok_or(AppError::GenericNotFound)?
+                .name
+                .display();
+            self.candidates.push((
+                person,
+                omission_letter::CandidateOmissions {
+                    position: candidate_position(store, person, lists),
+                    name,
+                    omissions: vec![omission],
+                },
+            ));
+        }
+        Ok(())
+    }
+
+    fn into_district_omissions(
+        self,
+        electoral_districts: String,
+        covers_all_districts: bool,
+    ) -> omission_letter::DistrictOmissions {
+        omission_letter::DistrictOmissions {
+            electoral_districts,
+            covers_all_districts,
+            omissions: self.omissions,
+            candidates: self
+                .candidates
+                .into_iter()
+                .map(|(_, candidate)| candidate)
+                .collect(),
+        }
+    }
+}
+
 /// The I 4 sections derived from the omissions and corrections; the numbering
 /// and objections are recorded during the public session.
 #[derive(Debug, Default)]
@@ -186,15 +297,23 @@ fn omission_order(store: &CsbStream, omission: &Omission) -> (u8, usize, UtcDate
         OmissionCategory::PoliticalGroup | OmissionCategory::Appellation => (0, 0),
         OmissionCategory::DeclarationsOfSupport(_) => (1, 0),
         OmissionCategory::CandidateList(_) => (2, 0),
-        OmissionCategory::Candidate { person, lists } => {
-            let position = lists
-                .first()
-                .and_then(|list| store.get_candidate_position(*list, *person, WithCorrections::All))
-                .unwrap_or(usize::MAX);
-            (3, position)
-        }
+        OmissionCategory::Candidate { person, lists } => (
+            3,
+            candidate_position(store, *person, lists).unwrap_or(usize::MAX),
+        ),
     };
     (rank, position, omission.updated_at, omission.id)
+}
+
+/// A candidate's position on the first of `lists`; `None` when not on it.
+fn candidate_position(
+    store: &CsbStream,
+    person: PersonId,
+    lists: &[CandidateListId],
+) -> Option<usize> {
+    lists
+        .first()
+        .and_then(|list| store.get_candidate_position(*list, person, WithCorrections::All))
 }
 
 /// One group per district label.
@@ -1424,5 +1543,197 @@ mod tests {
         assert_eq!(appellations.len(), 2);
         assert!(appellations.contains(&"Alleen Bonaire"));
         assert!(appellations.contains(&"Twee Kieskringen"));
+    }
+
+    #[tokio::test]
+    async fn omission_letter_sections_lead_with_the_all_districts_section() {
+        // The group submitted in every district, so its own omissions cover
+        // them all; the declarations of support fell short in one.
+        let (store, _) = store_with_list(EK.electoral_districts().to_vec());
+        create_omission(
+            &store,
+            OmissionCategory::DeclarationsOfSupport(vec![ElectoralDistrict::Bonaire]),
+            "Ondersteuningsverklaringen ontbreken",
+        )
+        .await;
+        create_omission(&store, OmissionCategory::PoliticalGroup, "Eerste verzuim").await;
+        create_omission(&store, OmissionCategory::PoliticalGroup, "Tweede verzuim").await;
+
+        let sections = omission_letter_sections(&store, &EK).unwrap();
+
+        assert_eq!(sections.len(), 2);
+        // The all-districts section heads the letter.
+        assert!(sections[0].covers_all_districts);
+        assert_eq!(sections[0].heading(), "Alle kieskringen");
+        let descriptions: Vec<&str> = sections[0]
+            .omissions
+            .iter()
+            .map(|omission| omission.description.as_str())
+            .collect();
+        assert_eq!(descriptions, ["Eerste verzuim", "Tweede verzuim"]);
+        assert!(sections[0].candidates.is_empty());
+
+        assert!(!sections[1].covers_all_districts);
+        assert_eq!(
+            sections[1].heading(),
+            "Een deel van de kieskringen: kieskring 13 (Bonaire)"
+        );
+        assert_eq!(
+            sections[1].omissions[0].description,
+            "Ondersteuningsverklaringen ontbreken"
+        );
+        // The letter carries the recovery instructions alongside the omission.
+        assert_eq!(
+            sections[1].omissions[0].help_text.as_deref(),
+            Some("test help text")
+        );
+    }
+
+    #[tokio::test]
+    async fn omission_letter_sections_close_with_the_declarations_of_support() {
+        // A list in every district: the declarations of support omission
+        // without districts shares the all-districts section with the rest.
+        let (store, list) = store_with_list(EK.electoral_districts().to_vec());
+        create_omission(
+            &store,
+            OmissionCategory::DeclarationsOfSupport(Vec::new()),
+            "Ondersteuningsverklaringen ontbreken",
+        )
+        .await;
+        create_omission(
+            &store,
+            OmissionCategory::PoliticalGroup,
+            "Waarborgsom ontbreekt",
+        )
+        .await;
+        create_omission(
+            &store,
+            OmissionCategory::CandidateList(vec![list]),
+            "Machtiging ontbreekt",
+        )
+        .await;
+
+        let sections = omission_letter_sections(&store, &EK).unwrap();
+
+        assert_eq!(sections.len(), 1);
+        assert!(sections[0].covers_all_districts);
+        let descriptions: Vec<&str> = sections[0]
+            .omissions
+            .iter()
+            .map(|omission| omission.description.as_str())
+            .collect();
+        assert_eq!(
+            descriptions,
+            [
+                "Waarborgsom ontbreekt",
+                "Machtiging ontbreekt",
+                "Ondersteuningsverklaringen ontbreken",
+            ]
+        );
+        assert!(sections[0].candidates.is_empty());
+    }
+
+    fn letter_descriptions(omissions: &[omission_letter::LetterOmission]) -> Vec<&str> {
+        omissions
+            .iter()
+            .map(|omission| omission.description.as_str())
+            .collect()
+    }
+
+    /// Omissions recorded out of order: two candidates' interleaved with the
+    /// group's, plus an irreparable one for Aarts.
+    async fn create_interleaved_omissions(
+        store: &CsbStore,
+        list: &CandidateList,
+        persons: &[Person],
+    ) {
+        let candidate = |person: &Person| OmissionCategory::Candidate {
+            person: person.id,
+            lists: vec![list.id],
+        };
+        create_omission(store, candidate(&persons[2]), "Kopie ID Cornelissen").await;
+        create_omission(store, candidate(&persons[1]), "Handtekening de Boer").await;
+        create_omission(
+            store,
+            OmissionCategory::DeclarationsOfSupport(vec![
+                ElectoralDistrict::Groningen,
+                ElectoralDistrict::Bonaire,
+            ]),
+            "Ondersteuningsverklaringen ontbreken",
+        )
+        .await;
+        create_omission(store, candidate(&persons[1]), "Kopie ID de Boer").await;
+        create_omission(
+            store,
+            OmissionCategory::CandidateList(vec![list.id]),
+            "Machtiging ontbreekt",
+        )
+        .await;
+        create_omission(
+            store,
+            OmissionCategory::PoliticalGroup,
+            "Waarborgsom ontbreekt",
+        )
+        .await;
+        create_irreparable_omission(store, candidate(&persons[0]), "Onherstelbaar").await;
+    }
+
+    #[tokio::test]
+    async fn omission_letter_sections_group_the_omissions_per_candidate() {
+        let state = AppState::new_for_tests().await;
+        let (store, list, persons) = seed_group_with_list(&state, "Gegroepeerd").await;
+        create_interleaved_omissions(&store, &list, &persons).await;
+
+        let sections = omission_letter_sections(&store, &EK).unwrap();
+
+        assert_eq!(sections.len(), 1);
+        let section = &sections[0];
+        assert_eq!(
+            section.heading(),
+            "Een deel van de kieskringen: kieskring 1 (Groningen), 13 (Bonaire)"
+        );
+        // The plain bullets: group first, declarations of support last.
+        assert_eq!(
+            letter_descriptions(&section.omissions),
+            [
+                "Waarborgsom ontbreekt",
+                "Machtiging ontbreekt",
+                "Ondersteuningsverklaringen ontbreken",
+            ]
+        );
+
+        // Then the candidates in list order, each with all their omissions;
+        // Aarts' irreparable omission earns no heading.
+        assert_eq!(section.candidates.len(), 2);
+        assert_eq!(
+            section.candidates[0].heading(),
+            "Kandidaat nr. 2: de Boer, B. (Bas)"
+        );
+        assert_eq!(
+            letter_descriptions(&section.candidates[0].omissions),
+            ["Handtekening de Boer", "Kopie ID de Boer"]
+        );
+        assert_eq!(
+            section.candidates[0].omissions[0].help_text.as_deref(),
+            Some("test help text")
+        );
+        assert_eq!(
+            section.candidates[1].heading(),
+            "Kandidaat nr. 3: Cornelissen, C. (Cas)"
+        );
+        assert_eq!(
+            letter_descriptions(&section.candidates[1].omissions),
+            ["Kopie ID Cornelissen"]
+        );
+    }
+
+    #[tokio::test]
+    async fn omission_letter_sections_skip_irreparable_omissions() {
+        let store = CsbStore::new_for_test();
+        let mut irreparable = sample_omission(OmissionCategory::PoliticalGroup);
+        irreparable.recoverable = false;
+        irreparable.create(&store).await.unwrap();
+
+        assert!(omission_letter_sections(&store, &EK).unwrap().is_empty());
     }
 }

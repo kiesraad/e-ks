@@ -25,7 +25,7 @@ jobs:
           persist-credentials: false
 
       - name: Sigrid CI
-        uses: Software-Improvement-Group/sigridci@af53cad301d0057e9f39842203c724b1c5162144 # main
+        uses: Software-Improvement-Group/sigridci@db21307124a69dda204bd2dee751ece097b3d8a3 # main
         continue-on-error: true # a failed quality gate should not fail the job
         with:
           customer: kiesraad
