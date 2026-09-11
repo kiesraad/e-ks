@@ -39,7 +39,7 @@ where
     let Some(rd) = auth_state.rd_metadata() else {
         warn!("[login] RD metadata not loaded; SAML login unavailable");
         return state
-            .on_authentication_failed(AuthFailure::Unavailable, jar, &headers)
+            .on_authentication_failed(AuthFailure::Unavailable, jar, &headers, true)
             .await;
     };
 
@@ -53,7 +53,7 @@ where
         Err(e) => {
             error!("[login] Failed to initiate SAML login: {e}");
             state
-                .on_authentication_failed(AuthFailure::from(&e), jar, &headers)
+                .on_authentication_failed(AuthFailure::from(&e), jar, &headers, true)
                 .await
         }
     }

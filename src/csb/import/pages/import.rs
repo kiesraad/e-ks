@@ -461,8 +461,10 @@ mod tests {
     #[tokio::test]
     async fn a_brp_result_for_a_corrected_candidate_is_dropped() -> Result<(), AppError> {
         use crate::{
-            structs::csb::{Correction, PersonCorrection},
-            structs::persons::PersonId,
+            structs::{
+                csb::{Correction, PersonCorrection},
+                persons::PersonId,
+            },
             test_utils::sample_person,
         };
 

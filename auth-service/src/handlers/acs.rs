@@ -71,18 +71,24 @@ where
             "[ACS] SSO flow cookie missing, malformed, or not bound to this User-Agent: \
              rejecting before resolving the artifact (possible login CSRF / forced login)"
         );
-        return fail_redirect(AuthFailure::Error, jar);
+        return fail_redirect(AuthFailure::Error, jar); // no flow to end
+    };
+    // from here on a failure ends a flow this browser started
+    let failed = |failure: AuthFailure, jar: CookieJar| {
+        let marker =
+            crate::handlers::flow::failed_flow_cookie(&auth_state.auth_config().dv.acs_url);
+        fail_redirect(failure, jar.add(marker))
     };
 
     let claims = match resolve_artifact_to_claims(&auth_state, &params).await {
         Ok(c) => c,
         // Technical detail is logged at the failure site; the query-clean error
         // endpoint renders the user-facing page (TVS T3/L10).
-        Err(failure) => return fail_redirect(failure, jar),
+        Err(failure) => return failed(failure, jar),
     };
 
     if !confirm_pending_request(&state, &bound_authn_id, &claims).await {
-        return fail_redirect(AuthFailure::Error, jar);
+        return failed(AuthFailure::Error, jar);
     }
 
     // SECURITY: never log decrypted SubjectID values; they are PII (BSN /
@@ -104,7 +110,7 @@ where
     // guaranteeing the application's `on_authenticated` a SubjectID.
     let Some(subject_id) = claims.acting_subject_id else {
         warn!("[ACS] No acting SubjectID in validated assertion: treating as auth failure");
-        return fail_redirect(AuthFailure::Error, jar);
+        return failed(AuthFailure::Error, jar);
     };
     debug!("[ACS] Handing off to AuthState::on_authenticated");
     state
@@ -173,7 +179,11 @@ where
     let failure = params
         .get("reason")
         .map_or(AuthFailure::Error, |r| failure_from_reason(r));
-    let mut response = state.on_authentication_failed(failure, jar, &headers).await;
+    // only a failure of a flow this browser started ends the local session
+    let (ends_flow, jar) = crate::handlers::flow::take_failed_flow(jar);
+    let mut response = state
+        .on_authentication_failed(failure, jar, &headers, ends_flow)
+        .await;
     harden_headers(response.headers_mut());
     response
 }
@@ -711,6 +721,90 @@ mod tests {
         .await;
         // MockAuthState renders Error as 401.
         assert_eq!(resp.status(), axum::http::StatusCode::UNAUTHORIZED);
+    }
+
+    /// Set-Cookie values of a response.
+    fn set_cookies(resp: &Response) -> Vec<String> {
+        resp.headers()
+            .get_all(axum::http::header::SET_COOKIE)
+            .iter()
+            .filter_map(|v| v.to_str().ok().map(str::to_owned))
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn failed_callback_marks_the_flow_only_when_the_browser_started_it() {
+        let mock = MockAuthState::empty();
+        let headers = HeaderMap::new();
+
+        // a flow cookie: the failure ends a real flow
+        let resp = handle_acs(
+            SamlAcsPath,
+            State(mock.clone()),
+            State(mock.auth.clone()),
+            jar_with_flow_cookie(&mock.auth, "_pending", &headers),
+            headers.clone(),
+            Query(HashMap::new()),
+        )
+        .await;
+        assert!(
+            set_cookies(&resp)
+                .iter()
+                .any(|c| c.contains("eks-saml-failed=1")),
+            "{:?}",
+            set_cookies(&resp)
+        );
+
+        // no flow cookie: a cross-site link must not end anyone's session
+        let resp = handle_acs(
+            SamlAcsPath,
+            State(mock.clone()),
+            State(mock.auth.clone()),
+            axum_extra::extract::CookieJar::new(),
+            headers,
+            Query(HashMap::new()),
+        )
+        .await;
+        assert!(
+            !set_cookies(&resp)
+                .iter()
+                .any(|c| c.contains("eks-saml-failed=1")),
+            "{:?}",
+            set_cookies(&resp)
+        );
+    }
+
+    #[tokio::test]
+    async fn error_endpoint_ends_the_session_only_for_a_marked_failure() {
+        let mock = MockAuthState::empty();
+        let end_session = |resp: &Response| {
+            resp.headers()
+                .get("x-test-end-session")
+                .and_then(|v| v.to_str().ok())
+                .map(str::to_owned)
+        };
+
+        let marker = crate::handlers::flow::failed_flow_cookie(&mock.auth.auth_config().dv.acs_url);
+        let resp = handle_login_error(
+            LoginErrorPath,
+            State(mock.clone()),
+            axum_extra::extract::CookieJar::new().add(marker),
+            HeaderMap::new(),
+            Query(HashMap::new()),
+        )
+        .await;
+        assert_eq!(end_session(&resp).as_deref(), Some("true"));
+
+        // a bare hit on the error page
+        let resp = handle_login_error(
+            LoginErrorPath,
+            State(mock.clone()),
+            axum_extra::extract::CookieJar::new(),
+            HeaderMap::new(),
+            Query(HashMap::new()),
+        )
+        .await;
+        assert_eq!(end_session(&resp).as_deref(), Some("false"));
     }
 
     #[test]

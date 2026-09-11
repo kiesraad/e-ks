@@ -148,10 +148,15 @@ impl AuthState for AppState {
         failure: AuthFailure,
         jar: CookieJar,
         headers: &HeaderMap,
+        end_session: bool,
     ) -> Response {
-        // TVS L10: end any existing local session before showing the page, so a
-        // failed re-authentication never leaves a stale session behind.
-        let jar = self.clear_session_cookie(jar).await;
+        // TVS L10, only for a flow this browser started: a bare link to the
+        // error page must not log anyone out.
+        let jar = if end_session {
+            self.clear_session_cookie(jar).await
+        } else {
+            jar
+        };
         let locale = Locale::from_headers(headers);
 
         // No session and no stream, so the log is the only place this can land.

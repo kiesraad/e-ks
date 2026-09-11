@@ -12,7 +12,7 @@ use crate::{
     filters,
     projection::{CSB_MAIN_STREAM_ID, WithCorrections},
     store::{StoreData, StoreEvent},
-    structs::audit_log::FieldChange,
+    structs::{audit_log::FieldChange, csb::Correction},
     trans,
 };
 
@@ -74,7 +74,22 @@ fn correction_changes(
         }
     }
 
-    vec![correction.change(&before, locale)]
+    let change = match correction {
+        Correction::Appellation(appellation) => FieldChange::Regular {
+            field: trans!("audit_log.detail.fields.appellation", locale),
+            old_value: before
+                .get_political_group(WithCorrections::All)
+                .appellation
+                .map(|a| a.to_string())
+                .unwrap_or_default(),
+            new_value: appellation.to_string(),
+        },
+        Correction::Person(person_id, person_correction) => person_correction.change(
+            before.get_person(*person_id, WithCorrections::All).as_ref(),
+            locale,
+        ),
+    };
+    vec![change]
 }
 
 #[derive(Template)]
@@ -191,8 +206,10 @@ mod tests {
     #[tokio::test]
     async fn correction_detail_shows_the_previous_value() -> Result<(), AppError> {
         use crate::{
-            structs::csb::{Correction, PersonCorrection},
-            structs::persons::PersonId,
+            structs::{
+                csb::{Correction, PersonCorrection},
+                persons::PersonId,
+            },
             test_utils::sample_person,
         };
 

@@ -3,8 +3,7 @@ use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    CsbStream, Locale,
-    projection::WithCorrections,
+    Locale,
     structs::{
         audit_log::FieldChange,
         common::{Appellation, DateOfBirth, Initials, LastName, LastNamePrefix, PlaceOfResidence},
@@ -162,28 +161,6 @@ impl PersonCorrection {
             PersonCorrection::LastName(_) => PersonCorrectionKind::LastName,
             PersonCorrection::DateOfBirth(_) => PersonCorrectionKind::DateOfBirth,
             PersonCorrection::PlaceOfResidence(_) => PersonCorrectionKind::PlaceOfResidence,
-        }
-    }
-}
-
-impl Correction {
-    /// The audit-log change this correction made to `before`, the stream as
-    /// it stood just before the correction.
-    pub fn change(&self, before: &CsbStream, locale: Locale) -> FieldChange {
-        match self {
-            Correction::Appellation(v) => FieldChange::Regular {
-                field: trans!("audit_log.detail.fields.appellation", locale),
-                old_value: before
-                    .get_political_group(WithCorrections::All)
-                    .appellation
-                    .map(|a| a.to_string())
-                    .unwrap_or_default(),
-                new_value: v.to_string(),
-            },
-            Correction::Person(person_id, person_correction) => person_correction.change(
-                before.get_person(*person_id, WithCorrections::All).as_ref(),
-                locale,
-            ),
         }
     }
 }

@@ -31,6 +31,7 @@ const WRAP_AAD_PREFIX: &[u8] = b"stream-key:";
 
 const KEY_LEN: usize = 32;
 const NONCE_LEN: usize = 12;
+const TAG_LEN: usize = 16;
 
 /// Key-wrapping key derived from the master secret. Wraps and unwraps
 /// per-stream [`StreamKey`]s; never encrypts event payloads itself.
@@ -63,10 +64,11 @@ impl MasterKey {
     ) -> Result<WrappedKey, AppError> {
         let nonce = Nonce::<Aes256Gcm>::generate();
 
-        // encrypt_in_place overwrites the plaintext copy
-        let mut buf = key.0.expose_secret().to_vec();
+        // sized for the tag, so encrypt_in_place never reallocates and leaves plaintext behind
+        let mut buf = Zeroizing::new(Vec::with_capacity(KEY_LEN + TAG_LEN));
+        buf.extend_from_slice(key.0.expose_secret());
         self.cipher
-            .encrypt_in_place(&nonce, &wrap_aad(stream_id, election), &mut buf)
+            .encrypt_in_place(&nonce, &wrap_aad(stream_id, election), &mut *buf)
             .map_err(|e| AppError::ServerError(std::io::Error::other(e.to_string())))?;
 
         let mut out = Vec::with_capacity(NONCE_LEN + buf.len());
@@ -206,12 +208,17 @@ impl EventCipher {
     pub fn encrypt<E: Serialize>(&self, event: &E, aad: &[u8]) -> Result<Vec<u8>, AppError> {
         let nonce = Nonce::<Aes256Gcm>::generate();
 
-        let mut ciphertext = postcard::to_allocvec(event).map_err(|e| {
+        let invalid = |e: postcard::Error| {
             AppError::ServerError(std::io::Error::new(std::io::ErrorKind::InvalidData, e))
-        })?;
+        };
+        // sized up front, so no reallocation leaves plaintext behind
+        let size = postcard::experimental::serialized_size(event).map_err(invalid)?;
+        let mut ciphertext = Zeroizing::new(
+            postcard::to_extend(event, Vec::with_capacity(size + TAG_LEN)).map_err(invalid)?,
+        );
 
         self.cipher
-            .encrypt_in_place(&nonce, aad, &mut ciphertext)
+            .encrypt_in_place(&nonce, aad, &mut *ciphertext)
             .map_err(|e| AppError::ServerError(std::io::Error::other(e.to_string())))?;
 
         let mut out = Vec::with_capacity(NONCE_LEN + ciphertext.len());

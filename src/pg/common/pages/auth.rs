@@ -457,7 +457,7 @@ mod tests {
 
         let jar = CookieJar::new().add(Cookie::new(SESSION_COOKIE_NAME, token.clone()));
         let response = state
-            .on_authentication_failed(AuthFailure::Error, jar, &HeaderMap::new())
+            .on_authentication_failed(AuthFailure::Error, jar, &HeaderMap::new(), true)
             .await;
 
         assert!(
@@ -467,6 +467,30 @@ mod tests {
                 .await
                 .expect("load session")
                 .is_none()
+        );
+        assert!(response.status().is_success());
+    }
+
+    #[tokio::test]
+    async fn on_authentication_failed_keeps_the_session_outside_a_flow() {
+        // A bare hit on the error page (a cross-site link) must not log out.
+        let state = crate::AppState::new_for_tests().await;
+        let session = Session::new_test();
+        let token = session.token_string();
+        state.sessions().insert(session).await;
+
+        let jar = CookieJar::new().add(Cookie::new(SESSION_COOKIE_NAME, token.clone()));
+        let response = state
+            .on_authentication_failed(AuthFailure::Error, jar, &HeaderMap::new(), false)
+            .await;
+
+        assert!(
+            state
+                .sessions
+                .get_existing(Some(&token))
+                .await
+                .expect("load session")
+                .is_some()
         );
         assert!(response.status().is_success());
     }
