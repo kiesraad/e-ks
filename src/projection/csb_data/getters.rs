@@ -923,7 +923,9 @@ mod tests {
 
         assert!(scrapped.is_list_scrapped(scrapped_list_id));
 
-        let name = store.get_first_candidate_name(WithCorrections::All, Some(&scrapped)).unwrap();
+        let name = store
+            .get_first_candidate_name(WithCorrections::All, Some(&scrapped))
+            .unwrap();
 
         assert_eq!(name, present_person.name);
     }

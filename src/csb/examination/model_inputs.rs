@@ -457,8 +457,7 @@ fn valid_lists(
     store: &CsbStream,
     scrapped: &Scrapped,
 ) -> Result<Vec<(ElectoralDistrict, i4::ValidList)>, AppError> {
-    let appellation = 
-        store.get_appellation_with_scrapped(WithCorrections::All, scrapped);
+    let appellation = store.get_appellation_with_scrapped(WithCorrections::All, scrapped);
 
     let mut valid = Vec::new();
     for list in lists_by_creation(store) {
@@ -1473,7 +1472,7 @@ mod tests {
         assert_eq!(inputs.valid_lists.len(), 2);
         assert_eq!(
             inputs.valid_lists[0].lists[0].appellation,
-            "Aarts, A. (Anna)"
+            "Blanco (Aarts, A.)"
         );
     }
 

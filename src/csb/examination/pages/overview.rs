@@ -241,6 +241,7 @@ mod tests {
             omission_count: 0,
             recovery: Default::default(),
             first_candidate_name: None,
+            first_non_scrapped_candidate_name: None,
             scrapped: Default::default(),
             candidate_list_districts: Default::default(),
         }
