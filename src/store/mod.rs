@@ -4,6 +4,7 @@ pub(crate) mod database;
 
 pub(crate) mod persistence;
 
+mod encoding;
 mod event;
 mod filesystem;
 mod health;

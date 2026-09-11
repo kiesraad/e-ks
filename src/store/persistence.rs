@@ -11,7 +11,7 @@ use crate::{
 };
 
 use super::{
-    Store, StoreData, StoreEvent, StreamMeta, chain_hash,
+    Store, StoreData, StoreEvent, StreamMeta, chain_hash, encoding,
     filesystem::{self, replay_from_file},
     memory::{self, MemoryStore},
     store_handle::StoreBackend,
@@ -401,7 +401,7 @@ where
                 let created_at = Utc::now();
                 let prev_hash = data.last_event_hash();
                 // Nothing is persisted, so the chain hash is over the plain encoding.
-                let body = postcard::to_allocvec(&event).map_err(|e| {
+                let body = encoding::encode(&event).map_err(|e| {
                     AppError::ServerError(std::io::Error::new(std::io::ErrorKind::InvalidData, e))
                 })?;
                 let hash = chain_hash(&prev_hash, event_id, created_at, &body);

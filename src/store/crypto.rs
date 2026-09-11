@@ -1,7 +1,7 @@
 //! Envelope encryption for event payloads.
 //!
 //! Each stream gets a random 256-bit [`StreamKey`], generated when the stream
-//! is first created. Event payloads are postcard-serialized and encrypted with
+//! is first created. Event payloads are CBOR-serialized and encrypted with
 //! it using AES-256-GCM ([`EventCipher`]). The stream key is stored only in
 //! wrapped form: encrypted by the [`MasterKey`] (derived from the
 //! `MASTER_ENCRYPTION_KEY` secret) and persisted next to the stream. The wrap
@@ -22,6 +22,7 @@ use serde::{Serialize, de::DeserializeOwned};
 use sha2::Sha256;
 use zeroize::{Zeroize, Zeroizing};
 
+use super::encoding;
 use crate::{AppError, ElectionConfig, StreamId};
 
 /// Domain-separation salt, distinct from the BSN id-derivation salt.
@@ -188,7 +189,7 @@ impl std::fmt::Debug for StreamKey {
 
 /// AES-256-GCM cipher for a single stream's event payloads.
 ///
-/// Encrypts and decrypts event payloads serialized with postcard.
+/// Encrypts and decrypts event payloads serialized as CBOR.
 /// Each ciphertext is prefixed with a random 12-byte nonce.
 ///
 /// Only persisting backends hold one (see `StoreBackend`); an in-memory store
@@ -199,14 +200,14 @@ pub struct EventCipher {
 }
 
 impl EventCipher {
-    /// Serialize `event` with postcard and encrypt, binding `aad` into the
+    /// Serialize `event` as CBOR and encrypt, binding `aad` into the
     /// authentication tag (see [`crate::store::event_aad`]).
     ///
     /// Returns `nonce || ciphertext || tag`.
     pub fn encrypt<E: Serialize>(&self, event: &E, aad: &[u8]) -> Result<Vec<u8>, AppError> {
         let nonce = Nonce::<Aes256Gcm>::generate();
 
-        let mut ciphertext = postcard::to_allocvec(event).map_err(|e| {
+        let mut ciphertext = encoding::encode(event).map_err(|e| {
             AppError::ServerError(std::io::Error::new(std::io::ErrorKind::InvalidData, e))
         })?;
 
@@ -245,7 +246,7 @@ impl EventCipher {
             .decrypt_in_place(&nonce, aad, &mut data)
             .map_err(|e| EventDecryptError::Unreadable(format!("AES-GCM decrypt failed: {e}")))?;
 
-        let event = postcard::from_bytes(&data)
+        let event = encoding::decode(&data)
             .map_err(|e| EventDecryptError::IncompatiblePayload(e.to_string()));
         // wipe the plaintext copy
         data.zeroize();
@@ -262,7 +263,7 @@ impl EventCipher {
 pub enum EventDecryptError {
     /// Authentication or framing failed; the plaintext was never recovered.
     Unreadable(String),
-    /// Plaintext recovered, but postcard could not decode it into the event type.
+    /// Plaintext recovered, but it could not be decoded into the event type.
     IncompatiblePayload(String),
 }
 
