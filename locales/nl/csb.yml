@@ -191,6 +191,7 @@ omission:
     not_recoverable: Onherstelbaar
     recoverable: Herstelbaar
     title: Overzicht
+  removed_candidate: "{} (verwijderd)"
   title: Verzuimen
   title_for:
     appellation: Verzuimen aanduiding

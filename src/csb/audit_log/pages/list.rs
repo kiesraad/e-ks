@@ -186,24 +186,32 @@ pub async fn csb_audit_log<S: AppRequestState>(
     Query(filter): Query<CsbAuditLogFilter>,
 ) -> Result<impl IntoResponse, AppError> {
     let locale = context.session.locale;
-    let import_stores = state
+    let mut import_stores = state
         .csb_store_registry()
         .stores_for_election(context.election)
         .await?;
+    let pre_submission_stores = state
+        .pre_submission_store_registry()
+        .stores_for_election(context.election)
+        .await?;
 
-    // Build a short label for each import stream from its import event
+    // Build a short label for each stream from its import event
+    let label = |store: &crate::projection::CsbStream| {
+        store.get_appellation_with_deleted_label(crate::projection::WithCorrections::All, locale)
+    };
     let import_stream_labels: Vec<(StreamId, String)> = import_stores
         .iter()
-        .map(|store| {
-            (
-                store.stream_id,
-                store.get_appellation_with_deleted_label(
-                    crate::projection::WithCorrections::All,
-                    locale,
-                ),
-            )
-        })
+        .map(|store| (store.stream_id, label(store)))
+        .chain(pre_submission_stores.iter().map(|store| {
+            let label = trans!(
+                "audit_log.filter.pre_submission_stream",
+                locale,
+                label(store)
+            );
+            (store.stream_id, label)
+        }))
         .collect();
+    import_stores.extend(pre_submission_stores);
 
     let all_entries = collect_entries(&import_stores, &main_store, &filter, locale)?;
 
@@ -341,6 +349,35 @@ mod tests {
 
         let body = response_body_string(response).await;
         assert!(body.contains("<td>Set finished state</td>"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn renders_pre_submission_stream_events() -> Result<(), AppError> {
+        let state = AppState::new_for_tests().await;
+        let stream_id = StreamId::new();
+        let store = state
+            .pre_submission_store_registry()
+            .get_or_create(stream_id, ElectionConfig::EK27)
+            .await?;
+        store
+            .update(CsbAction::SetFinished(true).by(CsbUser::new_test()))
+            .await?;
+
+        let response = call(
+            CsbMainStore::new_for_test(),
+            state,
+            Query(CsbAuditLogFilter {
+                stream: Some(stream_id.to_string()),
+                ..Default::default()
+            }),
+        )
+        .await?;
+
+        let body = response_body_string(response).await;
+        assert!(body.contains("<td>Set finished state</td>"));
+        assert!(body.contains("(pre-submission)"), "{body}");
 
         Ok(())
     }

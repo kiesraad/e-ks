@@ -100,6 +100,18 @@ impl Replay {
     }
 }
 
+/// Refuse an append when the stream moved past the id the caller validated
+/// against.
+pub(crate) fn check_expected_event_id(
+    expected: Option<usize>,
+    last_id: usize,
+) -> Result<(), AppError> {
+    match expected {
+        Some(expected) if expected != last_id => Err(AppError::Conflict),
+        _ => Ok(()),
+    }
+}
+
 /// Decrypt persisted events and apply the ones `data` has not seen yet.
 ///
 /// `events` yields the stored events in ascending event order; events at or
