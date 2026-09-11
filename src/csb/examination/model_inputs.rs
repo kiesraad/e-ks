@@ -338,11 +338,8 @@ fn valid_lists(
     store: &CsbStream,
     scrapped: &Scrapped,
 ) -> Result<Vec<(ElectoralDistrict, i4::ValidList)>, AppError> {
-    let appellation = if scrapped.is_appellation_scrapped() {
-        first_candidate_name(store, scrapped)
-    } else {
-        store.get_appellation_with_scrapped(WithCorrections::All, Some(scrapped))
-    };
+    let appellation = 
+        store.get_appellation_with_scrapped(WithCorrections::All, scrapped);
 
     let mut valid = Vec::new();
     for list in lists_by_creation(store) {

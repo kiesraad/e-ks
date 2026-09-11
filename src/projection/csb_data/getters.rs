@@ -7,17 +7,9 @@ use parking_lot::{
 
 use super::Scrapped;
 use crate::{
-    AppError, CsbStream, ElectoralDistrict, Locale, PgStoreData,
-    structs::{
-        brp::{BrpFinding, BrpStatus},
-        candidate_lists::{CandidateList, CandidateListId},
-        csb::{Omission, OmissionCategory, OmissionId, RecoveryProgress},
-        list_submitters::ListSubmitter,
-        name_authorisations::NameAuthorisation,
-        persons::{Person, PersonId},
-        political_groups::PoliticalGroup,
-    },
-    trans,
+    AppError, CsbStream, ElectoralDistrict, Locale, PgStoreData, structs::{
+        brp::{BrpFinding, BrpStatus}, candidate_lists::{CandidateList, CandidateListId}, csb::{Omission, OmissionCategory, OmissionId, RecoveryProgress}, list_designation::ListDesignation, list_submitters::ListSubmitter, name_authorisations::NameAuthorisation, persons::{Person, PersonId}, political_groups::PoliticalGroup,
+    }, trans,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -442,11 +434,14 @@ impl CsbStream {
     pub fn get_appellation_with_scrapped(
         &self,
         corrections: WithCorrections,
-        scrapped: Option<&Scrapped>,
+        scrapped: &Scrapped,
     ) -> String {
-        let political_group = self.get_political_group(corrections);
+        let mut political_group = self.get_political_group(corrections);
+        if scrapped.is_appellation_scrapped() {
+            political_group.list_designation = Some(ListDesignation::Blank);
+        }
         political_group.csb_appellation(
-            self.get_first_candidate_name(corrections, scrapped)
+            self.get_first_candidate_name(corrections, Some(scrapped))
                 .as_ref(),
         )
     }
