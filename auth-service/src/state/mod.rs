@@ -76,7 +76,7 @@ impl AuthServiceState {
     /// `next_refresh_interval`, keeping the cached descriptor fresh within
     /// the RD metadata's `cacheDuration`/`validUntil` (eID §8.5).
     pub async fn new_from_env() -> Result<Self> {
-        let auth_config = AuthConfig::from_env()?;
+        let auth_config = AuthConfig::from_env().await?;
         debug!(
             "[state] AuthConfig loaded: environment={:?}, dv.entity_id={}, rd.metadata_url={}, certs_dir={}",
             auth_config.environment,
@@ -84,29 +84,31 @@ impl AuthServiceState {
             auth_config.rd.metadata_url,
             auth_config.certs_dir.display(),
         );
-        let dv_keys = load_key_set(&auth_config.dv.signing, &auth_config.dv.encryption)?;
+        let dv_keys = load_key_set(&auth_config.dv.signing, &auth_config.dv.encryption).await?;
         debug!(
             "[state] DV keys loaded: signing={}, encryption={}",
             dv_keys.signing.len(),
             dv_keys.encryption.len()
         );
+        let metadata_tls_cert = load_metadata_tls_cert(&auth_config.tls.client_cert).await;
         let rd_metadata = metadata_refresh::load_at_startup(
             &auth_config.rd.metadata_url,
             &auth_config.certs_dir,
             RdTrust::for_environment(auth_config.environment),
         )
         .await;
-        let state = Self::new(auth_config, dv_keys, rd_metadata);
+        let state = Self::new(auth_config, dv_keys, metadata_tls_cert, rd_metadata);
         state.spawn_metadata_refresh();
         Ok(state)
     }
 
+    /// Assemble the state from already-loaded parts; does no I/O itself.
     pub(crate) fn new(
         auth_config: AuthConfig,
         dv_keys: KeySet,
+        metadata_tls_cert: Option<KeyPair>,
         rd_metadata: Option<IdpMetadata>,
     ) -> Self {
-        let metadata_tls_cert = load_metadata_tls_cert(&auth_config.tls.client_cert);
         Self {
             inner: Arc::new(Inner {
                 auth_config,
@@ -124,7 +126,7 @@ impl AuthServiceState {
     /// they need not construct an `AuthConfig`/`KeySet`/`IdpMetadata` themselves.
     /// Any real SAML flow against this state will fail.
     pub fn new_empty() -> Self {
-        Self::new(AuthConfig::default(), KeySet::default(), None)
+        Self::new(AuthConfig::default(), KeySet::default(), None, None)
     }
 
     /// Spawn a background task that keeps the IdP metadata fresh, swapping in
@@ -363,38 +365,42 @@ mod tests {
         std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures")
     }
 
-    #[test]
-    fn accessors_expose_config_keys_and_tls_cert() {
+    #[tokio::test]
+    async fn accessors_expose_config_keys_and_tls_cert() {
         // Build a state directly from the committed fixtures (no env/network).
         let dir = fixtures_dir();
         let mut cfg = AuthConfig::default().with_certs_dir(dir);
         cfg.dv.entity_id = crate::types::EntityId::from_static("urn:test:dv");
-        let keys =
-            crate::keys::load_key_set(&cfg.dv.signing, &cfg.dv.encryption).expect("load fixtures");
-        let state = AuthServiceState::new(cfg, keys, None);
+        let keys = crate::keys::load_key_set(&cfg.dv.signing, &cfg.dv.encryption)
+            .await
+            .expect("load fixtures");
+        // `with_certs_dir` points the TLS client cert at the committed fixture,
+        // so it is published as an extra signing KeyDescriptor.
+        let tls_cert = load_metadata_tls_cert(&cfg.tls.client_cert).await;
+        let state = AuthServiceState::new(cfg, keys, tls_cert, None);
 
         assert_eq!(state.auth_config().dv.entity_id.as_str(), "urn:test:dv");
         assert_eq!(state.dv_keys().signing.len(), 2);
         assert_eq!(state.dv_keys().encryption.len(), 2);
-        // `with_certs_dir` points the TLS client cert at the committed fixture,
-        // so it is published as an extra signing KeyDescriptor.
         assert!(state.metadata_tls_cert().is_some());
         assert!(state.rd_metadata().is_none());
     }
 
-    #[test]
-    fn unreadable_tls_cert_is_omitted_not_fatal() {
+    #[tokio::test]
+    async fn unreadable_tls_cert_is_omitted_not_fatal() {
         // A configured-but-unreadable TLS client cert is logged and dropped from
-        // the metadata rather than failing construction.
-        let mut cfg = AuthConfig::default();
-        cfg.tls.client_cert = fixtures_dir().join("does-not-exist.pem");
-        let state = AuthServiceState::new(cfg, KeySet::default(), None);
-        assert!(state.metadata_tls_cert().is_none());
+        // the metadata rather than failing startup.
+        let missing = fixtures_dir().join("does-not-exist.pem");
+        assert!(load_metadata_tls_cert(&missing).await.is_none());
     }
 
-    #[test]
-    fn empty_tls_cert_path_is_treated_as_unconfigured() {
+    #[tokio::test]
+    async fn empty_tls_cert_path_is_treated_as_unconfigured() {
         // The default (empty) TLS path means "not configured": no cert, no warning.
-        assert!(load_metadata_tls_cert(std::path::Path::new("")).is_none());
+        assert!(
+            load_metadata_tls_cert(std::path::Path::new(""))
+                .await
+                .is_none()
+        );
     }
 }

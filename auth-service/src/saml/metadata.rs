@@ -83,9 +83,11 @@ mod tests {
     }
 
     /// Load a fixture key pair from the committed TVS test bundle.
-    fn load_pair(name: &str) -> KeyPair {
+    async fn load_pair(name: &str) -> KeyPair {
         let dir = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures"));
-        crate::keys::load_key_pair(&crate::keys::key_pair_paths(&dir, name)).unwrap()
+        crate::keys::load_key_pair(&crate::keys::key_pair_paths(&dir, name))
+            .await
+            .unwrap()
     }
 
     fn build(signing: &[KeyPair], tls: Option<&KeyPair>, encryption: &[KeyPair]) -> String {
@@ -102,11 +104,11 @@ mod tests {
         .expect("metadata must build and sign")
     }
 
-    #[test]
-    fn tls_cert_published_as_extra_signing_key_descriptor() {
-        let signing = load_pair("dv-signing-1");
-        let encryption = load_pair("dv-encryption-1");
-        let tls = load_pair("dv-tls");
+    #[tokio::test]
+    async fn tls_cert_published_as_extra_signing_key_descriptor() {
+        let signing = load_pair("dv-signing-1").await;
+        let encryption = load_pair("dv-encryption-1").await;
+        let tls = load_pair("dv-tls").await;
 
         let xml = build(
             std::slice::from_ref(&signing),
@@ -127,10 +129,10 @@ mod tests {
         assert!(xml.contains(signing.key_name.as_str()));
     }
 
-    #[test]
-    fn tls_cert_equal_to_signing_cert_is_not_duplicated() {
-        let signing = load_pair("dv-signing-1");
-        let encryption = load_pair("dv-encryption-1");
+    #[tokio::test]
+    async fn tls_cert_equal_to_signing_cert_is_not_duplicated() {
+        let signing = load_pair("dv-signing-1").await;
+        let encryption = load_pair("dv-encryption-1").await;
 
         // A combined signing+TLS certificate: the cert handed in as the TLS
         // cert is the same one already listed as the SAML signing key.
@@ -147,16 +149,16 @@ mod tests {
         );
     }
 
-    #[test]
-    fn signed_dv_metadata_verifies() {
+    #[tokio::test]
+    async fn signed_dv_metadata_verifies() {
         use crate::saml::{
             constants::NS_MD,
             verification::{ExpectedRoot, verify_xml_signature},
         };
 
-        let signing = load_pair("dv-signing-1");
-        let encryption = load_pair("dv-encryption-1");
-        let tls = load_pair("dv-tls");
+        let signing = load_pair("dv-signing-1").await;
+        let encryption = load_pair("dv-encryption-1").await;
+        let tls = load_pair("dv-tls").await;
 
         let xml = build(
             std::slice::from_ref(&signing),
@@ -177,10 +179,10 @@ mod tests {
         );
     }
 
-    #[test]
-    fn no_tls_cert_publishes_only_saml_signing_key() {
-        let signing = load_pair("dv-signing-1");
-        let encryption = load_pair("dv-encryption-1");
+    #[tokio::test]
+    async fn no_tls_cert_publishes_only_saml_signing_key() {
+        let signing = load_pair("dv-signing-1").await;
+        let encryption = load_pair("dv-encryption-1").await;
 
         let xml = build(
             std::slice::from_ref(&signing),
