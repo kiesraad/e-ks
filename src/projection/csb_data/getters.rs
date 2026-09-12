@@ -12,6 +12,7 @@ use crate::{
         brp::{BrpFinding, BrpStatus},
         candidate_lists::{CandidateList, CandidateListId},
         csb::{Omission, OmissionCategory, OmissionId, RecoveryProgress},
+        list_designation::ListDesignation,
         list_submitters::ListSubmitter,
         name_authorisations::NameAuthorisation,
         persons::{Person, PersonId},
@@ -398,25 +399,60 @@ impl CsbStream {
     }
 
     /// The name of the first candidate across all candidate lists, sorted by list
-    /// creation date. Returns `None` when no candidates are available.
+    /// creation date. Include a [Scrapped] projection to get the first unscrapped
+    /// candidate from the first unscrapped created list.
+    /// Returns `None` when no candidates are available.
     pub fn get_first_candidate_name(
         &self,
         corrections: WithCorrections,
+        scrapped: Option<&Scrapped>,
     ) -> Option<crate::structs::common::FullName> {
         let mut lists = self.get_candidate_lists(corrections);
         lists.sort_unstable_by_key(|l| l.created_at);
         lists
             .into_iter()
-            .flat_map(|list| list.candidates.into_iter())
-            .next()
-            .and_then(|id| self.get_person(id, corrections))
+            .filter(|l| {
+                if let Some(scrapped) = &scrapped {
+                    !scrapped.is_list_scrapped(l.id)
+                } else {
+                    true
+                }
+            })
+            .flat_map(|list| {
+                list.candidates
+                    .into_iter()
+                    .map(move |person| (list.id, person))
+            })
+            .find(|(list, person)| {
+                if let Some(scrapped) = &scrapped {
+                    !scrapped.is_candidate_scrapped(*list, *person)
+                } else {
+                    true
+                }
+            })
+            .and_then(|(_, id)| self.get_person(id, corrections))
             .map(|p| p.name)
     }
 
     /// Short-hand to get the appellation of the political group (including special names for blank lists)
     pub fn get_appellation(&self, corrections: WithCorrections) -> String {
         let political_group = self.get_political_group(corrections);
-        political_group.csb_appellation(self.get_first_candidate_name(corrections).as_ref())
+        political_group.csb_appellation(self.get_first_candidate_name(corrections, None).as_ref())
+    }
+
+    pub fn get_appellation_with_scrapped(
+        &self,
+        corrections: WithCorrections,
+        scrapped: &Scrapped,
+    ) -> String {
+        let mut political_group = self.get_political_group(corrections);
+        if scrapped.is_appellation_scrapped() {
+            political_group.list_designation = Some(ListDesignation::Blank);
+        }
+        political_group.csb_appellation(
+            self.get_first_candidate_name(corrections, Some(scrapped))
+                .as_ref(),
+        )
     }
 
     /// Short-hand to get the appellation of the political group (including special names for blank lists).
@@ -427,8 +463,8 @@ impl CsbStream {
         locale: Locale,
     ) -> String {
         let political_group = self.get_political_group(corrections);
-        let appellation =
-            political_group.csb_appellation(self.get_first_candidate_name(corrections).as_ref());
+        let appellation = political_group
+            .csb_appellation(self.get_first_candidate_name(corrections, None).as_ref());
         if self.is_deleted() {
             format!(
                 "{appellation} ({})",
@@ -522,11 +558,15 @@ impl CsbStream {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::{BTreeMap, BTreeSet};
+
     use super::*;
     use crate::{
         CsbStore, CsbStream, ElectoralDistrict,
+        projection::csb_data::scrapped::ScrappedList,
         structs::{
             candidate_lists::CandidateList,
+            common::UtcDateTime,
             csb::{
                 OmissionCategory, OmissionStatus, PersonCorrection, PersonCorrectionDelta,
                 sample_omission,
@@ -839,6 +879,55 @@ mod tests {
             store.get_appellation(WithCorrections::All),
             "Blanco (Jansen, A.B.)"
         );
+    }
+
+    #[test]
+    fn get_first_candidate_name_honours_scrappings() {
+        let store = CsbStore::new_for_test();
+
+        // create candidates
+        let scrapped_person_id = PersonId::new();
+        let scrapped_person = sample_person_with(scrapped_person_id, None, "Geschrapt", None, "C.");
+        store.add_person(scrapped_person);
+        let scrapped_list_person_id = PersonId::new();
+        let scrapped_list_person =
+            sample_person_with(scrapped_list_person_id, None, "Geschrapt", None, "L.");
+        store.add_person(scrapped_list_person);
+        let present_person_id = PersonId::new();
+        let present_person = sample_person_with(present_person_id, None, "Present", None, "P.");
+        store.add_person(present_person.clone());
+
+        // create lists
+        let scrapped_list_id = CandidateListId::new();
+        let mut scrapped_list = sample_candidate_list(scrapped_list_id);
+        scrapped_list.created_at = UtcDateTime::now();
+        scrapped_list.candidates.push(scrapped_person_id);
+        scrapped_list.candidates.push(scrapped_list_person_id);
+        store.add_candidate_list(scrapped_list);
+        let present_list_id = CandidateListId::new();
+        let mut present_list = sample_candidate_list(present_list_id);
+        present_list.created_at = UtcDateTime::now();
+        present_list.candidates.push(scrapped_person_id);
+        present_list.candidates.push(present_person_id);
+        store.add_candidate_list(present_list);
+
+        // do scrappings
+        let scrapped = Scrapped::new_for_test(
+            BTreeSet::new(),
+            BTreeSet::from([
+                (scrapped_list_id, scrapped_person_id),
+                (present_list_id, scrapped_person_id),
+            ]),
+            BTreeMap::from([(scrapped_list_id, ScrappedList::whole_list())]),
+        );
+
+        assert!(scrapped.is_list_scrapped(scrapped_list_id));
+
+        let name = store
+            .get_first_candidate_name(WithCorrections::All, Some(&scrapped))
+            .unwrap();
+
+        assert_eq!(name, present_person.name);
     }
 
     #[test]

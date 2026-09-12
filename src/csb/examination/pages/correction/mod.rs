@@ -38,7 +38,6 @@ fn return_path(
     person_id: PersonId,
     list: Option<CandidateListId>,
 ) -> String {
-    // TODO handle case where user is coming from the all omission page (#897)
     match list {
         Some(list_id) => political_group
             .candidate_path(&list_id, &person_id)
