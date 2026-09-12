@@ -5,6 +5,7 @@ pub(crate) mod database;
 pub(crate) mod persistence;
 
 mod event;
+mod event_hash_prefix;
 mod filesystem;
 mod health;
 pub(crate) mod memory;
@@ -14,6 +15,7 @@ mod stream_id;
 
 pub(crate) use event::EncryptedEvent;
 pub use event::{Event, EventHash, GENESIS_HASH, StoreEvent};
+pub use event_hash_prefix::EventHashPrefix;
 pub use health::{DbHealth, run_db_prober};
 pub use persistence::StorePersistence;
 pub use registry::StoreRegistry;

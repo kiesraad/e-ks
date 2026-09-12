@@ -4,7 +4,7 @@ use axum_extra::routing::TypedPath;
 use serde::Deserialize;
 
 use crate::{
-    AppError, QueryParamState,
+    AppError, EventHashPrefix, QueryParamState,
     structs::{
         candidate_lists::{CandidateList, CandidateListId},
         persons::PersonId,
@@ -44,9 +44,11 @@ pub struct CandidateListReorderPath {
 }
 
 #[derive(TypedPath, Deserialize)]
-#[typed_path("/candidate-lists/{list_id}/export", rejection(AppError))]
+#[typed_path("/candidate-lists/{list_id}/export/{event_hash}", rejection(AppError))]
 pub struct CandidateListExportPath {
     pub list_id: CandidateListId,
+    /// Binds the link to the stream; see [`EventHashPrefix`].
+    pub event_hash: EventHashPrefix,
 }
 
 #[derive(TypedPath, Deserialize)]
@@ -126,8 +128,11 @@ impl CandidateList {
         ViewCandidateListPath { list_id: self.id }.with_query_params(QueryParamState::created())
     }
 
-    pub fn export_path(&self) -> impl TypedPath {
-        CandidateListExportPath { list_id: self.id }
+    pub fn export_path(&self, event_hash: EventHashPrefix) -> impl TypedPath {
+        CandidateListExportPath {
+            list_id: self.id,
+            event_hash,
+        }
     }
 
     pub fn import_path(&self) -> impl TypedPath {
