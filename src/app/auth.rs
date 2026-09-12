@@ -33,6 +33,8 @@ impl AppState {
             return Ok(None);
         };
         let store = self.store_for_stream(stream_id, election, false).await?;
+        // the cached store can lag other instances; catch up before snapshotting
+        store.load().await?;
         PgStore::own(store)
             .with_limits(self.config.rate_limits)
             .update(PgEvent::Login)
@@ -57,12 +59,16 @@ impl AppState {
                 election: Some(election),
                 ..
             } => match self.store_for_stream(*stream_id, *election, false).await {
-                Ok(store) => {
-                    PgStore::own(store)
-                        .with_limits(self.config.rate_limits)
-                        .update(PgEvent::Logout)
-                        .await
-                }
+                Ok(store) => match store.load().await {
+                    // catch up before snapshotting, as in the login above
+                    Ok(()) => {
+                        PgStore::own(store)
+                            .with_limits(self.config.rate_limits)
+                            .update(PgEvent::Logout)
+                            .await
+                    }
+                    Err(err) => Err(err),
+                },
                 Err(err) => Err(err),
             },
             SessionUser::PoliticalGroup { election: None, .. } => return,
