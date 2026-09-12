@@ -110,10 +110,7 @@ impl PgStore {
                 let expected = self.seen_event_id.load(Ordering::Acquire);
                 self.check_rate_limits(&event)?;
                 self.projection.update_if_unchanged(event, expected).await?;
-                self.seen_event_id.store(
-                    self.projection.data.read().last_event_id(),
-                    Ordering::Release,
-                );
+                self.seen_event_id.store(expected + 1, Ordering::Release);
                 Ok(())
             }
             WriteTarget::PaperCorrections { store: csb_store } => {

@@ -169,18 +169,21 @@ async fn confirm_pending_request<S: AuthState>(
 pub async fn handle_login_error<S>(
     _: LoginErrorPath,
     State(state): State<S>,
+    State(auth_state): State<AuthServiceState>,
     jar: CookieJar,
     headers: HeaderMap,
     Query(params): Query<HashMap<String, String>>,
 ) -> Response
 where
     S: AuthState,
+    AuthServiceState: FromRef<S>,
 {
     let failure = params
         .get("reason")
         .map_or(AuthFailure::Error, |r| failure_from_reason(r));
     // only a failure of a flow this browser started ends the local session
-    let (ends_flow, jar) = crate::handlers::flow::take_failed_flow(jar);
+    let (ends_flow, jar) =
+        crate::handlers::flow::take_failed_flow(jar, &auth_state.auth_config().dv.acs_url);
     let mut response = state
         .on_authentication_failed(failure, jar, &headers, ends_flow)
         .await;
@@ -688,6 +691,7 @@ mod tests {
         let resp = handle_login_error(
             LoginErrorPath,
             State(mock.clone()),
+            State(mock.auth.clone()),
             axum_extra::extract::CookieJar::new(),
             HeaderMap::new(),
             Query(params),
@@ -715,6 +719,7 @@ mod tests {
         let resp = handle_login_error(
             LoginErrorPath,
             State(mock.clone()),
+            State(mock.auth.clone()),
             axum_extra::extract::CookieJar::new(),
             HeaderMap::new(),
             Query(params),
@@ -789,6 +794,7 @@ mod tests {
         let resp = handle_login_error(
             LoginErrorPath,
             State(mock.clone()),
+            State(mock.auth.clone()),
             axum_extra::extract::CookieJar::new().add(marker),
             HeaderMap::new(),
             Query(HashMap::new()),
@@ -800,6 +806,7 @@ mod tests {
         let resp = handle_login_error(
             LoginErrorPath,
             State(mock.clone()),
+            State(mock.auth.clone()),
             axum_extra::extract::CookieJar::new(),
             HeaderMap::new(),
             Query(HashMap::new()),
