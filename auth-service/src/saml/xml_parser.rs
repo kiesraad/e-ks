@@ -1,28 +1,23 @@
-//! Read-only, namespace-aware XML DOM over [`roxmltree`], plus scoped traversal
+//! Read-only, namespace-aware XML DOM over [`uppsala`], plus scoped traversal
 //! helpers used by the SAML validators.
 //!
-//! [`roxmltree`] is a vetted, fuzzed, read-only DOM that resolves XML namespaces
-//! and exposes each node's byte range in the source. We wrap it so the rest of
-//! the crate keeps an index-based (`Document` + [`NodeId`]) surface: `parse`,
-//! `document_element`, `get_attribute` (by local name), `local_name`,
-//! `first_element_child`, [`inner_text`] (recursive, unescaped), and
-//! [`Document::node_source`] (the raw source bytes of a node).
+//! SECURITY (parser divergence): deliberately the same parser the signature
+//! backend uses (`bergshamra` parses every signed document with `uppsala`). A
+//! construct two parsers read differently is a signature wrapping vector: the
+//! digest covers one tree, the claims come from another. See
+//! `tests/xsw_parser_divergence.rs`.
 //!
-//! Element lookups ([`find_child`], [`find_descendant`], …) match by
-//! `(namespace-URI, local-name)`, so a `<saml:Issuer>` is only found when `saml`
-//! resolves to the SAML assertion namespace, never by bare local name. This
-//! avoids namespace-confusion attacks.
+//! Lookups match by `(namespace-URI, local-name)`, so a `<saml:Issuer>` is only
+//! found when `saml` resolves to the SAML assertion namespace, never by bare
+//! local name. This avoids namespace-confusion attacks.
 //!
-//! SECURITY (XML Signature Wrapping): roxmltree excludes comments and processing
-//! instructions from the element tree, and exclusive-c14n (used by the signature
-//! backend) excludes them from the digest. The whole signed document is parsed
-//! exactly once and the validators navigate that single tree, so an element
-//! forged inside a comment is invisible to both extraction and the signature.
-
-use std::ops::Range;
+//! SECURITY (XSW): comments and processing instructions are not elements, and
+//! exclusive-c14n excludes them from the digest. The signed document is parsed
+//! once and the validators navigate that one tree, so an element forged inside a
+//! comment is invisible to both extraction and the signature.
 
 /// Index of a node within a [`Document`].
-pub type NodeId = roxmltree::NodeId;
+pub type NodeId = uppsala::NodeId;
 
 /// An element's expanded name: namespace URI (`None` for an element in no
 /// namespace) plus local, unprefixed name.
@@ -42,8 +37,7 @@ impl std::fmt::Display for QName<'_> {
     }
 }
 
-/// A namespace declaration in scope on an element; `prefix` is `None` for the
-/// default namespace.
+/// A namespace declaration; `prefix` is `None` for the default namespace.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NamespaceDecl<'a> {
     pub prefix: Option<&'a str>,
@@ -52,7 +46,9 @@ pub struct NamespaceDecl<'a> {
 
 /// A parsed, namespace-resolved XML document borrowing its source.
 pub struct Document<'a> {
-    inner: roxmltree::Document<'a>,
+    inner: uppsala::Document<'a>,
+    /// Resolved in [`parse`], so [`Document::document_element`] cannot panic.
+    root_element: NodeId,
 }
 
 /// Opaque XML parse error (`Display`), convertible into `AuthError`.
@@ -67,95 +63,115 @@ impl std::fmt::Display for XmlError {
 
 impl std::error::Error for XmlError {}
 
-/// Cap on parsed node count, bounding memory from an oversized document; a
-/// legitimate SAML message has at most a few thousand nodes. (DTDs are already
-/// rejected: `ParsingOptions::allow_dtd` defaults to `false`.)
-const NODE_LIMIT: u32 = 100_000;
+/// Cap on parsed node count; a legitimate SAML message has a few thousand.
+const NODE_LIMIT: usize = 100_000;
 
-/// Parse an XML string into a namespace-resolved [`Document`]. Errors on
-/// malformed XML, an undeclared namespace prefix, empty input, or more than
-/// `NODE_LIMIT` nodes.
+/// Cap on element nesting depth.
+///
+/// SECURITY (DoS): a recursive-descent parser spends stack per level, and a Rust
+/// stack overflow aborts instead of unwinding, so unbounded depth on the
+/// unauthenticated SLS endpoint (parsed before any signature check) is a remote
+/// kill switch. `NODE_LIMIT` does not bound it: 4000 levels is 4000 nodes.
+/// uppsala enforces this while tokenizing, which also bounds [`collect_pruned`].
+///
+/// eID messages nest under 20 deep and uppsala's own default is 128, so nothing
+/// deeper could verify against the backend anyway.
+const DEPTH_LIMIT: u32 = 100;
+
+/// Parse into a namespace-resolved [`Document`]. Errors on malformed XML, a DTD,
+/// empty input, nesting past `DEPTH_LIMIT`, or more than `NODE_LIMIT` nodes.
 pub fn parse(xml: &str) -> Result<Document<'_>, XmlError> {
-    let opts = roxmltree::ParsingOptions {
-        nodes_limit: NODE_LIMIT,
-        ..Default::default()
-    };
-    roxmltree::Document::parse_with_options(xml, opts)
-        .map(|inner| Document { inner })
-        .map_err(|e| XmlError(e.to_string()))
+    // Both are opt-in: a DTD is never legitimate here (XXE / entity expansion),
+    // and the depth cap is the DoS bound above.
+    let inner = uppsala::Parser::new()
+        .with_forbid_dtd(true)
+        .with_max_depth(DEPTH_LIMIT)
+        .parse(xml)
+        .map_err(|e| XmlError(e.to_string()))?;
+
+    // Validators navigate from the root element, so require one up front.
+    let root_element = inner
+        .document_element()
+        .ok_or_else(|| XmlError("document has no root element".to_string()))?;
+
+    let node_count = inner.descendants(inner.root()).len();
+    if node_count > NODE_LIMIT {
+        return Err(XmlError(format!(
+            "document has {node_count} nodes, more than the limit of {NODE_LIMIT}"
+        )));
+    }
+
+    Ok(Document {
+        inner,
+        root_element,
+    })
 }
 
-fn node_matches(node: roxmltree::Node<'_, '_>, ns: &str, local: &str) -> bool {
-    node.is_element() && node.tag_name().name() == local && node.tag_name().namespace() == Some(ns)
+/// Whether element `id` has the expanded name `(ns, local)`.
+fn node_matches(doc: &Document, id: NodeId, ns: &str, local: &str) -> bool {
+    doc.inner
+        .element(id)
+        .is_some_and(|el| el.matches_name_ns(ns, local))
 }
 
 impl<'a> Document<'a> {
-    fn node(&self, id: NodeId) -> Option<roxmltree::Node<'_, 'a>> {
-        self.inner.get_node(id)
-    }
-
-    /// The root (document) element. Guaranteed to exist: [`parse`] rejects a
-    /// document without one.
+    /// The root element. Guaranteed to exist: [`parse`] rejects a document
+    /// without one.
     pub fn document_element(&self) -> NodeId {
-        self.inner.root_element().id()
+        self.root_element
     }
 
     /// The local (unprefixed) name of element `id`, or `None` for a non-element.
     pub fn local_name(&self, id: NodeId) -> Option<&str> {
-        let n = self.node(id)?;
-        n.is_element().then(|| n.tag_name().name())
+        Some(&self.inner.element(id)?.name.local_name)
     }
 
     /// The expanded name of element `id`, or `None` for a non-element.
     pub fn node_qname(&self, id: NodeId) -> Option<QName<'_>> {
-        let n = self.node(id)?;
-        n.is_element().then(|| QName {
-            namespace: n.tag_name().namespace(),
-            local_name: n.tag_name().name(),
+        let name = &self.inner.element(id)?.name;
+        Some(QName {
+            namespace: name.namespace_uri.as_deref(),
+            local_name: &name.local_name,
         })
     }
 
     /// The value of attribute `name` (matched by local name) on element `id`.
     pub fn get_attribute(&self, id: NodeId, name: &str) -> Option<&str> {
-        self.node(id)?
-            .attributes()
-            .find(|a| a.name() == name)
-            .map(|a| a.value())
+        self.inner.get_attribute(id, name)
     }
 
-    /// The raw source bytes of node `id` (opening `<` through closing `>`),
-    /// exactly as they appear in the parsed input.
-    pub fn node_source(&self, id: NodeId) -> Option<&str> {
-        let range: Range<usize> = self.node(id)?.range();
-        self.inner.input_text().get(range)
+    /// The raw source bytes of node `id`, opening `<` through closing `>`.
+    pub fn node_source(&self, id: NodeId) -> Option<&'a str> {
+        self.inner.node_source(id)
     }
 
-    /// The namespace declarations `id` inherits from its ancestors. A
-    /// declaration counts as inherited when in scope at both `id` and its
-    /// parent, so a prefix `id` redeclares itself (already in its start tag) is
-    /// excluded.
+    /// Namespace declarations `id` inherits: every prefix declared on an
+    /// ancestor that `id` does not redeclare, nearest declaration winning.
     fn inherited_namespaces(&self, id: NodeId) -> Vec<NamespaceDecl<'_>> {
-        let Some(node) = self.node(id) else {
+        let Some(el) = self.inner.element(id) else {
             return Vec::new();
         };
-        let parent_scope: Vec<NamespaceDecl<'_>> = node
-            .parent()
-            .map(|p| {
-                p.namespaces()
-                    .map(|ns| NamespaceDecl {
-                        prefix: ns.name(),
-                        uri: ns.uri(),
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-        node.namespaces()
-            .map(|ns| NamespaceDecl {
-                prefix: ns.name(),
-                uri: ns.uri(),
-            })
-            .filter(|decl| parent_scope.contains(decl))
-            .collect()
+        // uppsala spells the default namespace as the empty prefix, ours as `None`.
+        let redeclared = |p: &str| el.namespace_declarations.iter().any(|(o, _)| **o == *p);
+
+        let mut inherited: Vec<NamespaceDecl<'_>> = Vec::new();
+        // Nearest-first, so the first binding seen for a prefix is the one in scope.
+        for ancestor in self.inner.ancestors(id) {
+            let Some(ancestor) = self.inner.element(ancestor) else {
+                continue;
+            };
+            for (prefix, uri) in &ancestor.namespace_declarations {
+                let shadowed = redeclared(prefix)
+                    || inherited.iter().any(|d| d.prefix.unwrap_or("") == &**prefix);
+                if !shadowed {
+                    inherited.push(NamespaceDecl {
+                        prefix: (!prefix.is_empty()).then_some(&**prefix),
+                        uri,
+                    });
+                }
+            }
+        }
+        inherited
     }
 
     /// [`Document::node_source`] with the inherited namespace declarations
@@ -193,9 +209,8 @@ impl<'a> Document<'a> {
                 None => format!(r#" xmlns="{uri}""#),
             })
             .collect();
-        // `get`, not `[..]`: `insert_at` is derived from a `find` on this same
-        // string so it is always a character boundary, but this function's
-        // contract is to fail closed rather than panic on a surprise.
+        // `get`, not `[..]`: `insert_at` comes from a `find` on this same string
+        // so it is always a char boundary, but fail closed rather than panic.
         Some(format!(
             "{}{declarations}{}",
             source.get(..insert_at)?,
@@ -203,12 +218,26 @@ impl<'a> Document<'a> {
         ))
     }
 
+    /// Node `id` as a standalone document: its raw bytes when those parse on
+    /// their own, else with the inherited namespace declarations restored.
+    ///
+    /// `None` when neither parses, so a caller never hands the crypto backend a
+    /// fragment we could not re-read ourselves.
+    pub fn self_contained_source(&self, id: NodeId) -> Option<String> {
+        let raw = self.node_source(id)?;
+        if parse(raw).is_ok() {
+            return Some(raw.to_owned());
+        }
+        let reconstructed = self.node_source_with_inherited_namespaces(id)?;
+        parse(&reconstructed).ok()?;
+        Some(reconstructed)
+    }
+
     /// The first child element of `id` (skipping text/comment nodes), if any.
     pub fn first_element_child(&self, id: NodeId) -> Option<NodeId> {
-        self.node(id)?
-            .children()
-            .find(roxmltree::Node::is_element)
-            .map(|c| c.id())
+        self.inner
+            .children_iter(id)
+            .find(|&c| self.inner.element(c).is_some())
     }
 }
 
@@ -216,15 +245,10 @@ impl<'a> Document<'a> {
 /// `id` is not a node of this document.
 ///
 /// `None` rather than an empty string, which an element with no text also
-/// yields: a caller must not read "element absent" as "element present but
-/// empty".
+/// yields: a caller must not read "absent" as "present but empty".
 pub fn inner_text(doc: &Document, id: NodeId) -> Option<String> {
-    Some(
-        doc.node(id)?
-            .descendants()
-            .filter_map(|d| d.is_text().then(|| d.text()).flatten())
-            .collect(),
-    )
+    doc.inner.node_kind(id)?;
+    Some(doc.inner.text_content_deep(id))
 }
 
 /// The direct text children of `id`, unescaped, or `None` if `id` has any element
@@ -234,70 +258,60 @@ pub fn inner_text(doc: &Document, id: NodeId) -> Option<String> {
 /// made on (`Issuer`, `KeyName`, `NameID`, `Audience`, `AuthnContextClassRef`).
 /// [`inner_text`] folds in descendant text, so `<saml:Issuer><x>urn:rd</x></saml:Issuer>`
 /// would read as `urn:rd`.
+///
+/// Not uppsala's `element_text`, which returns only the *first* text child and
+/// tolerates element children.
 pub fn direct_text(doc: &Document, id: NodeId) -> Option<String> {
-    let node = doc.node(id)?;
-    if node.children().any(|c| c.is_element()) {
-        return None;
+    doc.inner.node_kind(id)?;
+    let mut text = String::new();
+    for child in doc.inner.children_iter(id) {
+        if doc.inner.element(child).is_some() {
+            return None;
+        }
+        // CDATA counts as text, so it cannot hide an identifier.
+        if let Some(t) = doc.inner.text_content(child) {
+            text.push_str(t);
+        }
     }
-    Some(
-        node.children()
-            .filter_map(|c| c.is_text().then(|| c.text()).flatten())
-            .collect(),
-    )
+    Some(text)
 }
 
 /// Every element in the document, in document order. Used for the document-wide
 /// ID uniqueness check, which must look outside the referenced subtree.
 pub fn all_elements(doc: &Document) -> Vec<NodeId> {
     doc.inner
-        .root()
-        .descendants()
-        .filter(roxmltree::Node::is_element)
-        .map(|n| n.id())
+        .descendants(doc.inner.root())
+        .into_iter()
+        .filter(|&n| doc.inner.element(n).is_some())
         .collect()
 }
 
 /// Find the first direct child element matching `(ns, local_name)`.
 pub fn find_child(doc: &Document, id: NodeId, ns: &str, local_name: &str) -> Option<NodeId> {
-    doc.node(id)?
-        .children()
-        .find(|c| node_matches(*c, ns, local_name))
-        .map(|n| n.id())
+    doc.inner.first_child_element_by_name_ns(id, ns, local_name)
 }
 
 /// Collect all direct child elements matching `(ns, local_name)`, in document order.
 pub fn children_by_tag(doc: &Document, id: NodeId, ns: &str, local_name: &str) -> Vec<NodeId> {
-    match doc.node(id) {
-        Some(n) => n
-            .children()
-            .filter(|c| node_matches(*c, ns, local_name))
-            .map(|c| c.id())
-            .collect(),
-        None => Vec::new(),
-    }
+    doc.inner.child_elements_by_name_ns(id, ns, local_name)
 }
 
 /// Find the first descendant element (excluding `id` itself) matching
 /// `(ns, local_name)`, in document order.
 pub fn find_descendant(doc: &Document, id: NodeId, ns: &str, local_name: &str) -> Option<NodeId> {
-    doc.node(id)?
-        .descendants()
-        .skip(1)
-        .find(|d| node_matches(*d, ns, local_name))
-        .map(|n| n.id())
+    doc.inner
+        .descendants(id)
+        .into_iter()
+        .find(|&d| node_matches(doc, d, ns, local_name))
 }
 
 /// Find all descendant elements (excluding `id` itself) matching `(ns, local_name)`.
 pub fn descendants_by_tag(doc: &Document, id: NodeId, ns: &str, local_name: &str) -> Vec<NodeId> {
-    match doc.node(id) {
-        Some(n) => n
-            .descendants()
-            .skip(1)
-            .filter(|d| node_matches(*d, ns, local_name))
-            .map(|d| d.id())
-            .collect(),
-        None => Vec::new(),
-    }
+    doc.inner
+        .descendants(id)
+        .into_iter()
+        .filter(|&d| node_matches(doc, d, ns, local_name))
+        .collect()
 }
 
 /// A `(namespace-URI, local-name)` element tag, for the pruned lookups below.
@@ -320,10 +334,7 @@ pub fn find_descendant_pruned(doc: &Document, id: NodeId, tag: Tag, prune: Tag) 
 pub fn descendants_by_tag_pruned(doc: &Document, id: NodeId, tag: Tag, prune: Tag) -> Vec<NodeId> {
     walk_pruned(doc, id, prune)
         .into_iter()
-        .filter(|&n| {
-            doc.node(n)
-                .is_some_and(|node| node_matches(node, tag.0, tag.1))
-        })
+        .filter(|&n| node_matches(doc, n, tag.0, tag.1))
         .collect()
 }
 
@@ -331,25 +342,23 @@ pub fn descendants_by_tag_pruned(doc: &Document, id: NodeId, tag: Tag, prune: Ta
 /// skipping any subtree rooted at a `prune` element.
 fn walk_pruned(doc: &Document, id: NodeId, prune: Tag) -> Vec<NodeId> {
     let mut out = Vec::new();
-    let Some(root) = doc.node(id) else {
-        return out;
-    };
-    for child in root.children() {
-        collect_pruned(child, prune, &mut out);
+    for child in doc.inner.children_iter(id) {
+        collect_pruned(doc, child, prune, &mut out);
     }
     out
 }
 
-fn collect_pruned(node: roxmltree::Node<'_, '_>, prune: Tag, out: &mut Vec<NodeId>) {
-    if !node.is_element() {
+/// Recursion depth is bounded by `DEPTH_LIMIT`, enforced at parse time.
+fn collect_pruned(doc: &Document, id: NodeId, prune: Tag, out: &mut Vec<NodeId>) {
+    if doc.inner.element(id).is_none() {
         return;
     }
-    if node_matches(node, prune.0, prune.1) {
+    if node_matches(doc, id, prune.0, prune.1) {
         return; // prune this subtree entirely
     }
-    out.push(node.id());
-    for child in node.children() {
-        collect_pruned(child, prune, out);
+    out.push(id);
+    for child in doc.inner.children_iter(id) {
+        collect_pruned(doc, child, prune, out);
     }
 }
 
@@ -437,6 +446,78 @@ mod tests {
         assert!(parse("").is_err());
     }
 
+    /// Nest `depth` elements inside a SAML-shaped root, closing them or not.
+    fn nested(depth: u32, closed: bool) -> String {
+        let mut xml = format!(r#"<samlp:LogoutResponse xmlns:samlp="{NS_SAMLP}">"#);
+        for _ in 0..depth {
+            xml.push_str("<a>");
+        }
+        if closed {
+            for _ in 0..depth {
+                xml.push_str("</a>");
+            }
+        }
+        xml.push_str("</samlp:LogoutResponse>");
+        xml
+    }
+
+    /// The rejection must be the depth cap, not incidental malformedness.
+    fn assert_rejected_for_depth(xml: &str) {
+        let err = parse(xml).err().expect("must be rejected");
+        let message = err.to_string();
+        assert!(message.contains("depth"), "rejected for the wrong reason: {message}");
+    }
+
+    #[test]
+    fn nesting_up_to_the_limit_is_accepted() {
+        // The root element counts as one level, so DEPTH_LIMIT - 1 children fit.
+        assert!(parse(&nested(DEPTH_LIMIT - 1, true)).is_ok());
+    }
+
+    #[test]
+    fn nesting_past_the_limit_is_rejected() {
+        assert_rejected_for_depth(&nested(DEPTH_LIMIT, true));
+    }
+
+    /// SECURITY (DoS): the payload that used to abort the process outright.
+    ///
+    /// A recursive-descent parser spends stack per nesting level and a Rust
+    /// stack overflow aborts rather than unwinding, so this reached the parser
+    /// through the unauthenticated SLS endpoint before any signature check. The
+    /// missing close tags make the document malformed, but that verdict used to
+    /// arrive only after the tokenizer had already recursed all the way down, and
+    /// they cost the attacker just 3 bytes per level.
+    #[test]
+    fn unclosed_deep_nesting_is_rejected_before_anything_recurses() {
+        let payload = nested(20_000, false);
+        assert!(payload.len() < 64 * 1024, "cheap to send: {}", payload.len());
+        assert_rejected_for_depth(&payload);
+    }
+
+    /// The depth cap counts elements, so markup that merely *contains* tag-like
+    /// text must not inflate it, and a self-closing tag opens no level.
+    #[test]
+    fn depth_accounting_ignores_markup_that_only_looks_nested() {
+        let deep = "<a>".repeat(DEPTH_LIMIT as usize + 50);
+        let xml = format!(
+            r#"<r xmlns="urn:x"><!--{deep}--><![CDATA[{deep}]]><?pi {deep}?><c t="a>b>c"/><d/></r>"#
+        );
+        let doc = parse(&xml).expect("must parse");
+        // `>` is legal inside an attribute value; the value survived intact.
+        let c = find_child(&doc, doc.document_element(), "urn:x", "c").expect("c");
+        assert_eq!(doc.get_attribute(c, "t"), Some("a>b>c"));
+    }
+
+    /// `forbid_dtd` is opt-in on the parser, so guard the flag: a DTD is the
+    /// classic XXE / entity-expansion vector and never legitimate here.
+    #[test]
+    fn doctype_is_rejected() {
+        let xml = format!(
+            r#"<!DOCTYPE r [<!ENTITY x "bsn">]><samlp:LogoutResponse xmlns:samlp="{NS_SAMLP}">&x;</samlp:LogoutResponse>"#
+        );
+        assert!(parse(&xml).is_err());
+    }
+
     #[test]
     fn direct_text_excludes_element_children() {
         // Own text is returned, with entities unescaped.
@@ -517,7 +598,7 @@ mod tests {
 
     #[test]
     fn undeclared_namespace_prefix_is_rejected() {
-        // roxmltree is namespace-strict: a fragment using an undeclared prefix is
+        // The parser is namespace-strict: a fragment using an undeclared prefix is
         // an error (the validators always navigate a single, fully-declared tree
         // rather than re-parsing namespace-incomplete subtrees).
         assert!(parse(r#"<saml:Assertion>x</saml:Assertion>"#).is_err());

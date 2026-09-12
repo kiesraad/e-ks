@@ -104,25 +104,12 @@ impl Validator<'_, '_> {
     /// The signed ArtifactResponse element as a standalone document.
     ///
     /// The RD normally declares the SAML/dsig namespaces on the ArtifactResponse
-    /// itself, so its raw bytes are used verbatim. When they are declared on an
-    /// ancestor instead the slice has undeclared prefixes, and the inherited
-    /// declarations are restored (digest-preserving under exclusive c14n, see
-    /// `node_source_with_inherited_namespaces`). The `ExpectedRoot` binding in
-    /// `check_signature` is what keeps that reconstruction honest.
+    /// itself, so its raw bytes are used verbatim; when they sit on an ancestor
+    /// the inherited declarations are restored (digest-preserving under exclusive
+    /// c14n). The `ExpectedRoot` binding in `check_signature` keeps that honest.
     fn signed_element_source(&mut self, art_node: NodeId) -> Option<String> {
-        let Some(raw) = self.doc.node_source(art_node) else {
-            self.error("ArtifactResponse sig: could not read element source".to_string());
-            return None;
-        };
-        if crate::saml::xml_parser::parse(raw).is_ok() {
-            return Some(raw.to_string());
-        }
-
-        let reconstructed = self
-            .doc
-            .node_source_with_inherited_namespaces(art_node)
-            .filter(|xml| crate::saml::xml_parser::parse(xml).is_ok());
-        if reconstructed.is_none() {
+        let source = self.doc.self_contained_source(art_node);
+        if source.is_none() {
             // Not a forgery signal but an RD serialization we cannot make
             // self-contained. Say so, or it surfaces as an opaque parse error.
             self.error(
@@ -130,13 +117,8 @@ impl Validator<'_, '_> {
                  its inherited namespace declarations restored (unexpected RD serialization)"
                     .to_string(),
             );
-        } else {
-            debug!(
-                "[validate] ArtifactResponse namespaces are declared on an ancestor; \
-                 restored inherited declarations for verification"
-            );
         }
-        reconstructed
+        source
     }
 
     fn check_in_response_to(&mut self, root: NodeId, expected: Option<&MessageId>) {

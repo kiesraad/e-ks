@@ -1,6 +1,9 @@
-//! The signed bytes are parsed three times: by `run_chain`'s tree (roxmltree),
-//! again inside `verify_xml_signature`, and once more by the crypto backend
-//! (`uppsala`). Any construct those parsers read differently is a signature
+//! The signed bytes are parsed three times: by `run_chain`'s tree, again inside
+//! `verify_xml_signature`, and once more by the crypto backend. All three now go
+//! through `uppsala`, so cross-parser divergence is gone by construction (see
+//! `saml::xml_parser`); what remains is that these are still three *separate*
+//! parses, with a slice-and-reparse in between, of bytes an attacker shaped. Any
+//! construct that survives one of those steps differently is a signature
 //! wrapping vector: the digest covers one thing and the claims come from another.
 //!
 //! Every case here must either be rejected or yield exactly the genuine claims.
