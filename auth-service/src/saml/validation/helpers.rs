@@ -216,7 +216,7 @@ fn find_samlp_text(doc: &Document, root: NodeId, local_name: &str) -> Option<Str
 
 /// Find a direct child element `(ns, local_name)` as a node in the parsed tree.
 ///
-/// SECURITY (XML Signature Wrapping): exclusive-c14n and roxmltree both exclude
+/// SECURITY (XML Signature Wrapping): exclusive-c14n and the parsed tree both exclude
 /// comments, so a raw string scan could slice a forged element out of a comment
 /// interior that the signature digest never covered. Navigating the single
 /// parsed tree (instead of re-scanning bytes) reads exactly the element the

@@ -11,7 +11,7 @@ use crate::{
         crypto::{self, SignatureVerification},
         xml_parser::{
             Document, NodeId, QName, all_elements, children_by_tag, descendants_by_tag,
-            direct_text, find_descendant,
+            direct_text, find_child, find_descendant,
         },
     },
 };
@@ -161,11 +161,41 @@ impl<'a, 'input> SignatureChecks<'a, 'input> {
                 return;
             }
         };
+        let Some(signed_info) = self.signed_info(sig_node) else {
+            return;
+        };
         if let Some(key) = self.find_matching_key(sig_node, trusted_keys)
-            && self.check_signature_algorithms(sig_node)
-            && self.signature_covers_root(root, sig_node)
+            && self.check_signature_algorithms(signed_info)
+            && self.signature_covers_root(root, signed_info)
         {
             self.verify_with_cert(xml, key);
+        }
+    }
+
+    /// The signature's own `<SignedInfo>`, which is the only one the backend
+    /// reads (`find_child_element(sig, SignedInfo)`).
+    ///
+    /// SECURITY (XSW): every algorithm and Reference check below must inspect
+    /// the element the backend actually verifies. Searching the whole
+    /// `<Signature>` subtree instead would let a decoy (say a `<ds:Object>`
+    /// carrying conformant-looking declarations, placed before the real
+    /// `SignedInfo`) answer the §9.1 checks while the backend signs and
+    /// verifies under the weak algorithms in the real one.
+    fn signed_info(&mut self, sig: NodeId) -> Option<NodeId> {
+        match children_by_tag(self.doc, sig, NS_DSIG, "SignedInfo")[..] {
+            [only] => Some(only),
+            [] => {
+                self.error("Signature has no SignedInfo".to_string());
+                None
+            }
+            [..] => {
+                self.error(
+                    "Signature has more than one SignedInfo, so the signed algorithm \
+                     declarations are ambiguous (possible XML signature wrapping)"
+                        .to_string(),
+                );
+                None
+            }
         }
     }
 
@@ -269,18 +299,18 @@ impl<'a, 'input> SignatureChecks<'a, 'input> {
     // in the permitted set. Returns `false` (and records an error) on any
     // disallowed or missing algorithm so a weak signature is not trusted even if
     // the crypto backend could verify it.
-    fn check_signature_algorithms(&mut self, sig: NodeId) -> bool {
+    fn check_signature_algorithms(&mut self, signed_info: NodeId) -> bool {
         // Evaluate all four so every violation is reported, not just the first.
-        let sig_method_ok = self.check_signature_method(sig);
-        let digests_ok = self.check_digest_methods(sig);
-        let c14n_ok = self.check_canonicalization_method(sig);
-        let transforms_ok = self.check_reference_transforms(sig);
+        let sig_method_ok = self.check_signature_method(signed_info);
+        let digests_ok = self.check_digest_methods(signed_info);
+        let c14n_ok = self.check_canonicalization_method(signed_info);
+        let transforms_ok = self.check_reference_transforms(signed_info);
         sig_method_ok && digests_ok && c14n_ok && transforms_ok
     }
 
     // eID §9.1: the SignatureMethod MUST be RSA-SHA256 or stronger (no SHA-1).
-    fn check_signature_method(&mut self, sig: NodeId) -> bool {
-        match find_descendant(self.doc, sig, NS_DSIG, "SignatureMethod")
+    fn check_signature_method(&mut self, signed_info: NodeId) -> bool {
+        match find_child(self.doc, signed_info, NS_DSIG, "SignatureMethod")
             .and_then(|n| self.doc.get_attribute(n, "Algorithm"))
         {
             Some(a) if ALLOWED_SIGNATURE_METHODS.contains(&a) => true,
@@ -298,9 +328,13 @@ impl<'a, 'input> SignatureChecks<'a, 'input> {
     }
 
     // eID §9.1: every Reference DigestMethod MUST be SHA-256 or stronger.
-    fn check_digest_methods(&mut self, sig: NodeId) -> bool {
+    fn check_digest_methods(&mut self, signed_info: NodeId) -> bool {
         let mut ok = true;
-        let digests = descendants_by_tag(self.doc, sig, NS_DSIG, "DigestMethod");
+        let digests: Vec<NodeId> = self
+            .references(signed_info)
+            .into_iter()
+            .flat_map(|r| children_by_tag(self.doc, r, NS_DSIG, "DigestMethod"))
+            .collect();
         if digests.is_empty() {
             self.error("Signature has no DigestMethod".to_string());
             ok = false;
@@ -324,8 +358,8 @@ impl<'a, 'input> SignatureChecks<'a, 'input> {
     }
 
     // eID §9.1: exclusive c14n without comments, on the SignedInfo itself.
-    fn check_canonicalization_method(&mut self, sig: NodeId) -> bool {
-        match find_descendant(self.doc, sig, NS_DSIG, "CanonicalizationMethod")
+    fn check_canonicalization_method(&mut self, signed_info: NodeId) -> bool {
+        match find_child(self.doc, signed_info, NS_DSIG, "CanonicalizationMethod")
             .and_then(|n| self.doc.get_attribute(n, "Algorithm"))
         {
             Some(EXCLUSIVE_C14N) => true,
@@ -351,10 +385,13 @@ impl<'a, 'input> SignatureChecks<'a, 'input> {
     // all of which select an arbitrary node-set to digest. Any of those would let
     // a Reference name `#<root-id>`, passing `signature_covers_root`, while
     // digesting something narrower.
-    fn check_reference_transforms(&mut self, sig: NodeId) -> bool {
+    fn check_reference_transforms(&mut self, signed_info: NodeId) -> bool {
         let mut ok = true;
-        for r in descendants_by_tag(self.doc, sig, NS_DSIG, "Reference") {
-            let nodes = descendants_by_tag(self.doc, r, NS_DSIG, "Transform");
+        for r in self.references(signed_info) {
+            let nodes: Vec<NodeId> = children_by_tag(self.doc, r, NS_DSIG, "Transforms")
+                .into_iter()
+                .flat_map(|t| children_by_tag(self.doc, t, NS_DSIG, "Transform"))
+                .collect();
             let mut transforms = Vec::with_capacity(nodes.len());
             for t in nodes {
                 match self.doc.get_attribute(t, "Algorithm") {
@@ -431,10 +468,10 @@ impl<'a, 'input> SignatureChecks<'a, 'input> {
     // missing or off-root reference, so a signature whose digest matches a
     // sibling/nested element cannot authenticate a forged root wrapped around
     // it.
-    fn signature_covers_root(&mut self, root: NodeId, sig: NodeId) -> bool {
+    fn signature_covers_root(&mut self, root: NodeId, signed_info: NodeId) -> bool {
         let root_id = self.root_id(root);
 
-        let refs = descendants_by_tag(self.doc, sig, NS_DSIG, "Reference");
+        let refs = self.references(signed_info);
         if refs.is_empty() {
             self.error("Signature has no Reference".to_string());
             return false;
@@ -460,6 +497,12 @@ impl<'a, 'input> SignatureChecks<'a, 'input> {
             }
         }
         true
+    }
+
+    /// The `<Reference>` elements the backend processes: the direct children of
+    /// `<SignedInfo>` (`find_child_elements(signed_info, Reference)`).
+    fn references(&self, signed_info: NodeId) -> Vec<NodeId> {
+        children_by_tag(self.doc, signed_info, NS_DSIG, "Reference")
     }
 
     /// The root's ID under any [`ID_ATTRIBUTES`] name. Owned so callers can hold
@@ -640,11 +683,24 @@ mod tests {
         )
     }
 
+    /// The `SignedInfo` of the enveloping signature on `root`, which is what the
+    /// Reference/algorithm checks take.
+    fn signed_info_of(doc: &Document<'_>, root: NodeId) -> NodeId {
+        let sig = crate::saml::xml_parser::find_child(doc, root, NS_DSIG, "Signature")
+            .expect("test signature present");
+        crate::saml::xml_parser::find_child(doc, sig, NS_DSIG, "SignedInfo")
+            .expect("test SignedInfo present")
+    }
+
     fn algorithm_errors(xml: &str) -> (bool, Vec<String>) {
         let doc = crate::saml::xml_parser::parse(xml).unwrap();
         let sig = doc.document_element();
         let mut errors = Vec::new();
-        let ok = SignatureChecks::new(&doc, &mut errors).check_signature_algorithms(sig);
+        let mut checks = SignatureChecks::new(&doc, &mut errors);
+        // The checks read the signature's own SignedInfo, as the backend does.
+        let ok = checks
+            .signed_info(sig)
+            .is_some_and(|si| checks.check_signature_algorithms(si));
         (ok, errors)
     }
 
@@ -798,14 +854,8 @@ mod tests {
             EXCLUSIVE_C14N,
             &[ENVELOPED_SIGNATURE_TRANSFORM, EXCLUSIVE_C14N],
         );
-        let ok_xml = ok_xml.as_str();
-        let doc = crate::saml::xml_parser::parse(ok_xml).unwrap();
-        let sig = doc.document_element();
-        let mut errors = Vec::new();
-        assert!(
-            SignatureChecks::new(&doc, &mut errors).check_signature_algorithms(sig),
-            "{errors:?}"
-        );
+        let (ok, errors) = algorithm_errors(&ok_xml);
+        assert!(ok, "{errors:?}");
 
         // rsa-sha1 SignatureMethod + sha1 DigestMethod must both be rejected.
         let sha1_xml = signed_info(
@@ -814,11 +864,8 @@ mod tests {
             EXCLUSIVE_C14N,
             &[ENVELOPED_SIGNATURE_TRANSFORM, EXCLUSIVE_C14N],
         );
-        let sha1_xml = sha1_xml.as_str();
-        let doc = crate::saml::xml_parser::parse(sha1_xml).unwrap();
-        let sig = doc.document_element();
-        let mut errors = Vec::new();
-        assert!(!SignatureChecks::new(&doc, &mut errors).check_signature_algorithms(sig));
+        let (ok, errors) = algorithm_errors(&sha1_xml);
+        assert!(!ok);
         assert!(errors.iter().any(|e| e.contains("SignatureMethod")));
         assert!(errors.iter().any(|e| e.contains("DigestMethod")));
     }
@@ -832,11 +879,10 @@ mod tests {
             );
             let doc = crate::saml::xml_parser::parse(&xml).unwrap();
             let root = doc.document_element();
-            let sig =
-                crate::saml::xml_parser::find_child(&doc, root, NS_DSIG, "Signature").unwrap();
+            let si = signed_info_of(&doc, root);
             let mut errors = Vec::new();
             assert!(
-                SignatureChecks::new(&doc, &mut errors).signature_covers_root(root, sig),
+                SignatureChecks::new(&doc, &mut errors).signature_covers_root(root, si),
                 "{errors:?}"
             );
         }
@@ -847,9 +893,9 @@ mod tests {
         );
         let doc = crate::saml::xml_parser::parse(&xml).unwrap();
         let root = doc.document_element();
-        let sig = crate::saml::xml_parser::find_child(&doc, root, NS_DSIG, "Signature").unwrap();
+        let si = signed_info_of(&doc, root);
         let mut errors = Vec::new();
-        assert!(!SignatureChecks::new(&doc, &mut errors).signature_covers_root(root, sig));
+        assert!(!SignatureChecks::new(&doc, &mut errors).signature_covers_root(root, si));
         assert!(errors.iter().any(|e| e.contains("wrapping")));
     }
 
@@ -942,9 +988,9 @@ mod tests {
         );
         let doc = crate::saml::xml_parser::parse(&xml).unwrap();
         let root = doc.document_element();
-        let sig = crate::saml::xml_parser::find_child(&doc, root, NS_DSIG, "Signature").unwrap();
+        let si = signed_info_of(&doc, root);
         let mut errors = Vec::new();
-        assert!(!SignatureChecks::new(&doc, &mut errors).signature_covers_root(root, sig));
+        assert!(!SignatureChecks::new(&doc, &mut errors).signature_covers_root(root, si));
         assert!(
             errors
                 .iter()

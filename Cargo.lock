@@ -322,7 +322,6 @@ dependencies = [
  "cookie",
  "parking_lot",
  "reqwest",
- "roxmltree",
  "rustls-pki-types",
  "rustls-webpki",
  "secrecy",
@@ -331,6 +330,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+ "uppsala",
  "uuid",
  "x509-cert 0.3.0",
 ]
@@ -3657,15 +3657,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bd124222d17ad93a644ed9d011a40f4fb64aa54275c08cc216524a9ea82fb09f"
 dependencies = [
  "digest 0.10.7",
-]
-
-[[package]]
-name = "roxmltree"
-version = "0.21.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1964b10c76125c36f8afe190065a4bf9a87bf324842c05701330bba9f1cacbb"
-dependencies = [
- "memchr",
 ]
 
 [[package]]

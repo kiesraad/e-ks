@@ -153,7 +153,7 @@ pub fn decrypt_encrypted_id(
     // Normally self-contained; when the namespaces are declared on an ancestor,
     // restore the inherited ones. The backend only locates the ciphertext, so this
     // cannot affect what is decrypted.
-    let enc_id_xml = self_contained_source(doc, enc_id)?;
+    let enc_id_xml = doc.self_contained_source(enc_id)?;
     let decrypted_xml = decrypt_ciphertext(&enc_id_xml, private_keys)?;
 
     // eID §7.6.3.4.4: "An <EncryptedID> MUST contain a SAML <NameID> after
@@ -175,18 +175,6 @@ pub fn decrypt_encrypted_id(
         result.value.expose_secret().len()
     );
     Some(result)
-}
-
-/// `node` as a standalone document: raw bytes when those parse, else with the
-/// inherited namespace declarations restored. Mirrors the signature path.
-fn self_contained_source(doc: &Document, node: NodeId) -> Option<String> {
-    let raw = doc.node_source(node)?;
-    if crate::saml::xml_parser::parse(raw).is_ok() {
-        return Some(raw.to_string());
-    }
-    let reconstructed = doc.node_source_with_inherited_namespaces(node)?;
-    crate::saml::xml_parser::parse(&reconstructed).ok()?;
-    Some(reconstructed)
 }
 
 /// Hand the self-contained EncryptedID XML to the crypto backend, trying each
@@ -301,7 +289,7 @@ mod tests {
 
     /// Full XML-Enc round-trip: encrypt a NameID to the DV's public key, then run
     /// the production decryption path and assert the recovered identifier. This
-    /// exercises the decrypt + re-parse path (including roxmltree's namespace
+    /// exercises the decrypt + re-parse path (including the parser's namespace
     /// strictness on the decrypted plaintext), which the structural unit tests do
     /// not cover.
     #[test]
