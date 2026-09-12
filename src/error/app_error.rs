@@ -62,6 +62,18 @@ pub enum AppError {
         max: usize,
     },
 
+    /// A person appears more than once on a candidate list.
+    DuplicateCandidate,
+
+    /// A reorder submitted a different set of candidates than the list holds.
+    CandidateSetChanged,
+
+    /// The submission still has errors, so no documents are generated.
+    NotDownloadable,
+
+    /// The stream changed between validating the request and writing its event.
+    Conflict,
+
     /// A hash prefix matched more than one event; the user must supply a longer prefix.
     AmbiguousHash,
 
@@ -108,6 +120,10 @@ impl Display for AppError {
                 f,
                 "Cannot add more than {max} candidates to a candidate list"
             ),
+            AppError::DuplicateCandidate => write!(f, "Person appears twice on a candidate list"),
+            AppError::CandidateSetChanged => write!(f, "Reorder changed the set of candidates"),
+            AppError::NotDownloadable => write!(f, "Submission has errors, documents withheld"),
+            AppError::Conflict => write!(f, "Data changed during the request"),
             AppError::AmbiguousHash => write!(f, "Ambiguous hash prefix"),
             AppError::TooManyDownloads { max, window } => write!(
                 f,

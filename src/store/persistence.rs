@@ -373,14 +373,29 @@ where
 
     /// Persist an event and apply it to the in-memory store.
     pub async fn update(&self, event: D::Event) -> Result<(), AppError> {
+        self.append(event, None).await
+    }
+
+    /// [`Self::update`], refused with [`AppError::Conflict`] when the stream
+    /// moved past `expected_last_event_id` since the caller read it.
+    pub async fn update_if_unchanged(
+        &self,
+        event: D::Event,
+        expected_last_event_id: usize,
+    ) -> Result<(), AppError> {
+        self.append(event, Some(expected_last_event_id)).await
+    }
+
+    async fn append(&self, event: D::Event, expected: Option<usize>) -> Result<(), AppError> {
         match &self.backend {
             #[cfg(feature = "database")]
             StoreBackend::Database { pool, cipher } => {
-                update_in_database(self, pool, cipher, event).await
+                update_in_database(self, pool, cipher, event, expected).await
             }
             StoreBackend::Local { dir, cipher } => {
                 let (last_id, replay) = replay_from_file(self, dir, cipher).await?;
                 replay.reject_append(self.stream_id)?;
+                super::check_expected_event_id(expected, last_id)?;
                 let next_id = last_id + 1;
                 let created_at = Utc::now();
                 let prev_hash = replay.chain_tip;
@@ -397,6 +412,7 @@ where
             }
             StoreBackend::Memory { store } => {
                 let mut data = self.data.write();
+                super::check_expected_event_id(expected, data.last_event_id())?;
                 let event_id = data.last_event_id() + 1;
                 let created_at = Utc::now();
                 let prev_hash = data.last_event_hash();

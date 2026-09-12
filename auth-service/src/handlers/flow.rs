@@ -1,12 +1,12 @@
 //! Browser-binding of the SSO flow to defeat login-CSRF / forced login.
 //!
 //! `/login` sets a short-lived cookie holding the AuthnRequest ID plus a hash
-//! of the browser's `User-Agent`; `GET /saml/sp/acs` requires that cookie to
-//! match the validated assertion's `InResponseTo` (and the same User-Agent)
-//! before a session is created. Because the cookie cannot be set on another
-//! browser cross-origin, an attacker cannot make a victim's browser complete a
-//! flow the attacker started (the assertion's `InResponseTo` would still be
-//! outstanding, but the victim's browser carries no matching cookie).
+//! of the browser's `User-Agent`; `GET /saml/sp/acs` requires that cookie before
+//! it resolves the artifact, and its ID to equal the validated assertion's
+//! `InResponseTo` before a session is created. Because the cookie cannot be set
+//! on another browser cross-origin, an attacker cannot make a victim's browser
+//! complete a flow the attacker started (the assertion's `InResponseTo` would
+//! still be outstanding, but the victim's browser carries no matching cookie).
 //!
 //! This lives entirely in the auth-service crate and needs no
 //! embedding-application API: both `handle_login` and `handle_acs` already
@@ -82,24 +82,74 @@ pub(crate) fn flow_cookie(
         .build()
 }
 
-/// Verify, at the ACS callback, that this browser started the flow for
-/// `expected_authn_id` (matching cookie value and User-Agent), and return the jar
-/// with the one-shot cookie removed. `false` when the cookie is absent or does
-/// not match. Always removes the cookie so it cannot be reused.
-pub(crate) fn verify_and_clear(
+/// One-shot marker: the failed callback ended a flow this browser started, so
+/// the error landing may end the local session (TVS L10).
+const FAILED_FLOW_COOKIE_HOST: &str = "__Host-eks-saml-failed";
+const FAILED_FLOW_COOKIE_DEV: &str = "eks-saml-failed";
+
+fn failed_flow_cookie_name(secure: bool) -> &'static str {
+    if secure {
+        FAILED_FLOW_COOKIE_HOST
+    } else {
+        FAILED_FLOW_COOKIE_DEV
+    }
+}
+
+/// Only has to survive the redirect to the error landing.
+pub(crate) fn failed_flow_cookie(acs_url: &EndpointUrl) -> Cookie<'static> {
+    let secure = acs_url.is_https();
+    Cookie::build((failed_flow_cookie_name(secure), "1"))
+        .http_only(true)
+        .secure(secure)
+        .same_site(SameSite::Lax)
+        .path("/")
+        .max_age(cookie::time::Duration::minutes(1))
+        .build()
+}
+
+/// Whether the marker is present, plus the jar with it removed. Only the name
+/// this deployment sets counts, so a related domain cannot plant one.
+pub(crate) fn take_failed_flow(jar: CookieJar, acs_url: &EndpointUrl) -> (bool, CookieJar) {
+    let secure = acs_url.is_https();
+    let name = failed_flow_cookie_name(secure);
+    let present = jar.get(name).is_some();
+    let removal = Cookie::build((name, "")).path("/").secure(secure).build();
+    (present, jar.remove(removal))
+}
+
+/// The AuthnRequest ID this browser's flow cookie is bound to, plus the jar with
+/// the one-shot cookie removed. `None` when the cookie is absent, malformed, or
+/// bound to a different `User-Agent`.
+///
+/// Only what the browser claims: the caller still matches it against the
+/// assertion's `InResponseTo` and consumes it in the pending-request store.
+/// Returning it rather than verifying an expected value is what lets the ACS run
+/// this gate before resolving the artifact.
+pub(crate) fn take_bound_authn_id(
     jar: CookieJar,
     acs_url: &EndpointUrl,
-    expected_authn_id: &MessageId,
     headers: &HeaderMap,
-) -> (bool, CookieJar) {
+) -> (Option<MessageId>, CookieJar) {
     let secure = acs_url.is_https();
     let name = cookie_name(secure);
-    let expected = bound_value(expected_authn_id, headers);
-    let ok = jar.get(name).is_some_and(|c| c.value() == expected);
+    let bound = jar
+        .get(name)
+        .and_then(|c| parse_bound_value(c.value(), headers));
     // The removal cookie must carry the same Path (and Secure for the __Host-
     // prefix) the browser stored it with, or the browser keeps the original.
     let removal = Cookie::build((name, "")).path("/").secure(secure).build();
-    (ok, jar.remove(removal))
+    (bound, jar.remove(removal))
+}
+
+/// Split a cookie value back into its AuthnRequest ID, requiring the trailing
+/// User-Agent hash to match. Split on the *last* `.`: an `NCName` may contain
+/// dots, the hex hash cannot.
+fn parse_bound_value(value: &str, headers: &HeaderMap) -> Option<MessageId> {
+    let (authn_id, ua) = value.rsplit_once('.')?;
+    if ua != ua_hash(headers) {
+        return None;
+    }
+    MessageId::parse(authn_id).ok()
 }
 
 #[cfg(test)]
@@ -114,6 +164,26 @@ mod tests {
 
     fn acs(url: &str) -> EndpointUrl {
         EndpointUrl::from_base_url(url, "ACS").expect("test ACS URL")
+    }
+
+    #[test]
+    fn failed_flow_marker_is_taken_once() {
+        let secure_acs = acs("https://dv.example/");
+        let jar = CookieJar::new().add(failed_flow_cookie(&secure_acs));
+        let (present, jar) = take_failed_flow(jar, &secure_acs);
+        assert!(present);
+        assert!(jar.get(FAILED_FLOW_COOKIE_HOST).is_none());
+
+        let (present, _) = take_failed_flow(CookieJar::new(), &secure_acs);
+        assert!(!present);
+    }
+
+    #[test]
+    fn a_planted_insecure_marker_is_ignored_on_https() {
+        // only the `__Host-` name is set on https; the plain one is plantable
+        let jar = jar_with(FAILED_FLOW_COOKIE_DEV, "1");
+        let (present, _) = take_failed_flow(jar, &acs("https://dv.example/"));
+        assert!(!present, "a planted marker must not end the session");
     }
 
     fn id(value: &str) -> MessageId {
@@ -144,43 +214,74 @@ mod tests {
     }
 
     #[test]
-    fn verify_accepts_matching_browser_and_ua() {
+    fn bound_id_is_recovered_for_the_same_browser_and_ua() {
         let h = headers_with_ua("agent/1");
         let acs = acs("https://dv.example.com/saml/sp/acs");
-        let value = flow_cookie(&acs, &id("_abc"), &h).value().to_string();
+        // An ID containing a dot: the split must not cut it short.
+        let value = flow_cookie(&acs, &id("_ab.c"), &h).value().to_string();
         let jar = jar_with(FLOW_COOKIE_HOST, &value);
-        let (ok, _) = verify_and_clear(jar, &acs, &id("_abc"), &h);
-        assert!(ok);
+        let (bound, jar) = take_bound_authn_id(jar, &acs, &h);
+        assert_eq!(bound, Some(id("_ab.c")));
+        // One-shot.
+        assert!(jar.get(FLOW_COOKIE_HOST).is_none());
     }
 
     #[test]
-    fn verify_rejects_missing_cookie() {
+    fn missing_cookie_yields_no_bound_id() {
         let h = headers_with_ua("agent/1");
         let acs = acs("https://dv.example.com/saml/sp/acs");
-        let (ok, _) = verify_and_clear(CookieJar::new(), &acs, &id("_abc"), &h);
-        assert!(!ok, "absent flow cookie must be rejected (login CSRF)");
+        let (bound, _) = take_bound_authn_id(CookieJar::new(), &acs, &h);
+        assert!(
+            bound.is_none(),
+            "absent flow cookie must be rejected (login CSRF)"
+        );
     }
 
     #[test]
-    fn verify_rejects_wrong_authn_id() {
+    fn bound_id_is_the_cookie_value_not_the_assertions() {
         // Models forced login: the victim's browser carries a cookie for a
-        // different (or no) flow than the assertion's InResponseTo.
+        // different flow, so the ID handed back cannot match the attacker's
+        // assertion InResponseTo.
         let h = headers_with_ua("agent/1");
         let acs = acs("https://dv.example.com/saml/sp/acs");
-        let value = flow_cookie(&acs, &id("_attacker"), &h).value().to_string();
+        let value = flow_cookie(&acs, &id("_victim-request"), &h)
+            .value()
+            .to_string();
         let jar = jar_with(FLOW_COOKIE_HOST, &value);
-        let (ok, _) = verify_and_clear(jar, &acs, &id("_victim-request"), &h);
-        assert!(!ok);
+        let (bound, _) = take_bound_authn_id(jar, &acs, &h);
+        assert_eq!(bound, Some(id("_victim-request")));
+        assert_ne!(bound, Some(id("_attacker")));
     }
 
     #[test]
-    fn verify_rejects_changed_user_agent() {
+    fn changed_user_agent_yields_no_bound_id() {
         let acs = acs("https://dv.example.com/saml/sp/acs");
         let value = flow_cookie(&acs, &id("_abc"), &headers_with_ua("agent/1"))
             .value()
             .to_string();
         let jar = jar_with(FLOW_COOKIE_HOST, &value);
-        let (ok, _) = verify_and_clear(jar, &acs, &id("_abc"), &headers_with_ua("agent/2"));
-        assert!(!ok, "a different User-Agent must not satisfy the binding");
+        let (bound, _) = take_bound_authn_id(jar, &acs, &headers_with_ua("agent/2"));
+        assert!(
+            bound.is_none(),
+            "a different User-Agent must not satisfy the binding"
+        );
+    }
+
+    #[test]
+    fn malformed_cookie_values_yield_no_bound_id() {
+        let h = headers_with_ua("agent/1");
+        let acs = acs("https://dv.example.com/saml/sp/acs");
+        let hash = ua_hash(&h);
+        for value in [
+            String::new(),
+            // No separator at all.
+            "_abc".to_string(),
+            // Empty ID, and an ID that is not an NCName.
+            format!(".{hash}"),
+            format!("1abc.{hash}"),
+        ] {
+            let (bound, _) = take_bound_authn_id(jar_with(FLOW_COOKIE_HOST, &value), &acs, &h);
+            assert!(bound.is_none(), "must reject cookie value {value:?}");
+        }
     }
 }

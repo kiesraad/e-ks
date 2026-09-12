@@ -844,6 +844,54 @@ mod tests {
         }
     }
 
+    /// Downloads are GET links, which the fetch-metadata layer and the session
+    /// middleware both wave through: the event-hash in the path is what stops a
+    /// cross-site navigation from forging the audit event a download writes.
+    #[tokio::test]
+    async fn cross_site_download_navigation_needs_a_hash_from_the_stream() {
+        let state = AppState::new_for_tests().await;
+        let stream_id = crate::StreamId::new();
+        let store = state
+            .store_for_stream(stream_id, crate::ElectionConfig::EK27, false)
+            .await
+            .expect("store");
+        crate::test_utils::sample_person(crate::structs::persons::PersonId::new())
+            .create(&crate::PgStore::own(store.clone()))
+            .await
+            .expect("seed an event");
+
+        let mut session = crate::Session::new_test_for_stream(stream_id);
+        session.set_test_election(crate::ElectionConfig::EK27);
+        let token = session.token_string();
+        state.sessions.insert(session).await;
+
+        let hash = crate::EventHashPrefix::of(&store.current_event_hash());
+        let app: Router = create(state.clone()).with_state(state);
+
+        // a hash this stream never had, as an off-site page would have to guess
+        let forged = crate::EventHashPrefix::of(&[0xEE; 32]);
+        for (hash, expected) in [(forged, true), (hash, false)] {
+            let request = Request::builder()
+                .uri(format!("/generate/{hash}/nl/documents.zip"))
+                .header("sec-fetch-site", "cross-site")
+                .header("sec-fetch-mode", "navigate")
+                .header(
+                    header::COOKIE,
+                    format!("{}={}", crate::SESSION_COOKIE_NAME, token),
+                )
+                .body(Body::empty())
+                .unwrap();
+            let response = app.clone().oneshot(request).await.expect("response");
+
+            assert_eq!(
+                response.status() == StatusCode::NOT_FOUND,
+                expected,
+                "hash {hash} should {}have been refused",
+                if expected { "" } else { "not " }
+            );
+        }
+    }
+
     #[tokio::test]
     async fn fallback_route_renders_not_found() {
         let state = AppState::new_for_tests().await;

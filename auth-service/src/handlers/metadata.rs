@@ -99,7 +99,7 @@ mod tests {
 
     /// A state backed by the committed DV fixtures, enough to build real signed
     /// metadata without any env/network access.
-    fn fixture_state() -> AuthServiceState {
+    async fn fixture_state() -> AuthServiceState {
         let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures");
         let mut cfg = AuthConfig::default().with_certs_dir(dir);
         cfg.dv.entity_id = EntityId::from_static("urn:test:dv");
@@ -107,9 +107,11 @@ mod tests {
         cfg.dv.slo_url = dv_url("https://dv.example.com/saml/sp/logout");
         cfg.dv.service_name = "Kiesraad Test".to_string();
         cfg.dv.service_uuid = ServiceUuid::from_static("f847dc11-ac24-47b2-84a8-a057440ce56d");
-        let keys =
-            crate::keys::load_key_set(&cfg.dv.signing, &cfg.dv.encryption).expect("load fixtures");
-        AuthServiceState::new(cfg, keys, None)
+        let keys = crate::keys::load_key_set(&cfg.dv.signing, &cfg.dv.encryption)
+            .await
+            .expect("load fixtures");
+        let tls_cert = crate::keys::load_metadata_tls_cert(&cfg.tls.client_cert).await;
+        AuthServiceState::new(cfg, keys, tls_cert, None)
     }
 
     async fn body_string(resp: Response) -> String {
@@ -119,7 +121,7 @@ mod tests {
 
     #[tokio::test]
     async fn builds_signs_and_caches_metadata_on_first_request() {
-        let state = fixture_state();
+        let state = fixture_state().await;
         assert!(
             state.cached_metadata().is_none(),
             "nothing cached before the first request"

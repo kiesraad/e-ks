@@ -54,10 +54,12 @@
               <input type="checkbox" name="load_fixtures" id="load_fixtures" value="true">
               <label for="load_fixtures">{{ "common.select_election.load_fixtures"|trans }}</label>
             </p>
-            <p class="mt-md checkbox">
-              <input type="checkbox" name="login_as_csb" id="login_as_csb" value="true">
-              <label for="login_as_csb">{{ "common.development.login_as_csb"|trans }}</label>
-            </p>
+            {% if cfg!(feature = "dev-features") %}
+              <p class="mt-md checkbox">
+                <input type="checkbox" name="login_as_csb" id="login_as_csb" value="true">
+                <label for="login_as_csb">{{ "common.development.login_as_csb"|trans }}</label>
+              </p>
+            {% endif %}
           {% endif %}
         </fieldset>
         <div class="form-actions">

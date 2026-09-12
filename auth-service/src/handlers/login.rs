@@ -39,7 +39,7 @@ where
     let Some(rd) = auth_state.rd_metadata() else {
         warn!("[login] RD metadata not loaded; SAML login unavailable");
         return state
-            .on_authentication_failed(AuthFailure::Unavailable, jar, &headers)
+            .on_authentication_failed(AuthFailure::Unavailable, jar, &headers, true)
             .await;
     };
 
@@ -53,7 +53,7 @@ where
         Err(e) => {
             error!("[login] Failed to initiate SAML login: {e}");
             state
-                .on_authentication_failed(AuthFailure::from(&e), jar, &headers)
+                .on_authentication_failed(AuthFailure::from(&e), jar, &headers, true)
                 .await
         }
     }
@@ -143,16 +143,17 @@ mod tests {
         std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures")
     }
 
-    fn state_with_rd() -> AuthServiceState {
+    async fn state_with_rd() -> AuthServiceState {
         let mut cfg = AuthConfig::default().with_certs_dir(fixtures_dir());
         cfg.environment = Environment::Test;
         cfg.dv.entity_id = EntityId::from_static("urn:test:dv");
         cfg.dv.service_uuid = ServiceUuid::from_static("f847dc11-ac24-47b2-84a8-a057440ce56d");
         cfg.dv.acs_url = EndpointUrl::from_base_url("https://dv.example.com/saml/sp/acs", "ACS")
             .expect("test ACS URL");
-        let keys =
-            crate::keys::load_key_set(&cfg.dv.signing, &cfg.dv.encryption).expect("load fixtures");
-        AuthServiceState::new(cfg, keys, Some(IdpMetadata::for_tests()))
+        let keys = crate::keys::load_key_set(&cfg.dv.signing, &cfg.dv.encryption)
+            .await
+            .expect("load fixtures");
+        AuthServiceState::new(cfg, keys, None, Some(IdpMetadata::for_tests()))
     }
 
     #[tokio::test]
@@ -172,7 +173,7 @@ mod tests {
 
     #[tokio::test]
     async fn login_builds_signed_authn_request_autosubmit_form() {
-        let mock = MockAuthState::new(state_with_rd());
+        let mock = MockAuthState::new(state_with_rd().await);
         let resp = handle_login(
             State(mock.clone()),
             State(mock.auth.clone()),

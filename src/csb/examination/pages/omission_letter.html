@@ -70,7 +70,13 @@
           </ul>
         {% endif %}
         {% for candidate in all_omissions.candidates %}
-          <h3 class="examination-panel-group">{{ candidate.person.name.display() }}</h3>
+          <h3 class="examination-panel-group">
+            {% if candidate.removed %}
+              {{ "csb.omission.removed_candidate"|trans(&candidate.person.name.display() ) }}
+            {% else %}
+              {{ candidate.person.name.display() }}
+            {% endif %}
+          </h3>
           <ul class="omission-status-list">
             {% for view in candidate.omissions %}
               {{ restorations::omission_row(political_group, view.omission) }}
