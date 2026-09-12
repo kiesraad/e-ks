@@ -83,9 +83,10 @@ mod tests {
             list.create_candidate_path().to_string(),
             format!("/candidate-lists/{}/create", list.id)
         );
+        let event_hash: crate::EventHashPrefix = "abababababababab".parse().expect("prefix");
         assert_eq!(
-            list.export_path().to_string(),
-            format!("/candidate-lists/{}/export", list.id)
+            list.export_path(event_hash).to_string(),
+            format!("/candidate-lists/{}/export/abababababababab", list.id)
         );
         assert_eq!(
             list.import_path().to_string(),

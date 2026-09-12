@@ -7,10 +7,15 @@ use crate::{
 };
 
 pub async fn gen_documents(
-    path @ DownloadDocumentsPath { locale }: DownloadDocumentsPath,
+    path @ DownloadDocumentsPath { event_hash, locale }: DownloadDocumentsPath,
     store: PgStore,
     context: Context,
 ) -> Result<impl IntoResponse, AppError> {
+    // the link must come from this stream, not from an off-site page
+    if !store.has_event_hash(event_hash) {
+        return Err(AppError::GenericNotFound);
+    }
+
     // same gate as the finalise page, before generating anything
     if !AllProblems::find_all(&store)?.models_downloadable() {
         return Err(AppError::NotDownloadable);
@@ -28,6 +33,7 @@ mod tests {
     use chrono::TimeDelta;
 
     use super::*;
+
     use crate::{
         ElectionConfig,
         core::ModelLocale,
@@ -40,14 +46,20 @@ mod tests {
         test_utils::{sample_name_authorisation, setup_documents_test_state},
     };
 
+    /// The path the finalise page renders for `store`.
+    fn download_path(store: &PgStore, locale: ModelLocale) -> DownloadDocumentsPath {
+        DownloadDocumentsPath {
+            event_hash: crate::EventHashPrefix::of(&store.current_event_hash()),
+            locale,
+        }
+    }
+
     #[tokio::test]
     async fn gen_documents_missing_list_submitter_returns_error() -> Result<(), AppError> {
         let (store, _, context) =
             setup_documents_test_state(1, 1, false, true, ElectionConfig::EK27).await?;
         let result = gen_documents(
-            DownloadDocumentsPath {
-                locale: crate::core::ModelLocale::Nl,
-            },
+            download_path(&store, crate::core::ModelLocale::Nl),
             store,
             context,
         )
@@ -66,9 +78,7 @@ mod tests {
             .create(&store)
             .await?;
         let result = gen_documents(
-            DownloadDocumentsPath {
-                locale: crate::core::ModelLocale::Nl,
-            },
+            download_path(&store, crate::core::ModelLocale::Nl),
             store.clone(),
             context.clone(),
         )
@@ -99,9 +109,7 @@ mod tests {
         political_group.update(&store).await?;
 
         let response = gen_documents(
-            DownloadDocumentsPath {
-                locale: crate::core::ModelLocale::Nl,
-            },
+            download_path(&store, crate::core::ModelLocale::Nl),
             store,
             context,
         )
@@ -127,9 +135,7 @@ mod tests {
         political_group.update(&store).await?;
 
         let response = gen_documents(
-            DownloadDocumentsPath {
-                locale: crate::core::ModelLocale::Nl,
-            },
+            download_path(&store, crate::core::ModelLocale::Nl),
             store,
             context,
         )
@@ -152,9 +158,7 @@ mod tests {
         political_group.update(&store).await?;
 
         let result = gen_documents(
-            DownloadDocumentsPath {
-                locale: crate::core::ModelLocale::Nl,
-            },
+            download_path(&store, crate::core::ModelLocale::Nl),
             store,
             context,
         )
@@ -176,14 +180,7 @@ mod tests {
         )
         .await?;
 
-        let result = gen_documents(
-            DownloadDocumentsPath {
-                locale: ModelLocale::Fry,
-            },
-            store,
-            context,
-        )
-        .await;
+        let result = gen_documents(download_path(&store, ModelLocale::Fry), store, context).await;
 
         match result {
             Err(AppError::UserError(message)) => {
@@ -213,9 +210,7 @@ mod tests {
         assert!(!AllProblems::find_all(&store)?.models_downloadable());
 
         match gen_documents(
-            DownloadDocumentsPath {
-                locale: ModelLocale::Nl,
-            },
+            download_path(&store, ModelLocale::Nl),
             store.clone(),
             context,
         )
@@ -236,13 +231,81 @@ mod tests {
         Ok(())
     }
 
+    /// A link that does not name one of this stream's events is refused, and
+    /// nothing is recorded: this is what stops a cross-site navigation from
+    /// forging a download in someone else's audit log.
+    #[tokio::test]
+    async fn gen_documents_refuses_a_foreign_event_hash() -> Result<(), AppError> {
+        let (store, _, context) =
+            setup_documents_test_state(1, 1, true, true, ElectionConfig::EK27).await?;
+
+        for event_hash in [
+            crate::EventHashPrefix::of(&[0xEE; 32]),
+            // the all-zero placeholder is the same for every stream
+            crate::EventHashPrefix::of(&crate::store::GENESIS_HASH),
+        ] {
+            let result = gen_documents(
+                DownloadDocumentsPath {
+                    event_hash,
+                    locale: ModelLocale::Nl,
+                },
+                store.clone(),
+                context.clone(),
+            )
+            .await;
+
+            assert!(matches!(result, Err(AppError::GenericNotFound)));
+        }
+
+        assert!(
+            !store
+                .data
+                .read()
+                .events
+                .iter()
+                .any(|e| matches!(e.payload, crate::PgEvent::DownloadFile { .. })),
+            "a refused download is not recorded"
+        );
+
+        Ok(())
+    }
+
+    /// The page renders both locales at once, and the first download appends an
+    /// event: the second link, minted before it, must still work.
+    #[tokio::test]
+    async fn gen_documents_accepts_a_link_from_before_its_own_download() -> Result<(), AppError> {
+        let (store, _, context) =
+            setup_documents_test_state(1, 1, true, true, ElectionConfig::EK27).await?;
+        let path = download_path(&store, ModelLocale::Nl);
+
+        gen_documents(
+            download_path(&store, ModelLocale::Nl),
+            store.clone(),
+            context.clone(),
+        )
+        .await?;
+
+        assert_ne!(
+            crate::EventHashPrefix::of(&store.current_event_hash()),
+            path.event_hash,
+            "the download must have moved the chain on"
+        );
+        gen_documents(path, store, context).await?;
+
+        Ok(())
+    }
+
     #[tokio::test]
     async fn gen_documents_is_rate_limited() -> Result<(), AppError> {
         let (store, _, context) =
             setup_documents_test_state(1, 1, true, true, ElectionConfig::EK27).await?;
         let limits = crate::RateLimits::new_for_test(1, 0, 0, TimeDelta::minutes(1));
         let store = store.with_limits(limits);
-        let path = || DownloadDocumentsPath {
+        // captured once: the first download appends an event, so the second
+        // call reuses a link that is already one event behind
+        let event_hash = crate::EventHashPrefix::of(&store.current_event_hash());
+        let path = move || DownloadDocumentsPath {
+            event_hash,
             locale: ModelLocale::Nl,
         };
 
@@ -276,9 +339,7 @@ mod tests {
             })
             .collect::<Result<Vec<_>, _>>()?;
         let response = gen_documents(
-            DownloadDocumentsPath {
-                locale: crate::core::ModelLocale::Nl,
-            },
+            download_path(&store, crate::core::ModelLocale::Nl),
             store,
             context,
         )
@@ -327,9 +388,7 @@ mod tests {
         let (store, _, context) =
             setup_documents_test_state(1, 2, true, true, ElectionConfig::EK27).await?;
         let response = gen_documents(
-            DownloadDocumentsPath {
-                locale: crate::core::ModelLocale::Nl,
-            },
+            download_path(&store, crate::core::ModelLocale::Nl),
             store,
             context,
         )
@@ -380,9 +439,7 @@ mod tests {
         international_candidate.update(&store).await?;
 
         let response = gen_documents(
-            DownloadDocumentsPath {
-                locale: crate::core::ModelLocale::Nl,
-            },
+            download_path(&store, crate::core::ModelLocale::Nl),
             store,
             context,
         )
@@ -419,9 +476,7 @@ mod tests {
         name_auth.update(&store).await?;
 
         let response = gen_documents(
-            DownloadDocumentsPath {
-                locale: crate::core::ModelLocale::Nl,
-            },
+            download_path(&store, crate::core::ModelLocale::Nl),
             store,
             context,
         )

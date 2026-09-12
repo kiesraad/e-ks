@@ -3,7 +3,7 @@
 use axum_extra::routing::TypedPath;
 use serde::Deserialize;
 
-use crate::{AppError, core::ModelLocale};
+use crate::{AppError, EventHashPrefix, core::ModelLocale};
 
 #[derive(TypedPath, Deserialize)]
 #[typed_path("/audit-log", rejection(AppError))]
@@ -16,8 +16,13 @@ pub struct AuditLogDetailPath {
 }
 
 #[derive(TypedPath, Deserialize)]
-#[typed_path("/audit-log/{event_id}/{locale}/documents.zip", rejection(AppError))]
+#[typed_path(
+    "/audit-log/{event_id}/{event_hash}/{locale}/documents.zip",
+    rejection(AppError)
+)]
 pub struct AuditLogDownloadDocumentsPath {
     pub event_id: usize,
+    /// Binds the link to the event it names; see [`EventHashPrefix`].
+    pub event_hash: EventHashPrefix,
     pub locale: ModelLocale,
 }
