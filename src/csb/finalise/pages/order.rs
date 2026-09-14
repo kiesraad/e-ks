@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use axum::{Json, http::StatusCode, response::IntoResponse};
 use serde::Deserialize;
 
@@ -44,11 +46,18 @@ pub async fn update_order(
 
 /// Whether `given` names every stream in `expected` exactly once.
 fn is_permutation(given: &[StreamId], expected: &[StreamId]) -> bool {
-    let mut given: Vec<_> = given.iter().map(ToString::to_string).collect();
-    let mut expected: Vec<_> = expected.iter().map(ToString::to_string).collect();
-    given.sort();
-    expected.sort();
-    given == expected
+    let mut counts = HashMap::new();
+
+    given
+        .iter()
+        .map(ToString::to_string)
+        .for_each(|s_id| *counts.entry(s_id).or_insert(0) += 1);
+    expected
+        .iter()
+        .map(ToString::to_string)
+        .for_each(|s_id| *counts.entry(s_id).or_insert(0) -= 1);
+
+    counts.values().all(|&v| v == 0)
 }
 
 #[cfg(test)]
