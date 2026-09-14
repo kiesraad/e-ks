@@ -32,7 +32,7 @@
       </p>
     </div>
     <div class="form-row">
-      <p class="form-field form-field-md">
+      <p class="form-field form-field-md {% if form.data.is_invalid_date() %}error{% endif %}">
         <label for="hearing-date">{{ "csb.hearing.date"|trans }}</label>
         <span class="date-input-row">
           <span class="date-separate hidden">
@@ -68,9 +68,10 @@
                  value="{{ form.data.date_of_hearing }}"
                  aria-label="{{ "common.date_field.date"|trans }}"
                  inputmode="numeric" />
+          {% for error in form|error("date_of_hearing") %}<span class="error">{{ error }}</span>{% endfor %}
         </span>
       </p>
-      <p class="form-field form-field-sm">
+      <p class="form-field form-field-sm {% if form.data.is_invalid_time() %}error{% endif %}">
         <label for="hearing-time">{{ "csb.hearing.time"|trans }}</label>
         <input type="text"
                class="time-input"
@@ -79,6 +80,7 @@
                value="{{ form.data.time_of_hearing }}"
                aria-label="{{ "common.date_field.time"|trans }}"
                placeholder="hh:mm" />
+        {% for error in form|error("time_of_hearing") %}<span class="error">{{ error }}</span>{% endfor %}
       </p>
     </div>
     <h3>{{ "csb.hearing.signing"|trans }}</h3>

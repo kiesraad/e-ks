@@ -154,3 +154,13 @@ pub struct HearingDetailsForm {
     pub signer_8: String,
     pub signer_9: String,
 }
+
+impl HearingDetailsForm {
+    pub fn is_invalid_date(&self) -> bool {
+        DateOfHearing::from_str(&self.date_of_hearing).is_err()
+    }
+
+    pub fn is_invalid_time(&self) -> bool {
+        TimeOfHearing::from_str(&self.time_of_hearing).is_err()
+    }
+}
