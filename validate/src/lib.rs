@@ -84,7 +84,7 @@ fn build_field_blocks(fields: &[&syn::Field]) -> syn::Result<FieldBlocks> {
         }
 
         if opts.not_empty {
-            let error = if is_type_named(&field.ty, "Vec") {
+            let error = if is_type_named(&field.ty, "Vec") || is_type_named(&field.ty, "BTreeSet") {
                 quote!(crate::form::ValidationError::ChooseAtLeastOneOption)
             } else {
                 quote!(crate::form::ValidationError::ValueShouldNotBeEmpty)

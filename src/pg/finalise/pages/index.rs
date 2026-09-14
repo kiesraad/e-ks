@@ -68,6 +68,7 @@ mod tests {
         },
     };
     use axum::response::IntoResponse;
+    use std::collections::BTreeSet;
 
     #[tokio::test]
     async fn index_shows_document_downloads_for_complete_lists() -> Result<(), AppError> {
@@ -137,7 +138,7 @@ mod tests {
             sample_person(person_id).create(&store).await?;
 
             let mut complete_list = sample_candidate_list(complete_list_id);
-            complete_list.electoral_districts = vec![district];
+            complete_list.electoral_districts = BTreeSet::from([district]);
             complete_list.create(&store).await?;
             complete_list.append_candidate(&store, person_id).await?;
 
@@ -201,7 +202,7 @@ mod tests {
             sample_person(person_id).create(&store).await?;
 
             let mut complete_list = sample_candidate_list(complete_list_id);
-            complete_list.electoral_districts = vec![district];
+            complete_list.electoral_districts = BTreeSet::from([district]);
             complete_list.create(&store).await?;
             complete_list.append_candidate(&store, person_id).await?;
 

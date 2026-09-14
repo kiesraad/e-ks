@@ -1,5 +1,6 @@
 use crate::store::EventHash;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeSet;
 
 use crate::{
     ElectoralDistrict, StreamId,
@@ -43,7 +44,7 @@ pub enum PgEvent {
     CreateCandidateList(CandidateList),
     UpdateCandidateListDistricts {
         list_id: CandidateListId,
-        electoral_districts: Vec<ElectoralDistrict>,
+        electoral_districts: BTreeSet<ElectoralDistrict>,
     },
     UpdateCandidateListOrder {
         list_id: CandidateListId,

@@ -63,6 +63,7 @@ mod tests {
         structs::{candidate_lists::CandidateListId, persons::PersonId},
         test_utils::{sample_candidate_list, sample_person},
     };
+    use std::collections::BTreeSet;
 
     use super::*;
 
@@ -86,7 +87,7 @@ mod tests {
         let id = CandidateListId::new();
         let mut list = sample_candidate_list(id);
         list.candidates = ids;
-        list.electoral_districts = districts;
+        list.electoral_districts = districts.into_iter().collect();
         list.create(store).await?;
         Ok(CandidateListSummary {
             list,
@@ -144,7 +145,7 @@ mod tests {
 
         // list with duplicate district
         let mut list = sample_candidate_list(CandidateListId::new());
-        list.electoral_districts = vec![ElectoralDistrict::PsAmsterdam];
+        list.electoral_districts = BTreeSet::from([ElectoralDistrict::PsAmsterdam]);
         list.create(&store).await?;
 
         assert_eq!(problems.potential_problems.len(), 2);

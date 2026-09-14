@@ -613,13 +613,14 @@ mod tests {
         },
         test_utils::{sample_person, sample_person_with},
     };
+    use std::collections::BTreeSet;
 
     const EK: ElectionConfig = ElectionConfig::EK27;
 
     fn store_with_list(districts: Vec<ElectoralDistrict>) -> (CsbStore, CandidateListId) {
         let store = CsbStore::new_for_test();
         let list = CandidateList {
-            electoral_districts: districts,
+            electoral_districts: districts.into_iter().collect(),
             ..Default::default()
         };
         let id = list.id;
@@ -689,7 +690,10 @@ mod tests {
             sample_person_with(PersonId::new(), Some("Cas"), "Cornelissen", None, "C."),
         ];
         let list = CandidateList {
-            electoral_districts: vec![ElectoralDistrict::Groningen, ElectoralDistrict::Bonaire],
+            electoral_districts: BTreeSet::from([
+                ElectoralDistrict::Groningen,
+                ElectoralDistrict::Bonaire,
+            ]),
             candidates: persons.iter().map(|person| person.id).collect(),
             ..Default::default()
         };
@@ -759,7 +763,10 @@ mod tests {
     fn political_group_maps_to_the_districts_of_its_lists() {
         let (store, _) = store_with_list(vec![ElectoralDistrict::Groningen]);
         store.add_candidate_list(CandidateList {
-            electoral_districts: vec![ElectoralDistrict::Groningen, ElectoralDistrict::Bonaire],
+            electoral_districts: BTreeSet::from([
+                ElectoralDistrict::Groningen,
+                ElectoralDistrict::Bonaire,
+            ]),
             ..Default::default()
         });
 
@@ -850,7 +857,7 @@ mod tests {
     fn candidate_with_paper_added_list_uses_the_corrected_projection() {
         let store = CsbStore::new_for_test();
         let list = CandidateList {
-            electoral_districts: vec![ElectoralDistrict::Groningen],
+            electoral_districts: BTreeSet::from([ElectoralDistrict::Groningen]),
             ..Default::default()
         };
         let id = list.id;
@@ -871,7 +878,7 @@ mod tests {
         let (store, id) = store_with_list(vec![ElectoralDistrict::Utrecht]);
         store.set_paper_corrected_candidate_list(CandidateList {
             id,
-            electoral_districts: vec![ElectoralDistrict::Groningen],
+            electoral_districts: BTreeSet::from([ElectoralDistrict::Groningen]),
             ..Default::default()
         });
         let category = OmissionCategory::Candidate {
@@ -903,7 +910,10 @@ mod tests {
         store.add_person(person.clone());
         store.add_person(other.clone());
         store.add_candidate_list(CandidateList {
-            electoral_districts: vec![ElectoralDistrict::Groningen, ElectoralDistrict::Bonaire],
+            electoral_districts: BTreeSet::from([
+                ElectoralDistrict::Groningen,
+                ElectoralDistrict::Bonaire,
+            ]),
             candidates: vec![person.id, other.id],
             ..Default::default()
         });
@@ -940,13 +950,13 @@ mod tests {
         store.add_person(late.clone());
         // Added newest first, so insertion order cannot pass this by accident.
         store.add_candidate_list(CandidateList {
-            electoral_districts: vec![ElectoralDistrict::Groningen],
+            electoral_districts: BTreeSet::from([ElectoralDistrict::Groningen]),
             candidates: vec![late.id],
             created_at: utc("2027-04-02T09:00:00Z"),
             ..Default::default()
         });
         store.add_candidate_list(CandidateList {
-            electoral_districts: vec![ElectoralDistrict::Groningen],
+            electoral_districts: BTreeSet::from([ElectoralDistrict::Groningen]),
             candidates: vec![early.id],
             created_at: utc("2027-04-01T09:00:00Z"),
             ..Default::default()
@@ -971,7 +981,7 @@ mod tests {
         let person = sample_person_with(PersonId::new(), None, "Jansen", None, "A.B.");
         store.add_person(person.clone());
         store.add_candidate_list(CandidateList {
-            electoral_districts: vec![ElectoralDistrict::Groningen],
+            electoral_districts: BTreeSet::from([ElectoralDistrict::Groningen]),
             candidates: vec![person.id],
             ..Default::default()
         });
@@ -1056,7 +1066,10 @@ mod tests {
             vec![person.clone()],
             vec![CandidateList {
                 // Named in reverse district order on purpose.
-                electoral_districts: vec![ElectoralDistrict::Bonaire, ElectoralDistrict::Groningen],
+                electoral_districts: BTreeSet::from([
+                    ElectoralDistrict::Bonaire,
+                    ElectoralDistrict::Groningen,
+                ]),
                 candidates: vec![person.id],
                 ..Default::default()
             }],
@@ -1516,7 +1529,7 @@ mod tests {
             named_group("Alleen Bonaire"),
             vec![person.clone()],
             vec![CandidateList {
-                electoral_districts: vec![ElectoralDistrict::Bonaire],
+                electoral_districts: BTreeSet::from([ElectoralDistrict::Bonaire]),
                 candidates: vec![person.id],
                 ..Default::default()
             }],

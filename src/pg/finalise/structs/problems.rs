@@ -504,6 +504,7 @@ mod tests {
             sample_candidate_list, sample_list_submitter, sample_name_authorisation, sample_person,
         },
     };
+    use std::collections::BTreeSet;
 
     use super::*;
 
@@ -703,7 +704,7 @@ mod tests {
         for _ in 0..10 {
             let mut list1 = sample_candidate_list(CandidateListId::new());
             list1.electoral_districts =
-                vec![ElectoralDistrict::Utrecht, ElectoralDistrict::Groningen];
+                BTreeSet::from([ElectoralDistrict::Utrecht, ElectoralDistrict::Groningen]);
             list1.create(&store).await?;
         }
 

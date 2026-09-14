@@ -184,6 +184,7 @@ mod tests {
             sample_political_group,
         },
     };
+    use std::collections::BTreeSet;
 
     fn empty_state() -> PgStoreData {
         PgStoreData::default()
@@ -320,10 +321,10 @@ mod tests {
     fn update_candidate_list_districts_pulls_full_list_from_snapshots() {
         let list_id = CandidateListId::new();
         let mut before_list = sample_candidate_list(list_id);
-        before_list.electoral_districts = vec![ElectoralDistrict::Groningen];
+        before_list.electoral_districts = BTreeSet::from([ElectoralDistrict::Groningen]);
         let mut after_list = before_list.clone();
         after_list.electoral_districts =
-            vec![ElectoralDistrict::Groningen, ElectoralDistrict::Fryslan];
+            BTreeSet::from([ElectoralDistrict::Groningen, ElectoralDistrict::Fryslan]);
 
         let mut before = empty_state();
         before.candidate_lists.insert(list_id, before_list.clone());

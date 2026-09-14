@@ -3,13 +3,16 @@ use crate::{
     structs::{common::UtcDateTime, persons::PersonId},
 };
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeSet;
 
 id_newtype!(pub struct CandidateListId);
 
 #[derive(Default, Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct CandidateList {
     pub id: CandidateListId,
-    pub electoral_districts: Vec<ElectoralDistrict>,
+    /// Ordered as the election orders its districts, which is the enum order.
+    pub electoral_districts: BTreeSet<ElectoralDistrict>,
+    /// In list order: the index is the candidate's position on the list.
     pub candidates: Vec<PersonId>,
     pub created_at: UtcDateTime,
 }
@@ -39,7 +42,7 @@ impl CandidateList {
             .join("-")
     }
 
-    /// Every election district is on the list; repeats do not count.
+    /// Every election district is on the list.
     pub fn contains_all_districts(&self, election: &ElectionConfig) -> bool {
         election
             .electoral_districts()
@@ -62,20 +65,20 @@ mod tests {
     use std::collections::BTreeSet;
     fn base_candidate_list(electoral_districts: Vec<ElectoralDistrict>) -> CandidateList {
         CandidateList {
-            electoral_districts,
+            electoral_districts: electoral_districts.into_iter().collect(),
             ..Default::default()
         }
     }
 
     #[tokio::test]
-    async fn districts_formats_titles_in_order() {
+    async fn districts_formats_titles_in_election_order() {
         let list = base_candidate_list(vec![
             ElectoralDistrict::Utrecht,
             ElectoralDistrict::NoordHolland,
             ElectoralDistrict::Drenthe,
         ]);
 
-        assert_eq!(list.districts_name(), "Utrecht, Noord-Holland, Drenthe");
+        assert_eq!(list.districts_name(), "Drenthe, Utrecht, Noord-Holland");
     }
 
     #[tokio::test]
@@ -89,13 +92,6 @@ mod tests {
             ElectoralDistrict::NoordHolland,
         ]);
         assert!(!list.contains_all_districts(&election));
-
-        // same length, one district repeated
-        let mut districts = election.electoral_districts().to_vec();
-        districts.pop();
-        districts.push(ElectoralDistrict::Utrecht);
-        assert_eq!(districts.len(), election.electoral_districts().len());
-        assert!(!base_candidate_list(districts).contains_all_districts(&election));
     }
 
     async fn insert_list(
@@ -103,7 +99,7 @@ mod tests {
         electoral_districts: Vec<ElectoralDistrict>,
     ) -> Result<CandidateList, AppError> {
         let list = CandidateList {
-            electoral_districts,
+            electoral_districts: electoral_districts.into_iter().collect(),
             ..Default::default()
         };
 
@@ -156,7 +152,7 @@ mod tests {
 
         assert_eq!(
             list.duplicate_districts(&store),
-            vec![ElectoralDistrict::Utrecht, ElectoralDistrict::Drenthe] // but not Groningen!
+            vec![ElectoralDistrict::Drenthe, ElectoralDistrict::Utrecht] // but not Groningen!
         );
 
         Ok(())
@@ -265,7 +261,7 @@ mod tests {
     async fn list_candidate_list_orders_by_created_at() -> Result<(), AppError> {
         let store = PgStore::new_for_test();
         let list_early = CandidateList {
-            electoral_districts: vec![ElectoralDistrict::Utrecht],
+            electoral_districts: BTreeSet::from([ElectoralDistrict::Utrecht]),
             ..Default::default()
         };
         list_early.create(&store).await?;
@@ -274,7 +270,7 @@ mod tests {
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 
         let list_late = CandidateList {
-            electoral_districts: vec![ElectoralDistrict::Overijssel],
+            electoral_districts: BTreeSet::from([ElectoralDistrict::Overijssel]),
             ..Default::default()
         };
         list_late.create(&store).await?;
@@ -309,7 +305,10 @@ mod tests {
         list.create(&store).await?;
 
         let updated_list = CandidateList {
-            electoral_districts: vec![ElectoralDistrict::Drenthe, ElectoralDistrict::Overijssel],
+            electoral_districts: BTreeSet::from([
+                ElectoralDistrict::Drenthe,
+                ElectoralDistrict::Overijssel,
+            ]),
             ..list.clone()
         };
 
@@ -318,7 +317,7 @@ mod tests {
         assert_eq!(updated_list.id, list.id);
         assert_eq!(
             updated_list.electoral_districts,
-            vec![ElectoralDistrict::Drenthe, ElectoralDistrict::Overijssel]
+            BTreeSet::from([ElectoralDistrict::Drenthe, ElectoralDistrict::Overijssel])
         );
 
         Ok(())

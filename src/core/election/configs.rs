@@ -1,4 +1,5 @@
 use chrono::{Datelike, NaiveDate, NaiveDateTime, NaiveTime};
+use std::collections::BTreeSet;
 
 use crate::{
     ElectoralDistrict,
@@ -256,11 +257,14 @@ impl ElectionConfig {
             .collect()
     }
 
-    /// The submitted districts of this election, deduplicated, in election order.
-    pub fn known_districts(&self, submitted: &[ElectoralDistrict]) -> Vec<ElectoralDistrict> {
-        self.electoral_districts()
+    /// The submitted districts that belong to this election.
+    pub fn known_districts(
+        &self,
+        submitted: &BTreeSet<ElectoralDistrict>,
+    ) -> BTreeSet<ElectoralDistrict> {
+        submitted
             .iter()
-            .filter(|district| submitted.contains(district))
+            .filter(|district| self.electoral_districts().contains(district))
             .copied()
             .collect()
     }

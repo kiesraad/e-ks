@@ -242,6 +242,7 @@ impl DetailedCandidate {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
     use std::str::FromStr;
 
     use super::*;
@@ -438,7 +439,7 @@ mod tests {
     fn electoral_districts_from_full_list_returns_all() {
         let election = ElectionConfig::EK27;
         let list = CandidateList {
-            electoral_districts: election.electoral_districts().to_vec(),
+            electoral_districts: election.electoral_districts().iter().copied().collect(),
             ..Default::default()
         };
 
@@ -452,7 +453,10 @@ mod tests {
     fn electoral_districts_from_partial_list_returns_titles() {
         let election = ElectionConfig::EK27;
         let list = CandidateList {
-            electoral_districts: vec![ElectoralDistrict::Utrecht, ElectoralDistrict::NoordHolland],
+            electoral_districts: BTreeSet::from([
+                ElectoralDistrict::Utrecht,
+                ElectoralDistrict::NoordHolland,
+            ]),
             ..Default::default()
         };
 

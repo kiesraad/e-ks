@@ -77,6 +77,7 @@ async fn candidate(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
     use std::str::FromStr;
 
     use super::*;
@@ -228,7 +229,9 @@ mod tests {
         store.add_candidate_list(list.clone());
 
         let omission = Omission::new(
-            OmissionCategory::DeclarationsOfSupport(list.electoral_districts.clone()),
+            OmissionCategory::DeclarationsOfSupport(
+                list.electoral_districts.iter().copied().collect(),
+            ),
             "Too few declarations".parse().unwrap(),
             "Not enough declarations of support were handed in."
                 .parse()
@@ -315,7 +318,7 @@ mod tests {
         for district in [ElectoralDistrict::Groningen, ElectoralDistrict::Utrecht] {
             let list_id = CandidateListId::new();
             let mut list = sample_candidate_list(list_id);
-            list.electoral_districts = vec![district];
+            list.electoral_districts = BTreeSet::from([district]);
             store.add_candidate_list(list);
             lists.push(list_id);
         }
@@ -368,7 +371,7 @@ mod tests {
         for district in [ElectoralDistrict::Groningen, ElectoralDistrict::Utrecht] {
             let list_id = CandidateListId::new();
             let mut list = sample_candidate_list(list_id);
-            list.electoral_districts = vec![district];
+            list.electoral_districts = BTreeSet::from([district]);
             list.candidates = vec![person_id];
             store.add_candidate_list(list);
             lists.push(list_id);

@@ -77,6 +77,7 @@ mod tests {
         http::{StatusCode, header},
         response::IntoResponse,
     };
+    use std::collections::BTreeSet;
 
     use crate::{
         AppState, CsbAction, ElectionConfig, PgStoreData, StreamId,
@@ -169,7 +170,7 @@ mod tests {
         };
         snapshot.persons.insert(person.id, person.clone());
         let list = CandidateList {
-            electoral_districts: vec![crate::ElectoralDistrict::Groningen],
+            electoral_districts: BTreeSet::from([crate::ElectoralDistrict::Groningen]),
             candidates: vec![person.id],
             ..Default::default()
         };

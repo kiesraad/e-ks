@@ -575,6 +575,7 @@ mod tests {
         },
         test_utils::{sample_candidate_list, sample_person, sample_person_with},
     };
+    use std::collections::BTreeSet;
 
     fn insert(store: &CsbStream, category: OmissionCategory) {
         let omission = sample_omission(category);
@@ -632,7 +633,7 @@ mod tests {
         store.add_candidate_list(CandidateList {
             id: list_id,
             candidates: vec![first, scrapped, last],
-            electoral_districts: vec![ElectoralDistrict::Groningen],
+            electoral_districts: BTreeSet::from([ElectoralDistrict::Groningen]),
             ..Default::default()
         });
 
@@ -734,12 +735,12 @@ mod tests {
         let store = CsbStore::new_for_test();
         store.add_candidate_list(CandidateList {
             id: list_a,
-            electoral_districts: vec![ElectoralDistrict::Groningen],
+            electoral_districts: BTreeSet::from([ElectoralDistrict::Groningen]),
             ..Default::default()
         });
         store.add_candidate_list(CandidateList {
             id: list_b,
-            electoral_districts: vec![ElectoralDistrict::Drenthe],
+            electoral_districts: BTreeSet::from([ElectoralDistrict::Drenthe]),
             ..Default::default()
         });
         insert(&store, OmissionCategory::CandidateList(vec![list_a]));
@@ -765,23 +766,29 @@ mod tests {
         let store = CsbStore::new_for_test();
         store.add_candidate_list(CandidateList {
             id: list_id,
-            electoral_districts: vec![ElectoralDistrict::Utrecht],
+            electoral_districts: BTreeSet::from([ElectoralDistrict::Utrecht]),
             ..Default::default()
         });
         store.set_paper_corrected_candidate_list(CandidateList {
             id: list_id,
-            electoral_districts: vec![ElectoralDistrict::Groningen],
+            electoral_districts: BTreeSet::from([ElectoralDistrict::Groningen]),
             ..Default::default()
         });
 
         let list = store
             .get_candidate_list(list_id, WithCorrections::None)
             .unwrap();
-        assert_eq!(list.electoral_districts, vec![ElectoralDistrict::Utrecht]);
+        assert_eq!(
+            list.electoral_districts,
+            BTreeSet::from([ElectoralDistrict::Utrecht])
+        );
         let list = store
             .get_candidate_list(list_id, WithCorrections::Paper)
             .unwrap();
-        assert_eq!(list.electoral_districts, vec![ElectoralDistrict::Groningen]);
+        assert_eq!(
+            list.electoral_districts,
+            BTreeSet::from([ElectoralDistrict::Groningen])
+        );
     }
 
     #[test]
