@@ -1,7 +1,12 @@
 //! Loads runtime configuration from environment variables for AppState.
 //! Used by AppState::new to construct service URLs and storage settings.
 
-use std::{env, path::PathBuf, time::Duration};
+use std::{
+    env,
+    net::{Ipv4Addr, SocketAddr},
+    path::PathBuf,
+    time::Duration,
+};
 
 use secrecy::SecretString;
 
@@ -105,6 +110,10 @@ pub struct Config {
     /// matches this secret. Intended for gating the app behind a known
     /// upstream (e.g. a load balancer that injects the header).
     pub eks_key: Option<SecretString>,
+    /// Second listener for the CSB section, so it can be published on a domain
+    /// of its own; `/csb` is then unreachable on the main listener. Set via
+    /// `CSB_BIND_ADDRESS`.
+    pub csb_bind_address: Option<SocketAddr>,
     /// When true, opts this instance out of the live auth-service (so
     /// `AuthServiceState::new_empty` is used instead of
     /// `AuthServiceState::new_from_env`, skipping the startup IdP-metadata
@@ -245,6 +254,20 @@ fn parse_default_election(raw: &str) -> Result<ElectionConfig, AppError> {
     })
 }
 
+/// Parses `CSB_BIND_ADDRESS`: an `address:port` with a numeric address, or a
+/// bare port number, which binds on `0.0.0.0`.
+fn parse_csb_bind_address(raw: &str) -> Result<SocketAddr, AppError> {
+    if let Ok(port) = raw.parse::<u16>() {
+        return Ok(SocketAddr::from((Ipv4Addr::UNSPECIFIED, port)));
+    }
+    raw.parse().map_err(|_| {
+        AppError::ConfigLoadError(format!(
+            "CSB_BIND_ADDRESS {raw:?} is neither a port number nor an address:port \
+             with a numeric address (e.g. 3001, 0.0.0.0:3001, 127.0.0.1:3001)"
+        ))
+    })
+}
+
 /// Parses the comma-separated `GITHUB_ALLOWED_USER_IDS` allowlist. Strict: a
 /// single malformed entry rejects the whole configuration rather than silently
 /// shrinking the allowlist.
@@ -319,6 +342,13 @@ impl Config {
             .filter(|s| !s.is_empty())
             .map(SecretString::from);
 
+        let csb_bind_address = lookup("CSB_BIND_ADDRESS")
+            .ok()
+            .map(|raw| raw.trim().to_string())
+            .filter(|raw| !raw.is_empty())
+            .map(|raw| parse_csb_bind_address(&raw))
+            .transpose()?;
+
         let disable_auth_service = lookup("DISABLE_AUTH_SERVICE").is_ok_and(|value| {
             matches!(
                 value.trim().to_ascii_lowercase().as_str(),
@@ -354,6 +384,7 @@ impl Config {
             acme,
             server_name,
             eks_key,
+            csb_bind_address,
             disable_auth_service,
             brp_client,
             github_oauth,
@@ -374,6 +405,7 @@ impl Config {
             acme: None,
             server_name: None,
             eks_key: None,
+            csb_bind_address: None,
             disable_auth_service: false,
             brp_client: BrpConfig {
                 base_url: "http://localhost:5010".to_string(),
@@ -705,6 +737,49 @@ mod tests {
                     parse_default_election(raw),
                     Err(AppError::ConfigLoadError(_))
                 ),
+                "{raw:?} must be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn from_env_reads_csb_bind_address_as_port_or_address() {
+        for (raw, expected) in [
+            ("3001", "0.0.0.0:3001"),
+            ("0.0.0.0:3001", "0.0.0.0:3001"),
+            (" 127.0.0.1:3001 ", "127.0.0.1:3001"),
+            ("[::]:3001", "[::]:3001"),
+        ] {
+            let map = HashMap::from([("CSB_BIND_ADDRESS", raw)]);
+            let config = Config::from_env_with(lookup_from(&map)).expect("config");
+
+            assert_eq!(
+                config.csb_bind_address.expect("address").to_string(),
+                expected,
+                "{raw:?}"
+            );
+        }
+    }
+
+    /// Unset or blank leaves the CSB section on the main listener.
+    #[test]
+    fn from_env_returns_no_csb_bind_address_when_unset_or_blank() {
+        for map in [HashMap::new(), HashMap::from([("CSB_BIND_ADDRESS", "  ")])] {
+            let config = Config::from_env_with(lookup_from(&map)).expect("config");
+
+            assert!(config.csb_bind_address.is_none());
+        }
+    }
+
+    #[test]
+    fn from_env_rejects_a_malformed_csb_bind_address() {
+        for raw in ["localhost:3001", "0.0.0.0", "99999", "3001:0.0.0.0"] {
+            let map = HashMap::from([("CSB_BIND_ADDRESS", raw)]);
+
+            let err = Config::from_env_with(lookup_from(&map)).expect_err("err");
+
+            assert!(
+                matches!(err, AppError::ConfigLoadError(_)),
                 "{raw:?} must be rejected"
             );
         }

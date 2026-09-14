@@ -1,5 +1,6 @@
 use eks::{
-    AppError, AppState, Config, logging, router, run_db_prober, run_session_sweeper, server,
+    AppError, AppState, Config, logging, router, router::WithCsbRoutes, run_db_prober,
+    run_session_sweeper, server,
 };
 use tokio::net::TcpListener;
 
@@ -62,8 +63,30 @@ async fn run(listener: TcpListener, config: Config) -> Result<(), AppError> {
     // otherwise).
     tokio::spawn(run_session_sweeper(state.sessions.clone()));
 
+    // `CSB_BIND_ADDRESS` moves the CSB section to a listener of its own, so it
+    // can be published on a separate domain. It serves the whole application:
+    // a committee session correcting paper documents uses the political-group
+    // routes too, and its host-scoped session cookie never reaches the other
+    // listener. Both routers get clones of the one `AppState`, so the stores,
+    // sessions and caches behind it are shared, not duplicated.
+    let csb = match state.config.csb_bind_address {
+        Some(address) => Some((
+            or_exit(
+                TcpListener::bind(address).await,
+                &format!("Failed to bind CSB_BIND_ADDRESS {address}"),
+            ),
+            router::create(state.clone()).with_state(state.clone()),
+        )),
+        None => None,
+    };
+
+    let csb_routes = match csb {
+        Some(_) => WithCsbRoutes::Excluded,
+        None => WithCsbRoutes::Included,
+    };
+
     // Start the server
-    let router = router::create(state.clone()).with_state(state.clone());
+    let router = router::create_with(state.clone(), csb_routes).with_state(state.clone());
 
     // The renewer hot-reloads renewed certificates through a clone of the
     // TLS config the server listens with.
@@ -79,10 +102,26 @@ async fn run(listener: TcpListener, config: Config) -> Result<(), AppError> {
             rustls_config.clone(),
             state.acme_store.clone(),
         ));
-        return server::serve_tls(router, listener, rustls_config).await;
+        // Both listeners present the certificate ordered for `ACME_DOMAIN`, so
+        // a separate CSB domain needs its TLS terminated upstream.
+        let primary = server::serve_tls(router, listener, rustls_config.clone());
+        return match csb {
+            Some((csb_listener, csb_router)) => {
+                let csb = server::serve_tls(csb_router, csb_listener, rustls_config);
+                tokio::try_join!(primary, csb).map(|_| ())
+            }
+            None => primary.await,
+        };
     }
 
-    server::serve(router, listener, state.config).await?;
+    let primary = server::serve(router, listener, state.config);
+    match csb {
+        Some((csb_listener, csb_router)) => {
+            let csb = server::serve(csb_router, csb_listener, state.config);
+            tokio::try_join!(primary, csb)?;
+        }
+        None => primary.await?,
+    }
 
     Ok(())
 }
@@ -92,7 +131,7 @@ mod tests {
     use super::*;
     use axum::http::StatusCode;
     use reqwest::Client;
-    use std::net::TcpListener as StdTcpListener;
+    use std::net::{SocketAddr, TcpListener as StdTcpListener};
     use tokio::{
         net::TcpListener,
         time::{Duration, sleep},
@@ -115,11 +154,17 @@ mod tests {
     }
 
     async fn dev_login(base: &str) -> String {
+        dev_login_with(base, "").await
+    }
+
+    /// Logs in through the development bypass and returns the session cookie;
+    /// `extra` appends query parameters (`csb=true` for a committee session).
+    async fn dev_login_with(base: &str, extra: &str) -> String {
         let client = Client::builder()
             .redirect(reqwest::redirect::Policy::none())
             .build()
             .unwrap();
-        let url = format!("{base}/dev/login?bsn=999999990&fixtures=false");
+        let url = format!("{base}/dev/login?bsn=999999990&fixtures=false{extra}");
         let resp = client.get(&url).send().await.unwrap();
         assert_eq!(resp.status(), StatusCode::SEE_OTHER);
         resp.headers()
@@ -152,6 +197,70 @@ mod tests {
         let (status, body) = fetch_with_cookie(&format!("{base}/missing"), &cookie).await;
         assert_eq!(status, StatusCode::NOT_FOUND);
         assert!(body.contains("Pagina niet gevonden"));
+
+        server.abort();
+    }
+
+    /// A free port, released again before the server binds it.
+    fn free_port() -> u16 {
+        StdTcpListener::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap()
+            .port()
+    }
+
+    /// Waits until `url` answers, so the spawned server has bound its listener.
+    /// Before the bind the connection is refused rather than held open, so the
+    /// request returns at once and the sleep is what paces the retries.
+    async fn wait_until_ready(url: &str) {
+        let client = Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .timeout(Duration::from_secs(5))
+            .build()
+            .unwrap();
+
+        for _ in 0..50 {
+            if client.get(url).send().await.is_ok() {
+                return;
+            }
+            sleep(Duration::from_millis(20)).await;
+        }
+        panic!("{url} never became ready");
+    }
+
+    /// `CSB_BIND_ADDRESS` gives the CSB section its own listener, and takes it
+    /// off the main one.
+    #[cfg_attr(not(feature = "net-tests"), ignore = "requires network")]
+    #[tokio::test]
+    async fn csb_bind_address_serves_the_csb_section_on_a_second_listener() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let csb_port = free_port();
+
+        let mut config = Config::from_env().expect("config");
+        config.csb_bind_address = Some(SocketAddr::from(([127, 0, 0, 1], csb_port)));
+
+        let server = tokio::spawn(async move { run(listener, config).await.unwrap() });
+
+        let csb_base = format!("http://127.0.0.1:{csb_port}");
+        wait_until_ready(&format!("{csb_base}/lb-health")).await;
+
+        let cookie = dev_login_with(&csb_base, "&csb=true").await;
+
+        let (status, body) = fetch_with_cookie(&format!("{csb_base}/csb"), &cookie).await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(body.contains("href=\"/csb/examination\""), "{body}");
+
+        // The main listener no longer serves `/csb`: the political-group
+        // fallback redirects the committee session instead of answering.
+        let (status, _) = fetch_with_cookie(&format!("http://{addr}/csb"), &cookie).await;
+        assert_eq!(status, StatusCode::SEE_OTHER);
+
+        // Both listeners share one `AppState`, so the session minted on the
+        // CSB listener is known to the main one.
+        let (status, _) = fetch_with_cookie(&format!("http://{addr}/"), &cookie).await;
+        assert_eq!(status, StatusCode::SEE_OTHER);
 
         server.abort();
     }
