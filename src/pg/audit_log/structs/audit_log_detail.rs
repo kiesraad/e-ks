@@ -231,6 +231,7 @@ mod tests {
         },
         test_utils::{sample_candidate_list, sample_person, sample_political_group},
     };
+    use std::collections::BTreeSet;
 
     impl FieldChange {
         fn field(&self) -> &str {
@@ -615,7 +616,7 @@ mod tests {
     fn compute_array_of_scalars_diff_is_single_csv_row() {
         let list_id = CandidateListId::new();
         let mut list = sample_candidate_list(list_id);
-        list.electoral_districts = vec![ElectoralDistrict::Groningen];
+        list.electoral_districts = BTreeSet::from([ElectoralDistrict::Groningen]);
 
         let events = vec![
             StoreEvent::new(1, PgEvent::CreateCandidateList(list)),
@@ -623,10 +624,10 @@ mod tests {
                 2,
                 PgEvent::UpdateCandidateListDistricts {
                     list_id,
-                    electoral_districts: vec![
+                    electoral_districts: BTreeSet::from([
                         ElectoralDistrict::Groningen,
                         ElectoralDistrict::Fryslan,
-                    ],
+                    ]),
                 },
             ),
         ];

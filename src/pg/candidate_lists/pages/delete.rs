@@ -56,11 +56,12 @@ mod tests {
         http::{StatusCode, header},
     };
     use axum_extra::routing::TypedPath;
+    use std::collections::BTreeSet;
 
     #[tokio::test]
     async fn delete_candidate_list_confirm_contains_delete_button() -> Result<(), AppError> {
         let candidate_list = CandidateList {
-            electoral_districts: vec![ElectoralDistrict::Utrecht],
+            electoral_districts: BTreeSet::from([ElectoralDistrict::Utrecht]),
             ..Default::default()
         };
 
@@ -87,7 +88,7 @@ mod tests {
         let store = PgStore::new_for_test();
         let context = Context::new_test_without_db();
         let candidate_list = CandidateList {
-            electoral_districts: vec![ElectoralDistrict::Utrecht],
+            electoral_districts: BTreeSet::from([ElectoralDistrict::Utrecht]),
             ..Default::default()
         };
         candidate_list.create(&store).await?;

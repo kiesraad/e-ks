@@ -5,6 +5,7 @@ pub(crate) mod database;
 pub(crate) mod persistence;
 
 mod event;
+mod event_hash_prefix;
 mod filesystem;
 mod health;
 pub(crate) mod memory;
@@ -14,6 +15,7 @@ mod stream_id;
 
 pub(crate) use event::EncryptedEvent;
 pub use event::{Event, EventHash, GENESIS_HASH, StoreEvent};
+pub use event_hash_prefix::EventHashPrefix;
 pub use health::{DbHealth, run_db_prober};
 pub use persistence::StorePersistence;
 pub use registry::StoreRegistry;
@@ -97,6 +99,18 @@ impl Replay {
                  refusing to append to a stream this build cannot fully read"
             ))),
         }
+    }
+}
+
+/// Refuse an append when the stream moved past the id the caller validated
+/// against.
+pub(crate) fn check_expected_event_id(
+    expected: Option<usize>,
+    last_id: usize,
+) -> Result<(), AppError> {
+    match expected {
+        Some(expected) if expected != last_id => Err(AppError::Conflict),
+        _ => Ok(()),
     }
 }
 

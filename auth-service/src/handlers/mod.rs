@@ -69,12 +69,15 @@ pub(crate) mod test_support {
             failure: AuthFailure,
             _jar: CookieJar,
             _headers: &HeaderMap,
+            end_session: bool,
         ) -> Response {
-            match failure {
-                AuthFailure::Unavailable => StatusCode::SERVICE_UNAVAILABLE.into_response(),
-                AuthFailure::Cancelled => StatusCode::FORBIDDEN.into_response(),
-                AuthFailure::Error => StatusCode::UNAUTHORIZED.into_response(),
-            }
+            let status = match failure {
+                AuthFailure::Unavailable => StatusCode::SERVICE_UNAVAILABLE,
+                AuthFailure::Cancelled => StatusCode::FORBIDDEN,
+                AuthFailure::Error => StatusCode::UNAUTHORIZED,
+            };
+            // lets tests see the flag
+            (status, [("x-test-end-session", end_session.to_string())]).into_response()
         }
 
         async fn logout_session(&self, jar: CookieJar) -> (CookieJar, LoggedOutSession) {

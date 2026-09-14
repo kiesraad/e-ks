@@ -268,7 +268,7 @@ impl CsbStoreData {
     /// Replay an app event onto the corrected projection, keeping the CSB
     /// stream's own event metadata.
     fn apply_paper_correction(&mut self, event: StoreEvent<PgEvent>) {
-        if let Some(person_id) = candidate_changed_by(&event.payload) {
+        for person_id in candidates_changed_by(&event.payload) {
             self.forget_brp_check(person_id);
         }
 
@@ -324,18 +324,27 @@ fn split_off_id(omission_id: OmissionId, event_id: usize) -> OmissionId {
     Uuid::new_v5(&Uuid::from(omission_id), &event_id.to_be_bytes()).into()
 }
 
-/// The candidate whose BRP-checked data an app event changes, if any.
+/// The candidates whose BRP-checked data an app event changes.
 ///
 /// The correspondence address and the representative are absent on purpose:
 /// the BRP check does not compare them, so changing one leaves its findings
 /// standing.
-fn candidate_changed_by(event: &PgEvent) -> Option<PersonId> {
+fn candidates_changed_by(event: &PgEvent) -> Vec<PersonId> {
     match event {
-        PgEvent::CreatePerson(person) | PgEvent::UpdatePerson(person) => Some(person.id),
+        PgEvent::CreatePerson(person) | PgEvent::UpdatePerson(person) => vec![person.id],
         PgEvent::CreatePersonPersonalData { person_id, .. }
         | PgEvent::UpdatePersonPersonalData { person_id, .. }
-        | PgEvent::DeletePerson { person_id } => Some(*person_id),
-        _ => None,
+        | PgEvent::DeletePerson { person_id } => vec![*person_id],
+        PgEvent::ImportCandidates {
+            created_persons,
+            updated_persons,
+            ..
+        } => created_persons
+            .iter()
+            .chain(updated_persons)
+            .map(|person| person.id)
+            .collect(),
+        _ => Vec::new(),
     }
 }
 
@@ -815,6 +824,30 @@ mod brp_reset_tests {
         store
             .update(CsbAction::PaperCorrectedUpdate(Box::new(
                 crate::PgEvent::UpdatePerson(person),
+            )))
+            .await
+            .unwrap();
+
+        assert!(!store.is_brp_checked(person_id));
+    }
+
+    #[tokio::test]
+    async fn a_paper_correction_csv_import_drops_what_the_brp_said() {
+        let mut person = sample_person(PersonId::new());
+        let person_id = person.id;
+        let store = checked_store(person.clone()).await;
+
+        person.name.last_name = "Gecorrigeerd".parse().unwrap();
+        store
+            .update(CsbAction::PaperCorrectedUpdate(Box::new(
+                crate::PgEvent::ImportCandidates {
+                    list_id: crate::structs::candidate_lists::CandidateListId::new(),
+                    file_name: "kandidaten.csv".to_string(),
+                    file_size: 1,
+                    created_persons: Vec::new(),
+                    updated_persons: vec![person],
+                    candidates: vec![person_id],
+                },
             )))
             .await
             .unwrap();

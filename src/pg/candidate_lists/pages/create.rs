@@ -33,7 +33,12 @@ pub async fn create_candidate_list(
         }
         let list = CandidateList {
             id: CandidateListId::new(),
-            electoral_districts: context.election.electoral_districts().to_vec(),
+            electoral_districts: context
+                .election
+                .electoral_districts()
+                .iter()
+                .copied()
+                .collect(),
             ..Default::default()
         };
         list.create(&store).await?;
@@ -68,8 +73,7 @@ pub async fn create_candidate_list_submit(
     }
     let available_districts = CandidateList::available_districts(&store, &context.election);
     let should_copy_candidates = form.copy_candidates;
-    form.electoral_districts
-        .retain(|district| context.election.electoral_districts().contains(district));
+    form.electoral_districts = context.election.known_districts(&form.electoral_districts);
 
     match form.validate_create() {
         Err(form_data) => Ok(HtmlTemplate(
@@ -139,7 +143,7 @@ mod test {
         let store = PgStore::new_for_test();
         let context = Context::new_test_without_db();
         let form = CandidateListCreateForm {
-            electoral_districts: vec![ElectoralDistrict::Utrecht],
+            electoral_districts: BTreeSet::from([ElectoralDistrict::Utrecht]),
             copy_candidates: false,
         };
 
@@ -172,7 +176,7 @@ mod test {
     async fn create_candidate_list_invalid_form_renders_template() -> Result<(), AppError> {
         let store = PgStore::new_for_test();
         let form = CandidateListCreateForm {
-            electoral_districts: vec![],
+            electoral_districts: BTreeSet::new(),
             copy_candidates: false,
         };
 
@@ -206,7 +210,7 @@ mod test {
         list.create(&store).await?;
 
         let form = CandidateListCreateForm {
-            electoral_districts: vec![ElectoralDistrict::Drenthe],
+            electoral_districts: BTreeSet::from([ElectoralDistrict::Drenthe]),
             copy_candidates: true,
         };
 
@@ -222,6 +226,38 @@ mod test {
         assert_eq!(lists.len(), 2);
         let new_list = &lists[1].list;
         assert_eq!(new_list.candidates, vec![person_a.id, person_b.id]);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn create_candidate_list_stores_a_repeated_district_once() -> Result<(), AppError> {
+        let store = PgStore::new_for_test();
+        let context = Context::new_test_without_db();
+
+        let form = CandidateListCreateForm {
+            electoral_districts: BTreeSet::from([
+                ElectoralDistrict::Drenthe,
+                ElectoralDistrict::Utrecht,
+                ElectoralDistrict::Drenthe,
+            ]),
+            copy_candidates: false,
+        };
+        create_candidate_list_submit(
+            CandidateListCreatePath {},
+            context,
+            store.clone(),
+            Form(form),
+        )
+        .await?;
+
+        let lists = CandidateListSummary::list(&store);
+        assert_eq!(lists.len(), 1);
+        // deduplicated, in the election's district order
+        assert_eq!(
+            lists[0].list.electoral_districts,
+            BTreeSet::from([ElectoralDistrict::Drenthe, ElectoralDistrict::Utrecht])
+        );
 
         Ok(())
     }
@@ -290,7 +326,7 @@ mod test {
         assert_eq!(lists.len(), 1);
         assert_eq!(
             lists[0].list.electoral_districts,
-            vec![ElectoralDistrict::WsFryslan]
+            BTreeSet::from([ElectoralDistrict::WsFryslan])
         );
 
         Ok(())
@@ -301,7 +337,7 @@ mod test {
         let store = PgStore::new_for_test_with_election(ElectionConfig::PS27(Province::Gelderland));
         let context = Context::new(&store, Session::new_test_with_locale(Locale::En));
         let form = CandidateListCreateForm {
-            electoral_districts: vec![ElectoralDistrict::PsNijmegen],
+            electoral_districts: BTreeSet::from([ElectoralDistrict::PsNijmegen]),
             copy_candidates: false,
         };
 
@@ -319,7 +355,7 @@ mod test {
         assert_eq!(lists.len(), 1);
         assert_eq!(
             lists[0].list.electoral_districts,
-            vec![ElectoralDistrict::PsNijmegen]
+            BTreeSet::from([ElectoralDistrict::PsNijmegen])
         );
 
         Ok(())
@@ -401,7 +437,10 @@ mod test {
             context,
             store.clone(),
             Form(CandidateListCreateForm {
-                electoral_districts: vec![ElectoralDistrict::WsFryslan, ElectoralDistrict::Utrecht],
+                electoral_districts: BTreeSet::from([
+                    ElectoralDistrict::WsFryslan,
+                    ElectoralDistrict::Utrecht,
+                ]),
                 copy_candidates: false,
             }),
         )
@@ -414,7 +453,10 @@ mod test {
         assert_eq!(lists.len(), 1);
         let list = &lists[0];
         // WsFryslan got dropped because it's not part of EK27
-        assert_eq!(list.electoral_districts, vec![ElectoralDistrict::Utrecht]);
+        assert_eq!(
+            list.electoral_districts,
+            BTreeSet::from([ElectoralDistrict::Utrecht])
+        );
 
         Ok(())
     }

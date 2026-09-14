@@ -8,10 +8,15 @@ use crate::{
 };
 
 pub async fn export_candidate_list(
-    _: CandidateListExportPath,
+    CandidateListExportPath { event_hash, .. }: CandidateListExportPath,
     full_list: FullCandidateList,
     store: PgStore,
 ) -> Result<Response, AppError> {
+    // the link must come from this stream, not from an off-site page
+    if !store.has_event_hash(event_hash) {
+        return Err(AppError::GenericNotFound);
+    }
+
     let list_id = full_list.list.id;
     let short_id = &list_id.to_string()[..8];
     let file_name = format!("{short_id}-{}.csv", full_list.list.districts_codes());
@@ -63,6 +68,14 @@ mod tests {
 
     const CSV_HEADER: &str = include_str!("../testdata/csv_header.csv");
 
+    /// The path the import/export page renders for `list_id`.
+    fn export_path(store: &PgStore, list_id: CandidateListId) -> CandidateListExportPath {
+        CandidateListExportPath {
+            list_id,
+            event_hash: crate::EventHashPrefix::of(&store.current_event_hash()),
+        }
+    }
+
     #[tokio::test]
     async fn export_candidate_list_success() -> Result<(), AppError> {
         // setup
@@ -88,7 +101,7 @@ mod tests {
 
         // test
         let response =
-            export_candidate_list(CandidateListExportPath { list_id }, full_list, store).await?;
+            export_candidate_list(export_path(&store, list_id), full_list, store).await?;
 
         // verify
         assert_eq!(response.status(), StatusCode::OK);
@@ -137,6 +150,42 @@ mod tests {
         Ok(())
     }
 
+    /// A link that does not name one of this stream's events is refused, and
+    /// no export is recorded.
+    #[tokio::test]
+    async fn export_candidate_list_refuses_a_foreign_event_hash() -> Result<(), AppError> {
+        let store = PgStore::new_for_test();
+        let list_id = CandidateListId::new();
+        sample_candidate_list(list_id).create(&store).await?;
+
+        for event_hash in [
+            crate::EventHashPrefix::of(&[0xEE; 32]),
+            crate::EventHashPrefix::of(&crate::store::GENESIS_HASH),
+        ] {
+            let result = export_candidate_list(
+                CandidateListExportPath {
+                    list_id,
+                    event_hash,
+                },
+                FullCandidateList::get(&store, list_id)?,
+                store.clone(),
+            )
+            .await;
+
+            assert!(matches!(result, Err(AppError::GenericNotFound)));
+        }
+
+        assert!(
+            !store
+                .get_events()
+                .iter()
+                .any(|e| matches!(e.payload, PgEvent::ExportCsv { .. })),
+            "a refused export is not recorded"
+        );
+
+        Ok(())
+    }
+
     #[tokio::test]
     async fn export_candidate_list_includes_header_without_candidates() -> Result<(), AppError> {
         let store = PgStore::new_for_test();
@@ -148,7 +197,7 @@ mod tests {
         let full_list = FullCandidateList::get(&store, list_id)?;
 
         let response =
-            export_candidate_list(CandidateListExportPath { list_id }, full_list, store).await?;
+            export_candidate_list(export_path(&store, list_id), full_list, store).await?;
 
         assert_eq!(response.status(), StatusCode::OK);
 

@@ -106,7 +106,7 @@ pub(super) async fn load_at_startup(
     if let Some(fetched) = fetch_rd_metadata_with_retries(url, certs_dir, &trust).await {
         return Some(fetched);
     }
-    match load_cached_idp_metadata(certs_dir, &trust) {
+    match load_cached_idp_metadata(certs_dir, &trust).await {
         Some(cached) => {
             warn!(
                 "[metadata] RD metadata fetch exhausted {STARTUP_FETCH_ATTEMPTS} attempts; falling back to on-disk cache"

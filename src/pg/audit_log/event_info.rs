@@ -4,6 +4,8 @@
 //! by the audit log UI (translated description, human-readable details,
 //! subject entity URL, and the primary subject ID).
 
+use std::collections::BTreeSet;
+
 use crate::{
     ElectoralDistrict, Event, Locale, PgEvent,
     candidate_lists::ViewCandidateListPath,
@@ -85,7 +87,7 @@ fn event_description(event: &PgEvent, locale: Locale) -> String {
 
 /// Short human-readable details for a listing row (name, file, districts, ...).
 fn event_details(event: &PgEvent) -> String {
-    fn district_codes(districts: &[ElectoralDistrict]) -> String {
+    fn district_codes(districts: &BTreeSet<ElectoralDistrict>) -> String {
         districts
             .iter()
             .map(ElectoralDistrict::code)

@@ -138,7 +138,7 @@ mod tests {
             .into_iter()
             .map(|districts| {
                 let list = CandidateList {
-                    electoral_districts: districts,
+                    electoral_districts: districts.into_iter().collect(),
                     candidates: vec![person],
                     ..sample_candidate_list(CandidateListId::new())
                 };

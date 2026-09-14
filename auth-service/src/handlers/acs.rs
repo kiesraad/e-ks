@@ -38,7 +38,8 @@ use tracing::{debug, error, info, warn};
 
 /// Assertion Consumer Service (eID §7.1 steps 4-8 / §3.1.1).
 ///
-/// Receives the artifact via HTTP-Artifact binding (eID §7.4), resolves it over
+/// Receives the artifact via HTTP-Artifact binding (eID §7.4). Requires the
+/// browser's flow cookie *before* touching the artifact, then resolves it over
 /// the mTLS back-channel (eID §7.5, §9.4), validates the ArtifactResponse
 /// (§7.6.1), Response (§7.6.2), and Assertion (§7.6.3, §7.6.3.5). On success,
 /// delegates to the embedding application via `AuthState::on_authenticated` so
@@ -57,17 +58,38 @@ where
 {
     debug!("[ACS] Handler entered, query params: {}", params.len());
 
+    // Cheapest gate first: a callback with no flow cookie can never be accepted,
+    // so refuse it before resolving. Resolving costs an mTLS SOAP round-trip to
+    // the RD, which an unauthenticated caller must not be able to trigger.
+    let (bound_authn_id, jar) = crate::handlers::flow::take_bound_authn_id(
+        jar,
+        &auth_state.auth_config().dv.acs_url,
+        &headers,
+    );
+    let Some(bound_authn_id) = bound_authn_id else {
+        warn!(
+            "[ACS] SSO flow cookie missing, malformed, or not bound to this User-Agent: \
+             rejecting before resolving the artifact (possible login CSRF / forced login)"
+        );
+        return fail_redirect(AuthFailure::Error, jar); // no flow to end
+    };
+    // from here on a failure ends a flow this browser started
+    let failed = |failure: AuthFailure, jar: CookieJar| {
+        let marker =
+            crate::handlers::flow::failed_flow_cookie(&auth_state.auth_config().dv.acs_url);
+        fail_redirect(failure, jar.add(marker))
+    };
+
     let claims = match resolve_artifact_to_claims(&auth_state, &params).await {
         Ok(c) => c,
         // Technical detail is logged at the failure site; the query-clean error
         // endpoint renders the user-facing page (TVS T3/L10).
-        Err(failure) => return fail_redirect(failure, jar),
+        Err(failure) => return failed(failure, jar),
     };
 
-    let jar = match confirm_pending_request(&state, &auth_state, &claims, jar, &headers).await {
-        Ok(jar) => jar,
-        Err(jar) => return fail_redirect(AuthFailure::Error, jar),
-    };
+    if !confirm_pending_request(&state, &bound_authn_id, &claims).await {
+        return failed(AuthFailure::Error, jar);
+    }
 
     // SECURITY: never log decrypted SubjectID values; they are PII (BSN /
     // pseudonym per eID §7.6.3.4). Log only non-PII metadata for tracing.
@@ -88,7 +110,7 @@ where
     // guaranteeing the application's `on_authenticated` a SubjectID.
     let Some(subject_id) = claims.acting_subject_id else {
         warn!("[ACS] No acting SubjectID in validated assertion: treating as auth failure");
-        return fail_redirect(AuthFailure::Error, jar);
+        return failed(AuthFailure::Error, jar);
     };
     debug!("[ACS] Handing off to AuthState::on_authenticated");
     state
@@ -96,55 +118,45 @@ where
         .await
 }
 
-/// Require the validated assertion to answer an AuthnRequest this DV issued
-/// from this browser. `Err` carries the cleared jar for the caller's failure
-/// redirect (TVS L10); every rejection here is an `AuthFailure::Error`.
+/// Require the validated assertion to answer the AuthnRequest this DV issued to
+/// this browser: `bound_authn_id` is the ID the (already verified and cleared)
+/// flow cookie carries. `false` means reject with `AuthFailure::Error` (TVS L10).
 ///
-/// eID §7.6.3.5 rule 4 / §9.7: the Assertion must be a response to an
-/// AuthnRequest this DV actually issued, and the matched ID is consumed in the
-/// same atomic step so a replay of the same Assertion can never be accepted
-/// (the store is the application's, so this holds even when /login and the ACS
-/// callback are served by different instances). Fails closed: an absent,
-/// unknown, expired, already-consumed, or unverifiable InResponseTo is
-/// rejected. The one-shot flow cookie is cleared on the returned jar either way.
+/// eID §7.6.3.5 rule 4 / §9.7: the Assertion must answer an AuthnRequest this DV
+/// actually issued, and the matched ID is consumed in the same atomic step so a
+/// replay can never be accepted (the store is the application's, so this holds
+/// even when /login and the ACS callback hit different instances). Fails closed:
+/// an absent, unknown, expired, or already-consumed InResponseTo is rejected.
+///
+/// Login-CSRF / forced-login defense: matching against the cookie's ID refuses
+/// an assertion for a flow this browser did not start, even one still
+/// outstanding in the store.
 async fn confirm_pending_request<S: AuthState>(
     state: &S,
-    auth_state: &AuthServiceState,
+    bound_authn_id: &MessageId,
     claims: &Claims,
-    jar: CookieJar,
-    headers: &HeaderMap,
-) -> Result<CookieJar, CookieJar> {
-    let Some(in_response_to) = claims.in_response_to.clone() else {
+) -> bool {
+    let Some(in_response_to) = claims.in_response_to.as_ref() else {
         warn!("[ACS] Assertion has no InResponseTo: cannot correlate to a pending AuthnRequest");
-        return Err(jar);
+        return false;
     };
 
-    // Login-CSRF / forced-login defense: this ACS callback MUST come from the
-    // browser that started the flow. The cookie set by `/login` must be present
-    // and bound to this AuthnRequest ID (the assertion's InResponseTo) and the
-    // same User-Agent. The cookie is cleared (one-shot) regardless of the outcome.
-    let (flow_ok, jar) = crate::handlers::flow::verify_and_clear(
-        jar,
-        &auth_state.auth_config().dv.acs_url,
-        &in_response_to,
-        headers,
-    );
-    if !flow_ok {
+    if in_response_to != bound_authn_id {
         warn!(
-            "[ACS] SSO flow cookie missing or not bound to this AuthnRequest/User-Agent: \
-             rejecting (possible login CSRF / forced login)"
+            "[ACS] Assertion InResponseTo is not the AuthnRequest the SSO flow cookie is \
+             bound to: rejecting (possible login CSRF / forced login)"
         );
-        return Err(jar);
+        return false;
     }
 
-    if !state.consume_if_pending(in_response_to).await {
+    if !state.consume_if_pending(in_response_to.clone()).await {
         warn!(
             "[ACS] InResponseTo did not match an outstanding AuthnRequest \
              (unknown, expired, or replayed): rejecting"
         );
-        return Err(jar);
+        return false;
     }
-    Ok(jar)
+    true
 }
 
 /// Query-clean landing for a failed SAML authentication: the redirect target of
@@ -157,17 +169,24 @@ async fn confirm_pending_request<S: AuthState>(
 pub async fn handle_login_error<S>(
     _: LoginErrorPath,
     State(state): State<S>,
+    State(auth_state): State<AuthServiceState>,
     jar: CookieJar,
     headers: HeaderMap,
     Query(params): Query<HashMap<String, String>>,
 ) -> Response
 where
     S: AuthState,
+    AuthServiceState: FromRef<S>,
 {
     let failure = params
         .get("reason")
         .map_or(AuthFailure::Error, |r| failure_from_reason(r));
-    let mut response = state.on_authentication_failed(failure, jar, &headers).await;
+    // only a failure of a flow this browser started ends the local session
+    let (ends_flow, jar) =
+        crate::handlers::flow::take_failed_flow(jar, &auth_state.auth_config().dv.acs_url);
+    let mut response = state
+        .on_authentication_failed(failure, jar, &headers, ends_flow)
+        .await;
     harden_headers(response.headers_mut());
     response
 }
@@ -529,10 +548,11 @@ mod tests {
     use super::*;
     use crate::{config::AuthConfig, handlers::test_support::MockAuthState};
 
-    fn load_signing_key() -> crate::keys::KeyPair {
+    async fn load_signing_key() -> crate::keys::KeyPair {
         let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures");
         let cfg = AuthConfig::default().with_certs_dir(dir);
         crate::keys::load_key_set(&cfg.dv.signing, &cfg.dv.encryption)
+            .await
             .expect("load fixtures")
             .signing
             .remove(0)
@@ -540,6 +560,18 @@ mod tests {
 
     fn rd_metadata() -> IdpMetadata {
         IdpMetadata::for_tests()
+    }
+
+    /// A jar carrying the flow cookie `/login` would have set, so a test gets
+    /// past the gate to the artifact-resolving part of the handler.
+    fn jar_with_flow_cookie(
+        auth: &AuthServiceState,
+        authn_id: &str,
+        headers: &HeaderMap,
+    ) -> CookieJar {
+        let acs_url = &auth.auth_config().dv.acs_url;
+        let id = MessageId::parse(authn_id).expect("test message id");
+        CookieJar::new().add(crate::handlers::flow::flow_cookie(acs_url, &id, headers))
     }
 
     /// The `Location` a failed ACS callback redirected to, or `None` if the
@@ -567,12 +599,13 @@ mod tests {
         // and the handler 303-redirects to the query-clean error endpoint so
         // the artifact-bearing URL is never rendered in the browser.
         let mock = MockAuthState::empty();
+        let headers = HeaderMap::new();
         let resp = handle_acs(
             SamlAcsPath,
             State(mock.clone()),
             State(mock.auth.clone()),
-            axum_extra::extract::CookieJar::new(),
-            HeaderMap::new(),
+            jar_with_flow_cookie(&mock.auth, "_pending", &headers),
+            headers.clone(),
             Query(HashMap::new()),
         )
         .await;
@@ -599,12 +632,13 @@ mod tests {
             "SAMLart".to_string(),
             "AAQAAsomeOpaqueArtifact==".to_string(),
         );
+        let headers = HeaderMap::new();
         let resp = handle_acs(
             SamlAcsPath,
             State(mock.clone()),
             State(mock.auth.clone()),
-            axum_extra::extract::CookieJar::new(),
-            HeaderMap::new(),
+            jar_with_flow_cookie(&mock.auth, "_pending", &headers),
+            headers.clone(),
             Query(params),
         )
         .await;
@@ -621,6 +655,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn callback_without_flow_cookie_is_rejected_before_resolving() {
+        // The reason code proves the ordering: this mock has no RD metadata, so
+        // resolving first would have redirected with `unavailable`.
+        let mock = MockAuthState::empty();
+        let mut params = HashMap::new();
+        params.insert(
+            "SAMLart".to_string(),
+            "AAQAAsomeOpaqueArtifact==".to_string(),
+        );
+        let resp = handle_acs(
+            SamlAcsPath,
+            State(mock.clone()),
+            State(mock.auth.clone()),
+            axum_extra::extract::CookieJar::new(),
+            HeaderMap::new(),
+            Query(params),
+        )
+        .await;
+        assert_eq!(resp.status(), axum::http::StatusCode::SEE_OTHER);
+        let location = redirect_location(&resp).expect("redirect Location header");
+        assert!(
+            location.ends_with("/login/error?reason=error"),
+            "the flow-cookie gate must reject before the artifact is resolved: {location}"
+        );
+    }
+
+    #[tokio::test]
     async fn error_endpoint_maps_reason_and_hardens_headers() {
         // The error endpoint renders the embedder's failure page for the given
         // reason, with the same no-store / no-referrer hardening.
@@ -630,6 +691,7 @@ mod tests {
         let resp = handle_login_error(
             LoginErrorPath,
             State(mock.clone()),
+            State(mock.auth.clone()),
             axum_extra::extract::CookieJar::new(),
             HeaderMap::new(),
             Query(params),
@@ -657,6 +719,7 @@ mod tests {
         let resp = handle_login_error(
             LoginErrorPath,
             State(mock.clone()),
+            State(mock.auth.clone()),
             axum_extra::extract::CookieJar::new(),
             HeaderMap::new(),
             Query(params),
@@ -666,8 +729,94 @@ mod tests {
         assert_eq!(resp.status(), axum::http::StatusCode::UNAUTHORIZED);
     }
 
-    #[test]
-    fn build_artifact_resolve_produces_a_signed_message() {
+    /// Set-Cookie values of a response.
+    fn set_cookies(resp: &Response) -> Vec<String> {
+        resp.headers()
+            .get_all(axum::http::header::SET_COOKIE)
+            .iter()
+            .filter_map(|v| v.to_str().ok().map(str::to_owned))
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn failed_callback_marks_the_flow_only_when_the_browser_started_it() {
+        let mock = MockAuthState::empty();
+        let headers = HeaderMap::new();
+
+        // a flow cookie: the failure ends a real flow
+        let resp = handle_acs(
+            SamlAcsPath,
+            State(mock.clone()),
+            State(mock.auth.clone()),
+            jar_with_flow_cookie(&mock.auth, "_pending", &headers),
+            headers.clone(),
+            Query(HashMap::new()),
+        )
+        .await;
+        assert!(
+            set_cookies(&resp)
+                .iter()
+                .any(|c| c.contains("eks-saml-failed=1")),
+            "{:?}",
+            set_cookies(&resp)
+        );
+
+        // no flow cookie: a cross-site link must not end anyone's session
+        let resp = handle_acs(
+            SamlAcsPath,
+            State(mock.clone()),
+            State(mock.auth.clone()),
+            axum_extra::extract::CookieJar::new(),
+            headers,
+            Query(HashMap::new()),
+        )
+        .await;
+        assert!(
+            !set_cookies(&resp)
+                .iter()
+                .any(|c| c.contains("eks-saml-failed=1")),
+            "{:?}",
+            set_cookies(&resp)
+        );
+    }
+
+    #[tokio::test]
+    async fn error_endpoint_ends_the_session_only_for_a_marked_failure() {
+        let mock = MockAuthState::empty();
+        let end_session = |resp: &Response| {
+            resp.headers()
+                .get("x-test-end-session")
+                .and_then(|v| v.to_str().ok())
+                .map(str::to_owned)
+        };
+
+        let marker = crate::handlers::flow::failed_flow_cookie(&mock.auth.auth_config().dv.acs_url);
+        let resp = handle_login_error(
+            LoginErrorPath,
+            State(mock.clone()),
+            State(mock.auth.clone()),
+            axum_extra::extract::CookieJar::new().add(marker),
+            HeaderMap::new(),
+            Query(HashMap::new()),
+        )
+        .await;
+        assert_eq!(end_session(&resp).as_deref(), Some("true"));
+
+        // a bare hit on the error page
+        let resp = handle_login_error(
+            LoginErrorPath,
+            State(mock.clone()),
+            State(mock.auth.clone()),
+            axum_extra::extract::CookieJar::new(),
+            HeaderMap::new(),
+            Query(HashMap::new()),
+        )
+        .await;
+        assert_eq!(end_session(&resp).as_deref(), Some("false"));
+    }
+
+    #[tokio::test]
+    async fn build_artifact_resolve_produces_a_signed_message() {
         let cfg = AuthConfig {
             dv: crate::config::DvConfig {
                 entity_id: crate::types::EntityId::from_static("urn:test:dv"),
@@ -676,7 +825,7 @@ mod tests {
             ..AuthConfig::default()
         };
         let rd = rd_metadata();
-        let key = load_signing_key();
+        let key = load_signing_key().await;
 
         let artifact = Artifact::parse("AAQAAartifact").expect("test artifact");
         let msg = build_artifact_resolve(&artifact, &cfg, &rd, &key)

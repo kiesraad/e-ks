@@ -159,4 +159,4 @@ mod test_support;
 #[cfg(test)]
 pub(crate) use test_support::{brp_stub, test_utils};
 
-pub(crate) use store::{StreamId, crypto};
+pub(crate) use store::{EventHashPrefix, StreamId, crypto};

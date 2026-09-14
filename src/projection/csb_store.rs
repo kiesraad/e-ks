@@ -49,6 +49,18 @@ impl CsbStore {
         self.stream.update(action.by(self.user.clone())).await
     }
 
+    /// [`Self::update`], refused with [`AppError::Conflict`] when the stream
+    /// moved past `expected_last_event_id`.
+    pub async fn update_if_unchanged(
+        &self,
+        action: CsbAction,
+        expected_last_event_id: usize,
+    ) -> Result<(), AppError> {
+        self.stream
+            .update_if_unchanged(action.by(self.user.clone()), expected_last_event_id)
+            .await
+    }
+
     /// A paper-corrections handle over this stream, writing as the same member.
     pub fn paper_corrections(&self) -> PgStore {
         PgStore::paper_corrections(self.clone())

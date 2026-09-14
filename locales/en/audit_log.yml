@@ -110,6 +110,7 @@ filter:
     system: System
   csb_main_stream: Main CSB stream
   event_type: Event type
+  pre_submission_stream: "{} (pre-submission)"
   reset: Reset
   search: Search
   search_placeholder: "Search by name, ID..."

@@ -18,9 +18,9 @@ use crate::{
     filters,
     projection::WithCorrections,
     redirect_success,
-    store::StoreRegistry,
+    store::{StoreData, StoreRegistry},
     structs::{
-        brp::{BRP_BSN_BATCH_SIZE, BrpClient, BrpStatus},
+        brp::{BRP_BSN_BATCH_SIZE, BrpClient, BrpFinding, BrpStatus},
         persons::Person,
     },
     trans,
@@ -367,6 +367,43 @@ async fn monitor_verification(store: CsbStore, brp_client: BrpClient, _claim: Sw
     }
 }
 
+/// Record what the BRP said about `checked`, unless the candidate was corrected
+/// while the BRP was consulted: those findings are about values no longer on
+/// screen, and a later sweep picks the candidate up again. Returns whether the
+/// result was recorded.
+async fn record_brp_result(
+    store: &CsbStore,
+    checked: &Person,
+    findings: Vec<BrpFinding>,
+) -> Result<bool, AppError> {
+    const ATTEMPTS: usize = 3;
+
+    for _ in 0..ATTEMPTS {
+        // the event id first: a change landing after it is caught by the append
+        let expected = store.data.read().last_event_id();
+        if store.get_person(checked.id, WithCorrections::All).as_ref() != Some(checked) {
+            return Ok(false);
+        }
+
+        let action = CsbAction::BrpPersonChecked {
+            person: checked.id,
+            findings: findings.clone(),
+        };
+        match store.update_if_unchanged(action, expected).await {
+            Ok(()) => return Ok(true),
+            Err(AppError::Conflict) => continue,
+            Err(err) => return Err(err),
+        }
+    }
+
+    tracing::warn!(
+        "BRP result for {} not recorded: stream {} kept changing",
+        checked.id,
+        store.stream_id
+    );
+    Ok(false)
+}
+
 /// Check every candidate not covered by `CsbStoreData::brp_findings` yet,
 /// [`BRP_BSN_BATCH_SIZE`] per request with `BRP_COURTESY_TIMEOUT` in between.
 ///
@@ -385,10 +422,10 @@ async fn verify_candidates(store: CsbStore, brp_client: BrpClient) -> Result<(),
     for batch in unchecked.chunks(BRP_BSN_BATCH_SIZE) {
         ticker.tick().await;
 
-        for (person, findings) in brp_client.verify_batch(batch).await? {
-            store
-                .update(CsbAction::BrpPersonChecked { person, findings })
-                .await?;
+        for (person_id, findings) in brp_client.verify_batch(batch).await? {
+            if let Some(checked) = batch.iter().find(|person| person.id == person_id) {
+                record_brp_result(&store, checked, findings).await?;
+            }
         }
     }
 
@@ -420,6 +457,41 @@ mod tests {
         test_utils::{response_body_string, sample_person_from_brp},
         utils::format_hash,
     };
+
+    #[tokio::test]
+    async fn a_brp_result_for_a_corrected_candidate_is_dropped() -> Result<(), AppError> {
+        use crate::{
+            structs::{
+                csb::{Correction, PersonCorrection},
+                persons::PersonId,
+            },
+            test_utils::sample_person,
+        };
+
+        let store = CsbStore::new_for_test();
+        let person = sample_person(PersonId::new());
+        store.add_person(person.clone());
+
+        // the candidate is corrected while the BRP is being consulted
+        store
+            .update(CsbAction::UpdateCorrection(Correction::Person(
+                person.id,
+                PersonCorrection::LastName("Gecorrigeerd".parse().unwrap()),
+            )))
+            .await?;
+
+        assert!(!record_brp_result(&store, &person, vec![]).await?);
+        assert!(!store.is_brp_checked(person.id));
+
+        // a result for the current data is recorded
+        let current = store
+            .get_person(person.id, WithCorrections::All)
+            .expect("person");
+        assert!(record_brp_result(&store, &current, vec![BrpFinding::NotDutch]).await?);
+        assert!(store.is_brp_checked(person.id));
+
+        Ok(())
+    }
 
     /// Populate a political-group stream with a single event in the (in-memory)
     /// test store and return its `(stream_id, formatted chain hash)`.

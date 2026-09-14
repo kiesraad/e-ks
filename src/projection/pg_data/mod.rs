@@ -346,6 +346,7 @@ mod tests {
         test_utils::{sample_candidate_list, sample_name_authorisation, sample_person},
     };
     use chrono::{Duration, Utc};
+    use std::collections::BTreeSet;
 
     /// A `PgStoreData` containing a single sample person.
     fn data_with_person(person_id: PersonId) -> PgStoreData {
@@ -556,7 +557,7 @@ mod tests {
         let base_time = Utc::now();
 
         let mut list = sample_candidate_list(list_id);
-        list.electoral_districts = vec![ElectoralDistrict::Utrecht];
+        list.electoral_districts = BTreeSet::from([ElectoralDistrict::Utrecht]);
 
         data.apply(StoreEvent::new_at(
             1,
@@ -565,10 +566,10 @@ mod tests {
         ));
 
         let updated_at = base_time - Duration::seconds(15);
-        let districts = vec![
+        let districts = BTreeSet::from([
             ElectoralDistrict::NoordHolland,
             ElectoralDistrict::ZuidHolland,
-        ];
+        ]);
         data.apply(StoreEvent::new_at(
             2,
             PgEvent::UpdateCandidateListDistricts {

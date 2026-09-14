@@ -12,6 +12,7 @@ use crate::structs::{
     political_groups::PoliticalGroup,
 };
 use http_body_util::BodyExt;
+use std::collections::BTreeSet;
 
 use crate::{
     AppError, Context, ElectionConfig, ElectoralDistrict, PgStore, TokenValue,
@@ -149,7 +150,7 @@ fn sample_dutch_address_form(
 pub fn sample_candidate_list(id: CandidateListId) -> CandidateList {
     CandidateList {
         id,
-        electoral_districts: vec![ElectoralDistrict::Utrecht],
+        electoral_districts: BTreeSet::from([ElectoralDistrict::Utrecht]),
         ..Default::default()
     }
 }
@@ -353,7 +354,7 @@ pub async fn setup_documents_test_state(
             .into_iter()
             .next()
         {
-            list.electoral_districts = vec![district];
+            list.electoral_districts = BTreeSet::from([district]);
         }
 
         for _ in 0..candidate_count {

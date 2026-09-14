@@ -61,8 +61,7 @@ pub async fn update_candidate_list_submit(
     }
     let available_districts = CandidateList::available_districts(&store, &context.election);
     let duplicate_districts = candidate_list.duplicate_districts(&store);
-    form.electoral_districts
-        .retain(|district| context.election.electoral_districts().contains(district));
+    form.electoral_districts = context.election.known_districts(&form.electoral_districts);
     match form.validate_update(&candidate_list) {
         Err(form_data) => Ok(HtmlTemplate(
             CandidateListUpdateTemplate {
@@ -97,6 +96,7 @@ mod tests {
         http::{StatusCode, header},
     };
     use axum_extra::routing::TypedPath;
+    use std::collections::BTreeSet;
 
     #[tokio::test]
     async fn update_candidate_list_renders_existing_list() -> Result<(), AppError> {
@@ -131,13 +131,13 @@ mod tests {
         let store = PgStore::new_for_test();
         let context = Context::new_test_without_db();
         let candidate_list = CandidateList {
-            electoral_districts: vec![ElectoralDistrict::Utrecht],
+            electoral_districts: BTreeSet::from([ElectoralDistrict::Utrecht]),
             ..Default::default()
         };
         candidate_list.create(&store).await?;
 
         let form = CandidateListForm {
-            electoral_districts: vec![ElectoralDistrict::Drenthe],
+            electoral_districts: BTreeSet::from([ElectoralDistrict::Drenthe]),
         };
         let response = update_candidate_list_submit(
             CandidateListUpdatePath {
@@ -176,7 +176,7 @@ mod tests {
 
         assert_eq!(candidate_list.id, updated_list.id);
         assert_eq!(
-            vec![ElectoralDistrict::Drenthe],
+            BTreeSet::from([ElectoralDistrict::Drenthe]),
             updated_list.electoral_districts
         );
 
@@ -187,13 +187,13 @@ mod tests {
     async fn update_candidate_list_invalid_form_renders_template() -> Result<(), AppError> {
         let store = PgStore::new_for_test();
         let candidate_list = CandidateList {
-            electoral_districts: vec![ElectoralDistrict::Utrecht],
+            electoral_districts: BTreeSet::from([ElectoralDistrict::Utrecht]),
             ..Default::default()
         };
         candidate_list.create(&store).await?;
 
         let form = CandidateListForm {
-            electoral_districts: vec![],
+            electoral_districts: BTreeSet::new(),
         };
         let response = update_candidate_list_submit(
             CandidateListUpdatePath {
@@ -226,18 +226,61 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn district_outside_election_is_ignored() -> Result<(), AppError> {
-        // setup
-        let store = PgStore::new_for_test_with_election(ElectionConfig::EK27);
+    async fn update_candidate_list_stores_a_repeated_district_once() -> Result<(), AppError> {
+        let store = PgStore::new_for_test();
         let context = Context::new_test_without_db();
         let candidate_list = CandidateList {
-            electoral_districts: vec![ElectoralDistrict::Utrecht],
+            electoral_districts: BTreeSet::from([ElectoralDistrict::Utrecht]),
             ..Default::default()
         };
         candidate_list.create(&store).await?;
 
         let form = CandidateListForm {
-            electoral_districts: vec![ElectoralDistrict::Drenthe, ElectoralDistrict::WsFryslan],
+            electoral_districts: BTreeSet::from([
+                ElectoralDistrict::Utrecht,
+                ElectoralDistrict::Drenthe,
+                ElectoralDistrict::Utrecht,
+            ]),
+        };
+        update_candidate_list_submit(
+            CandidateListUpdatePath {
+                list_id: candidate_list.id,
+            },
+            context,
+            candidate_list.clone(),
+            store.clone(),
+            Query(QueryParamState::default()),
+            Form(form),
+        )
+        .await?;
+
+        // deduplicated, in the election's district order
+        assert_eq!(
+            store
+                .get_candidate_list(candidate_list.id)?
+                .electoral_districts,
+            BTreeSet::from([ElectoralDistrict::Drenthe, ElectoralDistrict::Utrecht])
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn district_outside_election_is_ignored() -> Result<(), AppError> {
+        // setup
+        let store = PgStore::new_for_test_with_election(ElectionConfig::EK27);
+        let context = Context::new_test_without_db();
+        let candidate_list = CandidateList {
+            electoral_districts: BTreeSet::from([ElectoralDistrict::Utrecht]),
+            ..Default::default()
+        };
+        candidate_list.create(&store).await?;
+
+        let form = CandidateListForm {
+            electoral_districts: BTreeSet::from([
+                ElectoralDistrict::Drenthe,
+                ElectoralDistrict::WsFryslan,
+            ]),
         };
 
         // test
@@ -260,7 +303,10 @@ mod tests {
         assert_eq!(lists.len(), 1);
         let list = &lists[0];
         // WsFryslan got dropped because it's not part of EK27
-        assert_eq!(list.electoral_districts, vec![ElectoralDistrict::Drenthe]);
+        assert_eq!(
+            list.electoral_districts,
+            BTreeSet::from([ElectoralDistrict::Drenthe])
+        );
 
         Ok(())
     }
