@@ -72,7 +72,7 @@ examination: Onderzoek
 finalise:
   add_objection: Bezwaar toevoegen
   district_count: Kieskringen
-  i4_note: Proces-verbaal over geldigheid en nummering kandidatenlijsten. Maak het formulier aan van het verslag van de openbare zitting.
+  i4_note: Proces-verbaal over geldigheid en nummering kandidatenlijsten. Maak het document aan van het verslag van de openbare zitting.
   i4_title: I 4 Proces-verbaal
   no_lists: Er zijn geen lijsten om te nummeren.
   objections_note: Heeft iemand tijdens de zitting bezwaar gemaakt? Voeg het hieronder toe.
@@ -87,7 +87,7 @@ finish_examination:
   download_word: Download Word
   download_zip: Download ZIP
   hearing_details: Zitting details
-  i1_note: Onderzoek ingeleverde kandidatenlijsten. Maak het formulier aan van verslag van het onderzoek naar de kandidatenlijsten
+  i1_note: Onderzoek ingeleverde kandidatenlijsten. Maak het document aan van verslag van het onderzoek naar de kandidatenlijsten
   i1_title: I 1 Proces-verbaal
   no_omission_letters: Er zijn geen verzuimbrieven aan te maken.
   omission_letters: Verzuimbrieven

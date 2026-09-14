@@ -144,6 +144,35 @@ impl CsbPoliticalGroup {
     }
 }
 
+#[cfg(test)]
+impl CsbPoliticalGroup {
+    /// An unexamined, undeleted group named `appellation` with one candidate
+    /// list in Groningen; override fields with struct update syntax.
+    pub fn sample(appellation: &str) -> Self {
+        Self {
+            political_group: PoliticalGroup {
+                appellation: Some(appellation.parse().unwrap()),
+                ..crate::test_utils::sample_political_group()
+            },
+            stream_id: StreamId::new(),
+            brp: BrpCheckState::NotChecked,
+            mode: CsbPhase::Examination,
+            is_examination_finished: false,
+            is_deleted: false,
+            scrapped: Default::default(),
+            restoration_count: 0,
+            omission_count: 0,
+            recovery: Default::default(),
+            first_candidate_name: None,
+            first_non_scrapped_candidate_name: None,
+            candidate_list_districts: HashMap::from([(
+                CandidateListId::new(),
+                vec![ElectoralDistrict::Groningen],
+            )]),
+        }
+    }
+}
+
 /// Extracts the imported political groups of the election the session works
 /// on. Streams of the other elections stay out of the listing: they are
 /// examined under their own election's ruleset, in a session that picked it.
@@ -263,25 +292,7 @@ mod tests {
 
     #[test]
     fn csb_appellation_returns_appellation_for_normal_list() {
-        let group = CsbPoliticalGroup {
-            political_group: PoliticalGroup {
-                appellation: Some("Kiesraad Demo".parse().unwrap()),
-                list_designation: Some(ListDesignation::Standalone),
-                ..Default::default()
-            },
-            stream_id: StreamId::new(),
-            brp: BrpCheckState::NotChecked,
-            mode: CsbPhase::Examination,
-            is_examination_finished: false,
-            is_deleted: false,
-            restoration_count: 0,
-            omission_count: 0,
-            recovery: RecoveryProgress::default(),
-            first_candidate_name: None,
-            first_non_scrapped_candidate_name: None,
-            scrapped: Default::default(),
-            candidate_list_districts: HashMap::new(),
-        };
+        let group = CsbPoliticalGroup::sample("Kiesraad Demo");
 
         assert_eq!(group.csb_appellation(), "Kiesraad Demo");
     }
@@ -314,22 +325,12 @@ mod tests {
                 list_designation: Some(ListDesignation::Blank),
                 ..Default::default()
             },
-            stream_id: StreamId::new(),
-            brp: BrpCheckState::NotChecked,
-            mode: CsbPhase::Examination,
-            is_examination_finished: false,
-            is_deleted: false,
-            restoration_count: 0,
-            omission_count: 0,
-            recovery: RecoveryProgress::default(),
             first_candidate_name: Some(FullName {
                 last_name: "Jansen".parse().unwrap(),
                 initials: "A.B.".parse().unwrap(),
                 ..Default::default()
             }),
-            first_non_scrapped_candidate_name: None,
-            scrapped: Default::default(),
-            candidate_list_districts: HashMap::new(),
+            ..CsbPoliticalGroup::sample("Kiesraad Demo")
         };
 
         assert_eq!(group.csb_appellation(), "Blanco (Jansen, A.B.)");
@@ -342,18 +343,7 @@ mod tests {
                 list_designation: Some(ListDesignation::Blank),
                 ..Default::default()
             },
-            stream_id: StreamId::new(),
-            brp: BrpCheckState::NotChecked,
-            mode: CsbPhase::Examination,
-            is_examination_finished: false,
-            is_deleted: false,
-            restoration_count: 0,
-            omission_count: 0,
-            recovery: RecoveryProgress::default(),
-            first_candidate_name: None,
-            first_non_scrapped_candidate_name: None,
-            scrapped: Default::default(),
-            candidate_list_districts: HashMap::new(),
+            ..CsbPoliticalGroup::sample("Kiesraad Demo")
         };
 
         assert_eq!(group.csb_appellation(), "Blanco");
@@ -367,14 +357,7 @@ mod tests {
                 list_designation: Some(ListDesignation::Standalone),
                 ..Default::default()
             },
-            stream_id: StreamId::new(),
-            brp: BrpCheckState::NotChecked,
             mode: CsbPhase::Recovery,
-            is_examination_finished: false,
-            is_deleted: false,
-            restoration_count: 0,
-            omission_count: 0,
-            recovery: RecoveryProgress::default(),
             first_candidate_name: Some(FullName {
                 first_name: None,
                 last_name: "Scrapped".parse().unwrap(),
@@ -393,7 +376,7 @@ mod tests {
                 BTreeSet::new(),
                 BTreeMap::new(),
             ),
-            candidate_list_districts: HashMap::new(),
+            ..CsbPoliticalGroup::sample("Kiesraad Demo")
         };
 
         assert_eq!("Blanco (Present, P.)", group.csb_appellation());

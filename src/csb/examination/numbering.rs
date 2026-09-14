@@ -161,35 +161,17 @@ mod tests {
 
     use crate::{
         ElectoralDistrict,
-        csb::examination::structs::BrpCheckState,
         structs::{
-            candidate_lists::CandidateListId,
-            csb::{CsbPhase, sample_registered_political_group},
-            list_designation::ListDesignation,
-            political_groups::PoliticalGroup,
+            candidate_lists::CandidateListId, csb::sample_registered_political_group,
+            list_designation::ListDesignation, political_groups::PoliticalGroup,
         },
     };
 
     /// An undeleted group named `appellation` with one list in `districts`.
     fn group(appellation: &str, districts: Vec<ElectoralDistrict>) -> CsbPoliticalGroup {
         CsbPoliticalGroup {
-            political_group: PoliticalGroup {
-                appellation: Some(appellation.parse().unwrap()),
-                list_designation: Some(ListDesignation::Standalone),
-                ..Default::default()
-            },
-            stream_id: StreamId::new(),
-            brp: BrpCheckState::NotChecked,
-            mode: CsbPhase::Examination,
-            is_examination_finished: true,
-            is_deleted: false,
-            scrapped: Default::default(),
-            restoration_count: 0,
-            omission_count: 0,
-            recovery: Default::default(),
-            first_candidate_name: None,
-            first_non_scrapped_candidate_name: None,
             candidate_list_districts: HashMap::from([(CandidateListId::new(), districts)]),
+            ..CsbPoliticalGroup::sample(appellation)
         }
     }
 

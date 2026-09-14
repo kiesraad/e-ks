@@ -63,42 +63,14 @@ fn is_permutation(given: &[StreamId], expected: &[StreamId]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
 
-    use crate::{
-        ElectoralDistrict, csb::examination::extractors::CsbPoliticalGroup,
-        structs::candidate_lists::CandidateListId, test_utils::sample_political_group,
-    };
-
-    fn group(appellation: &str) -> CsbPoliticalGroup {
-        CsbPoliticalGroup {
-            political_group: crate::structs::political_groups::PoliticalGroup {
-                appellation: Some(appellation.parse().unwrap()),
-                ..sample_political_group()
-            },
-            stream_id: StreamId::new(),
-            brp: crate::csb::examination::structs::BrpCheckState::NotChecked,
-            mode: crate::structs::csb::CsbPhase::Examination,
-            is_examination_finished: true,
-            is_deleted: false,
-            scrapped: Default::default(),
-            restoration_count: 0,
-            omission_count: 0,
-            recovery: Default::default(),
-            first_candidate_name: None,
-            first_non_scrapped_candidate_name: None,
-            candidate_list_districts: HashMap::from([(
-                CandidateListId::new(),
-                vec![ElectoralDistrict::Groningen],
-            )]),
-        }
-    }
+    use crate::csb::examination::extractors::CsbPoliticalGroup;
 
     #[tokio::test]
     async fn update_order_records_the_posted_order() -> Result<(), AppError> {
         let main_store = CsbMainStore::new_for_test();
-        let first = group("Eerste");
-        let second = group("Tweede");
+        let first = CsbPoliticalGroup::sample("Eerste");
+        let second = CsbPoliticalGroup::sample("Tweede");
         let order = vec![second.stream_id, first.stream_id];
 
         let response = update_order(
@@ -123,7 +95,7 @@ mod tests {
     #[tokio::test]
     async fn update_order_refuses_an_order_over_other_groups() {
         let main_store = CsbMainStore::new_for_test();
-        let known = group("Bekend");
+        let known = CsbPoliticalGroup::sample("Bekend");
 
         for stream_ids in [
             vec![],
@@ -135,7 +107,7 @@ mod tests {
                 CsbListOrderPath,
                 CsbContext::new_test(),
                 main_store.clone(),
-                CsbPoliticalGroups(vec![group("Bekend")]),
+                CsbPoliticalGroups(vec![CsbPoliticalGroup::sample("Bekend")]),
                 Json(ListOrderPayload { stream_ids }),
             )
             .await;

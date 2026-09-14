@@ -51,38 +51,11 @@ pub async fn overview(
 mod tests {
     use super::*;
     use axum::http::StatusCode;
-    use std::collections::HashMap;
 
     use crate::{
-        CsbMainAction, CsbUser, ElectoralDistrict, StreamId,
-        csb::examination::extractors::CsbPoliticalGroup,
-        structs::{candidate_lists::CandidateListId, csb::sample_registered_political_group},
-        test_utils::{response_body_string, sample_political_group},
+        CsbMainAction, CsbUser, csb::examination::extractors::CsbPoliticalGroup,
+        structs::csb::sample_registered_political_group, test_utils::response_body_string,
     };
-
-    fn group(appellation: &str) -> CsbPoliticalGroup {
-        CsbPoliticalGroup {
-            political_group: crate::structs::political_groups::PoliticalGroup {
-                appellation: Some(appellation.parse().unwrap()),
-                ..sample_political_group()
-            },
-            stream_id: StreamId::new(),
-            brp: crate::csb::examination::structs::BrpCheckState::NotChecked,
-            mode: crate::structs::csb::CsbPhase::Examination,
-            is_examination_finished: true,
-            is_deleted: false,
-            scrapped: Default::default(),
-            restoration_count: 0,
-            omission_count: 0,
-            recovery: Default::default(),
-            first_candidate_name: None,
-            first_non_scrapped_candidate_name: None,
-            candidate_list_districts: HashMap::from([(
-                CandidateListId::new(),
-                vec![ElectoralDistrict::Groningen],
-            )]),
-        }
-    }
 
     async fn render(main_store: CsbMainStore, groups: Vec<CsbPoliticalGroup>) -> String {
         let response = overview(
@@ -132,10 +105,14 @@ mod tests {
             )
             .await
             .unwrap();
-        let by_lot = group("Nieuwkomer");
+        let by_lot = CsbPoliticalGroup::sample("Nieuwkomer");
         let stream_id = by_lot.stream_id;
 
-        let body = render(main_store, vec![by_lot, group("Gezeteld")]).await;
+        let body = render(
+            main_store,
+            vec![by_lot, CsbPoliticalGroup::sample("Gezeteld")],
+        )
+        .await;
 
         assert!(body.contains(r#"data-sortable-update-url="/csb/finalise/order""#));
         assert!(body.contains(r#"data-sortable-update-key="stream_ids""#));
