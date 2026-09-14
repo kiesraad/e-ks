@@ -56,27 +56,13 @@ mod tests {
     use super::*;
     use axum::http::StatusCode;
 
-    use crate::{
-        StreamId,
-        structs::csb::RecoveryProgress,
-        test_utils::{response_body_string, sample_political_group},
-    };
+    use crate::{structs::csb::RecoveryProgress, test_utils::response_body_string};
 
     fn group(pending: usize, total: usize) -> CsbPoliticalGroup {
         CsbPoliticalGroup {
-            political_group: sample_political_group(),
-            stream_id: StreamId::new(),
-            brp: crate::csb::examination::structs::BrpCheckState::NotChecked,
-            mode: CsbPhase::Examination,
-            is_examination_finished: false,
-            is_deleted: false,
-            restoration_count: 0,
             omission_count: total,
             recovery: RecoveryProgress { pending, total },
-            first_candidate_name: None,
-            first_non_scrapped_candidate_name: None,
-            scrapped: Default::default(),
-            candidate_list_districts: Default::default(),
+            ..CsbPoliticalGroup::sample("Kiesraad Demo")
         }
     }
 

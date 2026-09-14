@@ -8,7 +8,7 @@ use crate::{
     projection::{Scrapped, WithCorrections},
     structs::{
         candidate_lists::CandidateListId,
-        common::FullName,
+        common::{Appellation, FullName},
         csb::{CsbPhase, RecoveryProgress},
         list_designation::ListDesignation,
         political_groups::PoliticalGroup,
@@ -92,23 +92,88 @@ impl CsbPoliticalGroup {
             CsbPhase::Examination => self
                 .political_group
                 .csb_appellation(self.first_candidate_name.as_ref()),
-            CsbPhase::Recovery => {
-                if self.is_appellation_scrapped() {
-                    PoliticalGroup {
-                        list_designation: Some(ListDesignation::Blank),
-                        ..self.political_group.clone()
-                    }
-                    .csb_appellation(self.first_non_scrapped_candidate_name.as_ref())
-                } else {
-                    self.political_group
-                        .csb_appellation(self.first_non_scrapped_candidate_name.as_ref())
+            CsbPhase::Recovery => self.numbering_appellation(),
+        }
+    }
+
+    /// The name the group's lists are numbered under, honouring scrapping:
+    /// the appellation, or the blank list the group continues as once its
+    /// appellation is scrapped, named after its first non-scrapped candidate.
+    pub fn numbering_appellation(&self) -> String {
+        if self.is_appellation_scrapped() {
+            return self.blank_appellation();
+        }
+        self.political_group
+            .csb_appellation(self.first_non_scrapped_candidate_name.as_ref())
+    }
+
+    /// The group named as a blank list, e.g. `Blanco (Nagelhout, H.)`.
+    fn blank_appellation(&self) -> String {
+        PoliticalGroup {
+            list_designation: Some(ListDesignation::Blank),
+            ..self.political_group.clone()
+        }
+        .csb_appellation(self.first_non_scrapped_candidate_name.as_ref())
+    }
+
+    /// The registered appellation to match the group on: none for a blank
+    /// list or once the appellation is scrapped.
+    pub fn registered_appellation(&self) -> Option<&Appellation> {
+        if self.is_appellation_scrapped()
+            || self.political_group.list_designation == Some(ListDesignation::Blank)
+        {
+            return None;
+        }
+        self.political_group.appellation.as_ref()
+    }
+
+    /// The districts in which the group still has a valid list.
+    pub fn valid_districts(&self) -> Vec<ElectoralDistrict> {
+        let mut districts = Vec::new();
+        for (list, list_districts) in &self.candidate_list_districts {
+            if self.scrapped.is_list_scrapped(*list) {
+                continue;
+            }
+            for district in list_districts {
+                if !self.scrapped.is_district_scrapped(*district) && !districts.contains(district) {
+                    districts.push(*district);
                 }
             }
         }
+        districts
     }
 
     pub fn is_appellation_scrapped(&self) -> bool {
         self.scrapped.is_appellation_scrapped()
+    }
+}
+
+#[cfg(test)]
+impl CsbPoliticalGroup {
+    /// An unexamined, undeleted group named `appellation` with one candidate
+    /// list in Groningen; override fields with struct update syntax.
+    pub fn sample(appellation: &str) -> Self {
+        Self {
+            political_group: PoliticalGroup {
+                appellation: Some(appellation.parse().unwrap()),
+                ..crate::test_utils::sample_political_group()
+            },
+            stream_id: StreamId::new(),
+            brp: BrpCheckState::NotChecked,
+            mode: CsbPhase::Examination,
+            is_examination_finished: false,
+            is_deleted: false,
+            scrapped: Default::default(),
+            restoration_count: 0,
+            omission_count: 0,
+            recovery: Default::default(),
+            first_candidate_name: None,
+            first_non_scrapped_candidate_name: None,
+            candidate_list_districts: HashMap::from([(
+                CandidateListId::new(),
+                BTreeSet::from([ElectoralDistrict::Groningen]),
+            )]),
+        }
     }
 }
 
@@ -231,25 +296,7 @@ mod tests {
 
     #[test]
     fn csb_appellation_returns_appellation_for_normal_list() {
-        let group = CsbPoliticalGroup {
-            political_group: PoliticalGroup {
-                appellation: Some("Kiesraad Demo".parse().unwrap()),
-                list_designation: Some(ListDesignation::Standalone),
-                ..Default::default()
-            },
-            stream_id: StreamId::new(),
-            brp: BrpCheckState::NotChecked,
-            mode: CsbPhase::Examination,
-            is_examination_finished: false,
-            is_deleted: false,
-            restoration_count: 0,
-            omission_count: 0,
-            recovery: RecoveryProgress::default(),
-            first_candidate_name: None,
-            first_non_scrapped_candidate_name: None,
-            scrapped: Default::default(),
-            candidate_list_districts: HashMap::new(),
-        };
+        let group = CsbPoliticalGroup::sample("Kiesraad Demo");
 
         assert_eq!(group.csb_appellation(), "Kiesraad Demo");
     }
@@ -282,22 +329,12 @@ mod tests {
                 list_designation: Some(ListDesignation::Blank),
                 ..Default::default()
             },
-            stream_id: StreamId::new(),
-            brp: BrpCheckState::NotChecked,
-            mode: CsbPhase::Examination,
-            is_examination_finished: false,
-            is_deleted: false,
-            restoration_count: 0,
-            omission_count: 0,
-            recovery: RecoveryProgress::default(),
             first_candidate_name: Some(FullName {
                 last_name: "Jansen".parse().unwrap(),
                 initials: "A.B.".parse().unwrap(),
                 ..Default::default()
             }),
-            first_non_scrapped_candidate_name: None,
-            scrapped: Default::default(),
-            candidate_list_districts: HashMap::new(),
+            ..CsbPoliticalGroup::sample("Kiesraad Demo")
         };
 
         assert_eq!(group.csb_appellation(), "Blanco (Jansen, A.B.)");
@@ -310,18 +347,7 @@ mod tests {
                 list_designation: Some(ListDesignation::Blank),
                 ..Default::default()
             },
-            stream_id: StreamId::new(),
-            brp: BrpCheckState::NotChecked,
-            mode: CsbPhase::Examination,
-            is_examination_finished: false,
-            is_deleted: false,
-            restoration_count: 0,
-            omission_count: 0,
-            recovery: RecoveryProgress::default(),
-            first_candidate_name: None,
-            first_non_scrapped_candidate_name: None,
-            scrapped: Default::default(),
-            candidate_list_districts: HashMap::new(),
+            ..CsbPoliticalGroup::sample("Kiesraad Demo")
         };
 
         assert_eq!(group.csb_appellation(), "Blanco");
@@ -335,14 +361,7 @@ mod tests {
                 list_designation: Some(ListDesignation::Standalone),
                 ..Default::default()
             },
-            stream_id: StreamId::new(),
-            brp: BrpCheckState::NotChecked,
             mode: CsbPhase::Recovery,
-            is_examination_finished: false,
-            is_deleted: false,
-            restoration_count: 0,
-            omission_count: 0,
-            recovery: RecoveryProgress::default(),
             first_candidate_name: Some(FullName {
                 first_name: None,
                 last_name: "Scrapped".parse().unwrap(),
@@ -361,7 +380,7 @@ mod tests {
                 BTreeSet::new(),
                 BTreeMap::new(),
             ),
-            candidate_list_districts: HashMap::new(),
+            ..CsbPoliticalGroup::sample("Kiesraad Demo")
         };
 
         assert_eq!("Blanco (Present, P.)", group.csb_appellation());

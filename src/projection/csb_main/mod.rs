@@ -24,6 +24,7 @@ pub const CSB_MAIN_STREAM_ID: StreamId = StreamId(uuid::Uuid::from_u128(
 pub struct CsbMainStoreData {
     pub(crate) events: Vec<StoreEvent<CsbMainEvent>>,
     pub(crate) registered_political_groups: Vec<RegisteredPoliticalGroup>,
+    pub(crate) list_order: Vec<StreamId>,
 }
 
 impl StoreData for CsbMainStoreData {
@@ -48,6 +49,9 @@ impl StoreData for CsbMainStoreData {
             CsbMainAction::DeleteRegisteredPoliticalGroup(id) => {
                 self.registered_political_groups
                     .retain(|group| group.id != id);
+            }
+            CsbMainAction::UpdateListOrder(order) => {
+                self.list_order = order;
             }
         }
     }

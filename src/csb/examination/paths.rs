@@ -42,6 +42,10 @@ pub struct CsbI1DocxDownloadPath;
 #[typed_path("/csb/examination/i4.pdf", rejection(AppError))]
 pub struct CsbI4DownloadPath;
 
+#[derive(TypedPath)]
+#[typed_path("/csb/examination/i4.docx", rejection(AppError))]
+pub struct CsbI4DocxDownloadPath;
+
 #[derive(TypedPath, Deserialize)]
 #[typed_path("/csb/examination/{stream_id}", rejection(AppError))]
 pub struct CsbPoliticalGroupPath {

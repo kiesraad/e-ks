@@ -59,29 +59,11 @@ mod tests {
     use super::*;
     use axum::http::StatusCode;
 
-    use crate::{
-        StreamId,
-        csb::examination::structs::BrpCheckState,
-        test_utils::{response_body_string, sample_political_group},
-    };
+    use crate::{csb::examination::structs::BrpCheckState, test_utils::response_body_string};
 
     #[tokio::test]
     async fn overview_renders_imported_political_group_names() {
-        let groups = CsbPoliticalGroups(vec![CsbPoliticalGroup {
-            political_group: sample_political_group(),
-            stream_id: StreamId::new(),
-            brp: BrpCheckState::NotChecked,
-            mode: crate::structs::csb::CsbPhase::Examination,
-            is_examination_finished: false,
-            is_deleted: false,
-            restoration_count: 0,
-            omission_count: 0,
-            recovery: Default::default(),
-            first_candidate_name: None,
-            first_non_scrapped_candidate_name: None,
-            scrapped: Default::default(),
-            candidate_list_districts: Default::default(),
-        }]);
+        let groups = CsbPoliticalGroups(vec![group(false)]);
 
         let response = overview(
             CsbExaminationOverviewPath {},
@@ -101,19 +83,8 @@ mod tests {
     #[tokio::test]
     async fn the_brp_column_follows_the_group_rather_than_always_reading_correct() {
         let groups = CsbPoliticalGroups(vec![CsbPoliticalGroup {
-            political_group: sample_political_group(),
-            stream_id: StreamId::new(),
             brp: BrpCheckState::Errors { errors: 2 },
-            mode: crate::structs::csb::CsbPhase::Examination,
-            is_examination_finished: false,
-            is_deleted: false,
-            restoration_count: 0,
-            omission_count: 0,
-            recovery: Default::default(),
-            first_candidate_name: None,
-            first_non_scrapped_candidate_name: None,
-            scrapped: Default::default(),
-            candidate_list_districts: Default::default(),
+            ..group(false)
         }]);
 
         let response = overview(
@@ -133,19 +104,8 @@ mod tests {
     #[tokio::test]
     async fn a_check_that_did_not_finish_is_not_reported_as_a_verdict() {
         let groups = CsbPoliticalGroups(vec![CsbPoliticalGroup {
-            political_group: sample_political_group(),
-            stream_id: StreamId::new(),
             brp: BrpCheckState::Incomplete { errors: 2 },
-            mode: crate::structs::csb::CsbPhase::Examination,
-            is_examination_finished: false,
-            is_deleted: false,
-            restoration_count: 0,
-            omission_count: 0,
-            recovery: Default::default(),
-            first_candidate_name: None,
-            first_non_scrapped_candidate_name: None,
-            scrapped: Default::default(),
-            candidate_list_districts: Default::default(),
+            ..group(false)
         }]);
 
         let response = overview(
@@ -167,19 +127,8 @@ mod tests {
     #[tokio::test]
     async fn overview_skips_deleted_political_group_names() {
         let groups = CsbPoliticalGroups(vec![CsbPoliticalGroup {
-            political_group: sample_political_group(),
-            stream_id: StreamId::new(),
-            brp: BrpCheckState::NotChecked,
-            mode: crate::structs::csb::CsbPhase::Examination,
-            recovery: Default::default(),
-            is_examination_finished: false,
             is_deleted: true,
-            restoration_count: 0,
-            omission_count: 0,
-            first_candidate_name: None,
-            scrapped: Default::default(),
-            first_non_scrapped_candidate_name: None,
-            candidate_list_districts: Default::default(),
+            ..group(false)
         }]);
 
         let response = overview(
@@ -200,19 +149,8 @@ mod tests {
     #[tokio::test]
     async fn overview_renders_omission_count_badge() {
         let groups = CsbPoliticalGroups(vec![CsbPoliticalGroup {
-            political_group: sample_political_group(),
-            stream_id: StreamId::new(),
-            brp: BrpCheckState::NotChecked,
-            mode: crate::structs::csb::CsbPhase::Examination,
-            recovery: Default::default(),
-            is_examination_finished: false,
-            is_deleted: false,
-            restoration_count: 0, /* omission count should be used and > 0 */
             omission_count: 3,
-            first_candidate_name: None,
-            first_non_scrapped_candidate_name: None,
-            scrapped: Default::default(),
-            candidate_list_districts: Default::default(),
+            ..group(false)
         }]);
 
         let response = overview(
@@ -231,19 +169,8 @@ mod tests {
 
     fn group(is_examination_finished: bool) -> CsbPoliticalGroup {
         CsbPoliticalGroup {
-            political_group: sample_political_group(),
-            stream_id: StreamId::new(),
-            brp: BrpCheckState::NotChecked,
-            mode: crate::structs::csb::CsbPhase::Examination,
             is_examination_finished,
-            is_deleted: false,
-            restoration_count: 0,
-            omission_count: 0,
-            recovery: Default::default(),
-            first_candidate_name: None,
-            first_non_scrapped_candidate_name: None,
-            scrapped: Default::default(),
-            candidate_list_districts: Default::default(),
+            ..CsbPoliticalGroup::sample("Kiesraad Demo")
         }
     }
 

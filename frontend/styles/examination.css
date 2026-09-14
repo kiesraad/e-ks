@@ -34,3 +34,87 @@ table.omission-table {
     text-align: right;
   }
 }
+
+table.list-order-table {
+  color: var(--gray-600);
+  margin-bottom: var(--space-4);
+
+  tr {
+    transition: transform 0.3s ease-in-out;
+
+    td {
+      transition: background-color 0.5s ease-in-out;
+    }
+  }
+
+  tbody tr:nth-child(even) {
+    background-color: var(--gray-50);
+  }
+
+  tbody tr:nth-child(odd) {
+    background-color: var(--gray-25);
+  }
+
+  th {
+    font-weight: var(--font-weight-bold);
+  }
+
+  th.statistic,
+  td.statistic {
+    text-align: right;
+  }
+
+  td.drag-handle {
+    width: 4rem;
+    padding: 0;
+    user-select: none;
+    background-image: url("../icons/move.svg");
+    background-repeat: no-repeat;
+    background-position: left var(--space-md) center;
+    background-size: 0.7rem;
+    cursor: grab;
+  }
+
+  td:nth-child(2) {
+    width: 5rem;
+    padding-left: 0;
+    overflow: hidden;
+    background-repeat: no-repeat;
+    background-position: -5rem center;
+    background-image: none;
+    transition: background-position 0.5s ease-in-out;
+
+    &.pos-up {
+      background-image: url("../icons/up.svg");
+      background-position: left 3.25rem center;
+    }
+
+    &.pos-down {
+      background-image: url("../icons/down.svg");
+      background-position: left 3.25rem center;
+    }
+
+    &.fade-out {
+      background-position: -5rem center;
+    }
+  }
+
+  tr.dragging {
+    transition: none;
+    z-index: 10;
+    position: relative;
+    background-color: var(--orange-100);
+
+    .position-badge {
+      background-color: var(--orange-200);
+    }
+  }
+
+  tr.flash-success {
+    background-color: var(--green-100);
+
+    .position-badge {
+      background-color: var(--green-200);
+    }
+  }
+}

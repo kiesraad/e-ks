@@ -7,11 +7,11 @@ use super::paths::{
     CsbAddOmissionPath, CsbAllBrpFindingsPath, CsbAllRestorationsPath,
     CsbAppellationCorrectionPath, CsbBrpCheckPath, CsbCandidateBrpCheckPath, CsbCandidateListPath,
     CsbCandidatePath, CsbDeleteOmissionPath, CsbExaminationOverviewPath, CsbFinishExaminationPath,
-    CsbGeneralInformationPath, CsbI1DocxDownloadPath, CsbI1DownloadPath, CsbI4DownloadPath,
-    CsbOmissionLetterDocxDownloadPath, CsbOmissionLetterDownloadPath, CsbOmissionLetterPath,
-    CsbOmissionLettersDownloadPath, CsbOmissionOverviewPath, CsbPaperCorrectionsStartPath,
-    CsbPaperCorrectionsStopPath, CsbPersonCorrectionPath, CsbPoliticalGroupPath,
-    CsbPoliticalGroupToggleFinishPath, OmissionListQuery, PgIndexPath,
+    CsbGeneralInformationPath, CsbI1DocxDownloadPath, CsbI1DownloadPath, CsbI4DocxDownloadPath,
+    CsbI4DownloadPath, CsbOmissionLetterDocxDownloadPath, CsbOmissionLetterDownloadPath,
+    CsbOmissionLetterPath, CsbOmissionLettersDownloadPath, CsbOmissionOverviewPath,
+    CsbPaperCorrectionsStartPath, CsbPaperCorrectionsStopPath, CsbPersonCorrectionPath,
+    CsbPoliticalGroupPath, CsbPoliticalGroupToggleFinishPath, OmissionListQuery, PgIndexPath,
 };
 
 mod all_brp_findings;
@@ -36,6 +36,7 @@ pub fn router<S: AppRequestState>() -> Router<S> {
         .typed_get(i1::gen_i1::<S>)
         .typed_get(i1::gen_i1_docx::<S>)
         .typed_get(i4::gen_i4::<S>)
+        .typed_get(i4::gen_i4_docx::<S>)
         .typed_get(omission_letter::overview)
         .typed_get(omission_letter::gen_omission_letter)
         .typed_get(omission_letter::gen_omission_letter_docx)

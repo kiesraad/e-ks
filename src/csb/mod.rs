@@ -7,6 +7,7 @@
 pub mod audit_log;
 pub mod common;
 pub mod examination;
+pub mod finalise;
 pub mod import;
 pub mod index;
 pub mod login;
