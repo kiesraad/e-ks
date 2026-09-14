@@ -279,8 +279,7 @@ pub fn eml210(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::BTreeSet;
-    use std::str::FromStr;
+    use std::{collections::BTreeSet, str::FromStr};
 
     use crate::{
         AppError, Context, ElectoralDistrict, PgStore,

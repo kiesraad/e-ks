@@ -77,8 +77,7 @@ async fn candidate(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeSet;
-    use std::str::FromStr;
+    use std::{collections::BTreeSet, str::FromStr};
 
     use super::*;
     use axum::{http::StatusCode, response::IntoResponse};

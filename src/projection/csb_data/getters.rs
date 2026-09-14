@@ -575,7 +575,6 @@ mod tests {
         },
         test_utils::{sample_candidate_list, sample_person, sample_person_with},
     };
-    use std::collections::BTreeSet;
 
     fn insert(store: &CsbStream, category: OmissionCategory) {
         let omission = sample_omission(category);
