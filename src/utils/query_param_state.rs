@@ -160,6 +160,13 @@ impl QueryParamState {
         Redirect::to(&self.redirect_url_or(default)).into_response()
     }
 
+    /// Like `redirect_or`, highlighting `id` on the target page.
+    pub fn redirect_or_highlighting(&self, default: impl std::fmt::Display, id: Uuid) -> Response {
+        // `redirect_url_or` always yields a query string
+        let url = format!("{}&highlight={id}", self.redirect_url_or(default));
+        Redirect::to(&url).into_response()
+    }
+
     /// Like `redirect_or`, but preserves `initial=true` in the redirect URL when set.
     /// Use this for inter-step saves within the general information section.
     pub fn redirect_or_preserving_initial(&self, default: impl std::fmt::Display) -> Response {
