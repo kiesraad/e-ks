@@ -5,53 +5,41 @@ use serde::Deserialize;
 use validate::Validate;
 
 use crate::{
-    constants::DEFAULT_DATE_FORMAT,
+    constants::{DEFAULT_DATE_FORMAT, DEFAULT_TIME_FORMAT},
     form::ValidationError,
     structs::{common::DATE_FORMAT_REGEX, csb::HearingDetails},
 };
 
-const TIME_FORMAT: &str = "%H:%M";
+/// Number of signer inputs rendered on the form.
+const SIGNER_COUNT: usize = 10;
+const SIGNERS_PER_ROW: usize = 2;
 
 #[derive(Default, Clone)]
 pub struct HearingDetailsFormTarget {
     date_of_hearing: DateOfHearing,
     time_of_hearing: TimeOfHearing,
-    signer_0: String,
-    signer_1: String,
-    signer_2: String,
-    signer_3: String,
-    signer_4: String,
-    signer_5: String,
-    signer_6: String,
-    signer_7: String,
-    signer_8: String,
-    signer_9: String,
+    chair: String,
+    signers: Vec<String>,
 }
 
 impl From<HearingDetailsFormTarget> for HearingDetails {
     fn from(value: HearingDetailsFormTarget) -> Self {
-        let members = [
-            value.signer_0,
-            value.signer_1,
-            value.signer_2,
-            value.signer_3,
-            value.signer_4,
-            value.signer_5,
-            value.signer_6,
-            value.signer_7,
-            value.signer_8,
-            value.signer_9,
-        ]
-        .into_iter()
-        .filter_map(|m| {
-            let m = m.trim().to_string();
-            (!m.is_empty()).then_some(m)
-        })
-        .collect();
+        let members = value
+            .signers
+            .into_iter()
+            .filter_map(|m| {
+                let m = m.trim().to_string();
+                (!m.is_empty()).then_some(m)
+            })
+            .collect();
 
         let date_time = value.date_of_hearing.and_time(*value.time_of_hearing);
 
-        Self { date_time, members }
+        Self {
+            date_time,
+            chair: value.chair.trim().to_string(),
+            members,
+        }
     }
 }
 
@@ -60,16 +48,8 @@ impl From<HearingDetails> for HearingDetailsForm {
         Self {
             date_of_hearing: DateOfHearing(value.date_time.date()).format(),
             time_of_hearing: TimeOfHearing(value.date_time.time()).format(),
-            signer_0: value.members.first().cloned().unwrap_or_default(),
-            signer_1: value.members.get(1).cloned().unwrap_or_default(),
-            signer_2: value.members.get(2).cloned().unwrap_or_default(),
-            signer_3: value.members.get(3).cloned().unwrap_or_default(),
-            signer_4: value.members.get(4).cloned().unwrap_or_default(),
-            signer_5: value.members.get(5).cloned().unwrap_or_default(),
-            signer_6: value.members.get(6).cloned().unwrap_or_default(),
-            signer_7: value.members.get(7).cloned().unwrap_or_default(),
-            signer_8: value.members.get(8).cloned().unwrap_or_default(),
-            signer_9: value.members.get(9).cloned().unwrap_or_default(),
+            chair: value.chair,
+            signers: value.members,
         }
     }
 }
@@ -111,7 +91,7 @@ struct TimeOfHearing(NaiveTime);
 
 impl TimeOfHearing {
     fn format(&self) -> String {
-        self.0.format(TIME_FORMAT).to_string()
+        self.0.format(DEFAULT_TIME_FORMAT).to_string()
     }
 }
 
@@ -119,7 +99,7 @@ impl FromStr for TimeOfHearing {
     type Err = ValidationError;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        NaiveTime::parse_from_str(value, TIME_FORMAT)
+        NaiveTime::parse_from_str(value, DEFAULT_TIME_FORMAT)
             .map_err(|_| ValidationError::InvalidValue)
             .map(Self)
     }
@@ -143,16 +123,8 @@ pub struct HearingDetailsForm {
     #[validate(parse = "TimeOfHearing")]
     pub time_of_hearing: String,
 
-    pub signer_0: String,
-    pub signer_1: String,
-    pub signer_2: String,
-    pub signer_3: String,
-    pub signer_4: String,
-    pub signer_5: String,
-    pub signer_6: String,
-    pub signer_7: String,
-    pub signer_8: String,
-    pub signer_9: String,
+    pub chair: String,
+    pub signers: Vec<String>,
 }
 
 impl HearingDetailsForm {
@@ -163,27 +135,43 @@ impl HearingDetailsForm {
     pub fn is_invalid_time(&self) -> bool {
         TimeOfHearing::from_str(&self.time_of_hearing).is_err()
     }
+
+    /// Signer inputs grouped per form row, padded to [`SIGNER_COUNT`] so the
+    /// page always renders the full set of fields.
+    pub fn signer_rows(&self) -> Vec<Vec<(usize, String)>> {
+        let mut signers = self.signers.clone();
+        signers.resize(signers.len().max(SIGNER_COUNT), String::new());
+
+        signers
+            .into_iter()
+            .enumerate()
+            .collect::<Vec<_>>()
+            .chunks(SIGNERS_PER_ROW)
+            .map(<[(usize, String)]>::to_vec)
+            .collect()
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use axum::extract::FromRequest;
+
     use super::*;
 
     fn valid_form() -> HearingDetailsForm {
         HearingDetailsForm {
             date_of_hearing: "31-12-1999".to_string(),
             time_of_hearing: "12:34".to_string(),
-            signer_0: "Jan Klaassen".to_string(),
-            signer_1: "Malle Babbe".to_string(),
-            signer_2: String::new(),
-            signer_3: String::new(),
-            signer_4: String::new(),
-            signer_5: String::new(),
-            signer_6: String::new(),
-            signer_7: String::new(),
-            signer_8: String::new(),
-            signer_9: String::new(),
+            chair: "Vera Voorzitter".to_string(),
+            signers: signers(&["Jan Klaassen", "Malle Babbe"]),
         }
+    }
+
+    /// The page always posts [`SIGNER_COUNT`] values, blank ones included.
+    fn signers(filled: &[&str]) -> Vec<String> {
+        let mut signers: Vec<String> = filled.iter().copied().map(String::from).collect();
+        signers.resize(SIGNER_COUNT, String::new());
+        signers
     }
 
     #[test]
@@ -263,6 +251,7 @@ mod tests {
                 .to_string(),
             "1999-12-31 12:34"
         );
+        assert_eq!(hearing_details.chair, "Vera Voorzitter");
         assert_eq!(
             hearing_details.members,
             vec!["Jan Klaassen".to_string(), "Malle Babbe".to_string()]
@@ -272,14 +261,15 @@ mod tests {
     #[test]
     fn validate_create_trims_and_drops_blank_signers() {
         let form = HearingDetailsForm {
-            signer_0: "  Jan Klaassen  ".to_string(),
-            signer_1: "   ".to_string(),
+            chair: "  Vera Voorzitter  ".to_string(),
+            signers: signers(&["  Jan Klaassen  ", "   "]),
             ..valid_form()
         };
 
         let target = form.validate_create().expect("valid form");
         let hearing_details = HearingDetails::from(target);
 
+        assert_eq!(hearing_details.chair, "Vera Voorzitter");
         assert_eq!(hearing_details.members, vec!["Jan Klaassen".to_string()]);
     }
 
@@ -328,6 +318,7 @@ mod tests {
                 .unwrap()
                 .and_hms_opt(12, 34, 0)
                 .unwrap(),
+            chair: "Vera Voorzitter".to_string(),
             members: vec!["Jan Klaassen".to_string(), "Malle Babbe".to_string()],
         };
 
@@ -335,9 +326,62 @@ mod tests {
 
         assert_eq!(form.date_of_hearing, "31-12-1999");
         assert_eq!(form.time_of_hearing, "12:34");
-        assert_eq!(form.signer_0, "Jan Klaassen");
-        assert_eq!(form.signer_1, "Malle Babbe");
-        assert_eq!(form.signer_2, "");
-        assert_eq!(form.signer_9, "");
+        assert_eq!(form.chair, "Vera Voorzitter");
+        assert_eq!(
+            form.signers,
+            vec!["Jan Klaassen".to_string(), "Malle Babbe".to_string()]
+        );
+    }
+
+    #[test]
+    fn signer_rows_pads_to_the_full_set_of_inputs() {
+        let form = HearingDetailsForm {
+            signers: vec!["Jan Klaassen".to_string()],
+            ..valid_form()
+        };
+
+        let rows = form.signer_rows();
+
+        assert_eq!(rows.len(), SIGNER_COUNT / SIGNERS_PER_ROW);
+        assert_eq!(
+            rows[0],
+            vec![(0, "Jan Klaassen".to_string()), (1, "".into())]
+        );
+        assert_eq!(rows[4], vec![(8, "".to_string()), (9, "".into())]);
+    }
+
+    #[test]
+    fn signer_rows_keeps_signers_beyond_the_rendered_count() {
+        let form = HearingDetailsForm {
+            signers: (0..SIGNER_COUNT + 1).map(|i| i.to_string()).collect(),
+            ..valid_form()
+        };
+
+        let rows = form.signer_rows();
+
+        assert_eq!(rows.len(), SIGNER_COUNT / SIGNERS_PER_ROW + 1);
+        assert_eq!(rows[5], vec![(10, "10".to_string())]);
+    }
+
+    #[tokio::test]
+    async fn form_deserializes_repeated_signer_fields() {
+        let request = axum::extract::Request::builder()
+            .method("POST")
+            .uri("/csb/examination/hearing-details")
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .body(axum::body::Body::from(
+                "date_of_hearing=31-12-1999&time_of_hearing=12%3A34\
+                 &chair=Vera+Voorzitter\
+                 &signers=Jan+Klaassen&signers=&signers=Malle+Babbe",
+            ))
+            .expect("request");
+
+        let crate::Form(form) = crate::Form::<HearingDetailsForm>::from_request(request, &())
+            .await
+            .expect("form body");
+
+        assert_eq!(form.date_of_hearing, "31-12-1999");
+        assert_eq!(form.chair, "Vera Voorzitter");
+        assert_eq!(form.signers, vec!["Jan Klaassen", "", "Malle Babbe"]);
     }
 }

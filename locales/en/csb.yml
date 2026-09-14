@@ -129,10 +129,10 @@ group:
   toggle: Finish or reopen examination
   unfinished: Finish examination
 hearing:
+  chair_name: Chair name
   date: Date of hearing
   location: This concerns the hearing of the central electoral committee in
   member_name: Member name
-  name: Name
   place_and_time: Location and time
   signing: Signing
   time: Time of hearing
@@ -245,7 +245,8 @@ recovery:
   assess: Assess
   assessed: Assessed
   assessed_count: "{} of {} assessed"
-  download_i4: Download I 4
+  download_i4_pdf: Download I 4 (PDF)
+  download_i4_word: Download I 4 (Word)
   explanation: "Record per omission whether it was recovered. Candidates, lists and electoral districts with an unrecovered omission are scrapped."
   finish_note: "As long as omissions are still to be assessed, the I 4 is not yet final."
   finish_title: Finish recovery

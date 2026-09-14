@@ -1,19 +1,22 @@
 {% extends "csb/components/layout.html" %}
 {% import "pg/common/components/macros.html" as macros %}
-{% macro member_input(id, value) %}
+{% macro member_input(index, value) %}
   <p class="form-field form-field-lg">
-    <label for="{{ id }}">{{ "csb.hearing.member_name"|trans }}</label>
+    <label for="signer_{{ index }}">{{ "csb.hearing.member_name"|trans }}</label>
     <input type="text"
-           name="{{ id }}"
-           id="{{ id }}"
-           value="{{ value }}"
-           aria-label="{{ "csb.hearing.name"|trans }}" />
+           name="signers"
+           id="signer_{{ index }}"
+           value="{{ value }}" />
   </p>
 {% endmacro member_input %}
 {% block breadcrumbs %}
-  {{ breadcrumb(crate::csb::examination::CsbExaminationOverviewPath, "csb.examination") }}
-  {{ breadcrumb(crate::csb::examination::CsbFinishExaminationPath, "csb.finish_examination.title") }}
-  {{ breadcrumb(crate::csb::examination::CsbHearingDetailsPath, "csb.finish_examination.hearing_details") }}
+  {% if model.is_i1() %}
+    {{ breadcrumb(crate::csb::examination::CsbExaminationOverviewPath, "csb.examination") }}
+    {{ breadcrumb(crate::csb::examination::CsbFinishExaminationPath, "csb.finish_examination.title") }}
+  {% else %}
+    {{ breadcrumb(crate::csb::finalise::CsbFinalisePath, "csb.finalise.title") }}
+  {% endif %}
+  {{ breadcrumb(crate::csb::examination::CsbHearingDetailsPath { model: *model }, "csb.finish_examination.hearing_details") }}
 {% endblock %}
 {% block page_title %}{{ "csb.finish_examination.hearing_details"|trans }}{% endblock %}
 {% block content %}
@@ -23,7 +26,8 @@
     <div class="form-row">
       <p class="form-field form-field-xl">
         <label for="hearing-location">{{ "csb.hearing.location"|trans }}</label>
-        <input class="disabled" name="hearing-location"
+        <input class="disabled"
+               name="hearing-location"
                type="text"
                id="hearing-location"
                value="{{ election_config.public_session().location }}"
@@ -32,7 +36,7 @@
     </div>
     <div class="form-row">
       <p class="form-field form-field-md {% if form.data.is_invalid_date() %}error{% endif %}">
-        <label for="hearing-date">{{ "csb.hearing.date"|trans }}</label>
+        <label for="day_of_hearing">{{ "csb.hearing.date"|trans }}</label>
         <span class="date-input-row">
           <span class="date-separate hidden">
             <input type="text"
@@ -40,7 +44,6 @@
                    name="day_of_hearing"
                    id="day_of_hearing"
                    placeholder="{{ "common.date_field.day_placeholder"|trans }}"
-                   aria-label="{{ "common.date_field.day"|trans }}"
                    inputmode="numeric" />
             <span class="dash">-</span>
             <input type="text"
@@ -71,38 +74,26 @@
         </span>
       </p>
       <p class="form-field form-field-sm {% if form.data.is_invalid_time() %}error{% endif %}">
-        <label for="hearing-time">{{ "csb.hearing.time"|trans }}</label>
+        <label for="time_of_hearing">{{ "csb.hearing.time"|trans }}</label>
         <input type="text"
                class="time-input"
                name="time_of_hearing"
                id="time_of_hearing"
                value="{{ form.data.time_of_hearing }}"
-               aria-label="{{ "common.date_field.time"|trans }}"
                placeholder="hh:mm" />
         {% for error in form|error("time_of_hearing") %}<span class="error">{{ error }}</span>{% endfor %}
       </p>
     </div>
     <h3>{{ "csb.hearing.signing"|trans }}</h3>
     <div class="form-row">
-      {{ member_input("signer_0", form.data.signer_0) }}
-      {{ member_input("signer_1", form.data.signer_1) }}
+      <p class="form-field form-field-lg">
+        <label for="chair">{{ "csb.hearing.chair_name"|trans }}</label>
+        <input type="text" name="chair" id="chair" value="{{ form.data.chair }}" />
+      </p>
     </div>
-    <div class="form-row">
-      {{ member_input("signer_2", form.data.signer_2) }}
-      {{ member_input("signer_3", form.data.signer_3) }}
-    </div>
-    <div class="form-row">
-      {{ member_input("signer_4", form.data.signer_4) }}
-      {{ member_input("signer_5", form.data.signer_5) }}
-    </div>
-    <div class="form-row">
-      {{ member_input("signer_6", form.data.signer_6) }}
-      {{ member_input("signer_7", form.data.signer_7) }}
-    </div>
-    <div class="form-row">
-      {{ member_input("signer_8", form.data.signer_8) }}
-      {{ member_input("signer_9", form.data.signer_9) }}
-    </div>
+    {% for row in form.data.signer_rows() %}
+      <div class="form-row">{% for (index, signer) in row %}{{ member_input(index, signer) }}{% endfor %}</div>
+    {% endfor %}
     <button class="button primary" type="submit">{{ "action.save"|trans }}</button>
   </form>
 {% endblock %}
