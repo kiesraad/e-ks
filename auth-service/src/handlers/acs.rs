@@ -50,6 +50,7 @@ use tracing::{debug, error, info, warn};
 /// gets past the cookie gate. Ending the session there would let a link log a
 /// user out. An RD-signed Response naming the flow cookie's AuthnRequest cannot
 /// be provoked that way: the ID never left the signed POST body.
+#[derive(Debug, PartialEq, Eq)]
 enum Rejection {
     /// No RD-signed Response for the flow cookie's AuthnRequest was seen: bad
     /// or missing input, transport, or a Response to some other request.
@@ -575,20 +576,72 @@ impl ResponseChain<'_, '_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{config::AuthConfig, handlers::test_support::MockAuthState};
+    use crate::{
+        config::AuthConfig,
+        handlers::test_support::MockAuthState,
+        keys::{CertificatePem, KeyPair, KeySet, PrivateKeyPem, key_pair_paths},
+        saml::{
+            constants::{
+                EID_ACTING_SUBJECT_ID, EID_SERVICE_UUID, NAMEID_PERSISTENT, NAMEID_TRANSIENT,
+                NS_SAML, NS_SAMLP, STATUS_SUCCESS, SUBJECT_CONFIRMATION_BEARER,
+            },
+            crypto::sign,
+        },
+        types::{EndpointUrl, EntityId, ServiceUuid},
+    };
+    use chrono::{Duration, Utc};
+    use secrecy::ExposeSecret;
+    use std::path::PathBuf;
 
-    async fn load_signing_key() -> crate::keys::KeyPair {
-        let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures");
-        let cfg = AuthConfig::default().with_certs_dir(dir);
-        crate::keys::load_key_set(&cfg.dv.signing, &cfg.dv.encryption)
-            .await
-            .expect("load fixtures")
-            .signing
-            .remove(0)
+    /// The DV this test suite configures, and the RD of [`IdpMetadata::for_tests`].
+    const DV: &str = "urn:test:dv";
+    const RD: &str = "urn:test:rd";
+    const ACS: &str = "https://dv.example.com/saml/sp/acs";
+    const SERVICE_UUID: &str = "f847dc11-ac24-47b2-84a8-a057440ce56d";
+    /// eIDAS substantial: above [`MINIMUM_LOA`], so it passes the LoA check.
+    const LOA: &str = "http://eidas.europa.eu/LoA/substantial";
+    /// The `@ID` of the ArtifactResolve the RD's ArtifactResponse answers.
+    const RESOLVE_ID: &str = "_resolve1";
+    /// The AuthnRequest this browser's flow cookie is bound to.
+    const BOUND_ID: &str = "_bound1";
+    /// The BSN the RD encrypts into the assertion's ActingSubjectID.
+    const BSN: &str = "900070341";
+
+    fn fixtures_dir() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures")
+    }
+
+    /// A keypair from the committed fixtures, read synchronously (the library's
+    /// loaders are async).
+    fn load_key(name: &str) -> KeyPair {
+        let paths = key_pair_paths(&fixtures_dir(), name);
+        let read = |path: &std::path::Path| {
+            std::fs::read_to_string(path)
+                .unwrap_or_else(|e| panic!("read fixture {}: {e}", path.display()))
+        };
+        let cert = CertificatePem::parse(read(&paths.cert)).expect("fixture cert parses");
+        KeyPair::from_pem(cert, PrivateKeyPem::new(read(&paths.key)))
     }
 
     fn rd_metadata() -> IdpMetadata {
         IdpMetadata::for_tests()
+    }
+
+    /// A configured DV that trusts the `rd-signing-1` fixture as the RD's
+    /// signing key, so a hand-built ArtifactResponse validates against it.
+    async fn state_with_rd() -> AuthServiceState {
+        let mut cfg = AuthConfig::default().with_certs_dir(fixtures_dir());
+        cfg.dv.entity_id = EntityId::from_static(DV);
+        cfg.dv.service_uuid = ServiceUuid::from_static(SERVICE_UUID);
+        cfg.dv.acs_url = EndpointUrl::from_base_url(ACS, "ACS").expect("test ACS URL");
+        let keys = crate::keys::load_key_set(&cfg.dv.signing, &cfg.dv.encryption)
+            .await
+            .expect("load fixtures");
+        let rd = IdpMetadata {
+            signing_keys: vec![load_key("rd-signing-1")],
+            ..IdpMetadata::for_tests()
+        };
+        AuthServiceState::new(cfg, keys, None, Some(rd))
     }
 
     /// A jar carrying the flow cookie `/login` would have set, so a test gets
@@ -746,17 +799,17 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn build_artifact_resolve_produces_a_signed_message() {
+    #[test]
+    fn build_artifact_resolve_produces_a_signed_message() {
         let cfg = AuthConfig {
             dv: crate::config::DvConfig {
-                entity_id: crate::types::EntityId::from_static("urn:test:dv"),
+                entity_id: EntityId::from_static(DV),
                 ..Default::default()
             },
             ..AuthConfig::default()
         };
         let rd = rd_metadata();
-        let key = load_signing_key().await;
+        let key = load_key("dv-signing-1");
 
         let artifact = Artifact::parse("AAQAAartifact").expect("test artifact");
         let msg = build_artifact_resolve(&artifact, &cfg, &rd, &key)
@@ -766,5 +819,410 @@ mod tests {
         // The artifact and the destination ARS endpoint are carried in the XML.
         assert!(msg.xml.contains("AAQAAartifact"));
         assert!(msg.xml.contains("https://rd.example.com/ars"));
+    }
+
+    #[tokio::test]
+    async fn malformed_saml_artifact_renders_error_without_ending_session() {
+        // Refused where it is read, before it can be signed into an
+        // ArtifactResolve and sent to the RD.
+        let mock = MockAuthState::new(state_with_rd().await);
+        let headers = HeaderMap::new();
+        let resp = handle_acs(
+            SamlAcsPath,
+            State(mock.clone()),
+            State(mock.auth.clone()),
+            jar_with_flow_cookie(&mock.auth, BOUND_ID, &headers),
+            headers.clone(),
+            Query(HashMap::from([(
+                "SAMLart".to_string(),
+                "not base64!".to_string(),
+            )])),
+        )
+        .await;
+        assert_eq!(resp.status(), axum::http::StatusCode::UNAUTHORIZED);
+        assert!(!failure_ends_session(&resp));
+    }
+
+    #[tokio::test]
+    async fn a_failing_back_channel_renders_error_without_ending_session() {
+        // The artifact is well-formed and gets signed into an ArtifactResolve,
+        // but the ARS is unreachable: nothing RD-signed ever answered this
+        // browser's flow, so the session survives the transport failure.
+        let mut auth_cfg = AuthConfig::default().with_certs_dir(fixtures_dir());
+        auth_cfg.dv.entity_id = EntityId::from_static(DV);
+        let keys = crate::keys::load_key_set(&auth_cfg.dv.signing, &auth_cfg.dv.encryption)
+            .await
+            .expect("load fixtures");
+        let rd = IdpMetadata {
+            // A closed port on loopback: connection refused, no DNS, no waiting.
+            ars_url: EndpointUrl::from_metadata("https://127.0.0.1:1/ars", "ARS")
+                .expect("test ARS URL"),
+            ..IdpMetadata::for_tests()
+        };
+        let mock = MockAuthState::new(AuthServiceState::new(auth_cfg, keys, None, Some(rd)));
+
+        let headers = HeaderMap::new();
+        let resp = handle_acs(
+            SamlAcsPath,
+            State(mock.clone()),
+            State(mock.auth.clone()),
+            jar_with_flow_cookie(&mock.auth, BOUND_ID, &headers),
+            headers.clone(),
+            Query(artifact_params()),
+        )
+        .await;
+        assert_eq!(resp.status(), axum::http::StatusCode::UNAUTHORIZED);
+        assert!(!failure_ends_session(&resp));
+    }
+
+    // -----------------------------------------------------------------------
+    // The validation chain, driven over a real RD-signed ArtifactResponse
+    // (built and signed here with the `rd-signing-1` fixture) so the
+    // ArtifactResponse -> Response -> Assertion navigation the handler performs
+    // is exercised rather than stubbed. Only the mTLS back-channel that would
+    // deliver these bytes is left out.
+    // -----------------------------------------------------------------------
+
+    /// A SAML timestamp at `offset` from now.
+    fn ts(offset: Duration) -> String {
+        (Utc::now() + offset)
+            .format("%Y-%m-%dT%H:%M:%SZ")
+            .to_string()
+    }
+
+    /// How the RD answered: the Response Status, and with it whether the
+    /// Response carries an Assertion at all (eID §7.6.2).
+    enum Outcome {
+        Success,
+        /// The user pressed cancel at DigiD (TVS T3).
+        Cancelled,
+        /// Any other RD/DigiD error status (TVS L10).
+        Failed,
+    }
+
+    /// The parts of the RD's ArtifactResponse a test varies; [`Default`] is the
+    /// message a successful login against this DV produces.
+    struct Wire {
+        /// The ArtifactResolve `@ID` the ArtifactResponse answers.
+        resolve_id: &'static str,
+        /// The Response `@InResponseTo`: the AuthnRequest the RD is answering.
+        response_in_response_to: &'static str,
+        /// The assertion's own copy of it, in SubjectConfirmationData.
+        assertion_in_response_to: &'static str,
+        outcome: Outcome,
+        /// The key the ArtifactResponse is signed with.
+        signing_key: &'static str,
+        /// The assertion's `<saml:Audience>`: the DV it was minted for.
+        audience: &'static str,
+    }
+
+    impl Default for Wire {
+        fn default() -> Self {
+            Self {
+                resolve_id: RESOLVE_ID,
+                response_in_response_to: BOUND_ID,
+                assertion_in_response_to: BOUND_ID,
+                outcome: Outcome::Success,
+                signing_key: "rd-signing-1",
+                audience: DV,
+            }
+        }
+    }
+
+    /// The Response `<Status>` for an outcome. The two failure statuses differ
+    /// only in their second-level code, which is what the handler reads to tell
+    /// a cancellation (T3) from any other failure (L10).
+    fn status_xml(outcome: &Outcome) -> String {
+        let responder = "urn:oasis:names:tc:SAML:2.0:status:Responder";
+        match outcome {
+            Outcome::Success => {
+                format!(
+                    r#"<samlp:Status><samlp:StatusCode Value="{STATUS_SUCCESS}"/></samlp:Status>"#
+                )
+            }
+            Outcome::Cancelled => format!(
+                r#"<samlp:Status><samlp:StatusCode Value="{responder}"><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:AuthnFailed"/></samlp:StatusCode><samlp:StatusMessage>Authentication cancelled</samlp:StatusMessage></samlp:Status>"#
+            ),
+            Outcome::Failed => format!(
+                r#"<samlp:Status><samlp:StatusCode Value="{responder}"><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:RequestDenied"/></samlp:StatusCode><samlp:StatusMessage>Er is een fout opgetreden</samlp:StatusMessage></samlp:Status>"#
+            ),
+        }
+    }
+
+    /// An `<saml:EncryptedID>` carrying the acting subject's BSN, wrapped to the
+    /// DV's own encryption key the way the RD does it (eID §7.6.3.4, §9.3:
+    /// AES-256-CBC data, RSA-OAEP key wrap, addressed to us by `@Recipient`).
+    fn encrypted_acting_subject(dv_keys: &KeySet) -> String {
+        use bergshamra_enc::{EncContext, encrypt::encrypt};
+        use bergshamra_keys::{KeysManager, loader};
+
+        let recipient = dv_keys.encryption.first().expect("a DV encryption key");
+        let key_name = recipient.key_name.as_str();
+        let name_id = format!(
+            r#"<saml:NameID xmlns:saml="{NS_SAML}" Format="{NAMEID_PERSISTENT}" NameQualifier="urn:nl-eid-gdi:1.0:id:legacy-BSN">{BSN}</saml:NameID>"#
+        );
+        let template = format!(
+            r#"<saml:EncryptedID xmlns:saml="{NS_SAML}" xmlns:xenc="http://www.w3.org/2001/04/xmlenc#" xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><xenc:EncryptedData Type="http://www.w3.org/2001/04/xmlenc#Element"><xenc:EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes256-cbc"/><ds:KeyInfo><xenc:EncryptedKey Recipient="{DV}"><xenc:EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#rsa-oaep-mgf1p"/><ds:KeyInfo><ds:KeyName>{key_name}</ds:KeyName></ds:KeyInfo><xenc:CipherData><xenc:CipherValue></xenc:CipherValue></xenc:CipherData></xenc:EncryptedKey></ds:KeyInfo><xenc:CipherData><xenc:CipherValue></xenc:CipherValue></xenc:CipherData></xenc:EncryptedData></saml:EncryptedID>"#
+        );
+
+        let cert = loader::load_x509_cert_pem(recipient.cert_pem.as_str().as_bytes())
+            .expect("load DV encryption cert")
+            .with_name(key_name);
+        let mut mgr = KeysManager::new();
+        mgr.add_key(cert);
+        encrypt(&EncContext::new(mgr), &template, name_id.as_bytes()).expect("encrypt the NameID")
+    }
+
+    /// The Assertion a successful login carries: every §7.6.3 check passes for
+    /// the DV [`state_with_rd`] configures.
+    fn assertion_xml(wire: &Wire, dv_keys: &KeySet) -> String {
+        let issued = ts(Duration::zero());
+        let scd_expiry = ts(Duration::minutes(2));
+        let not_before = ts(-Duration::minutes(5));
+        let not_on_or_after = ts(Duration::minutes(5));
+        let in_response_to = wire.assertion_in_response_to;
+        let audience = wire.audience;
+        let encrypted_id = encrypted_acting_subject(dv_keys);
+        format!(
+            r#"<saml:Assertion ID="_assertion1" Version="2.0" IssueInstant="{issued}"><saml:Issuer>{RD}</saml:Issuer><saml:Subject><saml:NameID Format="{NAMEID_TRANSIENT}">transient-subject</saml:NameID><saml:SubjectConfirmation Method="{SUBJECT_CONFIRMATION_BEARER}"><saml:SubjectConfirmationData NotOnOrAfter="{scd_expiry}" Recipient="{ACS}" InResponseTo="{in_response_to}"/></saml:SubjectConfirmation></saml:Subject><saml:Conditions NotBefore="{not_before}" NotOnOrAfter="{not_on_or_after}"><saml:AudienceRestriction><saml:Audience>{audience}</saml:Audience></saml:AudienceRestriction></saml:Conditions><saml:AuthnStatement AuthnInstant="{issued}"><saml:AuthnContext><saml:AuthnContextClassRef>{LOA}</saml:AuthnContextClassRef></saml:AuthnContext></saml:AuthnStatement><saml:AttributeStatement><saml:Attribute Name="{EID_SERVICE_UUID}"><saml:AttributeValue>{SERVICE_UUID}</saml:AttributeValue></saml:Attribute><saml:Attribute Name="{EID_ACTING_SUBJECT_ID}"><saml:AttributeValue>{encrypted_id}</saml:AttributeValue></saml:Attribute></saml:AttributeStatement></saml:Assertion>"#
+        )
+    }
+
+    /// The RD's SOAP ArtifactResponse for `wire`, signed over the whole
+    /// envelope element as the RD signs it (eID §7.6.1).
+    fn soap_artifact_response(wire: &Wire, dv_keys: &KeySet) -> String {
+        let issued = ts(Duration::zero());
+        let status = status_xml(&wire.outcome);
+        // eID §7.6.2: an Assertion is present only on Success.
+        let assertion = match wire.outcome {
+            Outcome::Success => assertion_xml(wire, dv_keys),
+            Outcome::Cancelled | Outcome::Failed => String::new(),
+        };
+        let in_response_to = wire.response_in_response_to;
+        let response = format!(
+            r#"<samlp:Response ID="_response1" Version="2.0" IssueInstant="{issued}" Destination="{ACS}" InResponseTo="{in_response_to}"><saml:Issuer>{RD}</saml:Issuer>{status}{assertion}</samlp:Response>"#
+        );
+
+        let rd_key = load_key(wire.signing_key);
+        let cert = &rd_key.cert_base64;
+        // The enveloped-signature template the signer fills in, as the RD emits it.
+        let signature = format!(
+            r##"<dsig:Signature xmlns:dsig="http://www.w3.org/2000/09/xmldsig#"><dsig:SignedInfo><dsig:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/><dsig:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/><dsig:Reference URI="#_artifactresponse1"><dsig:Transforms><dsig:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/><dsig:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/></dsig:Transforms><dsig:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/><dsig:DigestValue></dsig:DigestValue></dsig:Reference></dsig:SignedInfo><dsig:SignatureValue></dsig:SignatureValue><dsig:KeyInfo><dsig:X509Data><dsig:X509Certificate>{cert}</dsig:X509Certificate></dsig:X509Data></dsig:KeyInfo></dsig:Signature>"##
+        );
+        let resolve_id = wire.resolve_id;
+        let artifact_response = format!(
+            r#"<samlp:ArtifactResponse xmlns:samlp="{NS_SAMLP}" xmlns:saml="{NS_SAML}" ID="_artifactresponse1" Version="2.0" IssueInstant="{issued}" InResponseTo="{resolve_id}"><saml:Issuer>{RD}</saml:Issuer>{signature}<samlp:Status><samlp:StatusCode Value="{STATUS_SUCCESS}"/></samlp:Status>{response}</samlp:ArtifactResponse>"#
+        );
+        let signed = sign(&artifact_response, &rd_key.key_pem).expect("sign as the RD");
+        wrap_in_soap_envelope(&signed).expect("SOAP envelope")
+    }
+
+    /// Run the handler's validation chain over `soap`, exactly as
+    /// `resolve_artifact_to_claims` does once the back-channel has answered.
+    fn chain_claims(auth: &AuthServiceState, soap: &str) -> Result<Claims, Rejection> {
+        let doc = parse_soap_envelope(soap).map_err(Rejection::Unanswered)?;
+        let rd = auth.rd_metadata().expect("test RD metadata");
+        let chain = ResponseChain {
+            doc: &doc,
+            auth_state: auth,
+            rd: rd.as_ref(),
+        };
+        chain.claims(
+            &MessageId::parse(RESOLVE_ID).expect("test resolve id"),
+            &MessageId::parse(BOUND_ID).expect("test bound id"),
+        )
+    }
+
+    /// Build the RD's answer for `wire` and run the chain over it.
+    async fn run_wire(wire: Wire) -> Result<Claims, Rejection> {
+        let auth = state_with_rd().await;
+        let soap = soap_artifact_response(&wire, auth.dv_keys());
+        chain_claims(&auth, &soap)
+    }
+
+    #[tokio::test]
+    async fn a_valid_artifact_response_yields_the_assertions_claims() {
+        let claims = run_wire(Wire::default()).await.expect("the chain accepts");
+
+        let acting = claims.acting_subject_id.expect("ActingSubjectID decrypted");
+        assert_eq!(acting.value.expose_secret(), BSN);
+        assert_eq!(claims.name_id.as_str(), "transient-subject");
+        assert_eq!(claims.service_uuid.as_deref(), Some(SERVICE_UUID));
+        assert_eq!(claims.authn_context_class_ref.as_deref(), Some(LOA));
+        assert_eq!(
+            claims.in_response_to.as_ref().map(MessageId::as_str),
+            Some(BOUND_ID)
+        );
+    }
+
+    #[tokio::test]
+    async fn a_cancelled_login_is_an_answered_failure() {
+        // The RD answered this browser's own flow, so the session ends (TVS T3).
+        assert_eq!(
+            run_wire(Wire {
+                outcome: Outcome::Cancelled,
+                ..Wire::default()
+            })
+            .await
+            .err(),
+            Some(Rejection::Answered(AuthFailure::Cancelled))
+        );
+    }
+
+    #[tokio::test]
+    async fn an_rd_error_status_is_an_answered_failure() {
+        // Same flow, but not a cancellation: the generic error page (TVS L10).
+        assert_eq!(
+            run_wire(Wire {
+                outcome: Outcome::Failed,
+                ..Wire::default()
+            })
+            .await
+            .err(),
+            Some(Rejection::Answered(AuthFailure::Error))
+        );
+    }
+
+    #[tokio::test]
+    async fn a_response_to_another_flow_never_ends_this_session() {
+        // A forced-login attempt: an RD-signed Response for someone else's
+        // AuthnRequest, handed to this browser. Rejected *before* the failure
+        // counts as answered, so a link cannot log the user out.
+        assert_eq!(
+            run_wire(Wire {
+                response_in_response_to: "_theirs",
+                ..Wire::default()
+            })
+            .await
+            .err(),
+            Some(Rejection::Unanswered(AuthFailure::Error))
+        );
+    }
+
+    #[tokio::test]
+    async fn an_assertion_spliced_into_another_flows_response_is_rejected() {
+        // The Response names this browser's AuthnRequest but the assertion
+        // inside it answers a different one (eID §7.6.2 gives both cardinality
+        // 1 for the same request), so the two must agree.
+        assert_eq!(
+            run_wire(Wire {
+                assertion_in_response_to: "_theirs",
+                ..Wire::default()
+            })
+            .await
+            .err(),
+            Some(Rejection::Answered(AuthFailure::Error))
+        );
+    }
+
+    #[tokio::test]
+    async fn an_artifact_response_answering_another_resolve_is_rejected() {
+        // eID §7.6.1: the ArtifactResponse must answer the ArtifactResolve we
+        // just sent, so a replayed one for an earlier resolve gets no further.
+        assert_eq!(
+            run_wire(Wire {
+                resolve_id: "_someotherresolve",
+                ..Wire::default()
+            })
+            .await
+            .err(),
+            Some(Rejection::Unanswered(AuthFailure::Error))
+        );
+    }
+
+    #[tokio::test]
+    async fn an_assertion_minted_for_another_dv_is_an_answered_failure() {
+        // eID §7.6.3.5 rule 5: the assertion must name this DV in its
+        // AudienceRestriction. The Response was RD-signed and answers this
+        // browser's own flow, so the failed login does end the session (L10).
+        assert_eq!(
+            run_wire(Wire {
+                audience: "urn:test:another-dv",
+                ..Wire::default()
+            })
+            .await
+            .err(),
+            Some(Rejection::Answered(AuthFailure::Error))
+        );
+    }
+
+    #[tokio::test]
+    async fn a_response_signed_by_anyone_but_the_rd_is_rejected() {
+        // Signed with a well-formed key that is simply not in the RD metadata
+        // (eID §9.2: verification keys come from verified metadata only).
+        assert_eq!(
+            run_wire(Wire {
+                signing_key: "dv-signing-1",
+                ..Wire::default()
+            })
+            .await
+            .err(),
+            Some(Rejection::Unanswered(AuthFailure::Error))
+        );
+    }
+
+    #[tokio::test]
+    async fn a_back_channel_body_that_is_not_a_soap_artifact_response_is_rejected() {
+        let auth = state_with_rd().await;
+        // Well-formed XML, but no SOAP envelope to unwrap.
+        assert_eq!(
+            chain_claims(&auth, "<html><body>proxy error</body></html>").err(),
+            Some(Rejection::Unanswered(AuthFailure::Error))
+        );
+        // Not XML at all: rejected at the single parse.
+        assert_eq!(
+            chain_claims(&auth, "502 Bad Gateway").err(),
+            Some(Rejection::Unanswered(AuthFailure::Error))
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // eID §7.6.3.5 rule 4 / §9.7: match-and-consume against the application's
+    // pending-request store.
+    // -----------------------------------------------------------------------
+
+    /// Claims that carry only what `confirm_pending_request` reads.
+    fn claims_answering(in_response_to: Option<&str>) -> Claims {
+        Claims {
+            name_id: crate::types::NameId::parse("transient-subject").expect("test NameID"),
+            authn_context_class_ref: None,
+            authenticating_authority: None,
+            acting_subject_id: None,
+            legal_subject_id: None,
+            service_uuid: None,
+            in_response_to: in_response_to.map(|id| MessageId::parse(id).expect("test message id")),
+        }
+    }
+
+    #[tokio::test]
+    async fn an_outstanding_authn_request_is_confirmed_once_and_then_consumed() {
+        let mock = MockAuthState::empty().with_pending(BOUND_ID);
+        let bound = MessageId::parse(BOUND_ID).expect("test message id");
+        let claims = claims_answering(Some(BOUND_ID));
+
+        assert!(confirm_pending_request(&mock, &bound, &claims).await);
+        // Consumed in the same step, so replaying the assertion finds nothing.
+        assert!(
+            !confirm_pending_request(&mock, &bound, &claims).await,
+            "a replayed assertion must not be accepted a second time"
+        );
+    }
+
+    #[tokio::test]
+    async fn an_assertion_is_confirmed_only_against_this_browsers_request() {
+        let mock = MockAuthState::empty().with_pending(BOUND_ID);
+        let bound = MessageId::parse(BOUND_ID).expect("test message id");
+
+        // Nothing to correlate: fails closed.
+        assert!(!confirm_pending_request(&mock, &bound, &claims_answering(None)).await);
+        // An assertion for a flow this browser did not start, even one the
+        // store still holds: login CSRF / forced login.
+        let mock = mock.with_pending("_theirs");
+        assert!(!confirm_pending_request(&mock, &bound, &claims_answering(Some("_theirs"))).await);
+        // And an ID the store never held, even though it is the bound one.
+        let unknown = MessageId::parse("_unknown").expect("test message id");
+        assert!(
+            !confirm_pending_request(&mock, &unknown, &claims_answering(Some("_unknown"))).await
+        );
     }
 }
