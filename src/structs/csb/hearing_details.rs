@@ -15,3 +15,21 @@ impl Default for HearingDetails {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_hearing_details_gets_current_time() {
+        let hearing_details = HearingDetails::default();
+        let now = Local::now().naive_local();
+
+        assert!(
+            // Give a little leeway
+            now.signed_duration_since(hearing_details.date_time)
+                .num_milliseconds()
+                < 20
+        );
+    }
+}

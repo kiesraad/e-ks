@@ -23,9 +23,8 @@
     <div class="form-row">
       <p class="form-field form-field-xl">
         <label for="hearing-location">{{ "csb.hearing.location"|trans }}</label>
-        <input class="disabled"
+        <input class="disabled" name="hearing-location"
                type="text"
-               name="hearing-location"
                id="hearing-location"
                value="{{ election_config.public_session().location }}"
                disabled>
