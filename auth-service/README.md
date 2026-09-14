@@ -59,7 +59,6 @@ paths are advertised in the SP metadata):
 |---|---|---|
 | `GET /saml/sp/metadata` | Serve the signed DV SP metadata (§8.3) | front, browser/RD |
 | `GET /saml/sp/acs` | Assertion Consumer Service (HTTP-Artifact, §7.4) | front, browser |
-| `GET /login/error` | Query-clean landing page for a failed authentication | front, browser |
 | `POST /saml/sp/logout` | Receive the RD `LogoutResponse` (§7.7.2) | front, browser |
 | `GET /saml/sp/autosubmit.js` | Script the HTTP-POST binding page submits | front, browser |
 

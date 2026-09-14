@@ -82,41 +82,6 @@ pub(crate) fn flow_cookie(
         .build()
 }
 
-/// One-shot marker: the failed callback ended a flow this browser started, so
-/// the error landing may end the local session (TVS L10).
-const FAILED_FLOW_COOKIE_HOST: &str = "__Host-eks-saml-failed";
-const FAILED_FLOW_COOKIE_DEV: &str = "eks-saml-failed";
-
-fn failed_flow_cookie_name(secure: bool) -> &'static str {
-    if secure {
-        FAILED_FLOW_COOKIE_HOST
-    } else {
-        FAILED_FLOW_COOKIE_DEV
-    }
-}
-
-/// Only has to survive the redirect to the error landing.
-pub(crate) fn failed_flow_cookie(acs_url: &EndpointUrl) -> Cookie<'static> {
-    let secure = acs_url.is_https();
-    Cookie::build((failed_flow_cookie_name(secure), "1"))
-        .http_only(true)
-        .secure(secure)
-        .same_site(SameSite::Lax)
-        .path("/")
-        .max_age(cookie::time::Duration::minutes(1))
-        .build()
-}
-
-/// Whether the marker is present, plus the jar with it removed. Only the name
-/// this deployment sets counts, so a related domain cannot plant one.
-pub(crate) fn take_failed_flow(jar: CookieJar, acs_url: &EndpointUrl) -> (bool, CookieJar) {
-    let secure = acs_url.is_https();
-    let name = failed_flow_cookie_name(secure);
-    let present = jar.get(name).is_some();
-    let removal = Cookie::build((name, "")).path("/").secure(secure).build();
-    (present, jar.remove(removal))
-}
-
 /// The AuthnRequest ID this browser's flow cookie is bound to, plus the jar with
 /// the one-shot cookie removed. `None` when the cookie is absent, malformed, or
 /// bound to a different `User-Agent`.
@@ -164,26 +129,6 @@ mod tests {
 
     fn acs(url: &str) -> EndpointUrl {
         EndpointUrl::from_base_url(url, "ACS").expect("test ACS URL")
-    }
-
-    #[test]
-    fn failed_flow_marker_is_taken_once() {
-        let secure_acs = acs("https://dv.example/");
-        let jar = CookieJar::new().add(failed_flow_cookie(&secure_acs));
-        let (present, jar) = take_failed_flow(jar, &secure_acs);
-        assert!(present);
-        assert!(jar.get(FAILED_FLOW_COOKIE_HOST).is_none());
-
-        let (present, _) = take_failed_flow(CookieJar::new(), &secure_acs);
-        assert!(!present);
-    }
-
-    #[test]
-    fn a_planted_insecure_marker_is_ignored_on_https() {
-        // only the `__Host-` name is set on https; the plain one is plantable
-        let jar = jar_with(FAILED_FLOW_COOKIE_DEV, "1");
-        let (present, _) = take_failed_flow(jar, &acs("https://dv.example/"));
-        assert!(!present, "a planted marker must not end the session");
     }
 
     fn id(value: &str) -> MessageId {
