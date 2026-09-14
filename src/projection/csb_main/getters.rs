@@ -4,7 +4,7 @@ use crate::{
     AppError, CsbMainStore, StreamId,
     structs::{
         common::Appellation,
-        csb::{RegisteredPoliticalGroup, RegisteredPoliticalGroupId},
+        csb::{Objection, ObjectionId, RegisteredPoliticalGroup, RegisteredPoliticalGroupId},
     },
 };
 
@@ -49,6 +49,19 @@ impl CsbMainStore {
             .iter()
             .filter(|group| Some(group.id) != except)
             .any(|group| group.has_appellation(appellation))
+    }
+
+    pub fn get_all_objections(&self) -> Vec<Objection> {
+        self.data.read().objections.clone()
+    }
+
+    pub fn get_objection(&self, objection_id: ObjectionId) -> Option<Objection> {
+        self.data
+            .read()
+            .objections
+            .iter()
+            .find(|o| o.id == objection_id)
+            .cloned()
     }
 }
 

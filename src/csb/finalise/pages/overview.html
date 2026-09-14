@@ -80,8 +80,14 @@
           <p>{{ "csb.finalise.objections_note"|trans }}</p>
         </div>
       </div>
-      <div class="examination-strip">
-        <a class="button secondary icon-plus" href="#">{{ "csb.finalise.add_objection"|trans }}</a>
+      <div class="examination-strip objection-list">
+        {% for objection in objections %}
+          <a href="{{ objection.update_path() }}" class="objection-block">
+            <div class="text">{{ objection.objection_text }}</div>
+          </a>
+        {% endfor %}
+        <a class="button secondary icon-plus"
+           href="{{ crate::csb::finalise::paths::CsbAddObjectionPath }}">{{ "csb.finalise.add_objection"|trans }}</a>
       </div>
     </div>
   </div>

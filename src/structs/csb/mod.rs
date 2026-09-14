@@ -1,9 +1,11 @@
 mod correction;
+mod objection;
 mod omission;
 mod phase;
 mod registered_political_group;
 
 pub use correction::{Correction, PersonCorrection, PersonCorrectionDelta};
+pub use objection::{Objection, ObjectionId};
 pub use omission::{
     Omission, OmissionCategory, OmissionDecision, OmissionId, OmissionPart, OmissionPlaceholders,
     OmissionStatus, OmissionText, OmissionTitle, OmissionType, RecoveryProgress,

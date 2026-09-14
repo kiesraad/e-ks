@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     Scope, StreamId,
     store::{StoreData, StoreEvent},
-    structs::csb::RegisteredPoliticalGroup,
+    structs::csb::{Objection, RegisteredPoliticalGroup},
 };
 
 /// Fixed stream ID shared by all CSB members for the global committee stream.
@@ -25,6 +25,7 @@ pub struct CsbMainStoreData {
     pub(crate) events: Vec<StoreEvent<CsbMainEvent>>,
     pub(crate) registered_political_groups: Vec<RegisteredPoliticalGroup>,
     pub(crate) list_order: Vec<StreamId>,
+    pub(crate) objections: Vec<Objection>,
 }
 
 impl StoreData for CsbMainStoreData {
@@ -53,6 +54,13 @@ impl StoreData for CsbMainStoreData {
             CsbMainAction::UpdateListOrder(order) => {
                 self.list_order = order;
             }
+            CsbMainAction::AddObjection(objection) => self.objections.push(objection),
+            CsbMainAction::UpdateObjection(objection) => {
+                if let Some(existing) = self.objections.iter_mut().find(|o| o.id == objection.id) {
+                    *existing = objection;
+                }
+            }
+            CsbMainAction::DeleteObjection(id) => self.objections.retain(|o| o.id != id),
         }
     }
 
