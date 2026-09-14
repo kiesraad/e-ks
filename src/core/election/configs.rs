@@ -1,4 +1,5 @@
 use chrono::{Datelike, NaiveDate, NaiveDateTime, NaiveTime};
+use std::collections::BTreeSet;
 
 use crate::{
     ElectoralDistrict,
@@ -253,6 +254,18 @@ impl ElectionConfig {
             .iter()
             .filter(|d| !used_districts.contains(d))
             .cloned()
+            .collect()
+    }
+
+    /// The submitted districts that belong to this election.
+    pub fn known_districts(
+        &self,
+        submitted: &BTreeSet<ElectoralDistrict>,
+    ) -> BTreeSet<ElectoralDistrict> {
+        submitted
+            .iter()
+            .filter(|district| self.electoral_districts().contains(district))
+            .copied()
             .collect()
     }
 

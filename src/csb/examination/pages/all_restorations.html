@@ -44,7 +44,11 @@
           {{ restorations::omission_group("candidate_list.title_plural"|trans, all_omissions.candidate_lists.as_slice() ) }}
         {% endif %}
         {% for candidate in all_omissions.candidates %}
-          {{ restorations::omission_group(candidate.person.name.display() , candidate.omissions.as_slice()) }}
+          {% if candidate.removed %}
+            {{ restorations::omission_group("csb.omission.removed_candidate"|trans(&candidate.person.name.display() ) , candidate.omissions.as_slice()) }}
+          {% else %}
+            {{ restorations::omission_group(candidate.person.name.display() , candidate.omissions.as_slice()) }}
+          {% endif %}
         {% endfor %}
       {% endif %}
     </div>

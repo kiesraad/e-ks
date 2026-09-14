@@ -117,9 +117,10 @@ fn declarations_of_support_omissions(lists: &[CandidateList]) -> Vec<Omission> {
         return Vec::new();
     };
 
+    let districts: Vec<ElectoralDistrict> = last_list.electoral_districts.iter().copied().collect();
     vec![declarations_of_support_omission(
         b"fixture_omission_declarations_other_districts",
-        &last_list.electoral_districts,
+        &districts,
     )]
 }
 

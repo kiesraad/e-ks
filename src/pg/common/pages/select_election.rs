@@ -65,7 +65,7 @@ pub async fn select_election_submit<S: AppRequestState>(
     mut session: Session,
     axum::Form(form): axum::Form<SelectElectionForm>,
 ) -> Result<Response, AppError> {
-    #[cfg(not(feature = "fixtures"))]
+    #[cfg(not(all(feature = "fixtures", feature = "dev-features")))]
     let _ = jar;
 
     // Committee sessions use CSB stores, not app stores; never create an
@@ -78,11 +78,11 @@ pub async fn select_election_submit<S: AppRequestState>(
         return Ok(Redirect::to(&SelectElectionPath.to_string()).into_response());
     };
 
-    // Only available with the `fixtures` feature: this is a test/dev shortcut
-    // into the committee (CSB) role. An explicit escalation: a brand-new
-    // committee session replaces the political-group one (the old token dies
-    // in `establish_session`), it is never mutated into one.
-    #[cfg(feature = "fixtures")]
+    // Only available with the `fixtures` and `dev-features` features: this is a
+    // test/dev shortcut into the committee (CSB) role. An explicit escalation:
+    // a brand-new committee session replaces the political-group one (the old
+    // token dies in `establish_session`), it is never mutated into one.
+    #[cfg(all(feature = "fixtures", feature = "dev-features"))]
     if form.login_as_csb() {
         let user = crate::CsbUser::Developer;
 
@@ -284,10 +284,10 @@ mod tests {
         assert_eq!(session.user.election(), Some(ElectionConfig::EK27));
     }
 
-    /// The fixtures-only CSB shortcut replaces the political-group session
+    /// The development-only CSB shortcut replaces the political-group session
     /// with a brand-new committee session: the submitted token is dead
     /// afterwards, and the freshly minted one reaches CSB routes.
-    #[cfg(feature = "fixtures")]
+    #[cfg(all(feature = "fixtures", feature = "dev-features"))]
     #[tokio::test]
     async fn login_as_csb_replaces_the_session_with_a_committee_one() {
         let state = AppState::new_for_tests().await;

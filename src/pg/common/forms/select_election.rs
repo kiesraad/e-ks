@@ -4,14 +4,15 @@ use crate::ElectionConfig;
 
 /// Form for the post-login election selection page. Same region semantics as
 /// `SwitchElectionForm` but adds an optional `load_fixtures` toggle that only
-/// has an effect when the `dev-features` / `fixtures` features are compiled in.
+/// has an effect when the `fixtures` feature is compiled in, and a
+/// `login_as_csb` toggle that additionally needs `dev-features`.
 #[derive(Deserialize)]
 pub struct SelectElectionForm {
     election: String,
     region_province: Option<String>,
     region_water_council: Option<String>,
     load_fixtures: Option<String>,
-    #[cfg(feature = "fixtures")]
+    #[cfg(all(feature = "fixtures", feature = "dev-features"))]
     login_as_csb: Option<String>,
 }
 
@@ -32,7 +33,7 @@ impl SelectElectionForm {
         self.load_fixtures.is_some()
     }
 
-    #[cfg(feature = "fixtures")]
+    #[cfg(all(feature = "fixtures", feature = "dev-features"))]
     pub fn login_as_csb(&self) -> bool {
         self.login_as_csb.is_some()
     }

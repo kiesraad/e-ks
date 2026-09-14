@@ -252,7 +252,10 @@ pub fn eml210(
             // If there are multiple districts but this list is not linked to all districts,
             // we always choose the first district (to avoid collisions with other lists).
             // The full set of electoral districts can be found in the ListData.
-            let district = list.electoral_districts[0];
+            let district = list
+                .electoral_districts
+                .first()
+                .ok_or(AppError::InternalServerError)?;
             NominationContestIdentifier::new(
                 ContestId::new(district.region_number().to_string())?,
                 district.title(),
@@ -276,7 +279,7 @@ pub fn eml210(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::str::FromStr;
+    use std::{collections::BTreeSet, str::FromStr};
 
     use crate::{
         AppError, Context, ElectoralDistrict, PgStore,
@@ -377,7 +380,7 @@ mod tests {
         let mut context = Context::new_test_without_db();
         context.election = ElectionConfig::PS27(crate::Province::Groningen);
         let mut list = create_sample_list(&store).await.unwrap();
-        list.list.electoral_districts = vec![ElectoralDistrict::PsGroningen];
+        list.list.electoral_districts = BTreeSet::from([ElectoralDistrict::PsGroningen]);
         list.list.update_districts(&store).await.unwrap();
 
         // test
@@ -406,7 +409,7 @@ mod tests {
         context.election = ElectionConfig::PS27(crate::Province::Limburg);
         let mut list = create_sample_list(&store).await.unwrap();
         list.list.electoral_districts =
-            vec![ElectoralDistrict::PsMaastricht, ElectoralDistrict::PsVenlo];
+            BTreeSet::from([ElectoralDistrict::PsMaastricht, ElectoralDistrict::PsVenlo]);
         list.list.update_districts(&store).await.unwrap();
 
         // test
@@ -434,7 +437,7 @@ mod tests {
         let mut context = Context::new_test_without_db();
         context.election = ElectionConfig::WS27(crate::WaterCouncil::Fryslan);
         let mut list = create_sample_list(&store).await.unwrap();
-        list.list.electoral_districts = vec![ElectoralDistrict::WsFryslan];
+        list.list.electoral_districts = BTreeSet::from([ElectoralDistrict::WsFryslan]);
         list.list.update_districts(&store).await.unwrap();
 
         // test

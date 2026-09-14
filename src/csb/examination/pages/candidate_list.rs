@@ -1,5 +1,6 @@
 use askama::Template;
 use axum::response::{IntoResponse, Response};
+use std::collections::BTreeSet;
 
 use crate::{
     AnyLocale, AppError, Context, CsbContext, CsbStore, ElectoralDistrict, HtmlTemplate,
@@ -19,7 +20,7 @@ use crate::{
 struct CsbCandidateListTemplate {
     political_group: CsbPoliticalGroup,
     list_id: CandidateListId,
-    electoral_districts: Vec<ElectoralDistrict>,
+    electoral_districts: BTreeSet<ElectoralDistrict>,
     candidates: Vec<CsbCandidate>,
     omissions: Vec<Omission>,
     is_scrapped: bool,
@@ -217,7 +218,7 @@ mod tests {
         let list_id = CandidateListId::new();
         store.add_candidate_list(sample_candidate_list(list_id));
         let mut corrected = sample_candidate_list(list_id);
-        corrected.electoral_districts = vec![ElectoralDistrict::Groningen];
+        corrected.electoral_districts = BTreeSet::from([ElectoralDistrict::Groningen]);
         store.set_paper_corrected_candidate_list(corrected);
 
         let response = overview(

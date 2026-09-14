@@ -363,6 +363,7 @@ pub async fn update_in_database<D>(
     pool: &sqlx::PgPool,
     cipher: &EventCipher,
     event: D::Event,
+    expected_last_id: Option<usize>,
 ) -> Result<(), AppError>
 where
     D: StoreData,
@@ -378,7 +379,10 @@ where
         }
     };
 
-    if let Err(err) = replay.reject_append(store.stream_id) {
+    if let Err(err) = replay
+        .reject_append(store.stream_id)
+        .and_then(|()| super::check_expected_event_id(expected_last_id, last_id))
+    {
         tx.rollback().await?;
         return Err(err);
     }

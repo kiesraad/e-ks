@@ -214,7 +214,7 @@ mod tests {
             id,
             CandidateList {
                 id,
-                electoral_districts: districts,
+                electoral_districts: districts.into_iter().collect(),
                 ..Default::default()
             },
         );

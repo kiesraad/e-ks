@@ -317,6 +317,10 @@
 }
 
 /* Assessed part by part: the decisions stack under the omission. */
+.omission-status-row.highlighted {
+  background-color: var(--orange-100);
+}
+
 .omission-status-row-per-part {
   align-items: stretch;
   flex-direction: column;
@@ -345,12 +349,20 @@
   }
 
   .omission-status-control {
-    justify-content: flex-end;
+    margin-inline-start: auto;
+    width: 17rem;
   }
 }
 
+/* Fixed width, so the text next to it does not reflow when the status changes */
 .omission-status-control {
   display: flex;
   flex-shrink: 0;
   gap: var(--space-2);
+  width: 21rem;
+
+  .button {
+    flex: 1 1 0;
+    width: auto;
+  }
 }

@@ -205,6 +205,7 @@ omission:
     not_recoverable: Not recoverable
     recoverable: Recoverable
     title: Overview
+  removed_candidate: "{} (removed)"
   title: Omissions
   title_for:
     appellation: Omissions appellation

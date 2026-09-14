@@ -3,6 +3,7 @@ use axum::{
     extract::State,
     response::{IntoResponse, Response},
 };
+use std::collections::BTreeSet;
 
 use crate::{
     AppError, AppRequestState, Context, CsbAction, CsbContext, CsbStore, ElectoralDistrict,
@@ -33,7 +34,7 @@ use crate::{
 struct CsbCandidateTemplate {
     political_group: CsbPoliticalGroup,
     list_id: CandidateListId,
-    electoral_districts: Vec<ElectoralDistrict>,
+    electoral_districts: BTreeSet<ElectoralDistrict>,
     candidate: Person,
     details: PaperCorrectedPersonDetails,
     position: PaperCorrected,
@@ -551,7 +552,7 @@ mod tests {
         store.add_person(person);
         store.add_candidate_list(list.clone());
         let mut corrected = list;
-        corrected.electoral_districts = vec![ElectoralDistrict::Groningen];
+        corrected.electoral_districts = BTreeSet::from([ElectoralDistrict::Groningen]);
         store.set_paper_corrected_candidate_list(corrected);
 
         let response = overview(

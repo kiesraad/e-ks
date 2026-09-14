@@ -113,6 +113,7 @@ mod tests {
         http::{StatusCode, header},
         response::IntoResponse,
     };
+    use std::collections::BTreeSet;
 
     use crate::{
         AppState, CsbAction, CsbMainAction, CsbUser, ElectionConfig, ElectoralDistrict,
@@ -147,7 +148,7 @@ mod tests {
             ..PgStoreData::default()
         };
         let list = CandidateList {
-            electoral_districts: vec![ElectoralDistrict::Groningen],
+            electoral_districts: BTreeSet::from([ElectoralDistrict::Groningen]),
             ..Default::default()
         };
         snapshot.candidate_lists.insert(list.id, list);
@@ -288,7 +289,7 @@ mod tests {
         snapshot.persons.insert(first.id, first.clone());
         snapshot.persons.insert(second.id, second.clone());
         let list = CandidateList {
-            electoral_districts: vec![ElectoralDistrict::Groningen],
+            electoral_districts: BTreeSet::from([ElectoralDistrict::Groningen]),
             candidates: vec![first.id, second.id],
             ..Default::default()
         };

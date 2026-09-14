@@ -45,6 +45,7 @@ pub async fn omissions(
 mod tests {
     use super::*;
     use axum::http::StatusCode;
+    use std::collections::BTreeSet;
 
     use crate::{
         structs::csb::{Omission, OmissionCategory, OmissionStatus, sample_omission},
@@ -183,7 +184,7 @@ mod tests {
         let mut lists = Vec::new();
         for district in [ElectoralDistrict::Groningen, ElectoralDistrict::Utrecht] {
             let mut list = sample_candidate_list(CandidateListId::new());
-            list.electoral_districts = vec![district];
+            list.electoral_districts = BTreeSet::from([district]);
             lists.push(list.id);
             store.add_candidate_list(list);
         }

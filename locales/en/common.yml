@@ -40,6 +40,8 @@ rate_limit:
   events_message: Too many changes in a short time. Please wait a while before trying again.
   title: Too many requests
 request_error:
+  conflict_message: "The data was changed while your request was being processed, possibly in another tab. Refresh the page and try again."
+  conflict_title: Data changed
   csrf_message: "The submitted form could not be verified because it was invalid or had expired. Go back, refresh the page, and try again."
   csrf_title: Form expired
   too_large_message: The submitted file is larger than allowed.

@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use uuid::Uuid;
 
 use crate::{
@@ -41,7 +42,7 @@ pub async fn load(store: &PgStore) -> Result<(), AppError> {
             b"the_one_and_only_fixture_candidate_list",
         )
         .into(),
-        electoral_districts: vec![election.electoral_districts()[0]],
+        electoral_districts: BTreeSet::from([election.electoral_districts()[0]]),
         candidates: valid_person_ids.clone(),
         ..Default::default()
     };
@@ -52,7 +53,7 @@ pub async fn load(store: &PgStore) -> Result<(), AppError> {
         return Ok(());
     }
 
-    let second_districts: Vec<_> = CandidateList::available_districts(store, &election)
+    let second_districts: BTreeSet<_> = CandidateList::available_districts(store, &election)
         .into_iter()
         .take(2)
         .collect();
@@ -66,7 +67,7 @@ pub async fn load(store: &PgStore) -> Result<(), AppError> {
     .create(store)
     .await?;
 
-    let remaining: Vec<_> = CandidateList::available_districts(store, &election)
+    let remaining: BTreeSet<_> = CandidateList::available_districts(store, &election)
         .into_iter()
         .take(4)
         .collect();
@@ -130,7 +131,9 @@ mod tests {
             lists[0].list.electoral_districts,
             ElectionConfig::WS27(WaterCouncil::Rivierenland)
                 .electoral_districts()
-                .to_vec()
+                .iter()
+                .copied()
+                .collect::<BTreeSet<_>>()
         );
     }
 

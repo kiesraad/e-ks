@@ -170,7 +170,10 @@ mod tests {
     /// An undeleted group named `appellation` with one list in `districts`.
     fn group(appellation: &str, districts: Vec<ElectoralDistrict>) -> CsbPoliticalGroup {
         CsbPoliticalGroup {
-            candidate_list_districts: HashMap::from([(CandidateListId::new(), districts)]),
+            candidate_list_districts: HashMap::from([(
+                CandidateListId::new(),
+                districts.into_iter().collect(),
+            )]),
             ..CsbPoliticalGroup::sample(appellation)
         }
     }

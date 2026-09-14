@@ -46,6 +46,7 @@ pub async fn all_restorations(
 mod tests {
     use super::*;
     use reqwest::StatusCode;
+    use std::collections::BTreeSet;
 
     use crate::{
         CsbAction, ElectoralDistrict,
@@ -87,7 +88,10 @@ mod tests {
         let list_id = CandidateListId::new();
         store.add_candidate_list(CandidateList {
             id: list_id,
-            electoral_districts: vec![ElectoralDistrict::Utrecht, ElectoralDistrict::Groningen],
+            electoral_districts: BTreeSet::from([
+                ElectoralDistrict::Utrecht,
+                ElectoralDistrict::Groningen,
+            ]),
             candidates: vec![person_id],
             created_at: UtcDateTime::now(),
         });
@@ -156,7 +160,7 @@ mod tests {
         let list_id = CandidateListId::new();
         store.set_paper_corrected_candidate_list(CandidateList {
             id: list_id,
-            electoral_districts: vec![ElectoralDistrict::Groningen],
+            electoral_districts: BTreeSet::from([ElectoralDistrict::Groningen]),
             candidates: vec![person_id],
             created_at: UtcDateTime::now(),
         });

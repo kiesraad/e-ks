@@ -13,7 +13,7 @@ use crate::{GithubUserId, Locale, trans};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CsbUser {
     /// Dev-login bypass, with no identity beyond the login method itself.
-    #[cfg(any(feature = "dev-features", feature = "fixtures", test))]
+    #[cfg(any(feature = "dev-features", test))]
     Developer,
     /// GitHub OAuth login, identified by the account's numeric id.
     Github { user_id: GithubUserId },
@@ -29,7 +29,7 @@ impl CsbUser {
     /// Human-readable label shown in the audit log.
     pub fn describe(&self, locale: Locale) -> String {
         match self {
-            #[cfg(any(feature = "dev-features", feature = "fixtures", test))]
+            #[cfg(any(feature = "dev-features", test))]
             CsbUser::Developer => trans!("audit_log.user.developer", locale),
             CsbUser::Github { user_id } => {
                 format!("{} {user_id}", trans!("audit_log.user.github", locale))

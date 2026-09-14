@@ -1,6 +1,6 @@
 use axum::{extract::FromRequestParts, http::request::Parts};
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use crate::{
     AppError, AppRequestState, CsbStream, ElectoralDistrict, Session, StreamId,
@@ -36,7 +36,7 @@ pub struct CsbPoliticalGroup {
     pub first_non_scrapped_candidate_name: Option<FullName>,
     /// The electoral districts of each candidate list, which is how the
     /// shared templates name a list (see [`Self::candidate_list_districts`]).
-    pub candidate_list_districts: HashMap<CandidateListId, Vec<ElectoralDistrict>>,
+    pub candidate_list_districts: HashMap<CandidateListId, BTreeSet<ElectoralDistrict>>,
 }
 
 impl CsbPoliticalGroup {
@@ -75,10 +75,14 @@ impl CsbPoliticalGroup {
     }
 
     /// The districts of one candidate list, empty when the list is unknown.
-    pub fn candidate_list_districts(&self, list_id: &CandidateListId) -> &[ElectoralDistrict] {
+    pub fn candidate_list_districts(
+        &self,
+        list_id: &CandidateListId,
+    ) -> impl Iterator<Item = &ElectoralDistrict> {
         self.candidate_list_districts
             .get(list_id)
-            .map_or(&[], Vec::as_slice)
+            .into_iter()
+            .flatten()
     }
 
     /// The name shown for the group. Once its appellation is scrapped, the
@@ -167,7 +171,7 @@ impl CsbPoliticalGroup {
             first_non_scrapped_candidate_name: None,
             candidate_list_districts: HashMap::from([(
                 CandidateListId::new(),
-                vec![ElectoralDistrict::Groningen],
+                BTreeSet::from([ElectoralDistrict::Groningen]),
             )]),
         }
     }
