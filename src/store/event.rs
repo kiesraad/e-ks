@@ -106,7 +106,7 @@ pub(crate) fn event_aad(
 /// Compute the chain hash for an event.
 ///
 /// `body` is the bytes that get persisted for this event: the `nonce ‖ ciphertext
-/// ‖ tag` blob for the file and database backends, or the postcard encoding of the
+/// ‖ tag` blob for the file and database backends, or the CBOR encoding of the
 /// plaintext payload for the in-memory backend. Hashing the *encrypted* blob (which
 /// is indistinguishable from random and carries a fresh nonce) is what makes it
 /// safe to store the hash unencrypted: it commits to the stored event without

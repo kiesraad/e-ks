@@ -54,6 +54,7 @@ regex = "1.12.3"
 # blessed.rs / dtolnay
 anyhow = "1.0.102"
 serde = { version = "1.0.228", features = ["derive"] }
+serde_bytes = "0.11.19"
 serde_json = "1.0.150"
 serde_urlencoded = "0.7"
 thiserror = "2"
@@ -70,19 +71,18 @@ url = "2.5.8"
 reqwest = { version = "0.13.4", default-features = false, features = ["json", "stream"] }
 
 # well maintained + many downloads
-askama = { version = "0.16.0", default-features = false, features = ["config", "derive", "std"] } # 38M downloads (Dirkjan Ochtman)
-async_zip = { version = "0.0.19", features = ["tokio", "deflate"] } # 5M downloads (Harry Majored)
-chrono-tz = "0.10.4" # 125M downloads (Dirkjan Ochtman)
-csv = "1.4.0" # 203M downloads (Andrew Gallant)
-phf = { version = "0.14.0", default-features = false } # 411M downloads (Steven Fackler)
+askama = { version = "0.16.0", default-features = false, features = ["config", "derive", "std"] } # 48M downloads (Dirkjan Ochtman)
+async_zip = { version = "0.0.19", features = ["tokio", "deflate"] } # 6M downloads (Harry Majored)
+chrono-tz = "0.10.4" # 154M downloads (Dirkjan Ochtman)
+csv = "1.4.0" # 245M downloads (Andrew Gallant)
+phf = { version = "0.14.0", default-features = false } # 539M downloads (Steven Fackler)
 phf_codegen = "0.14.0"
-aes-gcm = "0.11.0" # 118M downloads (RustCrypto)
-ciborium = "0.2.2" # 147M downloads (Nathaniel McCallum)
-hkdf = "0.13.0" # 198M downloads (RustCrypto)
-secrecy = "0.10.3" # 126M downloads (Tony Arcieri)
-serde_bytes = "0.11.19" # 391M downloads (David Tolnay)
-urlencoding = "2.1.3" # 213M downloads (Kornel)
-zeroize = "1.9.0" # 359M downloads (RustCrypto)
+aes-gcm = "0.11.0" # 155M downloads (RustCrypto)
+ciborium = "0.2.2" # 236M downloads (Nathaniel McCallum)
+hkdf = "0.13.0" # 259M downloads (RustCrypto)
+secrecy = "0.10.3" # 161M downloads (Tony Arcieri)
+urlencoding = "2.1.3" # 264M downloads (Kornel)
+zeroize = "1.9.0" # 689M downloads (RustCrypto)
 
 # development tooling
 dotenvy = "0.15.7"
