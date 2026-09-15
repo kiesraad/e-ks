@@ -53,9 +53,11 @@ import_errors:
     utf8: "veld {} bevat onleesbare tekst. Sla het bestand op als UTF-8 en probeer het opnieuw. {}"
     utf8_with_position: "record {} op regel {} bevat onleesbare tekst in veld {} rond teken {}. Sla het bestand op als UTF-8 en probeer het opnieuw. {}"
   file_too_large: "Het geselecteerde bestand is te groot. De maximale grootte is {} MB."
+  duplicate_columns: "De volgende kolommen komen meer dan één keer voor: {}. Houd er van elk één over."
   format_error: "De kandidaat op regel {} kon niet worden geïmporteerd: {}"
   invalid_file_type: Alleen CSV-bestanden (.csv) worden geaccepteerd.
-  invalid_headers: Gebruik dezelfde kolomnamen als in het geëxporteerde CSV-bestand.
+  invalid_headers: De eerste regel van het bestand bevat niet de verwachte kolomnamen. Download het CSV-sjabloon en gebruik dit als uitgangspunt.
+  missing_columns: "De volgende verplichte kolommen ontbreken: {}."
   missing_file: Selecteer een CSV-bestand om te importeren.
   parse_error: "De kandidaat op regel {} kon niet worden geïmporteerd. Controleer veld '{}': {}"
   too_many_errors: "Het bestand bevat te veel fouten. Alleen de eerste {} fouten worden hier getoond; herstel deze en probeer het opnieuw."
@@ -79,5 +81,6 @@ title_single: Kandidatenlijst
 view:
   empty: Deze kandidatenlijst heeft nog geen kandidaten.
   import_capped: "Het CSV-bestand bevatte meer dan {} kandidaten. Alleen de eerste {} zijn geïmporteerd."
+  import_ignored_columns: "De volgende kolommen in het CSV-bestand zijn niet herkend en overgeslagen: {}. Controleer de kolomnamen als deze gegevens wel geïmporteerd hadden moeten worden."
   max_candidates_exceeded: "De lijst mag maximaal uit {} kandidaten bestaan."
   max_candidates_reached: "Je kunt niet meer dan {} kandidaten aan een kandidatenlijst toevoegen."

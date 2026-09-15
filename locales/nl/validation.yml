@@ -3,6 +3,7 @@ bsn_already_exists: Dit BSN is al in gebruik.
 choose_at_least_one_option: Kies ten minste één optie.
 date_of_birth_in_future: Geboortedatum kan niet in de toekomst zijn.
 invalid_bsn: Ongeldig BSN.
+invalid_date_format: "Gebruik het formaat dd-mm-jjjj, bijvoorbeeld 31-12-1990."
 invalid_email: Ongeldig e-mailadres.
 invalid_place_of_residence: Deze woonplaats is niet gevonden in de Basisregistratie Adressen en Gebouwen (BAG)
 invalid_postal_code: "De postcode is ongeldig, gebruik het formaat 1234AB."
