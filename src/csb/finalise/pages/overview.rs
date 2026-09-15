@@ -83,8 +83,16 @@ mod tests {
 
         assert!(body.contains(r#"href="/csb/examination/i4.pdf""#));
         assert!(body.contains(r#"href="/csb/examination/i4.docx""#));
-        assert!(body.contains("Hearing details"));
         assert!(body.contains("Add objection"));
+    }
+
+    /// The I 4 hearing is recorded here, in phase 4, and nowhere else.
+    #[tokio::test]
+    async fn overview_links_the_i4_hearing_details() {
+        let body = render(CsbMainStore::new_for_test(), vec![]).await;
+
+        assert!(body.contains("Hearing details"));
+        assert!(body.contains(r#"href="/csb/examination/hearing-details/i4""#));
     }
 
     #[tokio::test]

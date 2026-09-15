@@ -4,7 +4,10 @@ use crate::{
     AppError, CsbMainStore, StreamId,
     structs::{
         common::Appellation,
-        csb::{Objection, ObjectionId, RegisteredPoliticalGroup, RegisteredPoliticalGroupId},
+        csb::{
+            HearingDetails, HearingModel, Objection, ObjectionId, RegisteredPoliticalGroup,
+            RegisteredPoliticalGroupId,
+        },
     },
 };
 
@@ -34,6 +37,10 @@ impl CsbMainStore {
             .find(|group| group.id == id)
             .cloned()
             .ok_or(AppError::GenericNotFound)
+    }
+
+    pub fn get_hearing_details(&self, model: HearingModel) -> Option<HearingDetails> {
+        self.data.read().hearing_details.get(&model).cloned()
     }
 
     /// Whether a registered group other than `except` already carries

@@ -11,7 +11,8 @@
           <h3>{{ "csb.finalise.i4_title"|trans }}</h3>
           <p>{{ "csb.finalise.i4_note"|trans }}</p>
         </div>
-        <a class="button secondary icon-plus-end" href="#">{{ "csb.finish_examination.hearing_details"|trans }}</a>
+        <a class="button secondary icon-plus-end"
+           href="{{ crate::csb::examination::CsbHearingDetailsPath { model: crate::structs::csb::HearingModel::I4 } }}">{{ "csb.finish_examination.hearing_details"|trans }}</a>
       </div>
       <div class="examination-strip">
         <a href="{{ CsbI4DocxDownloadPath }}"

@@ -1,10 +1,12 @@
 mod correction;
+mod hearing_details;
 mod objection;
 mod omission;
 mod phase;
 mod registered_political_group;
 
 pub use correction::{Correction, PersonCorrection, PersonCorrectionDelta};
+pub use hearing_details::{HearingDetails, HearingModel};
 pub use objection::{Objection, ObjectionId};
 pub use omission::{
     Omission, OmissionCategory, OmissionDecision, OmissionId, OmissionPart, OmissionPlaceholders,

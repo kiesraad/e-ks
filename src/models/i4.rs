@@ -9,7 +9,14 @@ use super::{
     layout::markdown_document,
     markdown::{filters, model_template},
 };
-use crate::{AppError, core::election};
+use crate::{
+    AppError,
+    core::{
+        constants::{DEFAULT_DATE_FORMAT, DEFAULT_TIME_FORMAT},
+        election,
+    },
+    structs::csb::HearingDetails,
+};
 
 #[derive(Debug)]
 pub struct I4 {
@@ -47,6 +54,21 @@ impl From<election::PublicSession> for PublicSession {
             time: session.formatted_time(),
             chair: session.chair.to_string(),
             members: session.members.iter().map(ToString::to_string).collect(),
+        }
+    }
+}
+
+impl PublicSession {
+    /// Override the moment and the signatories configured for the election with
+    /// the hearing details the committee entered. The location stays
+    /// configured: the form shows it read-only.
+    pub fn with_hearing_details(self, details: HearingDetails) -> Self {
+        Self {
+            date: details.date_time.format(DEFAULT_DATE_FORMAT).to_string(),
+            time: details.date_time.format(DEFAULT_TIME_FORMAT).to_string(),
+            chair: details.chair,
+            members: details.members,
+            ..self
         }
     }
 }
