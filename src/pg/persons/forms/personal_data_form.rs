@@ -322,7 +322,7 @@ mod tests {
         assert!(errors.contains(&("name.initials".to_string(), ValidationError::InvalidValue)));
         assert!(errors.contains(&(
             "personal_data.date_of_birth".to_string(),
-            ValidationError::InvalidValue
+            ValidationError::InvalidDateFormat
         )));
         assert!(errors.contains(&(
             "personal_data.country".to_string(),
