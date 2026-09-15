@@ -128,8 +128,8 @@ pub struct Config {
     pub github_oauth: Option<GithubOauthConfig>,
     /// Election a login lands on when the flow has no election selection of
     /// its own (CSB logins, dev logins). Set via `DEFAULT_ELECTION` as the
-    /// election code, with the region appended after a colon where the type
-    /// needs one (e.g. `EK27`, `PS27:prov1`).
+    /// election code, with the election domain appended after a colon where
+    /// the type needs one (e.g. `EK27`, `PS27:prov1`).
     pub default_election: ElectionConfig,
     /// Per-stream rate limits guarding against denial of service through the
     /// regular interface; see [`RateLimits`].
@@ -240,14 +240,14 @@ where
     }
 }
 
-/// Parses `DEFAULT_ELECTION`: the election code, with the region appended
+/// Parses `DEFAULT_ELECTION`: the election code, with the election domain appended
 /// after a colon where the election type needs one (e.g. `EK27`, `PS27:prov1`).
 fn parse_default_election(raw: &str) -> Result<ElectionConfig, AppError> {
-    let (code, region) = match raw.split_once(':') {
-        Some((code, region)) => (code, Some(region)),
+    let (code, domain) = match raw.split_once(':') {
+        Some((code, domain)) => (code, Some(domain)),
         None => (raw, None),
     };
-    ElectionConfig::from_code_and_region(code.trim(), region.map(str::trim)).ok_or_else(|| {
+    ElectionConfig::from_code_and_domain(code.trim(), domain.map(str::trim)).ok_or_else(|| {
         AppError::ConfigLoadError(format!(
             "DEFAULT_ELECTION {raw:?} is not a known election (expected e.g. EK27 or PS27:prov1)"
         ))
@@ -718,7 +718,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_default_election_accepts_code_and_optional_region() {
+    fn parse_default_election_accepts_code_and_optional_domain() {
         assert_eq!(
             parse_default_election("EK27").expect("EK27"),
             ElectionConfig::EK27

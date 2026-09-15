@@ -83,11 +83,11 @@ examination and is rendered on the CSB side instead.
 ### Election types
 
 Every record of data belongs to one election, represented by the `ElectionConfig`
-enum (`src/core/election/`). The user selects an election, and a
-region (if applicable) at the start of a session; this choice, together with the user's stream,
+enum (`src/core/election/`). The user selects an election, and an election
+domain (if applicable) at the start of a session; this choice, together with the user's stream,
 forms the `(stream_id, election)` partition key. The current configurations are:
 
-- **EK27**: the 2027 Eerste Kamer (Senate) election. National, no region.
+- **EK27**: the 2027 Eerste Kamer (Senate) election. National, no election domains.
 - **PS27(province)**: the 2027 Provinciale Staten election, one configuration per
   province.
 - **WS27(water council)**: the 2027 waterschap (water authority) election, one
@@ -141,8 +141,8 @@ workspace-level dependency list.
 - **`tools/utils/`** (`eks-utils`): small runtime helpers with no heavyweight
   dependencies (e.g. the `slugify_teletex` function), so they can be used in
   the main `eks` crate as well as in other build-time tooling.
-- **`tools/districts-codegen/`** (`eks-districts-codegen`): generates the
-  districts and regions enums from `MasterElectionTree.xml`.
+- **`tools/districts-codegen/`** (`eks-districts-codegen`): generates the election
+  districts and domains (e.g. provinces/water councils) enums from `MasterElectionTree.xml`.
 
 Document generation is done in-process with the
 [`textris-pdf`](https://github.com/tweedegolf/textris-pdf) library: the PDF
@@ -551,7 +551,7 @@ Runtime configuration is read from environment variables once at startup into a
 | `SERVER_NAME` | Short server identifier shown in the page footer. |
 | `EKS_KEY` | Optional shared secret for the `x-eks-key` request gate. |
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` / `GITHUB_ALLOWED_USER_IDS` | Enable the CSB GitHub OAuth login (`/csb/login`): the GitHub OAuth app's credentials and the comma-separated numeric GitHub account ids allowed to log in; all three or none. The client secret is a secret like the master keys. |
-| `DEFAULT_ELECTION` | Election a login lands on when the flow has no election selection of its own (CSB logins, dev logins): the election code, with the region appended after a colon where the type needs one (e.g. `EK27`, `PS27:prov1`). Dev builds default to `EK27`. |
+| `DEFAULT_ELECTION` | Election a login lands on when the flow has no election selection of its own (CSB logins, dev logins): the election code, with the election domain appended after a colon where the type needs one (e.g. `EK27`, `PS27:prov1`). Dev builds default to `EK27`. |
 | `BIND_ADDRESS` | Address the server binds to (also accepted as a CLI argument). |
 | `CSB_BIND_ADDRESS` | Serve the CSB section on a second listener, so it can be published on a domain of its own: a port number (bound on `0.0.0.0`) or an `address:port` with a numeric address. `/csb` is then unreachable on `BIND_ADDRESS`. The second listener serves the whole application, since a committee session correcting paper documents uses the political-group routes as well. With ACME both listeners present the certificate ordered for `ACME_DOMAIN`, so a second domain needs its TLS terminated upstream. |
 | `RATE_LIMIT_DOWNLOADS` / `RATE_LIMIT_DOWNLOADS_WINDOW_SECS` | Document downloads allowed per stream per window (default 60 per 3600s). |

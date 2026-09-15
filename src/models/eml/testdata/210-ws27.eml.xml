@@ -13,6 +13,7 @@
             <ElectionName>Verkiezing van het algemeen bestuur van het waterschap Fryslân 2027</ElectionName>
             <ElectionCategory>AB</ElectionCategory>
             <kr:ElectionSubcategory>AB2</kr:ElectionSubcategory>
+            <kr:ElectionDomain Id="2">Fryslân</kr:ElectionDomain>
             <kr:ElectionDate>2027-03-17</kr:ElectionDate>
             <kr:NominationDate>2027-02-01</kr:NominationDate>
         </ElectionIdentifier>
