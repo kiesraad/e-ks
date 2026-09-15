@@ -211,7 +211,7 @@ fn i4_numbered_based_on_votes() -> Vec<NumberedOnVotes> {
 /// response to objections differ between the two examples.
 fn i4_example(
     numbered_based_on_districts: Vec<NumberedOnDistricts>,
-    objections: Option<Vec<String>>,
+    objections: Vec<String>,
     response_objections: Option<String>,
 ) -> I4 {
     I4 {
@@ -246,11 +246,11 @@ pub fn i4_example_1() -> I4 {
                 districts: 1,
             },
         ],
-        Some(strings(&[
+        strings(&[
             "Namens De Ongeldige Partij is bezwaar gemaakt tegen het proces van het verkrijgen van ondersteuningsverklaringen. De partij stelt vele belemmeringen te hebben ervaren bij gemeenten en te weinig mogelijkheden te hebben ervaren bij verzuimherstel. Gesteld wordt dat dit in strijd is met de algemene beginselen van behoorlijk bestuur, zoals het beginsel van opgewekt vertrouwen en fair play. Partijen moet een redelijke kans geboden worden op herstel van verzuimen. De bezwaarmaker verzet zich tegen het strikt toepassen van termijnen voor kiezers die de partij wilden ondersteunen en verzoekt alsnog extra tijd voor herstel van verzuimen.",
             "Een bezwaarmaker namens de partij Kiesraad Demo 5 sluit zich aan bij het voorgaande bezwaar voor wat betreft het ondervinden van belemmeringen bij de ondersteuningsverklaringen.",
             "Namens De Herstelde Partij wordt de Kiesraad bedankt voor al het werk en de hulp bij het proces. De partij heeft dat als zeer prettig ervaren, maar het zou fijn zijn als het systeem wordt aangepast.",
-        ])),
+        ]),
         Some("Reactie van de Kiesraad op de bezwaren:\nWat betreft de opmerkingen die door een aantal bezwaarmakers zijn gemaakt over het proces van het verkrijgen van ondersteuningsverklaringen stelt de Kiesraad dit ook heel vervelend te vinden. Het gaat hier over een proces onder de verantwoordelijkheid van de gemeenten. De Kiesraad geeft gemeenten informatie en instrueert hen.".to_string()),
     )
 }
@@ -269,7 +269,7 @@ pub fn i4_example_2() -> I4 {
                 districts: 2,
             },
         ],
-        None,
+        Vec::new(),
         None,
     )
 }

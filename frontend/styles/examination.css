@@ -1,6 +1,5 @@
 .examination-strip {
   --examination-strip-color: var(--gray-100);
-  align-items: center;
   background-color: var(--bg-gray);
   border: 1px solid var(--gray-100);
   border-radius: var(--rounded-md);

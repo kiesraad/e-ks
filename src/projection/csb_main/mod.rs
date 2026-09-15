@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use crate::{
     Scope, StreamId,
     store::{StoreData, StoreEvent},
-    structs::csb::{HearingDetails, HearingModel, RegisteredPoliticalGroup},
+    structs::csb::{HearingDetails, HearingModel, Objection, RegisteredPoliticalGroup},
 };
 
 /// Fixed stream ID shared by all CSB members for the global committee stream.
@@ -29,6 +29,7 @@ pub struct CsbMainStoreData {
     /// The hearings the committee entered details for, at most one per model.
     pub(crate) hearing_details: HashMap<HearingModel, HearingDetails>,
     pub(crate) list_order: Vec<StreamId>,
+    pub(crate) objections: Vec<Objection>,
 }
 
 impl StoreData for CsbMainStoreData {
@@ -60,6 +61,13 @@ impl StoreData for CsbMainStoreData {
             CsbMainAction::UpdateListOrder(order) => {
                 self.list_order = order;
             }
+            CsbMainAction::AddObjection(objection) => self.objections.push(objection),
+            CsbMainAction::UpdateObjection(objection) => {
+                if let Some(existing) = self.objections.iter_mut().find(|o| o.id == objection.id) {
+                    *existing = objection;
+                }
+            }
+            CsbMainAction::DeleteObjection(id) => self.objections.retain(|o| o.id != id),
         }
     }
 

@@ -4,7 +4,8 @@ use crate::{
     CsbUser, Event, HasCsbUser, StreamId,
     core::constants::DEFAULT_DATE_TIME_FORMAT,
     structs::csb::{
-        HearingDetails, HearingModel, RegisteredPoliticalGroup, RegisteredPoliticalGroupId,
+        HearingDetails, HearingModel, Objection, ObjectionId, RegisteredPoliticalGroup,
+        RegisteredPoliticalGroupId,
     },
     trans,
 };
@@ -35,6 +36,9 @@ pub enum CsbMainAction {
     DeleteRegisteredPoliticalGroup(RegisteredPoliticalGroupId),
     UpdateHearingDetails(HearingModel, HearingDetails),
     UpdateListOrder(Vec<StreamId>),
+    AddObjection(Objection),
+    UpdateObjection(Objection),
+    DeleteObjection(ObjectionId),
 }
 
 impl CsbMainAction {
@@ -59,6 +63,9 @@ impl Event for CsbMainEvent {
             | CsbMainAction::DeleteRegisteredPoliticalGroup(_) => "registered_political_group",
             CsbMainAction::UpdateHearingDetails(..) => "hearing_details",
             CsbMainAction::UpdateListOrder(_) => "numbering",
+            CsbMainAction::AddObjection(_)
+            | CsbMainAction::UpdateObjection(_)
+            | CsbMainAction::DeleteObjection(_) => "objection",
         }
     }
 
@@ -71,6 +78,9 @@ impl Event for CsbMainEvent {
             CsbMainAction::DeleteRegisteredPoliticalGroup(_) => "delete_registered_political_group",
             CsbMainAction::UpdateHearingDetails(..) => "update_hearing_details",
             CsbMainAction::UpdateListOrder(_) => "update_list_order",
+            CsbMainAction::AddObjection(_) => "add_objection",
+            CsbMainAction::UpdateObjection(_) => "update_objection",
+            CsbMainAction::DeleteObjection(_) => "delete_objection",
         }
     }
 
@@ -93,6 +103,9 @@ impl Event for CsbMainEvent {
             CsbMainAction::UpdateListOrder(_) => {
                 trans!("audit_log.event.update_list_order", locale)
             }
+            CsbMainAction::AddObjection(_) => trans!("audit_log.event.add_objection", locale),
+            CsbMainAction::UpdateObjection(_) => trans!("audit_log.event.update_objection", locale),
+            CsbMainAction::DeleteObjection(_) => trans!("audit_log.event.delete_objection", locale),
         }
     }
 
@@ -117,6 +130,9 @@ impl Event for CsbMainEvent {
                 .map(ToString::to_string)
                 .collect::<Vec<_>>()
                 .join(", "),
+            CsbMainAction::AddObjection(_) => String::new(),
+            CsbMainAction::UpdateObjection(_) => String::new(),
+            CsbMainAction::DeleteObjection(id) => id.to_string(),
         }
     }
 }

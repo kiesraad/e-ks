@@ -1,8 +1,12 @@
 //! Typed paths for the CSB finalise routes.
 
 use axum_extra::routing::TypedPath;
+use serde::Deserialize;
 
-use crate::AppError;
+use crate::{
+    AppError, QueryParamState,
+    structs::csb::{Objection, ObjectionId},
+};
 
 #[derive(TypedPath)]
 #[typed_path("/csb/finalise", rejection(AppError))]
@@ -12,3 +16,33 @@ pub struct CsbFinalisePath;
 #[derive(TypedPath)]
 #[typed_path("/csb/finalise/order", rejection(AppError))]
 pub struct CsbListOrderPath;
+
+#[derive(TypedPath)]
+#[typed_path("/csb/finalise/objection/add", rejection(AppError))]
+pub struct CsbAddObjectionPath;
+
+#[derive(TypedPath, Deserialize)]
+#[typed_path("/csb/finalise/objection/update/{id}", rejection(AppError))]
+pub struct CsbUpdateObjectionPath {
+    pub id: ObjectionId,
+}
+
+#[derive(TypedPath, Deserialize)]
+#[typed_path("/csb/finalise/objection/delete/{id}", rejection(AppError))]
+pub struct CsbDeleteObjectionPath {
+    pub id: ObjectionId,
+}
+
+impl Objection {
+    pub fn after_success_submit_path() -> impl TypedPath {
+        CsbFinalisePath.with_query_params(QueryParamState::created())
+    }
+
+    pub fn update_path(&self) -> impl TypedPath {
+        CsbUpdateObjectionPath { id: self.id }
+    }
+
+    pub fn delete_path(&self) -> impl TypedPath {
+        CsbDeleteObjectionPath { id: self.id }
+    }
+}

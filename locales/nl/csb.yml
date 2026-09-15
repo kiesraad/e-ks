@@ -190,6 +190,11 @@ monitoring:
 no_finished_political_group: Er zijn geen afgeronde onderzoeken naar politieke groeperingen.
 no_political_groups_added: Er zijn geen onderzoeken voor politieke groeperingen toegevoegd.
 no_unfinished_political_groups: Er zijn geen onafgeronde onderzoeken naar politieke groeperingen.
+objection:
+  form:
+    add_title: Bezwaar toevoegen
+    text_label: Bezwaar tekst
+    update_title: Bezwaar wijzigen
 omission:
   action:
     add: Verzuim toevoegen

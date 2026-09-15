@@ -586,3 +586,30 @@
 .csb-phase-muted > * {
   opacity: 0.4;
 }
+
+.objection-list {
+  align-items: flex-start;
+  flex-direction: column;
+  row-gap: var(--space-2);
+}
+
+a.objection-block {
+  background-image: url("../icons/edit.svg");
+  background-repeat: no-repeat;
+  background-position: right var(--space-md) center;
+  background-size: 1.5rem 1.5rem;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--rounded-default);
+  padding: var(--space-6);
+  padding-right: var(--space-12);
+  width: 100%;
+  color: var(--text-color-body);
+  text-decoration: none;
+
+  > .text {
+    max-height: 3em;
+    white-space: pre;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}

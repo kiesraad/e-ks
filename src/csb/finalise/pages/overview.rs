@@ -11,6 +11,7 @@ use crate::{
         finalise::paths::{CsbFinalisePath, CsbListOrderPath},
     },
     filters,
+    structs::csb::Objection,
 };
 
 #[derive(Template)]
@@ -20,6 +21,7 @@ struct CsbFinaliseTemplate {
     /// Whether the district count tells the lists apart; a single-district
     /// election has nothing to show there.
     has_multiple_districts: bool,
+    objections: Vec<Objection>,
 }
 
 /// The finalise page: the I 4 downloads, the sortable list order, and the
@@ -36,11 +38,13 @@ pub async fn overview(
         &main_store.list_order(),
     );
     let has_multiple_districts = !context.election.has_only_one_district();
+    let objections = main_store.get_all_objections();
 
     Ok(HtmlTemplate(
         CsbFinaliseTemplate {
             numbering,
             has_multiple_districts,
+            objections,
         },
         context,
     )

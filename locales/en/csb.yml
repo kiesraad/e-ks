@@ -190,6 +190,11 @@ monitoring:
 no_finished_political_group: There are no finished examinations of any political group.
 no_political_groups_added: No examinations of any political group have been added yet.
 no_unfinished_political_groups: There are no unfinished examinations of any political group.
+objection:
+  form:
+    add_title: Add objection
+    text_label: Objection text
+    update_title: Update objection
 omission:
   action:
     add: Add omission

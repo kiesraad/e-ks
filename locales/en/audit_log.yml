@@ -40,6 +40,7 @@ documents:
 empty: No events have been recorded yet that meet the filter criteria.
 event:
   add_candidate_to_list: Added candidate to list
+  add_objection: Added objection
   brp_validation: Validated candidate against the BRP
   create_candidate_list: Created list of candidates
   create_empty: Created empty political group
@@ -51,6 +52,7 @@ event:
   delete: Deleted political group
   delete_candidate_list: Deleted list of candidates
   delete_name_authorisation: Deleted statutory name and authorised agent
+  delete_objection: Deleted objection
   delete_omission: Deleted omission
   delete_person: Deleted person
   delete_registered_political_group: Deleted registered political group
@@ -77,6 +79,7 @@ event:
   update_list_order: Updated list order
   update_list_submitter: Updated submitter of the list
   update_name_authorisation: Updated statutory name and authorised agent
+  update_objection: Updated objection
   update_omission: Updated omission
   update_person: Updated person
   update_person_address: Updated person address
