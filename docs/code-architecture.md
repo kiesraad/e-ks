@@ -804,11 +804,39 @@ key-wrapping-key derivation below. One `StreamId` covers all of a user's
 elections; the `election` is a separate axis of the `(stream_id, election)`
 key.
 
+### Event encoding
+
+Event payloads and the on-disk stream frames are serialized as CBOR, through
+the small wrapper in `src/store/encoding.rs` (built on `ciborium`). CBOR is
+self-describing: struct fields and enum variants are stored by name, not by
+position. That is what lets the event types evolve without corrupting an
+existing log:
+
+- Inserting, removing or reordering an enum variant or a struct field never
+  makes stored bytes decode as a *different* value. A positional format would
+  silently shift the meaning of every event written before the change.
+- Decoding rejects unknown variant names and trailing bytes, so a type that
+  lost a variant or a field fails loudly instead of quietly dropping data.
+
+What CBOR does not cover: a field added to an existing event still needs
+`#[serde(default)]` to read events written before it existed, and removing or
+renaming a variant or field still needs an explicit migration or a new frame
+version.
+
+Raw byte fields (the chain `hash` and `encrypted_payload` of a frame) carry
+`#[serde(with = "serde_bytes")]` so they encode as CBOR byte strings rather
+than as one integer per byte.
+
+The plaintext encoding runs in two passes: the payload is first measured, then
+encoded into a buffer already sized for the AES-GCM tag, so that neither
+serialization nor in-place encryption reallocates and leaves a plaintext copy
+in freed memory.
+
 ### Event payload encryption and stream keys
 
 On the file and PostgreSQL backends, every event payload is encrypted at rest
 with AES-256-GCM. For implementation details, see `MasterKey` / `StreamKey` /
-`EventCipher` in `src/crypto.rs`.
+`EventCipher` in `src/store/crypto.rs`.
 
 The scheme is envelope encryption with one key **per `(stream_id, election)`**.
 When a stream is first created, a fresh random 256-bit *stream key* is
@@ -829,7 +857,7 @@ consequences:
   between streams or elections.
 - Rotating the master secret only requires re-wrapping each stream's key; the
   event payloads never have to be re-encrypted.
-- A payload is `postcard`-serialized, then AES-256-GCM encrypted under a fresh
+- A payload is CBOR-serialized, then AES-256-GCM encrypted under a fresh
   random 12-byte nonce, and stored as `nonce ‖ ciphertext ‖ tag`. The GCM
   *associated data* additionally binds each ciphertext to its event metadata and
   chain position (see the hash chain below).
@@ -858,7 +886,7 @@ hash_n = SHA256( hash_{n-1} ‖ event_id_n (u64 LE) ‖ created_at_n (i64 LE, mi
   (`GENESIS_HASH`).
 - `body_n` is the *persisted* representation of the payload: the
   `nonce ‖ ciphertext ‖ tag` AES-GCM blob for the file/database backends, or the
-  postcard encoding of the plaintext for the in-memory backend. Hashing the
+  CBOR encoding of the plaintext for the in-memory backend. Hashing the
   *encrypted* blob (which is indistinguishable from random and carries a fresh
   nonce) is deliberate: it lets the hash be stored **unencrypted** without leaking
   anything about the plaintext, while still committing to the exact stored bytes.

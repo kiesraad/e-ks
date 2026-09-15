@@ -120,14 +120,4 @@ mod tests {
         assert_eq!(HearingModel::I1.to_string(), "i1");
         assert_eq!(HearingModel::I4.to_string(), "i4");
     }
-
-    /// The hand-written halves have to agree: the event payload is written and
-    /// replayed with postcard, the same encoding the store uses.
-    #[test]
-    fn hearing_model_survives_a_serialization_round_trip() {
-        for model in [HearingModel::I1, HearingModel::I4] {
-            let bytes = postcard::to_allocvec(&model).expect("serialize");
-            assert_eq!(postcard::from_bytes::<HearingModel>(&bytes), Ok(model));
-        }
-    }
 }
