@@ -71,7 +71,11 @@ async fn i4_model<S: AppRequestState>(main_store: CsbMainStore, state: &S) -> Re
             })
             .collect(),
         // Objections are recorded during the public session.
-        objections: None,
+        objections: main_store
+            .get_all_objections()
+            .into_iter()
+            .map(|o| o.objection_text)
+            .collect(),
         response_objections: None,
     })
 }

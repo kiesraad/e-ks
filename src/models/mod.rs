@@ -190,13 +190,9 @@ mod tests {
         input.removed_candidates.clear();
         input.removed_appellations.clear();
         input.corrected_appellations.clear();
-        input.objections = Some(Vec::new());
+        input.objections = Vec::new();
         input.response_objections = None;
         assert_pdf(&render(input), "i4 empty sections");
-
-        let mut input = i4_example_1();
-        input.objections = None;
-        assert_pdf(&render(input), "i4 open objections");
     }
 
     /// I 1 is downloaded before anything was imported too: render it with both
