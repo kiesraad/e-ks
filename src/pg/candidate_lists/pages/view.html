@@ -46,6 +46,11 @@
       {{ "candidate_list.view.import_capped"|trans(max_candidates, max_candidates) }}
     </div>
   {% endif %}
+  {% if !ignored_columns.is_empty() %}
+    <div class="alert alert-warning alert-floating">
+      {{ "candidate_list.view.import_ignored_columns"|trans(ignored_columns) }}
+    </div>
+  {% endif %}
   {% let candidate_limit = "candidate_limit"|integer_value %}
   <nav class="sticky-nav">
     <div class="sticky-nav-bar">

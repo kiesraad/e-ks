@@ -5,7 +5,7 @@ use axum::{
     http::{HeaderValue, Response},
     response::IntoResponse,
 };
-use csv::{IntoInnerError, Reader, ReaderBuilder, Writer, WriterBuilder};
+use csv::{IntoInnerError, Reader, ReaderBuilder, StringRecord, Trim, Writer, WriterBuilder};
 use serde::{Serialize, de::DeserializeOwned};
 
 use crate::{AppError, Locale, OptionStringExt, trans, utils::no_cache_headers};
@@ -273,12 +273,24 @@ const UTF8_BOM: &[u8] = &[0xEF, 0xBB, 0xBF];
 /// Build a CSV reader that tolerates the variations spreadsheets emit across
 /// locales: a leading UTF-8 BOM (Excel writes one) and either `,` or `;` as the
 /// field separator (Dutch/European Excel uses `;`). A BOM, if present, is
-/// stripped first, then the delimiter is sniffed from the header line.
+/// stripped first, then the delimiter is sniffed from the header line. Cells
+/// are trimmed and column names normalised so records deserialize by name.
 pub fn reader_from_bytes(data: &[u8]) -> Reader<&[u8]> {
     let data = data.strip_prefix(UTF8_BOM).unwrap_or(data);
-    ReaderBuilder::new()
+    let mut reader = ReaderBuilder::new()
         .delimiter(detect_delimiter(data))
-        .from_reader(data)
+        .trim(Trim::All)
+        .from_reader(data);
+    if let Ok(headers) = reader.headers() {
+        let normalized: StringRecord = headers.iter().map(normalize_column_name).collect();
+        reader.set_headers(normalized);
+    }
+    reader
+}
+
+/// Tolerates padding, capitals, and spaces or hyphens for underscores.
+pub fn normalize_column_name(name: &str) -> String {
+    name.trim().to_lowercase().replace([' ', '-'], "_")
 }
 
 /// Pick the field separator by counting `;` versus `,` on the first line. The
@@ -545,6 +557,34 @@ mod tests {
         data.extend_from_slice(b"voorletters;achternaam\nH.;Jansen\n");
         let parsed = Csv::<Person>::from_bytes(&data).unwrap_or_else(|e| panic!("{}", e[0]));
         assert_eq!(parsed[0].voorletters, "H.");
+    }
+
+    /// Column order, casing and padding around headers and cells are all
+    /// spreadsheet artefacts, not data.
+    #[test]
+    fn from_bytes_normalises_headers_and_trims_cells() {
+        let parsed = Csv::<Person>::from_bytes(b" Achternaam ; VOORLETTERS \n Jansen ; H. \n")
+            .unwrap_or_else(|e| panic!("{}", e[0]));
+        assert_eq!(
+            parsed,
+            vec![Person {
+                voorletters: "H.".to_string(),
+                achternaam: "Jansen".to_string(),
+            }]
+        );
+    }
+
+    #[test]
+    fn normalize_column_name_cases() {
+        assert_eq!(normalize_column_name("voorletters"), "voorletters");
+        assert_eq!(
+            normalize_column_name(" Correspondentie-Postcode "),
+            "correspondentie_postcode"
+        );
+        assert_eq!(
+            normalize_column_name("Gemachtigde plaats"),
+            "gemachtigde_plaats"
+        );
     }
 
     #[test]

@@ -30,6 +30,7 @@
     --alert-border-color: var(--blue-600);
     --alert-color: var(--gray-600);
     --alert-icon: url("../icons/info.svg");
+    --alert-duration: 20s;
   }
 
   &.alert-warning {
@@ -37,6 +38,7 @@
     --alert-border-color: var(--orange-600);
     --alert-color: var(--gray-600);
     --alert-icon: url("../icons/warning.svg");
+    --alert-duration: 60s;
   }
 
   &.alert-error {
@@ -44,6 +46,7 @@
     --alert-border-color: var(--red-600);
     --alert-color: var(--gray-600);
     --alert-icon: url("../icons/error.svg");
+    --alert-duration: 60s;
   }
 
   &.alert-success {
@@ -51,6 +54,7 @@
     --alert-border-color: var(--green-700);
     --alert-color: var(--green-700);
     --alert-icon: url("../icons/checkmarkSmall.svg");
+    --alert-duration: 10s;
   }
 
   &.alert-floating {
@@ -67,27 +71,31 @@
     z-index: 1000;
     margin: 0;
     box-shadow: 0 0.2rem 0.5rem rgba(0, 0, 0, 0.15);
-    animation: alert-float 4.5s ease-in-out forwards;
+    animation:
+      alert-slide-in 0.5s ease-in-out,
+      alert-slide-out 1s ease-in-out var(--alert-duration, 10s) forwards;
   }
 }
 
-@keyframes alert-float {
-  0% {
+@keyframes alert-slide-in {
+  from {
     transform: translateX(-120%);
     opacity: 0;
   }
 
-  12% {
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes alert-slide-out {
+  from {
     transform: translateX(0);
     opacity: 1;
   }
 
-  78% {
-    transform: translateX(0);
-    opacity: 1;
-  }
-
-  100% {
+  to {
     transform: translateX(-120%);
     opacity: 0;
   }
