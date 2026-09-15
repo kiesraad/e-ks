@@ -20,8 +20,10 @@
         </div>
         <div class="card-content">
           <p>{{ "csb.recovery.finish_note"|trans }}</p>
+          <a href="{{ CsbI4DocxDownloadPath }}"
+             class="button secondary icon-download mt-md">{{ "csb.recovery.download_i4_word"|trans }}</a>
           <a href="{{ CsbI4DownloadPath }}"
-             class="button {% if all_omissions_assessed %}primary{% else %}secondary{% endif %} icon-download mt-md">{{ "csb.recovery.download_i4"|trans }}</a>
+             class="button {% if all_omissions_assessed %}primary{% else %}secondary{% endif %} icon-download mt-md">{{ "csb.recovery.download_i4_pdf"|trans }}</a>
         </div>
       </div>
     </div>

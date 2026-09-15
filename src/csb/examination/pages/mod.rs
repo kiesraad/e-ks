@@ -22,6 +22,7 @@ mod correction;
 mod delete;
 pub(in crate::csb) mod finish_examination;
 pub(in crate::csb) mod general_information;
+pub(in crate::csb) mod hearing_details;
 mod i1;
 mod i4;
 mod omission;
@@ -63,4 +64,6 @@ pub fn router<S: AppRequestState>() -> Router<S> {
         .typed_get(correction::person_correction)
         .typed_post(correction::person_correction_submit)
         .typed_get(finish_examination::finish)
+        .typed_get(hearing_details::hearing_details)
+        .typed_post(hearing_details::hearing_details_submit)
 }

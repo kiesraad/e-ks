@@ -17,7 +17,7 @@ use crate::{
     },
     structs::{
         candidate_lists::CandidateListId,
-        csb::{CsbPhase, OmissionId, OmissionType},
+        csb::{CsbPhase, HearingModel, OmissionId, OmissionType},
         persons::PersonId,
     },
 };
@@ -113,6 +113,12 @@ pub struct CsbOmissionLetterPath {
 #[derive(TypedPath)]
 #[typed_path("/csb/examination/finish/verzuimbrieven.zip", rejection(AppError))]
 pub struct CsbOmissionLettersDownloadPath;
+
+#[derive(TypedPath, Deserialize)]
+#[typed_path("/csb/examination/hearing-details/{model}", rejection(AppError))]
+pub struct CsbHearingDetailsPath {
+    pub model: HearingModel,
+}
 
 #[derive(TypedPath, Deserialize)]
 #[typed_path("/csb/examination/{stream_id}/paper-corrections", rejection(AppError))]

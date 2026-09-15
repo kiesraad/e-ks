@@ -10,8 +10,9 @@ use crate::{
     },
     models::{
         Pdf,
-        i4::{I4, NumberedOnDistricts, NumberedOnVotes},
+        i4::{I4, NumberedOnDistricts, NumberedOnVotes, PublicSession},
     },
+    structs::csb::HearingModel,
     utils::no_cache_headers,
 };
 
@@ -34,13 +35,18 @@ async fn i4_model<S: AppRequestState>(main_store: CsbMainStore, state: &S) -> Re
     } = i4_inputs(registry, &election).await?;
     let numbering = list_numbering(registry, &main_store).await?;
 
+    let mut public_session = PublicSession::from(election.public_session());
+    if let Some(hearing_details) = main_store.get_hearing_details(HearingModel::I4) {
+        public_session = public_session.with_hearing_details(hearing_details);
+    }
+
     Ok(I4 {
         election_name: election.formal_title(ModelLocale::Nl),
         election_date: election
             .election_date()
             .format(DEFAULT_DATE_FORMAT)
             .to_string(),
-        public_session: election.public_session().into(),
+        public_session,
         found_omissions,
         recovered_omissions,
         invalid_lists,
@@ -121,7 +127,7 @@ mod tests {
         structs::{
             candidate_lists::CandidateList,
             csb::{
-                OmissionCategory, OmissionStatus, sample_omission,
+                HearingDetails, OmissionCategory, OmissionStatus, sample_omission,
                 sample_registered_political_group,
             },
             list_designation::ListDesignation,
@@ -161,6 +167,65 @@ mod tests {
             .await
             .unwrap();
         stream_id
+    }
+
+    #[tokio::test]
+    async fn i4_session_uses_the_stored_hearing_details() -> Result<(), AppError> {
+        let state = AppState::new_for_tests().await;
+        let main_store = CsbMainStore::new_for_test();
+        main_store
+            .update(
+                CsbMainAction::UpdateHearingDetails(
+                    HearingModel::I4,
+                    HearingDetails {
+                        date_time: chrono::NaiveDate::from_ymd_opt(2027, 4, 9)
+                            .expect("valid date")
+                            .and_hms_opt(10, 15, 0)
+                            .expect("valid time"),
+                        chair: "Vera Voorzitter".to_string(),
+                        members: vec!["Jan Klaassen".to_string()],
+                    },
+                )
+                .by(CsbUser::new_test()),
+            )
+            .await?;
+
+        let model = i4_model(main_store, &state).await?;
+
+        assert_eq!(model.public_session.date, "09-04-2027");
+        assert_eq!(model.public_session.time, "10:15");
+        assert_eq!(model.public_session.chair, "Vera Voorzitter");
+        assert_eq!(model.public_session.members, vec!["Jan Klaassen"]);
+
+        Ok(())
+    }
+
+    /// The I 1 hearing is a different hearing: it must not leak into the I 4.
+    #[tokio::test]
+    async fn i4_session_ignores_the_i1_hearing_details() -> Result<(), AppError> {
+        let state = AppState::new_for_tests().await;
+        let main_store = CsbMainStore::new_for_test();
+        main_store
+            .update(
+                CsbMainAction::UpdateHearingDetails(
+                    HearingModel::I1,
+                    HearingDetails {
+                        chair: "Vera Voorzitter".to_string(),
+                        members: vec!["Jan Klaassen".to_string()],
+                        ..HearingDetails::default()
+                    },
+                )
+                .by(CsbUser::new_test()),
+            )
+            .await?;
+
+        let model = i4_model(main_store, &state).await?;
+
+        let configured = ElectionConfig::EK27.public_session();
+        assert_eq!(model.public_session.date, configured.formatted_date());
+        assert_eq!(model.public_session.chair, configured.chair);
+
+        Ok(())
     }
 
     #[tokio::test]

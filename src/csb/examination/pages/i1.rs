@@ -7,7 +7,8 @@ use crate::{
         model_inputs::{found_omissions, submitted_lists},
         pages::{CsbI1DocxDownloadPath, CsbI1DownloadPath},
     },
-    models::{Pdf, i1::I1},
+    models::{Pdf, i1::I1, i4::PublicSession},
+    structs::csb::HearingModel,
     utils::no_cache_headers,
 };
 
@@ -22,13 +23,18 @@ async fn i1_model<S: AppRequestState>(main_store: CsbMainStore, state: &S) -> Re
     let submitted_lists = submitted_lists(registry, &election).await?;
     let found_omissions = found_omissions(registry, &election).await?;
 
+    let mut session = PublicSession::from(election.public_session());
+    if let Some(hearing_details) = main_store.get_hearing_details(HearingModel::I1) {
+        session = session.with_hearing_details(hearing_details);
+    }
+
     Ok(I1 {
         election_name: election.formal_title(ModelLocale::Nl),
         election_date: election
             .election_date()
             .format(DEFAULT_DATE_FORMAT)
             .to_string(),
-        session: election.public_session().into(),
+        session,
         submitted_lists,
         found_omissions,
     })
@@ -80,10 +86,10 @@ mod tests {
     use std::collections::BTreeSet;
 
     use crate::{
-        AppState, CsbAction, ElectionConfig, PgStoreData, StreamId,
+        AppState, CsbAction, CsbMainAction, CsbUser, ElectionConfig, PgStoreData, StreamId,
         structs::{
             candidate_lists::CandidateList,
-            csb::{OmissionCategory, sample_omission},
+            csb::{HearingDetails, OmissionCategory, sample_omission},
             list_designation::ListDesignation,
             persons::PersonId,
             political_groups::PoliticalGroup,
@@ -145,6 +151,56 @@ mod tests {
             .await
             .expect("read body");
         assert!(body.starts_with(b"PK"), "body is not a ZIP archive");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn i1_session_falls_back_to_the_configured_session() -> Result<(), AppError> {
+        let state = AppState::new_for_tests().await;
+        let model = i1_model(CsbMainStore::new_for_test(), &state).await?;
+
+        let configured = ElectionConfig::EK27.public_session();
+        assert_eq!(model.session.date, configured.formatted_date());
+        assert_eq!(model.session.time, configured.formatted_time());
+        assert_eq!(model.session.chair, configured.chair);
+        assert_eq!(model.session.members.len(), configured.members.len());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn i1_session_uses_the_stored_hearing_details() -> Result<(), AppError> {
+        let state = AppState::new_for_tests().await;
+        let main_store = CsbMainStore::new_for_test();
+        main_store
+            .update(
+                CsbMainAction::UpdateHearingDetails(
+                    HearingModel::I1,
+                    HearingDetails {
+                        date_time: chrono::NaiveDate::from_ymd_opt(1999, 12, 31)
+                            .expect("valid date")
+                            .and_hms_opt(12, 34, 0)
+                            .expect("valid time"),
+                        chair: "Vera Voorzitter".to_string(),
+                        members: vec!["Jan Klaassen".to_string(), "Malle Babbe".to_string()],
+                    },
+                )
+                .by(CsbUser::new_test()),
+            )
+            .await?;
+
+        let model = i1_model(main_store, &state).await?;
+
+        assert_eq!(model.session.date, "31-12-1999");
+        assert_eq!(model.session.time, "12:34");
+        assert_eq!(model.session.chair, "Vera Voorzitter");
+        assert_eq!(model.session.members, vec!["Jan Klaassen", "Malle Babbe"]);
+        // The location and chair keep coming from the election configuration.
+        assert_eq!(
+            model.session.location,
+            ElectionConfig::EK27.public_session().location
+        );
 
         Ok(())
     }
