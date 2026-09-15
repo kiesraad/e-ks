@@ -752,7 +752,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn only_an_answered_flow_ends_the_session() {
+    async fn answered_flow_ends_the_session() {
         let mock = MockAuthState::empty();
         let headers = HeaderMap::new();
 
@@ -766,7 +766,12 @@ mod tests {
         // MockAuthState renders Cancelled as 403.
         assert_eq!(resp.status(), axum::http::StatusCode::FORBIDDEN);
         assert!(failure_ends_session(&resp));
+    }
 
+    #[tokio::test]
+    async fn unanswered_flow_does_not_end_the_session() {
+        let mock = MockAuthState::empty();
+        let headers = HeaderMap::new();
         let resp = fail(
             &mock,
             Rejection::Unanswered(AuthFailure::Cancelled),
@@ -885,9 +890,7 @@ mod tests {
 
     /// A SAML timestamp at `offset` from now.
     fn ts(offset: Duration) -> String {
-        (Utc::now() + offset)
-            .format("%Y-%m-%dT%H:%M:%SZ")
-            .to_string()
+        (Utc::now() + offset).to_rfc3339()
     }
 
     /// How the RD answered: the Response Status, and with it whether the
@@ -900,7 +903,7 @@ mod tests {
         Failed,
     }
 
-    /// The parts of the RD's ArtifactResponse a test varies; [`Default`] is the
+    /// The parts of the RD's ArtifactResponse per test varies; [`Default`] is the
     /// message a successful login against this DV produces.
     struct Wire {
         /// The ArtifactResolve `@ID` the ArtifactResponse answers.
@@ -959,10 +962,35 @@ mod tests {
         let recipient = dv_keys.encryption.first().expect("a DV encryption key");
         let key_name = recipient.key_name.as_str();
         let name_id = format!(
-            r#"<saml:NameID xmlns:saml="{NS_SAML}" Format="{NAMEID_PERSISTENT}" NameQualifier="urn:nl-eid-gdi:1.0:id:legacy-BSN">{BSN}</saml:NameID>"#
+            r#"<saml:NameID xmlns:saml="{NS_SAML}" 
+                            Format="{NAMEID_PERSISTENT}" 
+                            NameQualifier="urn:nl-eid-gdi:1.0:id:legacy-BSN">
+                {BSN}
+            </saml:NameID>"#
         );
         let template = format!(
-            r#"<saml:EncryptedID xmlns:saml="{NS_SAML}" xmlns:xenc="http://www.w3.org/2001/04/xmlenc#" xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><xenc:EncryptedData Type="http://www.w3.org/2001/04/xmlenc#Element"><xenc:EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes256-cbc"/><ds:KeyInfo><xenc:EncryptedKey Recipient="{DV}"><xenc:EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#rsa-oaep-mgf1p"/><ds:KeyInfo><ds:KeyName>{key_name}</ds:KeyName></ds:KeyInfo><xenc:CipherData><xenc:CipherValue></xenc:CipherValue></xenc:CipherData></xenc:EncryptedKey></ds:KeyInfo><xenc:CipherData><xenc:CipherValue></xenc:CipherValue></xenc:CipherData></xenc:EncryptedData></saml:EncryptedID>"#
+            r#"
+            <saml:EncryptedID xmlns:saml="{NS_SAML}" 
+                                 xmlns:xenc="http://www.w3.org/2001/04/xmlenc#" 
+                                 xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+              <xenc:EncryptedData Type="http://www.w3.org/2001/04/xmlenc#Element">
+                <xenc:EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes256-cbc"/>
+                <ds:KeyInfo>
+                  <xenc:EncryptedKey Recipient="{DV}">
+                    <xenc:EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#rsa-oaep-mgf1p"/>
+                    <ds:KeyInfo>
+                      <ds:KeyName>{key_name}</ds:KeyName>
+                    </ds:KeyInfo>
+                    <xenc:CipherData>
+                      <xenc:CipherValue></xenc:CipherValue>
+                    </xenc:CipherData>
+                  </xenc:EncryptedKey>
+                </ds:KeyInfo>
+                <xenc:CipherData>
+                  <xenc:CipherValue></xenc:CipherValue>
+                </xenc:CipherData>
+              </xenc:EncryptedData>
+            </saml:EncryptedID>"#
         );
 
         let cert = loader::load_x509_cert_pem(recipient.cert_pem.as_str().as_bytes())
@@ -984,7 +1012,39 @@ mod tests {
         let audience = wire.audience;
         let encrypted_id = encrypted_acting_subject(dv_keys);
         format!(
-            r#"<saml:Assertion ID="_assertion1" Version="2.0" IssueInstant="{issued}"><saml:Issuer>{RD}</saml:Issuer><saml:Subject><saml:NameID Format="{NAMEID_TRANSIENT}">transient-subject</saml:NameID><saml:SubjectConfirmation Method="{SUBJECT_CONFIRMATION_BEARER}"><saml:SubjectConfirmationData NotOnOrAfter="{scd_expiry}" Recipient="{ACS}" InResponseTo="{in_response_to}"/></saml:SubjectConfirmation></saml:Subject><saml:Conditions NotBefore="{not_before}" NotOnOrAfter="{not_on_or_after}"><saml:AudienceRestriction><saml:Audience>{audience}</saml:Audience></saml:AudienceRestriction></saml:Conditions><saml:AuthnStatement AuthnInstant="{issued}"><saml:AuthnContext><saml:AuthnContextClassRef>{LOA}</saml:AuthnContextClassRef></saml:AuthnContext></saml:AuthnStatement><saml:AttributeStatement><saml:Attribute Name="{EID_SERVICE_UUID}"><saml:AttributeValue>{SERVICE_UUID}</saml:AttributeValue></saml:Attribute><saml:Attribute Name="{EID_ACTING_SUBJECT_ID}"><saml:AttributeValue>{encrypted_id}</saml:AttributeValue></saml:Attribute></saml:AttributeStatement></saml:Assertion>"#
+            r#"
+            <saml:Assertion ID="_assertion1" Version="2.0" IssueInstant="{issued}">
+              <saml:Issuer>{RD}</saml:Issuer>
+              <saml:Subject>
+                <saml:NameID Format="{NAMEID_TRANSIENT}">
+                  transient-subject
+                </saml:NameID>
+                <saml:SubjectConfirmation Method="{SUBJECT_CONFIRMATION_BEARER}">
+                  <saml:SubjectConfirmationData NotOnOrAfter="{scd_expiry}" 
+                                                Recipient="{ACS}" 
+                                                InResponseTo="{in_response_to}"/>
+                </saml:SubjectConfirmation>
+              </saml:Subject>
+              <saml:Conditions NotBefore="{not_before}" 
+                               NotOnOrAfter="{not_on_or_after}">
+                <saml:AudienceRestriction>
+                  <saml:Audience>{audience}</saml:Audience>
+                </saml:AudienceRestriction>
+              </saml:Conditions>
+              <saml:AuthnStatement AuthnInstant="{issued}">
+                <saml:AuthnContext>
+                  <saml:AuthnContextClassRef>{LOA}</saml:AuthnContextClassRef>
+                </saml:AuthnContext>
+              </saml:AuthnStatement>
+              <saml:AttributeStatement>
+                <saml:Attribute Name="{EID_SERVICE_UUID}">
+                  <saml:AttributeValue>{SERVICE_UUID}</saml:AttributeValue>
+                </saml:Attribute>
+                <saml:Attribute Name="{EID_ACTING_SUBJECT_ID}">
+                  <saml:AttributeValue>{encrypted_id}</saml:AttributeValue>
+                </saml:Attribute>
+              </saml:AttributeStatement>
+            </saml:Assertion>"#
         )
     }
 
@@ -1000,18 +1060,60 @@ mod tests {
         };
         let in_response_to = wire.response_in_response_to;
         let response = format!(
-            r#"<samlp:Response ID="_response1" Version="2.0" IssueInstant="{issued}" Destination="{ACS}" InResponseTo="{in_response_to}"><saml:Issuer>{RD}</saml:Issuer>{status}{assertion}</samlp:Response>"#
+            r#"
+            <samlp:Response ID="_response1" 
+                               Version="2.0"
+                               IssueInstant="{issued}" 
+                               Destination="{ACS}" 
+                               InResponseTo="{in_response_to}">
+              <saml:Issuer>{RD}</saml:Issuer>
+              {status}
+              {assertion}
+            </samlp:Response>"#
         );
 
         let rd_key = load_key(wire.signing_key);
         let cert = &rd_key.cert_base64;
         // The enveloped-signature template the signer fills in, as the RD emits it.
         let signature = format!(
-            r##"<dsig:Signature xmlns:dsig="http://www.w3.org/2000/09/xmldsig#"><dsig:SignedInfo><dsig:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/><dsig:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/><dsig:Reference URI="#_artifactresponse1"><dsig:Transforms><dsig:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/><dsig:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/></dsig:Transforms><dsig:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/><dsig:DigestValue></dsig:DigestValue></dsig:Reference></dsig:SignedInfo><dsig:SignatureValue></dsig:SignatureValue><dsig:KeyInfo><dsig:X509Data><dsig:X509Certificate>{cert}</dsig:X509Certificate></dsig:X509Data></dsig:KeyInfo></dsig:Signature>"##
+            r##"
+            <dsig:Signature xmlns:dsig="http://www.w3.org/2000/09/xmldsig#">
+              <dsig:SignedInfo>
+                <dsig:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
+                <dsig:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>
+                <dsig:Reference URI="#_artifactresponse1">
+                  <dsig:Transforms>
+                    <dsig:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/>
+                    <dsig:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
+                  </dsig:Transforms>
+                  <dsig:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+                  <dsig:DigestValue></dsig:DigestValue>
+                </dsig:Reference>
+              </dsig:SignedInfo>
+              <dsig:SignatureValue></dsig:SignatureValue>
+              <dsig:KeyInfo>
+                <dsig:X509Data>
+                  <dsig:X509Certificate>{cert}</dsig:X509Certificate>
+                </dsig:X509Data>
+              </dsig:KeyInfo>
+            </dsig:Signature>"##
         );
         let resolve_id = wire.resolve_id;
         let artifact_response = format!(
-            r#"<samlp:ArtifactResponse xmlns:samlp="{NS_SAMLP}" xmlns:saml="{NS_SAML}" ID="_artifactresponse1" Version="2.0" IssueInstant="{issued}" InResponseTo="{resolve_id}"><saml:Issuer>{RD}</saml:Issuer>{signature}<samlp:Status><samlp:StatusCode Value="{STATUS_SUCCESS}"/></samlp:Status>{response}</samlp:ArtifactResponse>"#
+            r#"
+            <samlp:ArtifactResponse xmlns:samlp="{NS_SAMLP}" 
+                                    xmlns:saml="{NS_SAML}" 
+                                    ID="_artifactresponse1" 
+                                    Version="2.0" 
+                                    IssueInstant="{issued}" 
+                                    InResponseTo="{resolve_id}">
+              <saml:Issuer>{RD}</saml:Issuer>
+              {signature}
+              <samlp:Status>
+                <samlp:StatusCode Value="{STATUS_SUCCESS}"/>
+              </samlp:Status>
+              {response}
+            </samlp:ArtifactResponse>"#
         );
         let signed = sign(&artifact_response, &rd_key.key_pem).expect("sign as the RD");
         wrap_in_soap_envelope(&signed).expect("SOAP envelope")
