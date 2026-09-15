@@ -1,15 +1,15 @@
 //! Filesystem-backed persistence for the event store.
 //!
-//! Events are stored as length-prefixed postcard frames in a single file per stream.
+//! Events are stored as length-prefixed CBOR frames in a single file per stream.
 //! The length prefix lets us read one frame at a time without decoding the whole file,
 //! and lets us append new frames at the end. Appends use `O_APPEND` to avoid rewriting.
 //!
 //! On-disk layout per frame:
 //!   [4 bytes: body length (u32, little-endian)]
-//!   [body:    postcard-encoded [`Frame`]]
+//!   [body:    CBOR-encoded [`Frame`]]
 //!
-//! [`Frame`] is a versioned enum; postcard encodes the variant discriminant as a
-//! varint, giving us a per-frame version marker for future format migrations.
+//! [`Frame`] is a versioned enum; CBOR encodes the variant as its name, giving us
+//! a per-frame version marker for future format migrations.
 
 use std::{
     path::{Path, PathBuf},
@@ -24,8 +24,8 @@ use tokio::{
 };
 
 use super::{
-    EncryptedEvent, EventHash, Replay, Store, StoreData, StreamMeta, chain_hash, event_aad,
-    persistence::NewStream,
+    EncryptedEvent, EventHash, Replay, Store, StoreData, StreamMeta, chain_hash, encoding,
+    event_aad, persistence::NewStream,
 };
 use crate::{
     AppError, ElectionConfig, Scope, StreamId,
@@ -34,13 +34,17 @@ use crate::{
 
 const FRAME_HEADER_LEN: usize = 4;
 
+/// `serde_bytes` keeps the byte fields as CBOR byte strings; without it serde
+/// hands them to the encoder as sequences, costing up to two bytes per byte.
 #[derive(Serialize, Deserialize)]
 enum Frame {
     V1 {
         event_id: u64,
         created_at_micros: i64,
         /// Chain hash; see [`super::chain_hash`] and [`super::StoreEvent::hash`].
+        #[serde(with = "serde_bytes")]
         hash: EventHash,
+        #[serde(with = "serde_bytes")]
         encrypted_payload: Vec<u8>,
     },
 }
@@ -306,7 +310,7 @@ async fn read_frames(path: &Path) -> Result<Vec<EncryptedEvent>, AppError> {
             created_at_micros,
             hash,
             encrypted_payload,
-        } = postcard::from_bytes::<Frame>(&body)
+        } = encoding::decode::<Frame>(&body)
             .map_err(|e| AppError::EventDecodeError(format!("failed to decode frame: {e}")))?;
 
         let created_at = DateTime::from_timestamp_micros(created_at_micros).unwrap_or_default();
@@ -342,7 +346,7 @@ pub(super) async fn append_event<E: Serialize>(
         encrypted_payload,
     };
 
-    let body = postcard::to_allocvec(&frame).map_err(|e| {
+    let body = encoding::encode(&frame).map_err(|e| {
         AppError::ServerError(std::io::Error::new(std::io::ErrorKind::InvalidData, e))
     })?;
 
@@ -756,10 +760,10 @@ mod tests {
             created_at_micros,
             mut hash,
             encrypted_payload,
-        } = postcard::from_bytes::<Frame>(&bytes[FRAME_HEADER_LEN..FRAME_HEADER_LEN + body_len])
+        } = encoding::decode::<Frame>(&bytes[FRAME_HEADER_LEN..FRAME_HEADER_LEN + body_len])
             .expect("decode frame");
         hash[0] ^= 0x01;
-        let new_body = postcard::to_allocvec(&Frame::V1 {
+        let new_body = encoding::encode(&Frame::V1 {
             event_id,
             created_at_micros,
             hash,
