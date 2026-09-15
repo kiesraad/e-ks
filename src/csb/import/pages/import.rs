@@ -149,8 +149,8 @@ pub async fn import_submit<S: AppRequestState>(
 
 fn election_label(election: ElectionConfig, locale: Locale) -> String {
     let title = election.title(locale.into());
-    match election.region_title() {
-        Some(region) => format!("{title} - {region}"),
+    match election.domain_title() {
+        Some(domain) => format!("{title} - {domain}"),
         None => title.to_string(),
     }
 }

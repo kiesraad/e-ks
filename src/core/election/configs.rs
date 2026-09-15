@@ -132,8 +132,8 @@ impl ElectionConfig {
     pub fn stable_id(&self) -> String {
         let code = self.code();
 
-        if let Some(region_code) = self.region_code() {
-            format!("{code}:{region_code}")
+        if let Some(domain_code) = self.domain_code() {
+            format!("{code}:{domain_code}")
         } else {
             code.to_string()
         }
@@ -142,8 +142,8 @@ impl ElectionConfig {
     /// The election code as a download filename slug, e.g. `ek27`, `ps27prov1`.
     pub fn filename_slug(&self) -> String {
         let mut slug = self.code().to_lowercase();
-        if let Some(region) = self.region_code() {
-            slug.push_str(&region.to_lowercase());
+        if let Some(domain) = self.domain_code() {
+            slug.push_str(&domain.to_lowercase());
         }
         slug
     }
@@ -151,20 +151,20 @@ impl ElectionConfig {
     /// Parse a [`Self::stable_id`] string (e.g. `"EK27"`, `"PS27:prov1"`)
     /// back to an election configuration.
     pub fn from_stable_id(value: &str) -> Option<Self> {
-        let (code, region) = match value.split_once(':') {
-            Some((code, region)) => (code, Some(region)),
+        let (code, domain) = match value.split_once(':') {
+            Some((code, domain)) => (code, Some(domain)),
             None => (value, None),
         };
-        Self::from_code_and_region(code, region)
+        Self::from_code_and_domain(code, domain)
     }
 
     /// The election title to be followed by the phrase "Het gaat om de verkiezing van ...", as written on the models.
     ///
-    /// Specifies the region, but not the year of the election.
+    /// Specifies the election domain, but not the year of the election.
     pub fn formal_title(&self, locale: ModelLocale) -> String {
-        let region = || {
-            self.region_title()
-                .expect("region title required for this election type")
+        let domain = || {
+            self.domain_title()
+                .expect("domain title required for this election type")
         };
 
         match (self.election_type(), locale) {
@@ -183,36 +183,36 @@ impl ElectionConfig {
             }
 
             (ElectionType::Gr, ModelLocale::Nl) => {
-                format!("de gemeenteraad van {}", region())
+                format!("de gemeenteraad van {}", domain())
             }
             (ElectionType::Gr, ModelLocale::Fry) => {
-                format!("de gemeenterie fan {}", region())
+                format!("de gemeenterie fan {}", domain())
             }
 
             (ElectionType::Ps, ModelLocale::Nl) => {
-                format!("de provinciale staten van {}", region())
+                format!("de provinciale staten van {}", domain())
             }
             (ElectionType::Ps, ModelLocale::Fry) => {
-                format!("de Provinsjale Steaten fan {}", region())
+                format!("de Provinsjale Steaten fan {}", domain())
             }
 
             (ElectionType::Ws, ModelLocale::Nl) => {
-                format!("het algemeen bestuur van het waterschap {}", region())
+                format!("het algemeen bestuur van het waterschap {}", domain())
             }
             (ElectionType::Ws, ModelLocale::Fry) => {
-                format!("it algemien bestjoer fan it wetterskip {}", region())
+                format!("it algemien bestjoer fan it wetterskip {}", domain())
             }
 
             (ElectionType::Ep, ModelLocale::Nl) => "het Europees Parlement".to_string(),
             (ElectionType::Ep, ModelLocale::Fry) => "het Europees Parlement".to_string(),
 
-            (ElectionType::Kc, _) => todo!("Support electoral college regions"),
-            (ElectionType::Kcni, _) => todo!("Support non-resident electoral college regions"),
-            (ElectionType::Er, _) => todo!("Support island regions"),
+            (ElectionType::Kc, _) => todo!("Support electoral college elections"),
+            (ElectionType::Kcni, _) => todo!("Support non-resident electoral college elections"),
+            (ElectionType::Er, _) => todo!("Support island elections"),
         }
     }
 
-    /// The full formal election title including the region and year, as listed in the EML 210.
+    /// The full formal election title including the election domain and year, as listed in the EML 210.
     ///
     /// E.g. "Verkiezing van de gemeenteraad van Voorne aan Zee 2026"
     pub fn full_formal_title(&self, locale: ModelLocale) -> String {
@@ -329,63 +329,63 @@ mod tests {
     }
 
     #[test]
-    fn from_code_and_region_resolves_region_less_election() {
+    fn from_code_and_domain_resolves_domain_less_election() {
         assert_eq!(
-            ElectionConfig::from_code_and_region("EK27", None),
+            ElectionConfig::from_code_and_domain("EK27", None),
             Some(ElectionConfig::EK27)
         );
     }
 
     #[test]
-    fn from_code_and_region_ignores_region_for_region_less_election() {
-        // A spurious region argument is ignored for elections that don't take one.
+    fn from_code_and_domain_ignores_domain_for_domain_less_election() {
+        // A spurious election domain argument is ignored for elections that don't take one.
         assert_eq!(
-            ElectionConfig::from_code_and_region("EK27", Some("anything")),
+            ElectionConfig::from_code_and_domain("EK27", Some("anything")),
             Some(ElectionConfig::EK27)
         );
     }
 
     #[test]
-    fn from_code_and_region_resolves_ps27_with_valid_province() {
+    fn from_code_and_domain_resolves_ps27_with_valid_province() {
         assert_eq!(
-            ElectionConfig::from_code_and_region("PS27", Some("prov1")),
+            ElectionConfig::from_code_and_domain("PS27", Some("prov1")),
             Some(ElectionConfig::PS27(Province::Groningen))
         );
     }
 
     #[test]
-    fn from_code_and_region_resolves_ws27_with_valid_water_council() {
+    fn from_code_and_domain_resolves_ws27_with_valid_water_council() {
         assert_eq!(
-            ElectionConfig::from_code_and_region("WS27", Some("ws2")),
+            ElectionConfig::from_code_and_domain("WS27", Some("ws2")),
             Some(ElectionConfig::WS27(WaterCouncil::Fryslan))
         );
     }
 
     #[test]
-    fn from_code_and_region_returns_none_when_region_required_but_missing() {
-        assert_eq!(ElectionConfig::from_code_and_region("PS27", None), None);
-        assert_eq!(ElectionConfig::from_code_and_region("WS27", None), None);
+    fn from_code_and_domain_returns_none_when_domain_required_but_missing() {
+        assert_eq!(ElectionConfig::from_code_and_domain("PS27", None), None);
+        assert_eq!(ElectionConfig::from_code_and_domain("WS27", None), None);
     }
 
     #[test]
-    fn from_code_and_region_returns_none_for_invalid_region() {
+    fn from_code_and_domain_returns_none_for_invalid_domain() {
         assert_eq!(
-            ElectionConfig::from_code_and_region("PS27", Some("XX")),
+            ElectionConfig::from_code_and_domain("PS27", Some("XX")),
             None
         );
         assert_eq!(
-            ElectionConfig::from_code_and_region("WS27", Some("NotAWaterCouncil")),
+            ElectionConfig::from_code_and_domain("WS27", Some("NotAWaterCouncil")),
             None
         );
     }
 
     #[test]
-    fn from_code_and_region_returns_none_for_unknown_code() {
+    fn from_code_and_domain_returns_none_for_unknown_code() {
         assert_eq!(
-            ElectionConfig::from_code_and_region("ZZ99", Some("GR")),
+            ElectionConfig::from_code_and_domain("ZZ99", Some("GR")),
             None
         );
-        assert_eq!(ElectionConfig::from_code_and_region("", None), None);
+        assert_eq!(ElectionConfig::from_code_and_domain("", None), None);
     }
 
     #[test]

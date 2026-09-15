@@ -82,7 +82,7 @@
   </main>
   <footer>
     {% let election = "election"|election_value %}
-    <span>{{ "common.title"|trans }} {{ election.code() }} {{ election.region_title().unwrap_or_default() }}</span>
+    <span>{{ "common.title"|trans }} {{ election.code() }} {{ election.domain_title().unwrap_or_default() }}</span>
     <span>
       {{ "common.version"|trans }} <strong>{{ env!("CARGO_PKG_VERSION") }}</strong>
       {% if let Some(server) = "server_name"|optional_str_value %}· <strong>{{ server }}</strong>{% endif %}

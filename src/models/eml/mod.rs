@@ -73,12 +73,12 @@ impl TryFrom<ElectionConfig> for ElectionIdentifierBuilder {
         let category = ElectionCategory::from(value.election_type());
         let year = value.election_date().year();
 
-        let id = if let Some(region) = value.region_title() {
+        let id = if let Some(domain) = value.domain_title() {
             format!(
                 "{}{}_{}",
                 category.to_eml_value(),
                 year,
-                slugify_teletex(region, false)
+                slugify_teletex(domain, false)
             )
         } else {
             format!("{}{}", category.to_eml_value(), year)
@@ -92,17 +92,17 @@ impl TryFrom<ElectionConfig> for ElectionIdentifierBuilder {
             .election_date(value.election_date())
             .nomination_date(value.nomination_day_date());
 
-        if let Some(region_title) = value.region_title() {
+        if let Some(domain_title) = value.domain_title() {
             // PS elections don't include the domain id for some reason
             let domain_id = if category == ElectionCategory::PS {
                 None
             } else {
-                let region_number = value
-                    .region_number()
-                    .expect("region_number is set alongside region_title");
-                Some(ElectionDomainId::new(region_number.to_string())?)
+                let domain_number = value
+                    .domain_number()
+                    .expect("domain_number is set alongside domain_title");
+                Some(ElectionDomainId::new(domain_number.to_string())?)
             };
-            election_id = election_id.domain(ElectionDomain::new(domain_id, region_title));
+            election_id = election_id.domain(ElectionDomain::new(domain_id, domain_title));
         }
 
         Ok(election_id)

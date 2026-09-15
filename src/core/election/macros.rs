@@ -29,7 +29,7 @@ macro_rules! define_elections {
         }
 
         impl ElectionConfig {
-            /// Short code identifying the election type (without region), used in forms.
+            /// Short code identifying the election type (without election domain), used in forms.
             pub fn code(&self) -> &'static str {
                 #[allow(unused)]
                 match self {
@@ -39,8 +39,8 @@ macro_rules! define_elections {
                 }
             }
 
-            /// Returns the region code (province or water council code), if any.
-            pub fn region_code(&self) -> Option<&'static str> {
+            /// Returns the election domain code (e.g. the code of the province or water council), if any.
+            pub fn domain_code(&self) -> Option<&'static str> {
                 #[allow(unused)]
                 match self {
                     $(
@@ -54,8 +54,8 @@ macro_rules! define_elections {
                 }
             }
 
-            /// Returns the region title (province or water council name), if any.
-            pub fn region_title(&self) -> Option<&'static str> {
+            /// Returns the election domain title (e.g. the name of the province or water council), if any.
+            pub fn domain_title(&self) -> Option<&'static str> {
                 #[allow(unused)]
                 match self {
                     $(
@@ -69,8 +69,8 @@ macro_rules! define_elections {
                 }
             }
 
-            /// Returns the region number, if any.
-            pub fn region_number(&self) -> Option<u16> {
+            /// Returns the election domain number (e.g. the region number of the province or water council), if any.
+            pub fn domain_number(&self) -> Option<u16> {
                 #[allow(unused)]
                 match self {
                     $(
@@ -190,14 +190,14 @@ macro_rules! define_elections {
                 }
             }
 
-            /// Parse an election code plus optional region code into a variant.
-            /// Variants without a region ignore the `region` argument; variants
-            /// with one return `None` if `region` is missing or invalid.
+            /// Parse an election code plus optional election domain code into a variant.
+            /// Variants without election domains ignore the `domain` argument; variants
+            /// with election domains return `None` if `domain` is missing or invalid.
             #[allow(unused_variables)]
-            pub fn from_code_and_region(code: &str, region: Option<&str>) -> Option<Self> {
+            pub fn from_code_and_domain(code: &str, domain: Option<&str>) -> Option<Self> {
                 $(
                     if code == stringify!($name) {
-                        return Some(Self::$name $((<$binding_ty>::from_code(region?)?))?);
+                        return Some(Self::$name $((<$binding_ty>::from_code(domain?)?))?);
                     }
                 )*
                 None

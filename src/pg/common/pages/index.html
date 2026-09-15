@@ -8,7 +8,7 @@
 {% block page_title %}
   {% let election = "election"|election_value %}
   {{ (&election)|election_title }}
-  {% if let Some(region) = election.region_title() %}- {{ region }}{% endif %}
+  {% if let Some(domain) = election.domain_title() %}- {{ domain }}{% endif %}
 {% endblock %}
 {% block content %}
   <h2 class="hidden">{{ "common.steps"|trans }}</h2>

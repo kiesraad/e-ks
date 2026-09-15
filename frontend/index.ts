@@ -1,7 +1,7 @@
 import bsnInput from "./scripts/form-inputs/bsn-input";
 import countryCodeInput from "./scripts/form-inputs/country-input";
 import dateInput from "./scripts/form-inputs/date-input";
-import electionRegion from "./scripts/form-inputs/election-region";
+import electionDomain from "./scripts/form-inputs/election-domain";
 import listDesignation from "./scripts/form-inputs/list-designation";
 import setupFileImport from "./scripts/form-inputs/file-import";
 import hashInput from "./scripts/form-inputs/hash-input";
@@ -53,7 +53,7 @@ addressLookup();
 localitySuggestions();
 setupPositionPreview();
 setupSelectAllCheckbox();
-electionRegion();
+electionDomain();
 listDesignation();
 omissionPreset();
 staleErrors(); // last: snapshots the values the other initialisers normalised
