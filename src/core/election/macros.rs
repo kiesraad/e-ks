@@ -69,6 +69,21 @@ macro_rules! define_elections {
                 }
             }
 
+            /// Returns the region number, if any.
+            pub fn region_number(&self) -> Option<u16> {
+                #[allow(unused)]
+                match self {
+                    $(
+                        Self::$name $(($binding))? => {
+                            #[allow(unused_mut, unused_assignments)]
+                            let mut result: Option<u16> = None;
+                            $( result = Some($binding.region_number()); )?
+                            result
+                        },
+                    )*
+                }
+            }
+
             pub fn election_type(&self) -> ElectionType {
                 #[allow(unused)]
                 match self {

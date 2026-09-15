@@ -4,8 +4,9 @@ pub(crate) mod eml210;
 use chrono::Datelike;
 use eks_utils::slugify_teletex;
 use eml_nl::{
+    common::ElectionDomain,
     documents::ElectionIdentifierBuilder,
-    utils::{ElectionCategory, ElectionId, ElectionSubcategory},
+    utils::{ElectionCategory, ElectionDomainId, ElectionId, ElectionSubcategory},
 };
 
 use crate::{
@@ -83,12 +84,27 @@ impl TryFrom<ElectionConfig> for ElectionIdentifierBuilder {
             format!("{}{}", category.to_eml_value(), year)
         };
 
-        Ok(ElectionIdentifierBuilder::new()
+        let mut election_id = ElectionIdentifierBuilder::new()
             .id(ElectionId::new(id)?)
             .name(value.full_formal_title(ModelLocale::Nl))
             .category(category)
             .subcategory(&value)
             .election_date(value.election_date())
-            .nomination_date(value.nomination_day_date()))
+            .nomination_date(value.nomination_day_date());
+
+        if let Some(region_title) = value.region_title() {
+            // PS elections don't include the domain id for some reason
+            let domain_id = if category == ElectionCategory::PS {
+                None
+            } else {
+                let region_number = value
+                    .region_number()
+                    .expect("region_number is set alongside region_title");
+                Some(ElectionDomainId::new(region_number.to_string())?)
+            };
+            election_id = election_id.domain(ElectionDomain::new(domain_id, region_title));
+        }
+
+        Ok(election_id)
     }
 }
