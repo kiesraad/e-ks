@@ -2,7 +2,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     CsbUser, Event, HasCsbUser, StreamId,
-    structs::csb::{RegisteredPoliticalGroup, RegisteredPoliticalGroupId},
+    core::constants::DEFAULT_DATE_TIME_FORMAT,
+    structs::csb::{
+        HearingDetails, HearingModel, RegisteredPoliticalGroup, RegisteredPoliticalGroupId,
+    },
     trans,
 };
 
@@ -30,6 +33,7 @@ pub enum CsbMainAction {
     CreateRegisteredPoliticalGroup(RegisteredPoliticalGroup),
     UpdateRegisteredPoliticalGroup(RegisteredPoliticalGroup),
     DeleteRegisteredPoliticalGroup(RegisteredPoliticalGroupId),
+    UpdateHearingDetails(HearingModel, HearingDetails),
     UpdateListOrder(Vec<StreamId>),
 }
 
@@ -53,6 +57,7 @@ impl Event for CsbMainEvent {
             CsbMainAction::CreateRegisteredPoliticalGroup(_)
             | CsbMainAction::UpdateRegisteredPoliticalGroup(_)
             | CsbMainAction::DeleteRegisteredPoliticalGroup(_) => "registered_political_group",
+            CsbMainAction::UpdateHearingDetails(..) => "hearing_details",
             CsbMainAction::UpdateListOrder(_) => "numbering",
         }
     }
@@ -64,6 +69,7 @@ impl Event for CsbMainEvent {
             CsbMainAction::CreateRegisteredPoliticalGroup(_) => "create_registered_political_group",
             CsbMainAction::UpdateRegisteredPoliticalGroup(_) => "update_registered_political_group",
             CsbMainAction::DeleteRegisteredPoliticalGroup(_) => "delete_registered_political_group",
+            CsbMainAction::UpdateHearingDetails(..) => "update_hearing_details",
             CsbMainAction::UpdateListOrder(_) => "update_list_order",
         }
     }
@@ -81,6 +87,9 @@ impl Event for CsbMainEvent {
             CsbMainAction::DeleteRegisteredPoliticalGroup(_) => {
                 trans!("audit_log.event.delete_registered_political_group", locale)
             }
+            CsbMainAction::UpdateHearingDetails(..) => {
+                trans!("audit_log.event.update_hearing_details", locale)
+            }
             CsbMainAction::UpdateListOrder(_) => {
                 trans!("audit_log.event.update_list_order", locale)
             }
@@ -96,6 +105,13 @@ impl Event for CsbMainEvent {
                 group.appellation, group.previous_votes, group.previous_seats
             ),
             CsbMainAction::DeleteRegisteredPoliticalGroup(id) => id.to_string(),
+            CsbMainAction::UpdateHearingDetails(model, hearing_details) => format!(
+                "Model {} hearing on {}, chaired by {}, with {} signing members",
+                model.to_string().to_uppercase(),
+                hearing_details.date_time.format(DEFAULT_DATE_TIME_FORMAT),
+                hearing_details.chair,
+                hearing_details.members.len(),
+            ),
             CsbMainAction::UpdateListOrder(order) => order
                 .iter()
                 .map(ToString::to_string)

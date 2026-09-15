@@ -128,6 +128,14 @@ group:
   instruction_submitter: Controleer de gegevens van de lijstinleveraar(s)
   toggle: Onderzoek afronden of heropenen
   unfinished: Onderzoek afronden
+hearing:
+  chair_name: Naam voorzitter
+  date: Datum zitting
+  location: Het betreft de zitting van het centraal stembureau in
+  member_name: Naam lid
+  place_and_time: Locatie en tijdstip
+  signing: Ondertekening
+  time: Tijdstip zitting
 import:
   error:
     ambiguous_hash: De ingevoerde hash code komt overeen met meer dan één dataset; voer meer tekens in.
@@ -237,7 +245,8 @@ recovery:
   assess: Beoordelen
   assessed: Beoordeeld
   assessed_count: "{} van {} beoordeeld"
-  download_i4: I 4 downloaden
+  download_i4_pdf: I 4 downloaden (PDF)
+  download_i4_word: I 4 downloaden (Word)
   explanation: "Leg per verzuim vast of het is hersteld. Kandidaten, lijsten en kieskringen met een niet hersteld verzuim worden geschrapt."
   finish_note: "Zolang nog niet alle verzuimen zijn beoordeeld, is het model I 4 nog niet definitief."
   finish_title: Afronden herstel

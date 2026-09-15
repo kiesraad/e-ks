@@ -5,7 +5,7 @@ use crate::{
     AppError, Context, CsbContext, HtmlTemplate,
     csb::{
         examination::{
-            CsbI4DownloadPath,
+            CsbI4DocxDownloadPath, CsbI4DownloadPath,
             extractors::{CsbPoliticalGroup, CsbPoliticalGroups},
         },
         recovery::paths::CsbRecoveryOverviewPath,
@@ -103,12 +103,22 @@ mod tests {
     /// The I 4 can be drawn up at any point; the card only shows whether the
     /// assessment behind it is done.
     #[tokio::test]
-    async fn overview_always_offers_the_i4_download() {
+    async fn overview_always_offers_the_i4_downloads() {
         for groups in [vec![group(1, 3)], vec![group(0, 3)], vec![]] {
             let body = render(groups).await;
-            assert!(body.contains("Download I 4"));
+            assert!(body.contains("Download I 4 (PDF)"));
             assert!(body.contains("/csb/examination/i4.pdf"));
+            assert!(body.contains("Download I 4 (Word)"));
+            assert!(body.contains("/csb/examination/i4.docx"));
         }
+    }
+
+    /// The hearing is recorded in phase 4, on the finalise page; the recovery
+    /// overview only offers the downloads.
+    #[tokio::test]
+    async fn overview_does_not_offer_the_hearing_details() {
+        let body = render(vec![group(0, 3)]).await;
+        assert!(!body.contains("/csb/examination/hearing-details"));
     }
 
     /// The lock stays closed and the button muted until every group has
