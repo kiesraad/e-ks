@@ -19,7 +19,6 @@
 //! - `GET  /saml/sp/acs`: Assertion Consumer Service: receive the artifact
 //!   (§7.4), resolve it over the mTLS SOAP back-channel (§7.5, §9.4), and validate the
 //!   ArtifactResponse, Response, then Assertion (§7.6).
-//! - `GET  /login/error`: query-clean landing page for a failed authentication.
 //! - `GET  /saml/sp/metadata`: serve the signed DV SP metadata (§8.3).
 //! - `/logout` (embedder-mounted [`handle_logout`]) + `POST /saml/sp/logout`:
 //!   SP-initiated logout (§7.7, §3.1.1.1).
@@ -79,9 +78,7 @@ use axum::{Router, extract::FromRef};
 use axum_extra::routing::{RouterExt, TypedPath};
 
 use crate::handlers::{
-    acs::{handle_acs, handle_login_error},
-    autosubmit::handle_autosubmit_js,
-    logout::handle_sls,
+    acs::handle_acs, autosubmit::handle_autosubmit_js, logout::handle_sls,
     metadata::handle_metadata,
 };
 
@@ -104,13 +101,6 @@ pub struct SamlMetadataPath;
 #[derive(TypedPath)]
 #[typed_path("/saml/sp/acs")]
 pub struct SamlAcsPath;
-
-/// Query-clean landing for a failed SAML authentication: the redirect target of
-/// the ACS failure paths. Rendered by [`handle_login_error`]. Lives under the
-/// embedder's `/login` area so the failure page reads as part of login.
-#[derive(TypedPath)]
-#[typed_path("/login/error")]
-pub struct LoginErrorPath;
 
 /// SLS endpoint path. Exposed so the embedder can exempt it from CSRF (the RD
 /// POSTs the LogoutResponse cross-site), keeping route and bypass in sync.
@@ -142,8 +132,6 @@ pub struct AutosubmitJsPath;
 /// structs above, so path and handler cannot drift):
 /// - `GET  /saml/sp/metadata` ([`SamlMetadataPath`]): signed SP metadata (eID §8.3).
 /// - `GET  /saml/sp/acs` ([`SamlAcsPath`]): Assertion Consumer Service (HTTP-Artifact, eID §7.1).
-/// - `GET  /login/error` ([`LoginErrorPath`]): query-clean landing that renders the
-///   failure page after a PRG redirect from the ACS, keeping the artifact out of the URL.
 /// - `POST /saml/sp/logout` ([`SamlLogoutPath`]): receives LogoutResponse from the IdP (eID §7.7.2).
 /// - `GET  /saml/sp/autosubmit.js` ([`AutosubmitJsPath`]): script that submits the HTTP-POST binding form.
 pub fn router<S>() -> Router<S>
@@ -154,7 +142,6 @@ where
     Router::new()
         .typed_get(handle_metadata)
         .typed_get(handle_acs::<S>)
-        .typed_get(handle_login_error::<S>)
         .typed_post(handle_sls::<S>)
         .typed_get(handle_autosubmit_js)
 }
