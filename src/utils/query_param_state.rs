@@ -27,7 +27,14 @@ pub struct QueryParamState {
     #[serde(default)]
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     import_capped: bool,
+    /// Comma-separated, since a query string cannot carry a sequence.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    ignored_columns: Option<String>,
 }
+
+/// Column names come from an upload; keep the `Location` header bounded.
+const MAX_IGNORED_COLUMNS_LEN: usize = 200;
 
 impl QueryParamState {
     pub fn is_initial(&self) -> bool {
@@ -44,6 +51,15 @@ impl QueryParamState {
 
     pub fn is_import_capped(&self) -> bool {
         self.import_capped
+    }
+
+    pub fn ignored_columns(&self) -> Vec<&str> {
+        self.ignored_columns
+            .as_deref()
+            .into_iter()
+            .flat_map(|names| names.split(','))
+            .filter(|name| !name.is_empty())
+            .collect()
     }
 
     pub fn initial() -> Self {
@@ -105,9 +121,23 @@ impl QueryParamState {
         }
     }
 
-    pub fn import_capped() -> Self {
+    /// Warnings for a successful import; only whole names that fit the cap are kept.
+    pub fn import_warnings(capped: bool, ignored_columns: &[String]) -> Self {
+        let mut joined = String::new();
+        for name in ignored_columns {
+            let next_len = joined.len() + name.len() + usize::from(!joined.is_empty());
+            if next_len > MAX_IGNORED_COLUMNS_LEN {
+                break;
+            }
+            if !joined.is_empty() {
+                joined.push(',');
+            }
+            joined.push_str(name);
+        }
+
         Self {
-            import_capped: true,
+            import_capped: capped,
+            ignored_columns: (!joined.is_empty()).then_some(joined),
             ..Default::default()
         }
     }
@@ -250,6 +280,48 @@ mod tests {
 
         let state = QueryParamState::redirect_to("/safe/path?x=1".to_string());
         assert_eq!(state.redirect_url(), Some("/safe/path?x=1"));
+    }
+
+    #[test]
+    fn import_warnings_round_trip_through_query_string() {
+        let names = ["geboortedatm".to_string(), "achter naam".to_string()];
+        let state = QueryParamState::import_warnings(true, &names);
+        let query = serde_urlencoded::to_string(&state).unwrap();
+        assert_eq!(
+            query,
+            "import_capped=true&ignored_columns=geboortedatm%2Cachter+naam"
+        );
+
+        let parsed: QueryParamState = serde_urlencoded::from_str(&query).unwrap();
+        assert!(parsed.is_import_capped());
+        assert_eq!(
+            parsed.ignored_columns(),
+            vec!["geboortedatm", "achter naam"]
+        );
+
+        let none = QueryParamState::import_warnings(false, &[]);
+        assert_eq!(serde_urlencoded::to_string(&none).unwrap(), "");
+        assert!(none.ignored_columns().is_empty());
+    }
+
+    /// Only whole names fit under the cap; a single oversized name is dropped
+    /// rather than cut in half.
+    #[test]
+    fn import_warnings_cap_the_column_list() {
+        let names: Vec<String> = (0..100).map(|i| format!("column{i:03}")).collect();
+        let state = QueryParamState::import_warnings(false, &names);
+        let joined = state.ignored_columns.clone().unwrap();
+        assert!(joined.len() <= MAX_IGNORED_COLUMNS_LEN);
+        // 20 names of 9 characters plus 19 commas is 199; a 21st would not fit.
+        assert_eq!(joined.len(), 199);
+        assert!(joined.ends_with("column019"));
+        assert_eq!(state.ignored_columns().len(), 20);
+
+        let huge = vec!["x".repeat(MAX_IGNORED_COLUMNS_LEN + 1)];
+        assert_eq!(
+            QueryParamState::import_warnings(false, &huge).ignored_columns,
+            None
+        );
     }
 
     #[test]

@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use crate::{
     AppError, Locale, PgEvent, PgStore,
     candidate_lists::{CSV_HEADERS, CandidateRecord, CandidateRecordCsv},
@@ -37,7 +39,7 @@ pub(crate) async fn import_candidate_list_csv(
     file_name: String,
     file_size: usize,
 ) -> Result<ImportOutcome, ImportCandidateListError> {
-    ensure_expected_headers(csv_data, locale)?;
+    let ignored_columns = ensure_expected_headers(csv_data, locale)?;
     let mut records = parse_records(csv_data, locale)?;
 
     let capped = records.len() > store.candidate_limit();
@@ -46,7 +48,10 @@ pub(crate) async fn import_candidate_list_csv(
     let persons = collect_persons(records, store.get_persons(), locale)?;
     emit_import_event(list, store, persons, file_name, file_size).await?;
 
-    Ok(ImportOutcome { capped })
+    Ok(ImportOutcome {
+        capped,
+        ignored_columns,
+    })
 }
 
 /// Information about a successful import that the caller surfaces to the user.
@@ -55,25 +60,110 @@ pub(crate) struct ImportOutcome {
     /// The number of candidates in the file exceeded the store's candidate
     /// limit and the list was truncated to that maximum.
     pub capped: bool,
+    /// Column names the importer did not recognise; their data was skipped.
+    pub ignored_columns: Vec<String>,
 }
 
-fn ensure_expected_headers(data: &[u8], locale: Locale) -> Result<(), ImportCandidateListError> {
-    if has_expected_headers(data) {
-        Ok(())
-    } else {
-        Err(ImportCandidateListError::Messages(vec![trans!(
-            "candidate_list.import_errors.invalid_headers",
-            locale
-        )]))
+impl ImportOutcome {
+    pub fn has_warnings(&self) -> bool {
+        self.capped || !self.ignored_columns.is_empty()
     }
 }
 
-fn has_expected_headers(data: &[u8]) -> bool {
+/// Columns every import needs; any other known column may be left out and
+/// columns may appear in any order.
+const REQUIRED_HEADERS: [&str; 2] = ["voorletters", "achternaam"];
+
+/// Returns the unknown columns the import will skip, or the header problems
+/// that stop it.
+fn ensure_expected_headers(
+    data: &[u8],
+    locale: Locale,
+) -> Result<Vec<String>, ImportCandidateListError> {
+    let check = check_headers(&read_headers(data), locale);
+    if check.errors.is_empty() {
+        Ok(check.ignored_columns)
+    } else {
+        Err(ImportCandidateListError::Messages(check.errors))
+    }
+}
+
+#[derive(Debug, Default, PartialEq)]
+struct HeaderCheck {
+    errors: Vec<String>,
+    ignored_columns: Vec<String>,
+}
+
+/// Column names of the first line, already normalised by the reader.
+fn read_headers(data: &[u8]) -> Vec<String> {
     let mut reader = crate::core::reader_from_bytes(data);
     match reader.headers() {
-        Ok(headers) => headers.iter().eq(CSV_HEADERS),
-        Err(_) => false,
+        Ok(headers) => headers.iter().map(str::to_string).collect(),
+        Err(_) => Vec::new(),
     }
+}
+
+/// Duplicate and missing required columns are errors, unknown columns a
+/// warning. No known column at all means there is no header row.
+fn check_headers(headers: &[String], locale: Locale) -> HeaderCheck {
+    let is_known = |name: &str| CSV_HEADERS.contains(&name);
+    let names = headers
+        .iter()
+        .map(String::as_str)
+        .filter(|name| !name.is_empty());
+
+    if !names.clone().any(is_known) {
+        return HeaderCheck {
+            errors: vec![trans!(
+                "candidate_list.import_errors.invalid_headers",
+                locale
+            )],
+            ..Default::default()
+        };
+    }
+
+    let mut errors = Vec::new();
+
+    let mut seen = BTreeSet::new();
+    let duplicates: BTreeSet<&str> = names.clone().filter(|name| !seen.insert(*name)).collect();
+    if !duplicates.is_empty() {
+        errors.push(trans!(
+            "candidate_list.import_errors.duplicate_columns",
+            locale,
+            quoted_list(&duplicates)
+        ));
+    }
+
+    let missing: BTreeSet<&str> = REQUIRED_HEADERS
+        .into_iter()
+        .filter(|required| !seen.contains(required))
+        .collect();
+    if !missing.is_empty() {
+        errors.push(trans!(
+            "candidate_list.import_errors.missing_columns",
+            locale,
+            quoted_list(&missing)
+        ));
+    }
+
+    let ignored_columns = seen
+        .into_iter()
+        .filter(|name| !is_known(name))
+        .map(str::to_string)
+        .collect();
+
+    HeaderCheck {
+        errors,
+        ignored_columns,
+    }
+}
+
+fn quoted_list(names: &BTreeSet<&str>) -> String {
+    names
+        .iter()
+        .map(|name| format!("'{name}'"))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 fn parse_records(
@@ -649,6 +739,87 @@ mod tests {
         assert_eq!(store.get_person_count(), 0);
 
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn accepts_reordered_and_mangled_columns() -> Result<(), AppError> {
+        let store = PgStore::new_for_test();
+        let list_id = CandidateListId::new();
+        let mut list = sample_candidate_list(list_id);
+        list.create(&store).await?;
+
+        let csv = "Achternaam; Voorletters ;roepnaam;Geboortedatum;correspondentie postcode;Lijst Nummer\r\n\
+                   Jansen; H.A.H.A. ;Henk; 2/1/1990 ;1234AB;3\r\n";
+
+        let outcome = import_candidate_list_csv(
+            &mut list,
+            &store,
+            csv.as_bytes(),
+            Locale::En,
+            "test.csv".to_string(),
+            0,
+        )
+        .await
+        .expect("import should succeed");
+
+        assert!(!outcome.capped);
+        assert_eq!(outcome.ignored_columns, vec!["lijst_nummer".to_string()]);
+        assert!(outcome.has_warnings());
+
+        let candidate_id = store.get_candidate_list(list_id)?.candidates[0];
+        let person = store.get_person(candidate_id)?;
+        assert_eq!(person.name.initials.to_string(), "H.A.H.A.");
+        assert_eq!(person.name.last_name.to_string(), "Jansen");
+        assert_eq!(
+            person.address.postal_code.map(|p| p.to_string()),
+            Some("1234AB".to_string())
+        );
+        assert_eq!(
+            person.personal_data.date_of_birth.map(|d| d.to_string()),
+            Some("1990-02-01".to_string())
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn check_headers_names_every_problem() {
+        let headers = |names: &[&str]| names.iter().map(ToString::to_string).collect::<Vec<_>>();
+
+        assert_eq!(
+            check_headers(&headers(&CSV_HEADERS), Locale::En),
+            HeaderCheck::default()
+        );
+        assert_eq!(
+            check_headers(&headers(&["voorletters", "achternaam"]), Locale::En),
+            HeaderCheck::default()
+        );
+        assert_eq!(
+            check_headers(
+                &headers(&["voorletters", "bsn", "geboortedatm", "bsn", "achter naam"]),
+                Locale::En
+            ),
+            HeaderCheck {
+                errors: vec![
+                    "The following columns appear more than once: 'bsn'. Keep one of each."
+                        .to_string(),
+                    "The following required columns are missing: 'achternaam'.".to_string(),
+                ],
+                ignored_columns: vec!["achter naam".to_string(), "geboortedatm".to_string()],
+            }
+        );
+
+        // A data row in place of a header row.
+        assert_eq!(
+            check_headers(&headers(&["H.", "Henk", "", "Jansen"]), Locale::Nl),
+            HeaderCheck {
+                errors: vec![
+                    "De eerste regel van het bestand bevat niet de verwachte kolomnamen. Download het CSV-sjabloon en gebruik dit als uitgangspunt.".to_string()
+                ],
+                ignored_columns: vec![],
+            }
+        );
+        assert_eq!(check_headers(&[], Locale::Nl).errors.len(), 1);
     }
 
     const CSV_HEADER: &str = include_str!("testdata/csv_header.csv");

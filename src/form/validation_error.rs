@@ -23,6 +23,7 @@ pub enum ValidationError {
     AppellationAlreadyExists,
     BsnAlreadyExists,
     DateInFuture,
+    InvalidDateFormat,
 }
 
 impl std::fmt::Display for ValidationError {
@@ -72,6 +73,7 @@ impl ValidationError {
             }
             ValidationError::BsnAlreadyExists => trans!("validation.bsn_already_exists", locale),
             ValidationError::DateInFuture => trans!("validation.date_of_birth_in_future", locale),
+            ValidationError::InvalidDateFormat => trans!("validation.invalid_date_format", locale),
         }
         .to_string()
     }
@@ -130,6 +132,10 @@ mod tests {
         assert_eq!(
             ValidationError::DateInFuture.message(Locale::En),
             "Date of birth cannot be in the future."
+        );
+        assert_eq!(
+            ValidationError::InvalidDateFormat.message(Locale::En),
+            "Use the format dd-mm-yyyy, for example 31-12-1990."
         );
     }
 
