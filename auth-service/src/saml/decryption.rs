@@ -236,7 +236,13 @@ fn name_id_fields(dec_doc: &Document, name_id_node: NodeId) -> DecryptedNameId {
     DecryptedNameId {
         // `direct_text`: the identifier is the NameID's own text. Element children
         // yield an empty value, which `check_decrypted_name_id` rejects.
-        value: SecretString::from(direct_text(dec_doc, name_id_node).unwrap_or_default()),
+        // Trimmed like every other text value, so a pretty-printed NameID
+        // matches the identifier it carries.
+        value: SecretString::from(
+            direct_text(dec_doc, name_id_node)
+                .map(|text| text.trim().to_string())
+                .unwrap_or_default(),
+        ),
         format: dec_doc
             .get_attribute(name_id_node, "Format")
             .unwrap_or("")

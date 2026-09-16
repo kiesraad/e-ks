@@ -1073,9 +1073,31 @@ mod tests {
         );
 
         let rd_key = load_key(wire.signing_key);
-        let cert = &rd_key.cert_base64;
-        // The enveloped-signature template the signer fills in, as the RD emits it.
-        let signature = format!(
+        let signature = rd_signature_template(&rd_key.cert_base64);
+        let resolve_id = wire.resolve_id;
+        let artifact_response = format!(
+            r#"
+            <samlp:ArtifactResponse xmlns:samlp="{NS_SAMLP}" 
+                                    xmlns:saml="{NS_SAML}" 
+                                    ID="_artifactresponse1" 
+                                    Version="2.0" 
+                                    IssueInstant="{issued}" 
+                                    InResponseTo="{resolve_id}">
+              <saml:Issuer>{RD}</saml:Issuer>
+              {signature}
+              <samlp:Status>
+                <samlp:StatusCode Value="{STATUS_SUCCESS}"/>
+              </samlp:Status>
+              {response}
+            </samlp:ArtifactResponse>"#
+        );
+        let signed = sign(&artifact_response, &rd_key.key_pem).expect("sign as the RD");
+        wrap_in_soap_envelope(&signed).expect("SOAP envelope")
+    }
+
+    /// The enveloped-signature template the signer fills in, as the RD emits it.
+    fn rd_signature_template(cert: &impl std::fmt::Display) -> String {
+        format!(
             r##"
             <dsig:Signature xmlns:dsig="http://www.w3.org/2000/09/xmldsig#">
               <dsig:SignedInfo>
@@ -1097,26 +1119,7 @@ mod tests {
                 </dsig:X509Data>
               </dsig:KeyInfo>
             </dsig:Signature>"##
-        );
-        let resolve_id = wire.resolve_id;
-        let artifact_response = format!(
-            r#"
-            <samlp:ArtifactResponse xmlns:samlp="{NS_SAMLP}" 
-                                    xmlns:saml="{NS_SAML}" 
-                                    ID="_artifactresponse1" 
-                                    Version="2.0" 
-                                    IssueInstant="{issued}" 
-                                    InResponseTo="{resolve_id}">
-              <saml:Issuer>{RD}</saml:Issuer>
-              {signature}
-              <samlp:Status>
-                <samlp:StatusCode Value="{STATUS_SUCCESS}"/>
-              </samlp:Status>
-              {response}
-            </samlp:ArtifactResponse>"#
-        );
-        let signed = sign(&artifact_response, &rd_key.key_pem).expect("sign as the RD");
-        wrap_in_soap_envelope(&signed).expect("SOAP envelope")
+        )
     }
 
     /// Run the handler's validation chain over `soap`, exactly as
