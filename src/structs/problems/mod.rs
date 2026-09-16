@@ -1,3 +1,6 @@
+//! Validation problems reported on the finalise page and on the CSB examination pages
+mod problems_sort;
+
 use axum_extra::routing::TypedPath as _;
 
 use crate::{

@@ -2,14 +2,8 @@ use askama::Template;
 use axum::response::IntoResponse;
 
 use crate::{
-    AppError, Context, EventHashPrefix, HtmlTemplate, PgStore,
-    core::ModelLocale,
-    filters,
-    finalise::AllProblems,
-    structs::{
-        common::{HasSeverity, Severity},
-        list_designation::ListDesignation,
-        list_submitters::ListSubmitter,
+    AppError, Context, EventHashPrefix, HtmlTemplate, PgStore, core::ModelLocale, filters, structs::{
+        common::{HasSeverity, Severity}, list_designation::ListDesignation, list_submitters::ListSubmitter, problems::AllProblems,
     },
 };
 

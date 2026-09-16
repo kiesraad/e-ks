@@ -1,9 +1,7 @@
 use axum::response::IntoResponse;
 
 use crate::{
-    AppError, Context, PgStore,
-    finalise::{AllProblems, pages::DownloadDocumentsPath},
-    models::documents::DocumentData,
+    AppError, Context, PgStore, finalise::pages::DownloadDocumentsPath, models::documents::DocumentData, structs::problems::AllProblems,
 };
 
 pub async fn gen_documents(

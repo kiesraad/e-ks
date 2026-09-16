@@ -2,13 +2,8 @@ use askama::Template;
 use axum::response::IntoResponse;
 
 use crate::{
-    AppResponse, Context, HtmlTemplate, PgStore,
-    common::PgIndexPath,
-    filters,
-    finalise::AllProblems,
-    structs::{
-        candidate_lists::CandidateListSummary,
-        common::{PotentialProblems, Severity},
+    AppResponse, Context, HtmlTemplate, PgStore, common::PgIndexPath, filters, structs::{
+        candidate_lists::CandidateListSummary, common::{PotentialProblems, Severity}, problems::AllProblems,
     },
 };
 
