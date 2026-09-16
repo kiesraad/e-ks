@@ -150,7 +150,12 @@ mod tests {
     #[tokio::test]
     async fn hearing_details_renders_csrf_field() {
         let body = render(HearingModel::I1).await;
-        assert!(body.contains("name=\"csrf_token\""));
+        assert_eq!(
+            // One for: logout, language selection and hearing details
+            body.matches(r#"input type="hidden" name="csrf_token""#)
+                .count(),
+            3,
+        );
     }
 
     /// Both models render the same form; only the trail back differs.
