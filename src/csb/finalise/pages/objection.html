@@ -1,0 +1,27 @@
+{% extends "csb/components/overlay.html" %}
+{% block overlay_title %}
+  {% if objection.is_some() %}
+    {{ "csb.objection.form.update_title"|trans }}
+  {% else %}
+    {{ "csb.objection.form.add_title"|trans }}
+  {% endif %}
+{% endblock %}
+{% block overlay_steps %}<div class="hidden"></div>{% endblock %}
+{% block overlay_form %}
+  <div class="form-row">
+    <p class="form-field form-field-full">
+      <label for="objection_text">{{ "csb.objection.form.text_label"|trans }}</label>
+      <textarea name="objection_text" id="objection_text" rows="12">{{ form.data.objection_text }}</textarea>
+      {% for error in form|error("objection_text") %}<span class="error">{{ error }}</span>{% endfor %}
+    </p>
+  </div>
+{% endblock %}
+{% block overlay_actions %}
+  {% include "pg/common/components/submit.html" %}
+  {% if let Some(objection) = objection %}
+    <button type="submit"
+            class="button tertiary-destructive icon-trash lg mt-md"
+            formaction="{{ objection.delete_path() }}"
+            name="action">{{ "action.delete"|trans }}</button>
+  {% endif %}
+{% endblock %}

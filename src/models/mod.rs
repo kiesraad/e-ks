@@ -179,8 +179,7 @@ mod tests {
         assert_pdf(&render(input), "h9 missing representative");
     }
 
-    /// Render I 4 with every list section empty so the "geen ..." fallbacks run,
-    /// and with the objections still open so the write-in space is emitted.
+    /// Render I 4 with every list section empty so the "geen ..." fallbacks run.
     #[test]
     fn i4_renders_with_empty_sections() {
         let mut input = i4_example_1();
@@ -190,13 +189,9 @@ mod tests {
         input.removed_candidates.clear();
         input.removed_appellations.clear();
         input.corrected_appellations.clear();
-        input.objections = Some(Vec::new());
+        input.objections = Vec::new();
         input.response_objections = None;
         assert_pdf(&render(input), "i4 empty sections");
-
-        let mut input = i4_example_1();
-        input.objections = None;
-        assert_pdf(&render(input), "i4 open objections");
     }
 
     /// I 1 is downloaded before anything was imported too: render it with both
