@@ -156,8 +156,8 @@ impl AuthState for AppState {
         headers: &HeaderMap,
         end_session: bool,
     ) -> Response {
-        // TVS L10, only for a flow this browser started: a bare link to the
-        // error page must not log anyone out.
+        // TVS L10, only when the RD answered this browser's own flow: a
+        // cross-site link to the ACS must not log anyone out.
         let jar = if end_session {
             self.clear_session_cookie(jar).await
         } else {
