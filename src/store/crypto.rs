@@ -17,10 +17,12 @@ use aes_gcm::{
     aead::{AeadInOut, Generate, Nonce},
 };
 use hkdf::Hkdf;
-use secrecy::{ExposeSecret, SecretBox, SecretString};
+use secrecy::{
+    ExposeSecret, SecretBox, SecretString,
+    zeroize::{Zeroize, Zeroizing},
+};
 use serde::{Serialize, de::DeserializeOwned};
 use sha2::Sha256;
-use zeroize::{Zeroize, Zeroizing};
 
 use super::encoding;
 use crate::{AppError, ElectionConfig, StreamId};

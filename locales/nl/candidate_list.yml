@@ -52,8 +52,8 @@ import_errors:
     unknown: "het bestand kon niet worden verwerkt. {}"
     utf8: "veld {} bevat onleesbare tekst. Sla het bestand op als UTF-8 en probeer het opnieuw. {}"
     utf8_with_position: "record {} op regel {} bevat onleesbare tekst in veld {} rond teken {}. Sla het bestand op als UTF-8 en probeer het opnieuw. {}"
-  file_too_large: "Het geselecteerde bestand is te groot. De maximale grootte is {} MB."
   duplicate_columns: "De volgende kolommen komen meer dan één keer voor: {}. Houd er van elk één over."
+  file_too_large: "Het geselecteerde bestand is te groot. De maximale grootte is {} MB."
   format_error: "De kandidaat op regel {} kon niet worden geïmporteerd: {}"
   invalid_file_type: Alleen CSV-bestanden (.csv) worden geaccepteerd.
   invalid_headers: De eerste regel van het bestand bevat niet de verwachte kolomnamen. Download het CSV-sjabloon en gebruik dit als uitgangspunt.
