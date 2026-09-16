@@ -52,8 +52,8 @@ import_errors:
     unknown: "the file could not be processed. {}"
     utf8: "field {} contains unreadable text. Please save the file as UTF-8 and try again. {}"
     utf8_with_position: "record {} on line {} contains unreadable text in field {} near character {}. Please save the file as UTF-8 and try again. {}"
-  file_too_large: "The selected file is too large. The maximum size is {} MB."
   duplicate_columns: "The following columns appear more than once: {}. Keep one of each."
+  file_too_large: "The selected file is too large. The maximum size is {} MB."
   format_error: "The candidate on line {} could not be imported: {}"
   invalid_file_type: Only CSV files (.csv) are accepted.
   invalid_headers: The first line of the file does not contain the expected column names. Download the CSV template and use it as a starting point.

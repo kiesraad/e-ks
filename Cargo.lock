@@ -1542,7 +1542,6 @@ dependencies = [
  "uuid",
  "validate",
  "x509-parser",
- "zeroize",
 ]
 
 [[package]]
