@@ -587,7 +587,7 @@
   opacity: 0.4;
 }
 
-.objection-list {
+.examination-strip.objection-list {
   align-items: flex-start;
   flex-direction: column;
   row-gap: var(--space-2);

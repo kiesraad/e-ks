@@ -1,6 +1,8 @@
 use askama::Template;
-use axum::response::{IntoResponse, Redirect, Response};
-use axum_extra::routing::TypedPath;
+use axum::{
+    extract::Query,
+    response::{IntoResponse, Response},
+};
 
 use crate::{
     AppError, Context, CsbContext, CsbMainAction, CsbMainStore, Form, HtmlTemplate, Overlay,
@@ -12,112 +14,94 @@ use crate::{
     },
     filters,
     form::FormData,
+    redirect_success,
     structs::csb::Objection,
 };
 
 #[derive(Template)]
 #[template(path = "csb/finalise/pages/objection.html")]
 struct CsbObjectionTemplate {
+    /// The objection being edited; `None` when adding a new one.
     objection: Option<Objection>,
     close_action: String,
     overlay: Overlay,
     form: FormData<ObjectionForm>,
 }
 
-pub async fn add_objection(
-    _: CsbAddObjectionPath,
+fn render(
     context: CsbContext,
-) -> Result<Response, AppError> {
-    Ok(HtmlTemplate(
+    query: &QueryParamState,
+    form: FormData<ObjectionForm>,
+    objection: Option<Objection>,
+) -> Response {
+    HtmlTemplate(
         CsbObjectionTemplate {
-            objection: None,
-            close_action: CsbFinalisePath::PATH.to_owned(),
-            overlay: Overlay::new(&QueryParamState::default()),
-
-            form: FormData::new(),
+            objection,
+            close_action: CsbFinalisePath.to_string(),
+            overlay: Overlay::new(query),
+            form,
         },
         context,
     )
-    .into_response())
+    .into_response()
+}
+
+pub async fn add_objection(
+    _: CsbAddObjectionPath,
+    context: CsbContext,
+    Query(query): Query<QueryParamState>,
+) -> Result<Response, AppError> {
+    Ok(render(context, &query, FormData::new(), None))
 }
 
 pub async fn add_objection_submit(
     _: CsbAddObjectionPath,
     context: CsbContext,
     main_store: CsbMainStore,
+    Query(query): Query<QueryParamState>,
     Form(form): Form<ObjectionForm>,
 ) -> Result<Response, AppError> {
-    match form.validate_create() {
-        Err(form) => Ok(HtmlTemplate(
-            CsbObjectionTemplate {
-                objection: None,
-                close_action: CsbFinalisePath::PATH.to_owned(),
-                overlay: Overlay::new(&QueryParamState::default()),
-
-                form,
-            },
-            context,
-        )
-        .into_response()),
-        Ok(objection) => {
-            main_store
-                .update(CsbMainAction::AddObjection(objection).by(context.user()?))
-                .await?;
-            Ok(Redirect::to(&Objection::after_success_submit_path().to_string()).into_response())
-        }
-    }
+    let objection = match form.validate_create() {
+        Ok(objection) => objection,
+        Err(form) => return Ok(render(context, &query, form, None)),
+    };
+    main_store
+        .update(CsbMainAction::AddObjection(objection).by(context.user()?))
+        .await?;
+    Ok(redirect_success(CsbFinalisePath))
 }
 
 pub async fn update_objection(
     CsbUpdateObjectionPath { id }: CsbUpdateObjectionPath,
-    main_store: CsbMainStore,
     context: CsbContext,
+    main_store: CsbMainStore,
+    Query(query): Query<QueryParamState>,
 ) -> Result<Response, AppError> {
-    Ok(HtmlTemplate(
-        CsbObjectionTemplate {
-            objection: main_store.get_objection(id),
-            close_action: CsbFinalisePath::PATH.to_owned(),
-            overlay: Overlay::new(&QueryParamState::default()),
-
-            form: FormData::new_with_data(
-                main_store
-                    .get_objection(id)
-                    .ok_or(AppError::GenericNotFound)?
-                    .into(),
-            ),
-        },
+    let objection = main_store.get_objection(id)?;
+    Ok(render(
         context,
-    )
-    .into_response())
+        &query,
+        FormData::new_with_data(objection.clone().into()),
+        Some(objection),
+    ))
 }
 
 pub async fn update_objection_submit(
     CsbUpdateObjectionPath { id }: CsbUpdateObjectionPath,
     context: CsbContext,
     main_store: CsbMainStore,
+    Query(query): Query<QueryParamState>,
     Form(form): Form<ObjectionForm>,
 ) -> Result<Response, AppError> {
-    let objection = main_store
-        .get_objection(id)
-        .ok_or(AppError::GenericNotFound)?;
-    match form.validate_update(&objection) {
-        Err(form) => Ok(HtmlTemplate(
-            CsbObjectionTemplate {
-                objection: Some(objection),
-                close_action: CsbFinalisePath::PATH.to_owned(),
-                overlay: Overlay::new(&QueryParamState::default()),
-                form,
-            },
-            context,
-        )
-        .into_response()),
-        Ok(objection) => {
-            main_store
-                .update(CsbMainAction::UpdateObjection(objection).by(context.user()?))
-                .await?;
-            Ok(Redirect::to(&Objection::after_success_submit_path().to_string()).into_response())
-        }
-    }
+    let current = main_store.get_objection(id)?;
+    let objection = match form.validate_update(&current) {
+        Ok(objection) => objection,
+        Err(form) => return Ok(render(context, &query, form, Some(current))),
+    };
+    main_store
+        .update(CsbMainAction::UpdateObjection(objection).by(context.user()?))
+        .await?;
+    Ok(redirect_success(CsbFinalisePath))
 }
 
 pub async fn delete_objection(
@@ -125,15 +109,18 @@ pub async fn delete_objection(
     context: CsbContext,
     main_store: CsbMainStore,
 ) -> Result<Response, AppError> {
+    // Deleting an objection that is already gone is a stale form, not a change.
+    main_store.get_objection(id)?;
     main_store
         .update(CsbMainAction::DeleteObjection(id).by(context.user()?))
         .await?;
-    Ok(Redirect::to(&Objection::after_success_submit_path().to_string()).into_response())
+    Ok(redirect_success(CsbFinalisePath))
 }
 
 #[cfg(test)]
 mod tests {
     use axum::{body::Body, http::Response};
+    use axum_extra::routing::TypedPath;
     use reqwest::{StatusCode, header};
 
     use crate::{CsbUser, structs::csb::ObjectionId, test_utils::response_body_string};
@@ -146,13 +133,23 @@ mod tests {
             .update(
                 CsbMainAction::AddObjection(Objection {
                     id,
-                    objection_text: text.to_string(),
+                    objection_text: text.parse().expect("Valid objection text"),
                 })
                 .by(CsbUser::Developer),
             )
             .await
             .expect("Add objection");
         id
+    }
+
+    fn form(text: &str) -> Form<ObjectionForm> {
+        Form(ObjectionForm {
+            objection_text: text.to_string(),
+        })
+    }
+
+    fn query() -> Query<QueryParamState> {
+        Query(QueryParamState::default())
     }
 
     async fn assert_redirect(response: Response<Body>) {
@@ -170,7 +167,7 @@ mod tests {
 
     #[tokio::test]
     async fn add_objection_renders_page() {
-        let response = add_objection(CsbAddObjectionPath, CsbContext::new_test())
+        let response = add_objection(CsbAddObjectionPath, CsbContext::new_test(), query())
             .await
             .expect("Page render response");
 
@@ -184,15 +181,13 @@ mod tests {
     #[tokio::test]
     async fn add_objection_submit_redirects() {
         let main_store = CsbMainStore::new_for_test();
-        let form = ObjectionForm {
-            objection_text: "test bezwaar tekst".to_string(),
-        };
 
         let response = add_objection_submit(
             CsbAddObjectionPath,
             CsbContext::new_test(),
             main_store.clone(),
-            Form(form),
+            query(),
+            form("test bezwaar tekst"),
         )
         .await
         .expect("Form submit");
@@ -201,32 +196,57 @@ mod tests {
 
         let objections = main_store.get_all_objections();
         assert_eq!(objections.len(), 1);
-        assert_eq!(objections[0].objection_text, "test bezwaar tekst");
+        assert_eq!(
+            objections[0].objection_text.to_string(),
+            "test bezwaar tekst"
+        );
     }
 
     #[tokio::test]
-    async fn add_objection_invalid_submit_returns_form() {
+    async fn add_objection_submit_trims_and_normalises_line_endings() {
         let main_store = CsbMainStore::new_for_test();
-        let form = ObjectionForm {
-            objection_text: String::new(),
-        };
 
         let response = add_objection_submit(
             CsbAddObjectionPath,
             CsbContext::new_test(),
             main_store.clone(),
-            Form(form),
+            query(),
+            form("  eerste regel\r\ntweede regel \r\n"),
         )
         .await
         .expect("Form submit");
 
-        assert_eq!(response.status(), StatusCode::OK);
-
-        let body = response_body_string(response).await;
-        assert!(body.contains("This field must not be empty."));
+        assert_redirect(response).await;
 
         let objections = main_store.get_all_objections();
-        assert!(objections.is_empty());
+        assert_eq!(
+            objections[0].objection_text.to_string(),
+            "eerste regel\ntweede regel"
+        );
+    }
+
+    #[tokio::test]
+    async fn add_objection_invalid_submit_returns_form() {
+        let main_store = CsbMainStore::new_for_test();
+
+        for text in ["", "  \r\n "] {
+            let response = add_objection_submit(
+                CsbAddObjectionPath,
+                CsbContext::new_test(),
+                main_store.clone(),
+                query(),
+                form(text),
+            )
+            .await
+            .expect("Form submit");
+
+            assert_eq!(response.status(), StatusCode::OK);
+
+            let body = response_body_string(response).await;
+            assert!(body.contains("This field must not be empty."));
+        }
+
+        assert!(main_store.get_all_objections().is_empty());
     }
 
     #[tokio::test]
@@ -240,8 +260,9 @@ mod tests {
 
         let response = update_objection(
             CsbUpdateObjectionPath { id },
-            main_store,
             CsbContext::new_test(),
+            main_store,
+            query(),
         )
         .await
         .expect("Page render response");
@@ -252,6 +273,22 @@ mod tests {
         assert!(body.contains("Update objection"));
         assert!(body.contains("<textarea"));
         assert!(body.contains("objection text that should appear in the textarea</textarea>"));
+        assert!(body.contains(&CsbDeleteObjectionPath { id }.to_string()));
+    }
+
+    #[tokio::test]
+    async fn update_of_an_unknown_objection_is_not_found() {
+        let result = update_objection(
+            CsbUpdateObjectionPath {
+                id: ObjectionId::new(),
+            },
+            CsbContext::new_test(),
+            CsbMainStore::new_for_test(),
+            query(),
+        )
+        .await;
+
+        assert!(matches!(result, Err(AppError::GenericNotFound)));
     }
 
     #[tokio::test]
@@ -259,15 +296,12 @@ mod tests {
         let main_store = CsbMainStore::new_for_test();
         let id = add_objection_to_store(&main_store, "old_text").await;
 
-        let form = ObjectionForm {
-            objection_text: "new text".to_string(),
-        };
-
         let response = update_objection_submit(
             CsbUpdateObjectionPath { id },
             CsbContext::new_test(),
             main_store.clone(),
-            Form(form),
+            query(),
+            form("new text"),
         )
         .await
         .expect("Form submit");
@@ -276,7 +310,7 @@ mod tests {
 
         let objections = main_store.get_all_objections();
         assert_eq!(objections.len(), 1);
-        assert_eq!(objections[0].objection_text, "new text");
+        assert_eq!(objections[0].objection_text.to_string(), "new text");
         assert_eq!(objections[0].id, id);
     }
 
@@ -285,15 +319,12 @@ mod tests {
         let main_store = CsbMainStore::new_for_test();
         let id = add_objection_to_store(&main_store, "old text").await;
 
-        let form = ObjectionForm {
-            objection_text: String::new(),
-        };
-
         let response = update_objection_submit(
             CsbUpdateObjectionPath { id },
             CsbContext::new_test(),
             main_store.clone(),
-            Form(form),
+            query(),
+            form(""),
         )
         .await
         .expect("Form submit");
@@ -305,7 +336,7 @@ mod tests {
 
         let objections = main_store.get_all_objections();
         assert_eq!(objections.len(), 1);
-        assert_eq!(objections[0].objection_text, "old text");
+        assert_eq!(objections[0].objection_text.to_string(), "old text");
         assert_eq!(objections[0].id, id);
     }
 
@@ -325,5 +356,19 @@ mod tests {
         assert_redirect(response).await;
 
         assert!(main_store.get_all_objections().is_empty());
+    }
+
+    #[tokio::test]
+    async fn delete_of_an_unknown_objection_is_not_found() {
+        let result = delete_objection(
+            CsbDeleteObjectionPath {
+                id: ObjectionId::new(),
+            },
+            CsbContext::new_test(),
+            CsbMainStore::new_for_test(),
+        )
+        .await;
+
+        assert!(matches!(result, Err(AppError::GenericNotFound)));
     }
 }

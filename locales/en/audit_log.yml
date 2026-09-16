@@ -106,6 +106,7 @@ filter:
     list_submitter: List submitter
     name_authorisation: Statutory name and authorised agent
     numbering: Numbering
+    objection: Objection
     omission: Omission
     paper_correction: Paper corrections
     person: Person

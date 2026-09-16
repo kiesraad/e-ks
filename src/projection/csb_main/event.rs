@@ -130,8 +130,9 @@ impl Event for CsbMainEvent {
                 .map(ToString::to_string)
                 .collect::<Vec<_>>()
                 .join(", "),
-            CsbMainAction::AddObjection(_) => String::new(),
-            CsbMainAction::UpdateObjection(_) => String::new(),
+            CsbMainAction::AddObjection(objection) | CsbMainAction::UpdateObjection(objection) => {
+                format!("{}: {}", objection.id, objection.objection_text)
+            }
             CsbMainAction::DeleteObjection(id) => id.to_string(),
         }
     }

@@ -179,8 +179,7 @@ mod tests {
         assert_pdf(&render(input), "h9 missing representative");
     }
 
-    /// Render I 4 with every list section empty so the "geen ..." fallbacks run,
-    /// and with the objections still open so the write-in space is emitted.
+    /// Render I 4 with every list section empty so the "geen ..." fallbacks run.
     #[test]
     fn i4_renders_with_empty_sections() {
         let mut input = i4_example_1();

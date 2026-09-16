@@ -4,7 +4,7 @@ use axum_extra::routing::TypedPath;
 use serde::Deserialize;
 
 use crate::{
-    AppError, QueryParamState,
+    AppError,
     structs::csb::{Objection, ObjectionId},
 };
 
@@ -34,10 +34,6 @@ pub struct CsbDeleteObjectionPath {
 }
 
 impl Objection {
-    pub fn after_success_submit_path() -> impl TypedPath {
-        CsbFinalisePath.with_query_params(QueryParamState::created())
-    }
-
     pub fn update_path(&self) -> impl TypedPath {
         CsbUpdateObjectionPath { id: self.id }
     }

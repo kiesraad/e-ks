@@ -32,7 +32,7 @@ pub struct I4 {
     pub valid_lists: Vec<DistrictLists>,
     pub numbered_based_on_votes: Vec<NumberedOnVotes>,
     pub numbered_based_on_districts: Vec<NumberedOnDistricts>,
-    /// `None`: room to write during the session; empty: no objections raised.
+    /// Empty: no objections raised.
     pub objections: Vec<String>,
     pub response_objections: Option<String>,
 }

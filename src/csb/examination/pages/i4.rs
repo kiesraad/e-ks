@@ -74,7 +74,7 @@ async fn i4_model<S: AppRequestState>(main_store: CsbMainStore, state: &S) -> Re
         objections: main_store
             .get_all_objections()
             .into_iter()
-            .map(|o| o.objection_text)
+            .map(|o| o.objection_text.to_string())
             .collect(),
         response_objections: None,
     })

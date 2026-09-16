@@ -62,13 +62,14 @@ impl CsbMainStore {
         self.data.read().objections.clone()
     }
 
-    pub fn get_objection(&self, objection_id: ObjectionId) -> Option<Objection> {
+    pub fn get_objection(&self, objection_id: ObjectionId) -> Result<Objection, AppError> {
         self.data
             .read()
             .objections
             .iter()
             .find(|o| o.id == objection_id)
             .cloned()
+            .ok_or(AppError::GenericNotFound)
     }
 }
 
