@@ -217,8 +217,9 @@ pub trait AuthState: Clone + Send + Sync + 'static {
     /// not loaded ([`AuthFailure::Unavailable`]). The auth-service has already
     /// logged the technical detail, so the embedding application is responsible
     /// only for the user-facing page (rendered with its own layout/CSS) and,
-    /// when `end_session` is set (the failure ended a flow this browser
-    /// started), for tearing down any existing local session (TVS L10).
+    /// when `end_session` is set (the RD answered a flow this browser started
+    /// with a failure), for tearing down any existing local session (TVS L10).
+    /// It is not set for anything a cross-site link to the ACS could provoke.
     /// `headers` is provided for locale negotiation; `jar` lets the
     /// application clear its cookie.
     fn on_authentication_failed(

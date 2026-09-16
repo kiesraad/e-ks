@@ -53,9 +53,11 @@ import_errors:
     utf8: "field {} contains unreadable text. Please save the file as UTF-8 and try again. {}"
     utf8_with_position: "record {} on line {} contains unreadable text in field {} near character {}. Please save the file as UTF-8 and try again. {}"
   file_too_large: "The selected file is too large. The maximum size is {} MB."
+  duplicate_columns: "The following columns appear more than once: {}. Keep one of each."
   format_error: "The candidate on line {} could not be imported: {}"
   invalid_file_type: Only CSV files (.csv) are accepted.
-  invalid_headers: Use the same column names as in the exported CSV file.
+  invalid_headers: The first line of the file does not contain the expected column names. Download the CSV template and use it as a starting point.
+  missing_columns: "The following required columns are missing: {}."
   missing_file: Please select a CSV file to import.
   parse_error: "The candidate on line {} could not be imported. Please check field '{}': {}"
   too_many_errors: "The file contains too many errors. Only the first {} are shown here; fix those and try again."
@@ -79,5 +81,6 @@ title_single: Candidate list
 view:
   empty: This candidate list has no persons yet.
   import_capped: "The CSV file contained more than {} candidates. Only the first {} were imported."
+  import_ignored_columns: "The following columns in the CSV file were not recognised and have been skipped: {}. Check the column names if this data should have been imported."
   max_candidates_exceeded: "The maximum number of candidates ({}) has been exceeded."
   max_candidates_reached: "You cannot add more than {} candidates to a candidate list."

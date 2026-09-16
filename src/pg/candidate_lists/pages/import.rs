@@ -120,9 +120,12 @@ pub async fn import_candidate_list(
     )
     .await
     {
-        Ok(outcome) if outcome.capped => {
-            Ok(Redirect::to(&list.import_capped_path().to_string()).into_response())
-        }
+        Ok(outcome) if outcome.has_warnings() => Ok(Redirect::to(
+            &list
+                .import_warnings_path(outcome.capped, &outcome.ignored_columns)
+                .to_string(),
+        )
+        .into_response()),
         Ok(_) => Ok(redirect_success(list.view_path())),
         Err(ImportCandidateListError::App(error)) => Err(error),
         Err(ImportCandidateListError::Messages(messages)) => Ok(render_import_export(
@@ -376,6 +379,53 @@ mod tests {
             .to_str()
             .unwrap();
         assert!(location.contains("import_capped=true"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn import_candidate_list_with_unknown_columns_redirects_with_warning()
+    -> Result<(), AppError> {
+        let store = PgStore::new_for_test();
+        let list = sample_candidate_list(CandidateListId::new());
+        list.create(&store).await?;
+
+        let csv =
+            "voorletters,achternaam,Lijst Nummer,geboortedatum\r\nH.A.H.A.,Jansen,3,6/23/1984\r\n";
+
+        let response = import_candidate_list(
+            CandidateListImportPath { list_id: list.id },
+            Context::new_test_without_db(),
+            store.clone(),
+            Ok(FileForm {
+                file_name: Some("candidates.csv".to_string()),
+                file_data: Some(Bytes::from(csv)),
+            }),
+        )
+        .await?;
+
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        let location = response
+            .headers()
+            .get("Location")
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert!(
+            location.contains("ignored_columns=lijst_nummer"),
+            "{location}"
+        );
+        assert!(!location.contains("import_capped"), "{location}");
+
+        let candidate_id = store.get_candidate_list(list.id)?.candidates[0];
+        assert_eq!(
+            store
+                .get_person(candidate_id)?
+                .personal_data
+                .date_of_birth
+                .map(|d| d.to_string()),
+            Some("1984-06-23".to_string())
+        );
 
         Ok(())
     }

@@ -473,7 +473,7 @@ mod tests {
 
     #[tokio::test]
     async fn on_authentication_failed_keeps_the_session_outside_a_flow() {
-        // A bare hit on the error page (a cross-site link) must not log out.
+        // A cross-site hit on the ACS must not log out.
         let state = crate::AppState::new_for_tests().await;
         let session = Session::new_test();
         let token = session.token_string();

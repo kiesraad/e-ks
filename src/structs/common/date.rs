@@ -8,6 +8,13 @@ use crate::{ElectionConfig, constants::DEFAULT_DATE_FORMAT, form::ValidationErro
 pub static DATE_FORMAT_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^\d{1,2}-\d{1,2}-\d{4}$").expect("valid date regex"));
 
+static ISO_DATE_FORMAT_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^\d{4}-\d{2}-\d{2}$").expect("valid iso date regex"));
+
+/// US `m/d/yyyy` as written by Excel: slashes are month-first, dashes day-first.
+static US_DATE_FORMAT_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^\d{1,2}/\d{1,2}/\d{4}$").expect("valid us date regex"));
+
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, Hash)]
 #[serde(transparent)]
 pub struct DateOfBirth(NaiveDate);
@@ -30,12 +37,19 @@ impl FromStr for DateOfBirth {
     type Err = ValidationError;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        if !DATE_FORMAT_REGEX.is_match(value) {
-            return Err(ValidationError::InvalidValue);
-        }
+        let value = value.trim();
+        let format = if DATE_FORMAT_REGEX.is_match(value) {
+            DEFAULT_DATE_FORMAT
+        } else if ISO_DATE_FORMAT_REGEX.is_match(value) {
+            "%Y-%m-%d"
+        } else if US_DATE_FORMAT_REGEX.is_match(value) {
+            "%m/%d/%Y"
+        } else {
+            return Err(ValidationError::InvalidDateFormat);
+        };
 
-        let naive_date = NaiveDate::parse_from_str(value, DEFAULT_DATE_FORMAT)
-            .map_err(|_| ValidationError::InvalidValue)?;
+        let naive_date =
+            NaiveDate::parse_from_str(value, format).map_err(|_| ValidationError::InvalidValue)?;
 
         if naive_date > chrono::Utc::now().date_naive() {
             return Err(ValidationError::DateInFuture);
@@ -97,12 +111,61 @@ mod tests {
     fn format() {
         assert!("12-12-0009".parse::<DateOfBirth>().is_ok());
         assert!("12-12-1909".parse::<DateOfBirth>().is_ok());
+        assert!(" 12-12-1909 ".parse::<DateOfBirth>().is_ok());
         assert!(matches!(
             "12-12-09".parse::<DateOfBirth>(),
-            Err(ValidationError::InvalidValue)
+            Err(ValidationError::InvalidDateFormat)
         ));
         assert!(matches!(
             "12-12-9".parse::<DateOfBirth>(),
+            Err(ValidationError::InvalidDateFormat)
+        ));
+        assert!(matches!(
+            "23.06.1984".parse::<DateOfBirth>(),
+            Err(ValidationError::InvalidDateFormat)
+        ));
+    }
+
+    /// Slashes mean month-first: `12/11/1990` is 11 December, while the
+    /// dashed `12-11-1990` stays 12 November.
+    #[test]
+    fn accepts_us_dates_with_slashes() {
+        assert_eq!(
+            "6/23/1984".parse::<DateOfBirth>().unwrap(),
+            "23-06-1984".parse::<DateOfBirth>().unwrap()
+        );
+        assert_eq!(
+            "12/11/1990".parse::<DateOfBirth>().unwrap(),
+            "11-12-1990".parse::<DateOfBirth>().unwrap()
+        );
+        assert_ne!(
+            "12/11/1990".parse::<DateOfBirth>().unwrap(),
+            "12-11-1990".parse::<DateOfBirth>().unwrap()
+        );
+        // Day-first with slashes is a value error once the month is impossible.
+        assert!(matches!(
+            "23/06/1984".parse::<DateOfBirth>(),
+            Err(ValidationError::InvalidValue)
+        ));
+    }
+
+    #[test]
+    fn accepts_iso_dates() {
+        assert_eq!(
+            "1984-06-23".parse::<DateOfBirth>().unwrap(),
+            "23-06-1984".parse::<DateOfBirth>().unwrap()
+        );
+        assert!(matches!(
+            "1984-6-23".parse::<DateOfBirth>(),
+            Err(ValidationError::InvalidDateFormat)
+        ));
+    }
+
+    /// A well-formed but non-existent date is a value problem, not a format one.
+    #[test]
+    fn impossible_date_is_invalid_value() {
+        assert!(matches!(
+            "31-02-1990".parse::<DateOfBirth>(),
             Err(ValidationError::InvalidValue)
         ));
     }

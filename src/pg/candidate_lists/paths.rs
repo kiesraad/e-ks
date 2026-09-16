@@ -107,9 +107,9 @@ impl CandidateList {
             .with_query_params(QueryParamState::max_candidates_reached())
     }
 
-    pub fn import_capped_path(&self) -> impl TypedPath {
+    pub fn import_warnings_path(&self, capped: bool, ignored_columns: &[String]) -> impl TypedPath {
         ViewCandidateListPath { list_id: self.id }
-            .with_query_params(QueryParamState::import_capped())
+            .with_query_params(QueryParamState::import_warnings(capped, ignored_columns))
     }
 
     pub fn reorder_path(&self) -> impl TypedPath {
