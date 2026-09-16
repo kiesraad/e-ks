@@ -9,7 +9,7 @@
         <thead>
           <tr>
             <th>{{ "common.switch_election.election"|trans }}</th>
-            <th>{{ "common.switch_election.region"|trans }}</th>
+            <th>{{ "common.switch_election.domain"|trans }}</th>
             <th></th>
           </tr>
         </thead>
@@ -66,7 +66,7 @@
        data-domain-kind="province">
       <label for="domain_province">{{ "common.switch_election.province"|trans }}</label>
       <select name="domain_province" id="domain_province">
-        <option value="">-- {{ "common.switch_election.select_region"|trans }} --</option>
+        <option value="">-- {{ "common.switch_election.select_domain"|trans }} --</option>
         {% for p in provinces %}
           <option value="{{ p.code() }}"
                   {% if let Some(sel) = selected_domain && *sel == p.code() %}selected{% endif %}>
@@ -79,7 +79,7 @@
        data-domain-kind="water_council">
       <label for="domain_water_council">{{ "common.switch_election.water_council"|trans }}</label>
       <select name="domain_water_council" id="domain_water_council">
-        <option value="">-- {{ "common.switch_election.select_region"|trans }} --</option>
+        <option value="">-- {{ "common.switch_election.select_domain"|trans }} --</option>
         {% for wc in water_councils %}
           <option value="{{ wc.code() }}"
                   {% if let Some(sel) = selected_domain && *sel == wc.code() %}selected{% endif %}>

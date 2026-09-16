@@ -64,13 +64,13 @@ select_election:
 step: "Step {}"
 steps: Steps
 switch_election:
+  domain: Election domain
   election: Election
   existing: Elections
   label: Switch election
   province: Province
-  region: Region
   resume: Resume
-  select_region: select a region
+  select_domain: select an election domain
   submit: Switch election
   water_council: Water authority
 title: Kiesraad - Kandidaatstelling
