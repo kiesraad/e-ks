@@ -87,10 +87,10 @@ fn event_description(event: &PgEvent, locale: Locale) -> String {
 
 /// Short human-readable details for a listing row (name, file, districts, ...).
 fn event_details(event: &PgEvent) -> String {
-    fn district_codes(districts: &BTreeSet<ElectoralDistrict>) -> String {
+    fn district_titles(districts: &BTreeSet<ElectoralDistrict>) -> String {
         districts
             .iter()
-            .map(ElectoralDistrict::code)
+            .map(ElectoralDistrict::title)
             .collect::<Vec<_>>()
             .join(", ")
     }
@@ -104,11 +104,11 @@ fn event_details(event: &PgEvent) -> String {
         PgEvent::CreatePerson(p) | PgEvent::UpdatePerson(p) => p.name.display(),
         PgEvent::CreatePersonPersonalData { name, .. }
         | PgEvent::UpdatePersonPersonalData { name, .. } => name.display(),
-        PgEvent::CreateCandidateList(cl) => district_codes(&cl.electoral_districts),
+        PgEvent::CreateCandidateList(cl) => district_titles(&cl.electoral_districts),
         PgEvent::UpdateCandidateListDistricts {
             electoral_districts,
             ..
-        } => district_codes(electoral_districts),
+        } => district_titles(electoral_districts),
         PgEvent::CreateNameAuthorisation(aa) | PgEvent::UpdateNameAuthorisation(aa) => {
             format!("{} ({})", aa.legal_name, aa.name.display())
         }
