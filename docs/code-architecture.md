@@ -554,6 +554,13 @@ Runtime configuration is read from environment variables once at startup into a
 | `DEFAULT_ELECTION` | Election a login lands on when the flow has no election selection of its own (CSB logins, dev logins): the election code, with the election domain appended after a colon where the type needs one (e.g. `EK27`, `PS27:prov1`). Dev builds default to `EK27`. |
 | `BIND_ADDRESS` | Address the server binds to (also accepted as a CLI argument). |
 | `CSB_BIND_ADDRESS` | Serve the CSB section on a second listener, so it can be published on a domain of its own: a port number (bound on `0.0.0.0`) or an `address:port` with a numeric address. `/csb` is then unreachable on `BIND_ADDRESS`. The second listener serves the whole application, since a committee session correcting paper documents uses the political-group routes as well. With ACME both listeners present the certificate ordered for `ACME_DOMAIN`, so a second domain needs its TLS terminated upstream. |
+| `BRP_BASE_URL` | Base URL of the BRP API. Dev builds default to the `personen-mock` container on `http://localhost:5010`. |
+| `BRP_PERSONS_ENDPOINT` | Path of the `personen` endpoint relative to `BRP_BASE_URL` (default `haalcentraal/api/brp/personen`, which the mock serves; the RvIG gateway serves it at `api/brp/personen`). |
+| `BRP_TOKEN_URL` | OAuth 2.0 client credentials for the BRP, as one URL: `https://{client_id}:{client_secret}@host.nl/token?scope={scope}&resourceServer=ResourceServer01`. The user info holds the credentials (percent-encode `@`, `:` and `/` in them) and every query parameter is sent along in the token request; both are stripped from the URL the token is requested at. The token is cached and renewed before it expires. Plain `http` is only accepted for a loopback host. A secret like the master keys. |
+| `BRP_API_KEY` | Fixed bearer token sent with every BRP request, for a gateway without a token endpoint. Mutually exclusive with `BRP_TOKEN_URL`; with neither set the client sends no credentials, which only the mock accepts. |
+| `BRP_CLIENT_CERT_PATH` / `BRP_CLIENT_KEY_PATH` | PEM client certificate (chain) and private key presented to the BRP gateway over mTLS; both or neither. Read once at startup, so a rotated certificate needs a restart. |
+| `BRP_ROOT_CA_PATH` | Optional PEM bundle of extra trust roots for the gateway's own certificate, merged with the platform trust store, for a gateway whose certificate comes from a private PKI. |
+| `BRP_TIMEOUT` | Request timeout in seconds for BRP and token requests (default 30). |
 | `RATE_LIMIT_DOWNLOADS` / `RATE_LIMIT_DOWNLOADS_WINDOW_SECS` | Document downloads allowed per stream per window (default 60 per 3600s). |
 | `RATE_LIMIT_EVENTS` / `RATE_LIMIT_EVENTS_WINDOW_SECS` | Events one stream may record per window (default 2000 per 3600s). |
 | `RATE_LIMIT_EVENTS_TOTAL` | Absolute cap on the number of events in one stream (default 20000). |
@@ -561,8 +568,8 @@ Runtime configuration is read from environment variables once at startup into a
 The binary itself only reads `env::var`, but the deployment can supply these
 variables from a file (e.g. systemd `EnvironmentFile=`, Docker `--env-file`,
 Kubernetes secret mounts). This is the preferred way to provide the master
-secrets (`ID_DERIVATION_KEY`, `MASTER_ENCRYPTION_KEY`, `EKS_KEY`) so they
-never end up in shell history or process listings.
+secrets (`ID_DERIVATION_KEY`, `MASTER_ENCRYPTION_KEY`, `EKS_KEY`,
+`BRP_TOKEN_URL`) so they never end up in shell history or process listings.
 
 In `dev-features` builds a missing variable falls back to a built-in development
 default; in a production build a missing required variable is a startup error

@@ -27,10 +27,11 @@ const USER_AGENT: &str = concat!("e-KS/", env!("CARGO_PKG_VERSION"));
 const HTTP_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// The token endpoint reports failures (invalid/expired code) with HTTP 200
-/// and an `error` field instead of an `access_token`.
+/// and an `error` field instead of an `access_token`. The token is a secret
+/// from the moment it is deserialized.
 #[derive(Deserialize)]
 struct TokenResponse {
-    access_token: Option<String>,
+    access_token: Option<SecretString>,
     error: Option<String>,
 }
 
@@ -101,7 +102,7 @@ async fn exchange_code(
         warn!("GitHub token exchange failed: {error}");
         return Err(AppError::Unauthorised);
     };
-    Ok(SecretString::from(access_token))
+    Ok(access_token)
 }
 
 /// Resolves the numeric account id the access token belongs to.
@@ -152,7 +153,10 @@ mod tests {
         let ok: TokenResponse =
             serde_json::from_str(r#"{"access_token":"gho_abc","token_type":"bearer","scope":""}"#)
                 .expect("token json");
-        assert_eq!(ok.access_token.as_deref(), Some("gho_abc"));
+        assert_eq!(
+            ok.access_token.as_ref().map(ExposeSecret::expose_secret),
+            Some("gho_abc")
+        );
 
         let err: TokenResponse = serde_json::from_str(
             r#"{"error":"bad_verification_code","error_description":"The code is incorrect."}"#,

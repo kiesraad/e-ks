@@ -80,7 +80,7 @@ phf_codegen = "0.14.0"
 aes-gcm = "0.11.0" # 155M downloads (RustCrypto)
 ciborium = "0.2.2" # 236M downloads (Nathaniel McCallum)
 hkdf = "0.13.0" # 259M downloads (RustCrypto)
-secrecy = "0.10.3" # 161M downloads (Tony Arcieri)
+secrecy = { version = "0.10.3", features = ["serde"] } # 161M downloads (Tony Arcieri)
 urlencoding = "2.1.3" # 264M downloads (Kornel)
 
 # development tooling

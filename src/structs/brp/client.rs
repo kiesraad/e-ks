@@ -1,13 +1,15 @@
-use std::{str::FromStr, time::Duration};
+use std::{path::Path, str::FromStr};
 
 use chrono::NaiveDate;
-use reqwest::Client;
-use secrecy::{ExposeSecret, SecretString};
+use reqwest::{Certificate, Client, Identity, StatusCode};
+use secrecy::{ExposeSecret, SecretSlice};
 use serde::{Deserialize, Serialize};
 
-use super::{BrpCheckedField, BrpField, BrpFinding, BrpPerson, BrpValue, person::BrpResidence};
+use super::{
+    BrpCheckedField, BrpField, BrpFinding, BrpPerson, BrpValue, auth::BrpAuth, person::BrpResidence,
+};
 use crate::{
-    AppError,
+    AppError, BrpClientIdentity, BrpConfig,
     structs::{
         common::{Bsn, BsnOrNoneConfirmed, DateOfBirth, Gender, LastNamePrefix},
         persons::{Person, PersonId},
@@ -48,61 +50,65 @@ const BRP_DATE_FORMAT: &str = "%Y-%m-%d";
 #[derive(Clone)]
 pub struct BrpClient {
     http_client: Client,
-    base_url: String,
-    api_key: SecretString,
-    persons_endpoint: String,
-    timeout: Duration,
+    persons_url: String,
+    auth: BrpAuth,
 }
 
 impl BrpClient {
-    pub fn new(
-        base_url: &str,
-        api_key: SecretString,
-        persons_endpoint: &str,
-        timeout: Duration,
-    ) -> Self {
-        Self {
-            http_client: Client::new(),
-            base_url: base_url.to_string(),
-            api_key,
-            persons_endpoint: persons_endpoint.to_string(),
-            timeout,
+    /// Fails when the client certificate or trust root cannot be read, so a
+    /// misconfigured production connection stops startup instead of the first
+    /// candidate check.
+    pub fn new(config: &BrpConfig) -> Result<Self, AppError> {
+        let mut builder = Client::builder()
+            .timeout(config.timeout)
+            // Production is mTLS over TLS 1.2 or higher per the NCSC
+            // guidelines; pin the floor so it survives a backend change.
+            .min_tls_version(reqwest::tls::Version::TLS_1_2);
+
+        if let Some(identity) = &config.client_identity {
+            builder = builder.identity(load_identity(identity)?);
         }
+        if let Some(path) = &config.root_ca_path {
+            builder = builder.tls_certs_merge(load_trust_roots(path)?);
+        }
+
+        Ok(Self {
+            http_client: builder.build().map_err(|err| {
+                AppError::ConfigLoadError(format!("cannot build the BRP client: {err}"))
+            })?,
+            persons_url: format!("{}/{}", config.base_url, config.persons_endpoint),
+            auth: BrpAuth::new(&config.auth),
+        })
     }
 
     /// A client pointed at `base_url`, for tests serving their own responses.
     #[cfg(test)]
     pub fn new_for_test(base_url: &str) -> Self {
-        use crate::constants;
-
-        BrpClient::new(
-            base_url,
-            SecretString::from(""),
-            constants::BRP_PERSONS_ENDPOINT,
-            Duration::from_secs(5),
-        )
+        BrpClient::new(&BrpConfig::new_test(base_url)).expect("a plain client builds")
     }
 
     pub async fn get_persons(&self, query: &BrpQuery) -> Result<Vec<BrpPerson>, AppError> {
-        let url = format!("{}/{}", self.base_url, self.persons_endpoint);
+        let mut response = self.post_persons(query).await?;
 
-        let response = self
-            .http_client
-            .post(&url)
-            .header(
-                "Authorization",
-                format!("Bearer {}", self.api_key.expose_secret()),
-            )
-            .json(query)
-            .timeout(self.timeout)
-            .send()
-            .await?
-            .error_for_status()?;
+        // A token the BRP no longer accepts is replaced once; the ten-minute
+        // validity it states is shorter than the `expires_in` it hands out.
+        if response.status() == StatusCode::UNAUTHORIZED && self.auth.discard_rejected_token().await
+        {
+            response = self.post_persons(query).await?;
+        }
 
-        match response.json::<BrpResponse>().await? {
+        match response.error_for_status()?.json::<BrpResponse>().await? {
             BrpResponse::ConsultWithBsn { persons }
             | BrpResponse::SearchByLastNameAndDateOfBirth { persons } => Ok(persons),
         }
+    }
+
+    async fn post_persons(&self, query: &BrpQuery) -> Result<reqwest::Response, AppError> {
+        let mut request = self.http_client.post(&self.persons_url).json(query);
+        if let Some(token) = self.auth.bearer_token(&self.http_client).await? {
+            request = request.bearer_auth(token.expose_secret());
+        }
+        Ok(request.send().await?)
     }
 
     /// Check up to [`BRP_BSN_BATCH_SIZE`] candidates in a single BRP request
@@ -275,6 +281,50 @@ impl BrpClient {
             .into_iter()
             .next())
     }
+}
+
+/// The mTLS identity from its PEM files. The key is never part of an error
+/// message, only the paths are, and its bytes are zeroized once rustls holds
+/// its own copy.
+fn load_identity(identity: &BrpClientIdentity) -> Result<Identity, AppError> {
+    let cert = read_pem(&identity.cert_path, "BRP_CLIENT_CERT_PATH")?;
+    let key = read_pem(&identity.key_path, "BRP_CLIENT_KEY_PATH")?;
+    let pem: SecretSlice<u8> = [cert.expose_secret(), b"\n".as_slice(), key.expose_secret()]
+        .concat()
+        .into();
+
+    Identity::from_pem(pem.expose_secret()).map_err(|err| {
+        AppError::ConfigLoadError(format!(
+            "BRP_CLIENT_CERT_PATH and BRP_CLIENT_KEY_PATH do not hold a usable client identity: {err}"
+        ))
+    })
+}
+
+fn load_trust_roots(path: &Path) -> Result<Vec<Certificate>, AppError> {
+    let bundle = read_pem(path, "BRP_ROOT_CA_PATH")?;
+    let roots = Certificate::from_pem_bundle(bundle.expose_secret()).map_err(|err| {
+        AppError::ConfigLoadError(format!(
+            "BRP_ROOT_CA_PATH does not hold a PEM certificate bundle: {err}"
+        ))
+    })?;
+    // A bundle without a single certificate parses fine but trusts nobody.
+    if roots.is_empty() {
+        return Err(AppError::ConfigLoadError(
+            "BRP_ROOT_CA_PATH holds no PEM certificate".to_string(),
+        ));
+    }
+    Ok(roots)
+}
+
+/// A PEM file's bytes. Only the key is secret, but reading every file into a
+/// zeroized buffer keeps one code path for all of them.
+fn read_pem(path: &Path, variable: &str) -> Result<SecretSlice<u8>, AppError> {
+    std::fs::read(path).map(SecretSlice::from).map_err(|err| {
+        AppError::ConfigLoadError(format!(
+            "cannot read {variable} ({}): {err}",
+            path.display()
+        ))
+    })
 }
 
 /// The candidate's burgerservicenummer, if they have one recorded.
@@ -1082,6 +1132,69 @@ mod tests {
 
         server.abort();
         assert!(result.is_err(), "a 503 from the BRP must not be ignored");
+    }
+
+    #[test]
+    fn a_missing_client_certificate_stops_startup() {
+        let mut config = BrpConfig::new_test("http://127.0.0.1:1");
+        config.client_identity = Some(BrpClientIdentity {
+            cert_path: "/nonexistent/brp/client.crt".into(),
+            key_path: "/nonexistent/brp/client.key".into(),
+        });
+
+        let Err(err) = BrpClient::new(&config) else {
+            panic!("a client with unusable configuration must not build");
+        };
+
+        assert!(
+            matches!(err, AppError::ConfigLoadError(ref message) if message.contains("BRP_CLIENT_CERT_PATH")),
+            "{err:?}"
+        );
+    }
+
+    #[test]
+    fn a_client_certificate_that_is_not_pem_stops_startup() {
+        let dir = std::env::temp_dir().join(format!("eks-brp-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let cert_path = dir.join("client.crt");
+        let key_path = dir.join("client.key");
+        std::fs::write(&cert_path, "not a certificate").unwrap();
+        std::fs::write(&key_path, "not a key").unwrap();
+        let mut config = BrpConfig::new_test("http://127.0.0.1:1");
+        config.client_identity = Some(BrpClientIdentity {
+            cert_path,
+            key_path,
+        });
+
+        let Err(err) = BrpClient::new(&config) else {
+            panic!("a client with unusable configuration must not build");
+        };
+
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert!(
+            matches!(err, AppError::ConfigLoadError(ref message) if !message.contains("not a key")),
+            "the key material must stay out of the message: {err:?}"
+        );
+    }
+
+    #[test]
+    fn a_trust_root_that_is_not_pem_stops_startup() {
+        let dir = std::env::temp_dir().join(format!("eks-brp-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let root_ca_path = dir.join("ca.pem");
+        std::fs::write(&root_ca_path, "not a certificate").unwrap();
+        let mut config = BrpConfig::new_test("http://127.0.0.1:1");
+        config.root_ca_path = Some(root_ca_path);
+
+        let Err(err) = BrpClient::new(&config) else {
+            panic!("a client with unusable configuration must not build");
+        };
+
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert!(
+            matches!(err, AppError::ConfigLoadError(ref message) if message.contains("BRP_ROOT_CA_PATH")),
+            "{err:?}"
+        );
     }
 
     /// Smoke test against the real mock, which `cargo test` does not start.

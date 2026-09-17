@@ -8,9 +8,12 @@ use std::{
     time::Duration,
 };
 
-use secrecy::SecretString;
+use secrecy::{ExposeSecret, SecretString};
 
-use super::rate_limit::RateLimits;
+use super::{
+    brp_config::{BrpAuthConfig, BrpClientIdentity, BrpConfig},
+    rate_limit::RateLimits,
+};
 use crate::{
     AppError, ElectionConfig, GithubUserId,
     constants::{BRP_PERSONS_ENDPOINT, BRP_TIMEOUT},
@@ -29,7 +32,6 @@ mod dev_defaults {
     pub(super) const DEFAULT_MASTER_ENCRYPTION_KEY: &str =
         "eks-dev-master-encryption-key-not-for-production";
 
-    pub(super) const BRP_API_KEY: &str = "";
     pub(super) const BRP_BASE_URL: &str = "http://localhost:5010";
     pub(super) const DEFAULT_ELECTION: &str = "EK27";
 
@@ -39,7 +41,6 @@ mod dev_defaults {
             ("ID_DERIVATION_KEY", ID_DERIVATION_KEY),
             ("MASTER_ENCRYPTION_KEY", DEFAULT_MASTER_ENCRYPTION_KEY),
             ("BRP_BASE_URL", BRP_BASE_URL),
-            ("BRP_API_KEY", BRP_API_KEY),
             ("DEFAULT_ELECTION", DEFAULT_ELECTION),
         ])
         .get(name)
@@ -53,16 +54,6 @@ mod dev_defaults {
 pub struct TlsConfig {
     pub cert_path: PathBuf,
     pub key_path: PathBuf,
-}
-
-/// BRP client configuration.
-#[derive(Debug, Clone)]
-pub struct BrpConfig {
-    pub base_url: String,
-    /// Held as a secret so it cannot reach a log through `Debug`.
-    pub api_key: SecretString,
-    pub persons_endpoint: String,
-    pub timeout: Duration,
 }
 
 /// ACME (Let's Encrypt) certificate-renewal configuration.
@@ -316,6 +307,88 @@ where
     }
 }
 
+/// How the BRP authenticates us, from `BRP_TOKEN_URL` (OAuth client
+/// credentials, production) or `BRP_API_KEY` (a fixed bearer token); at most
+/// one of them. Neither means no credentials, which only the mock accepts.
+fn brp_auth_from_env<F>(lookup: &mut F) -> Result<BrpAuthConfig, AppError>
+where
+    F: FnMut(&'static str) -> Result<String, env::VarError>,
+{
+    // Both hold a secret, the token URL in its user info.
+    let mut secret = |name| {
+        lookup(name)
+            .ok()
+            .filter(|s: &String| !s.trim().is_empty())
+            .map(SecretString::from)
+    };
+    let token_url = secret("BRP_TOKEN_URL");
+    let api_key = secret("BRP_API_KEY");
+
+    match (token_url, api_key) {
+        (Some(token_url), None) => Ok(BrpAuthConfig::ClientCredentials(
+            token_url.expose_secret().parse()?,
+        )),
+        (None, Some(api_key)) => Ok(BrpAuthConfig::ApiKey(api_key)),
+        (None, None) => Ok(BrpAuthConfig::None),
+        (Some(_), Some(_)) => Err(AppError::ConfigLoadError(
+            "BRP_TOKEN_URL and BRP_API_KEY cannot both be set".to_string(),
+        )),
+    }
+}
+
+/// The mTLS client identity from `BRP_CLIENT_CERT_PATH` and
+/// `BRP_CLIENT_KEY_PATH`; both or neither must be set.
+fn brp_client_identity_from_env<F>(lookup: &mut F) -> Result<Option<BrpClientIdentity>, AppError>
+where
+    F: FnMut(&'static str) -> Result<String, env::VarError>,
+{
+    let mut non_empty = |name| lookup(name).ok().filter(|s: &String| !s.trim().is_empty());
+
+    match (
+        non_empty("BRP_CLIENT_CERT_PATH"),
+        non_empty("BRP_CLIENT_KEY_PATH"),
+    ) {
+        (Some(cert), Some(key)) => Ok(Some(BrpClientIdentity {
+            cert_path: PathBuf::from(cert),
+            key_path: PathBuf::from(key),
+        })),
+        (None, None) => Ok(None),
+        _ => Err(AppError::ConfigLoadError(
+            "BRP_CLIENT_CERT_PATH and BRP_CLIENT_KEY_PATH must both be set, or both unset"
+                .to_string(),
+        )),
+    }
+}
+
+fn brp_from_env<F>(lookup: &mut F) -> Result<BrpConfig, AppError>
+where
+    F: FnMut(&'static str) -> Result<String, env::VarError>,
+{
+    let base_url = get_env_with("BRP_BASE_URL", lookup)?;
+    let auth = brp_auth_from_env(lookup)?;
+    let client_identity = brp_client_identity_from_env(lookup)?;
+
+    let timeout: u64 = lookup("BRP_TIMEOUT")
+        .unwrap_or(BRP_TIMEOUT.to_string())
+        .parse()
+        .map_err(|_| {
+            AppError::ConfigLoadError("Invalid BRP_TIMEOUT; please enter a number".to_string())
+        })?;
+
+    Ok(BrpConfig {
+        base_url,
+        auth,
+        persons_endpoint: lookup("BRP_PERSONS_ENDPOINT")
+            .unwrap_or(BRP_PERSONS_ENDPOINT.to_string()),
+        timeout: Duration::from_secs(timeout),
+        client_identity,
+        root_ca_path: lookup("BRP_ROOT_CA_PATH")
+            .ok()
+            .filter(|s| !s.trim().is_empty())
+            .map(PathBuf::from),
+    })
+}
+
 impl Config {
     pub fn from_env() -> Result<Self, AppError> {
         Self::from_env_with(env::var)
@@ -356,23 +429,7 @@ impl Config {
             )
         });
 
-        let base_url = get_env_with("BRP_BASE_URL", &mut lookup)?;
-        let api_key = SecretString::from(get_env_with("BRP_API_KEY", &mut lookup)?);
-
-        let timeout: u64 = lookup("BRP_TIMEOUT")
-            .unwrap_or(BRP_TIMEOUT.to_string())
-            .parse()
-            .map_err(|_| {
-                AppError::ConfigLoadError("Invalid BRP_TIMEOUT; please enter a number".to_string())
-            })?;
-
-        let brp_client = BrpConfig {
-            base_url,
-            api_key,
-            persons_endpoint: lookup("BRP_PERSONS_ENDPOINT")
-                .unwrap_or(BRP_PERSONS_ENDPOINT.to_string()),
-            timeout: Duration::from_secs(timeout),
-        };
+        let brp_client = brp_from_env(&mut lookup)?;
 
         let rate_limits = RateLimits::from_env_with(&mut lookup)?;
 
@@ -395,8 +452,6 @@ impl Config {
 
     #[cfg(test)]
     pub fn new_test() -> Self {
-        use crate::constants;
-
         Self {
             storage_url: SecretString::from("memory://"),
             id_derivation_key: SecretString::from("test-secret-123"),
@@ -407,12 +462,7 @@ impl Config {
             eks_key: None,
             csb_bind_address: None,
             disable_auth_service: false,
-            brp_client: BrpConfig {
-                base_url: "http://localhost:5010".to_string(),
-                api_key: SecretString::from(""),
-                persons_endpoint: constants::BRP_PERSONS_ENDPOINT.to_string(),
-                timeout: Duration::from_secs(5),
-            },
+            brp_client: BrpConfig::new_test("http://localhost:5010"),
             github_oauth: None,
             default_election: ElectionConfig::EK27,
             rate_limits: RateLimits::default(),
@@ -439,12 +489,11 @@ mod tests {
     /// The variables [`Config::from_env_with`] has no default for. Only
     /// `dev-features` fills these in, so a test about any other setting must
     /// supply them itself to pass with the feature off.
-    const REQUIRED_ENV: [(&str, &str); 6] = [
+    const REQUIRED_ENV: [(&str, &str); 5] = [
         ("STORAGE_URL", "memory://test"),
         ("ID_DERIVATION_KEY", "id-derivation-key-123"),
         ("MASTER_ENCRYPTION_KEY", "master-encryption-key-123"),
         ("BRP_BASE_URL", "http://localhost:5010"),
-        ("BRP_API_KEY", "brp-api-key-123"),
         ("DEFAULT_ELECTION", "EK27"),
     ];
 
@@ -789,6 +838,121 @@ mod tests {
                 matches!(err, AppError::ConfigLoadError(_)),
                 "{raw:?} must be rejected"
             );
+        }
+    }
+
+    /// Without credentials the client sends none, which is what the mock wants.
+    #[test]
+    fn from_env_returns_no_brp_auth_when_unset_or_blank() {
+        for map in [config_env([]), config_env([("BRP_API_KEY", " ")])] {
+            let config = Config::from_env_with(lookup_from(&map)).expect("config");
+
+            assert!(
+                matches!(config.brp_client.auth, BrpAuthConfig::None),
+                "{:?}",
+                config.brp_client.auth
+            );
+        }
+    }
+
+    #[test]
+    fn from_env_returns_brp_api_key_when_set() {
+        let map = config_env([("BRP_API_KEY", "brp-api-key-123")]);
+
+        let config = Config::from_env_with(lookup_from(&map)).expect("config");
+
+        match config.brp_client.auth {
+            BrpAuthConfig::ApiKey(key) => assert_eq!(key.expose_secret(), "brp-api-key-123"),
+            other => panic!("expected an api key, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn from_env_returns_brp_client_credentials_when_token_url_set() {
+        let map = config_env([(
+            "BRP_TOKEN_URL",
+            "https://client:secret@auth.example.nl/nidp/oauth/nam/token?scope=brp&resourceServer=RS",
+        )]);
+
+        let config = Config::from_env_with(lookup_from(&map)).expect("config");
+
+        match config.brp_client.auth {
+            BrpAuthConfig::ClientCredentials(credentials) => {
+                assert_eq!(credentials.client_id(), "client");
+                assert_eq!(credentials.client_secret().expose_secret(), "secret");
+                assert_eq!(
+                    credentials.token_url().as_str(),
+                    "https://auth.example.nl/nidp/oauth/nam/token"
+                );
+            }
+            other => panic!("expected client credentials, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn from_env_rejects_brp_token_url_together_with_api_key() {
+        let map = config_env([
+            (
+                "BRP_TOKEN_URL",
+                "https://client:secret@auth.example.nl/token?scope=brp",
+            ),
+            ("BRP_API_KEY", "brp-api-key-123"),
+        ]);
+
+        let err = Config::from_env_with(lookup_from(&map)).expect_err("err");
+
+        assert!(matches!(err, AppError::ConfigLoadError(_)), "{err:?}");
+    }
+
+    #[test]
+    fn from_env_rejects_a_malformed_brp_token_url() {
+        let map = config_env([("BRP_TOKEN_URL", "https://auth.example.nl/token")]);
+
+        let err = Config::from_env_with(lookup_from(&map)).expect_err("err");
+
+        assert!(matches!(err, AppError::ConfigLoadError(_)), "{err:?}");
+    }
+
+    #[test]
+    fn from_env_returns_brp_client_identity_when_both_paths_set() {
+        let map = config_env([
+            ("BRP_CLIENT_CERT_PATH", "/etc/brp/client.crt"),
+            ("BRP_CLIENT_KEY_PATH", "/etc/brp/client.key"),
+            ("BRP_ROOT_CA_PATH", "/etc/brp/gateway-ca.pem"),
+        ]);
+
+        let config = Config::from_env_with(lookup_from(&map)).expect("config");
+        let identity = config.brp_client.client_identity.expect("identity");
+
+        assert_eq!(identity.cert_path, PathBuf::from("/etc/brp/client.crt"));
+        assert_eq!(identity.key_path, PathBuf::from("/etc/brp/client.key"));
+        assert_eq!(
+            config.brp_client.root_ca_path,
+            Some(PathBuf::from("/etc/brp/gateway-ca.pem"))
+        );
+    }
+
+    #[test]
+    fn from_env_returns_no_brp_client_identity_when_unset() {
+        let map = config_env([]);
+
+        let config = Config::from_env_with(lookup_from(&map)).expect("config");
+
+        assert!(config.brp_client.client_identity.is_none());
+        assert!(config.brp_client.root_ca_path.is_none());
+    }
+
+    #[test]
+    fn from_env_rejects_a_brp_client_identity_with_one_path() {
+        for entry in [
+            ("BRP_CLIENT_CERT_PATH", "/etc/brp/client.crt"),
+            ("BRP_CLIENT_KEY_PATH", "/etc/brp/client.key"),
+        ] {
+            let map = config_env([entry]);
+
+            let err = Config::from_env_with(lookup_from(&map)).expect_err("err");
+
+            assert!(matches!(err, AppError::ConfigLoadError(_)), "{entry:?}");
         }
     }
 

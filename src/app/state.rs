@@ -148,12 +148,7 @@ impl AppState {
             AuthServiceState::new_from_env().await?
         };
 
-        let brp_client = BrpClient::new(
-            &config.brp_client.base_url,
-            config.brp_client.api_key.clone(),
-            &config.brp_client.persons_endpoint,
-            config.brp_client.timeout,
-        );
+        let brp_client = BrpClient::new(&config.brp_client)?;
 
         #[cfg(feature = "acme")]
         let acme_store = crate::AcmeStore::from_storage_url(config.storage_url.expose_secret())?;
@@ -265,12 +260,8 @@ impl AppState {
         let csb_main_store_registry =
             StoreRegistry::with_persistence(store_registry.persistence().clone(), master);
 
-        let brp_client = BrpClient::new(
-            &config.brp_client.base_url,
-            config.brp_client.api_key.clone(),
-            &config.brp_client.persons_endpoint,
-            config.brp_client.timeout,
-        );
+        let brp_client =
+            BrpClient::new(&config.brp_client).expect("test BrpClient must initialize");
 
         #[cfg(feature = "acme")]
         let acme_store = crate::AcmeStore::from_storage_url(config.storage_url.expose_secret())

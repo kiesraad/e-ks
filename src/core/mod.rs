@@ -1,3 +1,4 @@
+mod brp_config;
 mod config;
 mod csv;
 mod github_user_id;
@@ -16,6 +17,7 @@ pub mod logging;
 pub mod server;
 pub mod translate;
 
+pub use brp_config::{BrpAuthConfig, BrpClientCredentials, BrpClientIdentity, BrpConfig};
 #[cfg(feature = "acme")]
 pub use config::AcmeConfig;
 #[cfg(feature = "tls")]
