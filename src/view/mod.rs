@@ -1,6 +1,7 @@
 //! Shared view layer: the Askama filters, the request-scoped template
 //! context that both web sections render through, and the error response
 //! whose page each section renders in its own layout.
+pub(crate) mod assets;
 mod context;
 mod error_response;
 pub mod filters;

@@ -86,7 +86,9 @@ where
 ///
 /// `Clear-Site-Data` drops what the session left on the client. `"cookies"` is
 /// left out: browsers widen it to the whole registrable domain, which would sign
-/// the user out of unrelated `kiesraad.nl` sites.
+/// the user out of unrelated `kiesraad.nl` sites. `"cache"` is left out too: the
+/// cached assets hold no session data, and clearing them only makes browsers
+/// that honour it re-fetch the bundle right after signing out.
 pub async fn logged_out(_: LoggedOutPath, headers: HeaderMap) -> Response {
     let mut response = HtmlTemplate(
         LoggedOutTemplate,
@@ -98,7 +100,7 @@ pub async fn logged_out(_: LoggedOutPath, headers: HeaderMap) -> Response {
 
     response.headers_mut().insert(
         HeaderName::from_static("clear-site-data"),
-        HeaderValue::from_static("\"cache\", \"storage\""),
+        HeaderValue::from_static("\"storage\""),
     );
 
     response

@@ -89,7 +89,7 @@ saphyr = { version = "0.0.12", default-features = false }
 serde-saphyr = { version = "1.0.0", default-features = false, features = ["deserialize"] }
 
 # tweedegolf
-memory-serve = "2.1.0"
+memory-serve = "2.4.0"
 textris-pdf = { version = "0.10.3", features = ["docx"] }
 bagatel = "0.8.3"
 
