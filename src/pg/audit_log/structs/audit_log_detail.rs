@@ -11,18 +11,27 @@ use chrono::{DateTime, Utc};
 use crate::{
     Locale, PgEvent, PgStoreData,
     store::{StoreData, StoreEvent},
-    trans,
 };
 
 use crate::structs::audit_log::FieldChange;
 
 use super::{
-    audit_log_entry::AuditLogEntry, entity_refs::build_ref_diffs_for_key,
-    event_payload::extract_old_new, json_flatten::flatten,
+    audit_log_entry::AuditLogEntry,
+    entity_refs::build_ref_diffs_for_key,
+    event_payload::extract_old_new,
+    field_display::{field_label, field_value},
+    json_flatten::flatten,
 };
 
 /// Flattened-JSON keys to skip from the diff (metadata, not meaningful changes).
 const EXCLUDED_FIELDS: &[&str] = &["id", "updated_at", "created_at"];
+
+/// Whether a flattened key, or its leaf segment, is one of `EXCLUDED_FIELDS`.
+pub(super) fn is_excluded_field(key: &str) -> bool {
+    EXCLUDED_FIELDS
+        .iter()
+        .any(|ex| key == *ex || key.ends_with(&format!(".{ex}")))
+}
 
 /// Detailed view of an audit log event, including field-level changes.
 pub struct AuditLogDetail {
@@ -100,10 +109,7 @@ fn diff(
     all_keys.dedup();
 
     for key in &all_keys {
-        if EXCLUDED_FIELDS
-            .iter()
-            .any(|ex| *key == *ex || key.ends_with(&format!(".{ex}")))
-        {
+        if is_excluded_field(key) {
             continue;
         }
 
@@ -117,15 +123,15 @@ fn diff(
             build_ref_diffs_for_key(key, &old_val, state_before, &new_val, state_after)
         {
             changes.push(FieldChange::Entities {
-                field: translate_field_name(key, locale),
+                field: field_label(key, locale),
                 old_refs,
                 new_refs,
             });
         } else {
             changes.push(FieldChange::Regular {
-                field: translate_field_name(key, locale),
-                old_value: old_val,
-                new_value: new_val,
+                field: field_label(key, locale),
+                old_value: field_value(key, &old_val, locale),
+                new_value: field_value(key, &new_val, locale),
             });
         }
     }
@@ -157,76 +163,15 @@ fn natural_cmp(a: &str, b: &str) -> std::cmp::Ordering {
     }
 }
 
-/// Translate a flattened field name to a human-readable label.
-///
-/// Uses the leaf segment of the dot-notation path (e.g. `name.first_name` →
-/// `first_name`) to look up a translation. Array indices become a 1-indexed
-/// suffix on the parent field name (e.g. `candidates.3` → `Candidates #4`).
-#[expect(
-    clippy::cognitive_complexity,
-    reason = "A flat translation table; the `trans!` expansions inflate the metric."
-)]
-fn translate_field_name(field: &str, locale: Locale) -> String {
-    let leaf = field.rsplit('.').next().unwrap_or(field);
-    if let Ok(index) = leaf.parse::<usize>()
-        && let Some(parent) = field.rsplit_once('.').map(|(p, _)| p)
-    {
-        return format!("{} #{}", translate_field_name(parent, locale), index + 1);
-    }
-
-    match leaf {
-        // Name fields
-        "first_name" => trans!("audit_log.detail.fields.first_name", locale),
-        "last_name" => trans!("audit_log.detail.fields.last_name", locale),
-        "last_name_prefix" => trans!("audit_log.detail.fields.last_name_prefix", locale),
-        "initials" => trans!("audit_log.detail.fields.initials", locale),
-        // Personal data fields
-        "gender" => trans!("audit_log.detail.fields.gender", locale),
-        "bsn" | "Bsn" => trans!("audit_log.detail.fields.bsn", locale),
-        "date_of_birth" => trans!("audit_log.detail.fields.date_of_birth", locale),
-        "place_of_residence" => trans!("audit_log.detail.fields.place_of_residence", locale),
-        // Address fields
-        "street_name" => trans!("audit_log.detail.fields.street_name", locale),
-        "house_number" => trans!("audit_log.detail.fields.house_number", locale),
-        "house_number_addition" => {
-            trans!("audit_log.detail.fields.house_number_addition", locale)
-        }
-        "locality" => trans!("audit_log.detail.fields.locality", locale),
-        "postal_code" => trans!("audit_log.detail.fields.postal_code", locale),
-        "state_or_province" => trans!("audit_log.detail.fields.state_or_province", locale),
-        "country" => trans!("audit_log.detail.fields.country", locale),
-        // Political group fields
-        "long_list_allowed" => trans!("audit_log.detail.fields.long_list_allowed", locale),
-        "legal_name" => trans!("audit_log.detail.fields.legal_name", locale),
-        "appellation" => trans!("audit_log.detail.fields.appellation", locale),
-        // Candidate list fields
-        "electoral_districts" => trans!("audit_log.detail.fields.electoral_districts", locale),
-        "candidates" => trans!("audit_log.detail.fields.candidates", locale),
-        // System event fields
-        "person_id" => trans!("audit_log.detail.fields.person_id", locale),
-        "political_group_id" => trans!("audit_log.detail.fields.political_group_id", locale),
-        "file_name" => trans!("audit_log.detail.fields.file_name", locale),
-        "file_size" => trans!("audit_log.detail.fields.file_size", locale),
-        "created_persons" => trans!("audit_log.detail.fields.created_persons", locale),
-        "updated_persons" => trans!("audit_log.detail.fields.updated_persons", locale),
-        "download_path" => trans!("audit_log.detail.fields.download_path", locale),
-        "list_id" => trans!("audit_log.detail.fields.list_id", locale),
-        // Address type discriminator
-        "Dutch" | "International" => trans!("audit_log.detail.fields.address_type", locale),
-        // Bsn variant
-        "NoneConfirmed" => trans!("audit_log.detail.fields.bsn", locale),
-        // Fallback: use the raw field name
-        _ => field.to_string(),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
         ElectoralDistrict, Locale,
         structs::{
-            audit_log::EntityRef, candidate_lists::CandidateListId, common::FullName,
+            audit_log::EntityRef,
+            candidate_lists::CandidateListId,
+            common::{FullName, PlaceOfResidence, PreviousElectionResults},
             persons::PersonId,
         },
         test_utils::{sample_candidate_list, sample_person, sample_political_group},
@@ -459,44 +404,6 @@ mod tests {
         assert_eq!(natural_cmp("candidates.0", "candidates"), Ordering::Greater);
     }
 
-    // --- translate_field_name() ---
-
-    #[test]
-    fn translate_known_fields() {
-        assert_eq!(translate_field_name("first_name", EN), "First name");
-        assert_eq!(translate_field_name("last_name", EN), "Last name");
-        assert_eq!(translate_field_name("gender", EN), "Gender");
-        assert_eq!(translate_field_name("postal_code", EN), "Postal code");
-    }
-
-    #[test]
-    fn translate_nested_field_uses_leaf() {
-        assert_eq!(translate_field_name("name.first_name", EN), "First name");
-        assert_eq!(translate_field_name("personal_data.gender", EN), "Gender");
-    }
-
-    #[test]
-    fn translate_array_index_appends_1_indexed_position() {
-        assert_eq!(
-            translate_field_name("electoral_districts.0", EN),
-            "Electoral districts #1"
-        );
-        assert_eq!(translate_field_name("candidates.3", EN), "Candidates #4");
-    }
-
-    #[test]
-    fn translate_unknown_field_returns_raw() {
-        assert_eq!(
-            translate_field_name("some_unknown_field", EN),
-            "some_unknown_field"
-        );
-    }
-
-    #[test]
-    fn translate_dutch_locale() {
-        assert_eq!(translate_field_name("first_name", Locale::Nl), "Roepnaam");
-    }
-
     // --- compute() ---
 
     #[test]
@@ -560,6 +467,83 @@ mod tests {
             .expect("first name change");
         assert_eq!(change.old_value(), "Henk");
         assert_eq!(change.new_value(), "Updated");
+    }
+
+    /// Regression test for issue #1157: the diff used to show the raw serde
+    /// field name `previous_election_results` and its raw value `zero_seats`.
+    #[test]
+    fn compute_political_group_update_shows_user_facing_field_and_value() {
+        let before = sample_political_group();
+        let mut after = before.clone();
+        after.previous_election_results = Some(PreviousElectionResults::SixteenOrMoreSeats);
+
+        let events = vec![
+            StoreEvent::new(1, PgEvent::UpdatePoliticalGroup(before)),
+            StoreEvent::new(2, PgEvent::UpdatePoliticalGroup(after)),
+        ];
+
+        let detail = AuditLogDetail::compute(&empty_state(), &events, 2, EN).unwrap();
+        let change = detail
+            .changes
+            .iter()
+            .find(|c| c.field() == "Result of the previous election")
+            .expect("previous election results change");
+        assert_eq!(change.old_value(), "0 seats, or did not participate");
+        assert_eq!(change.new_value(), "16 or more seats");
+    }
+
+    /// Regression test for issue #1157: the diff used to show the field name
+    /// `personal_data.place_of_residence.Known`, leaking the enum variant that
+    /// records whether the locality is known in the BAG.
+    #[test]
+    fn compute_place_of_residence_change_hides_the_bag_variant() {
+        let person_id = PersonId::new();
+        let mut person = sample_person(person_id);
+        person.personal_data.place_of_residence =
+            Some(PlaceOfResidence::Unknown("Juinen".to_string()));
+        let mut updated = person.clone();
+        updated.personal_data.place_of_residence =
+            Some(PlaceOfResidence::Known("Utrecht".to_string()));
+
+        let events = vec![
+            StoreEvent::new(1, PgEvent::CreatePerson(person)),
+            StoreEvent::new(2, PgEvent::UpdatePerson(updated)),
+        ];
+
+        let detail = AuditLogDetail::compute(&empty_state(), &events, 2, EN).unwrap();
+        let changes: Vec<_> = detail
+            .changes
+            .iter()
+            .filter(|c| c.field() == "Place of residence")
+            .collect();
+
+        assert_eq!(changes.len(), 1);
+        assert_eq!(changes[0].old_value(), "Juinen");
+        assert_eq!(changes[0].new_value(), "Utrecht");
+    }
+
+    #[test]
+    fn compute_create_person_shows_user_facing_personal_data_values() {
+        let person = sample_person(PersonId::new());
+        let events = vec![StoreEvent::new(1, PgEvent::CreatePerson(person))];
+
+        let detail = AuditLogDetail::compute(&empty_state(), &events, 1, EN).unwrap();
+        let value_of = |field: &str| {
+            detail
+                .changes
+                .iter()
+                .find(|c| c.field() == field)
+                .map(FieldChange::new_value)
+                .unwrap_or_else(|| panic!("no change for {field}"))
+        };
+
+        assert_eq!(value_of("Gender"), "Female");
+        assert_eq!(
+            value_of("Social security number (BSN)"),
+            "Confirmed: no social security number"
+        );
+        assert_eq!(value_of("Date of birth"), "01-02-1990");
+        assert_eq!(value_of("Known in the BAG"), "Yes");
     }
 
     #[test]
