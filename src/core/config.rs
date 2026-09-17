@@ -436,6 +436,25 @@ mod tests {
         }
     }
 
+    /// The variables [`Config::from_env_with`] has no default for. Only
+    /// `dev-features` fills these in, so a test about any other setting must
+    /// supply them itself to pass with the feature off.
+    const REQUIRED_ENV: [(&str, &str); 6] = [
+        ("STORAGE_URL", "memory://test"),
+        ("ID_DERIVATION_KEY", "id-derivation-key-123"),
+        ("MASTER_ENCRYPTION_KEY", "master-encryption-key-123"),
+        ("BRP_BASE_URL", "http://localhost:5010"),
+        ("BRP_API_KEY", "brp-api-key-123"),
+        ("DEFAULT_ELECTION", "EK27"),
+    ];
+
+    /// [`REQUIRED_ENV`] with `entries` laid over it.
+    fn config_env(
+        entries: impl IntoIterator<Item = (&'static str, &'static str)>,
+    ) -> HashMap<&'static str, &'static str> {
+        REQUIRED_ENV.into_iter().chain(entries).collect()
+    }
+
     #[test]
     fn get_env_returns_value_when_set() {
         let map = HashMap::from([("TEST_CONFIG_ENV", "present")]);
@@ -448,15 +467,12 @@ mod tests {
 
     #[test]
     fn from_env_uses_env_values() {
-        let map = HashMap::from([
-            ("STORAGE_URL", "memory://test"),
-            ("ID_DERIVATION_KEY", "test-secret-123"),
-        ]);
+        let map = config_env([("STORAGE_URL", "memory://from-env")]);
         let lookup = lookup_from(&map);
 
         let config = Config::from_env_with(lookup).expect("config");
 
-        assert_eq!(config.storage_url.expose_secret(), "memory://test");
+        assert_eq!(config.storage_url.expose_secret(), "memory://from-env");
     }
 
     /// A secret that is set but blank must stop startup, not be accepted as key
@@ -469,12 +485,7 @@ mod tests {
             ("MASTER_ENCRYPTION_KEY", ""),
             ("MASTER_ENCRYPTION_KEY", "\t\n"),
         ] {
-            let map = HashMap::from([
-                ("STORAGE_URL", "memory://test"),
-                ("ID_DERIVATION_KEY", "id-derivation-key-123"),
-                ("MASTER_ENCRYPTION_KEY", "master-encryption-key-123"),
-                (name, blank),
-            ]);
+            let map = config_env([(name, blank)]);
             let lookup = lookup_from(&map);
 
             let err = Config::from_env_with(lookup).expect_err("blank secret must be rejected");
@@ -489,11 +500,7 @@ mod tests {
     /// A secret that holds a value still loads.
     #[test]
     fn from_env_accepts_non_blank_secrets() {
-        let map = HashMap::from([
-            ("STORAGE_URL", "memory://test"),
-            ("ID_DERIVATION_KEY", "id-derivation-key-123"),
-            ("MASTER_ENCRYPTION_KEY", "master-encryption-key-123"),
-        ]);
+        let map = config_env([]);
         let lookup = lookup_from(&map);
 
         let config = Config::from_env_with(lookup).expect("config");
@@ -559,7 +566,7 @@ mod tests {
 
     #[test]
     fn from_env_returns_no_tls_when_unset() {
-        let map = HashMap::new();
+        let map = config_env([]);
         let lookup = lookup_from(&map);
 
         let config = Config::from_env_with(lookup).expect("config");
@@ -569,7 +576,7 @@ mod tests {
 
     #[test]
     fn from_env_returns_tls_when_both_set() {
-        let map = HashMap::from([
+        let map = config_env([
             ("TLS_CERT_PATH", "/etc/tls/cert.pem"),
             ("TLS_KEY_PATH", "/etc/tls/key.pem"),
         ]);
@@ -584,7 +591,7 @@ mod tests {
 
     #[test]
     fn from_env_errors_when_only_tls_cert_set() {
-        let map = HashMap::from([("TLS_CERT_PATH", "/etc/tls/cert.pem")]);
+        let map = config_env([("TLS_CERT_PATH", "/etc/tls/cert.pem")]);
         let lookup = lookup_from(&map);
 
         let err = Config::from_env_with(lookup).expect_err("err");
@@ -593,7 +600,7 @@ mod tests {
 
     #[test]
     fn from_env_errors_when_only_tls_key_set() {
-        let map = HashMap::from([("TLS_KEY_PATH", "/etc/tls/key.pem")]);
+        let map = config_env([("TLS_KEY_PATH", "/etc/tls/key.pem")]);
         let lookup = lookup_from(&map);
 
         let err = Config::from_env_with(lookup).expect_err("err");
@@ -602,7 +609,7 @@ mod tests {
 
     #[test]
     fn from_env_returns_no_acme_when_unset() {
-        let map = HashMap::new();
+        let map = config_env([]);
         let lookup = lookup_from(&map);
 
         let config = Config::from_env_with(lookup).expect("config");
@@ -618,7 +625,7 @@ mod tests {
 
     #[test]
     fn from_env_returns_acme_when_set_with_tls() {
-        let map = HashMap::from([
+        let map = config_env([
             ("TLS_CERT_PATH", "/etc/tls/cert.pem"),
             ("TLS_KEY_PATH", "/etc/tls/key.pem"),
             (
@@ -647,7 +654,7 @@ mod tests {
 
     #[test]
     fn from_env_errors_when_acme_credentials_missing() {
-        let map = HashMap::from([
+        let map = config_env([
             ("TLS_CERT_PATH", "/etc/tls/cert.pem"),
             ("TLS_KEY_PATH", "/etc/tls/key.pem"),
             ("ACME_DIRECTORY_URL", "https://localhost:14000/dir"),
@@ -664,7 +671,7 @@ mod tests {
 
     #[test]
     fn from_env_errors_when_acme_credentials_are_not_json() {
-        let map = HashMap::from([
+        let map = config_env([
             ("TLS_CERT_PATH", "/etc/tls/cert.pem"),
             ("TLS_KEY_PATH", "/etc/tls/key.pem"),
             ("ACME_DIRECTORY_URL", "https://localhost:14000/dir"),
@@ -679,7 +686,7 @@ mod tests {
 
     #[test]
     fn from_env_errors_when_acme_credentials_are_for_another_directory() {
-        let map = HashMap::from([
+        let map = config_env([
             ("TLS_CERT_PATH", "/etc/tls/cert.pem"),
             ("TLS_KEY_PATH", "/etc/tls/key.pem"),
             ("ACME_DIRECTORY_URL", "https://localhost:14000/dir"),
@@ -694,7 +701,7 @@ mod tests {
 
     #[test]
     fn from_env_errors_when_only_acme_directory_set() {
-        let map = HashMap::from([
+        let map = config_env([
             ("TLS_CERT_PATH", "/etc/tls/cert.pem"),
             ("TLS_KEY_PATH", "/etc/tls/key.pem"),
             ("ACME_DIRECTORY_URL", "https://localhost:14000/dir"),
@@ -707,7 +714,7 @@ mod tests {
 
     #[test]
     fn from_env_errors_when_acme_set_without_tls() {
-        let map = HashMap::from([
+        let map = config_env([
             ("ACME_DIRECTORY_URL", "https://localhost:14000/dir"),
             ("ACME_DOMAIN", "example.nl"),
         ]);
@@ -750,7 +757,7 @@ mod tests {
             (" 127.0.0.1:3001 ", "127.0.0.1:3001"),
             ("[::]:3001", "[::]:3001"),
         ] {
-            let map = HashMap::from([("CSB_BIND_ADDRESS", raw)]);
+            let map = config_env([("CSB_BIND_ADDRESS", raw)]);
             let config = Config::from_env_with(lookup_from(&map)).expect("config");
 
             assert_eq!(
@@ -764,7 +771,7 @@ mod tests {
     /// Unset or blank leaves the CSB section on the main listener.
     #[test]
     fn from_env_returns_no_csb_bind_address_when_unset_or_blank() {
-        for map in [HashMap::new(), HashMap::from([("CSB_BIND_ADDRESS", "  ")])] {
+        for map in [config_env([]), config_env([("CSB_BIND_ADDRESS", "  ")])] {
             let config = Config::from_env_with(lookup_from(&map)).expect("config");
 
             assert!(config.csb_bind_address.is_none());
@@ -774,7 +781,7 @@ mod tests {
     #[test]
     fn from_env_rejects_a_malformed_csb_bind_address() {
         for raw in ["localhost:3001", "0.0.0.0", "99999", "3001:0.0.0.0"] {
-            let map = HashMap::from([("CSB_BIND_ADDRESS", raw)]);
+            let map = config_env([("CSB_BIND_ADDRESS", raw)]);
 
             let err = Config::from_env_with(lookup_from(&map)).expect_err("err");
 
@@ -787,7 +794,7 @@ mod tests {
 
     #[test]
     fn from_env_returns_no_github_oauth_when_unset() {
-        let map = HashMap::new();
+        let map = config_env([]);
         let lookup = lookup_from(&map);
 
         let config = Config::from_env_with(lookup).expect("config");
@@ -797,7 +804,7 @@ mod tests {
 
     #[test]
     fn from_env_returns_github_oauth_when_all_set() {
-        let map = HashMap::from([
+        let map = config_env([
             ("GITHUB_CLIENT_ID", "Iv1.abc123"),
             ("GITHUB_CLIENT_SECRET", "s3cret"),
             ("GITHUB_ALLOWED_USER_IDS", "583231, 42,7"),
@@ -817,7 +824,7 @@ mod tests {
 
     #[test]
     fn from_env_errors_when_github_oauth_partially_set() {
-        let map = HashMap::from([("GITHUB_CLIENT_ID", "Iv1.abc123")]);
+        let map = config_env([("GITHUB_CLIENT_ID", "Iv1.abc123")]);
         let lookup = lookup_from(&map);
 
         let err = Config::from_env_with(lookup).expect_err("err");
@@ -827,7 +834,7 @@ mod tests {
     #[test]
     fn from_env_errors_when_github_allowlist_is_malformed() {
         for allowlist in ["", "octocat", "42,0", " , "] {
-            let map = HashMap::from([
+            let map = config_env([
                 ("GITHUB_CLIENT_ID", "Iv1.abc123"),
                 ("GITHUB_CLIENT_SECRET", "s3cret"),
                 ("GITHUB_ALLOWED_USER_IDS", allowlist),

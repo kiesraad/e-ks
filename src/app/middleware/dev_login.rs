@@ -238,9 +238,8 @@ mod tests {
     use secrecy::SecretString;
 
     use crate::{
-        AppState, CsbAction, CsbMainAction, CsbMainEvent, CsbUser, ElectionConfig, Locale, PgEvent,
-        PgStore, Scope, Session, StreamId, router, store::StoreEvent,
-        test_utils::response_body_string,
+        AppState, CsbMainAction, CsbMainEvent, CsbUser, ElectionConfig, Locale, PgEvent, PgStore,
+        Scope, Session, StreamId, router, store::StoreEvent, test_utils::response_body_string,
     };
 
     const TEST_ID_CODE: &str = "999999990";
@@ -563,14 +562,14 @@ mod tests {
         assert!(
             omissions
                 .iter()
-                .all(|event| matches!(event.payload.action, CsbAction::CreateOmission(_)))
+                .all(|event| matches!(event.payload.action, crate::CsbAction::CreateOmission(_)))
         );
 
         let event = event.clone();
         let StoreEvent {
             payload:
                 crate::CsbEvent {
-                    action: CsbAction::Import { hash, snapshot, .. },
+                    action: crate::CsbAction::Import { hash, snapshot, .. },
                     ..
                 },
             ..
