@@ -51,8 +51,7 @@ table.diff-table {
   }
 
   th:nth-child(2),
-  th:nth-child(2)
-  {
+  th:nth-child(3) {
     /* Ensure that 'Oude waarde' and 'Nieuwe waarde' go on one line */
     white-space: nowrap;
   }

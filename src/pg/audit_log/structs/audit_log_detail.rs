@@ -625,7 +625,8 @@ mod tests {
 
         assert_eq!(districts.len(), 1);
         assert_eq!(districts[0].old_value(), "Groningen");
-        assert_eq!(districts[0].new_value(), "Groningen, Fryslan");
+        // Fryslân's title carries a diacritic the serde tag ("Fryslan") does not.
+        assert_eq!(districts[0].new_value(), "Groningen, Fryslân");
     }
 
     #[test]

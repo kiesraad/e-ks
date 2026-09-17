@@ -2,7 +2,7 @@
 //! a translated field label, and a value in the same wording and formatting
 //! the rest of the application uses.
 
-use crate::{Locale, constants::DEFAULT_DATE_FORMAT, trans};
+use crate::{ElectoralDistrict, Locale, constants::DEFAULT_DATE_FORMAT, trans};
 
 /// Translate a flattened field name to a human-readable label.
 ///
@@ -100,12 +100,27 @@ pub(super) fn field_value(field: &str, value: &str, locale: Locale) -> String {
         (_, "true") => trans!("audit_log.detail.values.bool_true", locale),
         (_, "false") => trans!("audit_log.detail.values.bool_false", locale),
         ("date_of_birth", date) => format_iso_date(date),
+        ("electoral_districts", districts) => districts
+            .split(", ")
+            .map(district_title)
+            .collect::<Vec<_>>()
+            .join(", "),
         _ => value.to_string(),
     }
 }
 
 fn leaf_of(field: &str) -> &str {
     field.rsplit('.').next().unwrap_or(field)
+}
+
+/// The flattened diff carries `ElectoralDistrict`'s serde tag (the bare enum
+/// identifier, e.g. `Fryslan`), which drops the diacritics and punctuation
+/// `title()` restores (e.g. `Fryslân`, `'s-Gravenhage`). Anything that fails
+/// to parse back is passed through unchanged.
+fn district_title(tag: &str) -> String {
+    serde_json::from_value::<ElectoralDistrict>(serde_json::Value::String(tag.to_string()))
+        .map(|district| district.title().to_string())
+        .unwrap_or_else(|_| tag.to_string())
 }
 
 /// Reformat a serialized ISO date as the day-first format used throughout the
@@ -247,6 +262,25 @@ mod tests {
         assert_eq!(
             field_value("personal_data.date_of_birth", "not-a-date", EN),
             "not-a-date"
+        );
+    }
+
+    #[test]
+    fn value_electoral_districts_uses_titles_not_serde_tags() {
+        use crate::ElectoralDistrict;
+
+        assert_eq!(
+            // Zuid-Holland becomes hypenated
+            field_value("electoral_districts", "ZuidHolland", EN),
+            ElectoralDistrict::ZuidHolland.title()
+        );
+        assert_eq!(
+            field_value("electoral_districts", "Groningen, Fryslan", EN),
+            format!(
+                "{}, {}",
+                ElectoralDistrict::Groningen.title(),
+                ElectoralDistrict::Fryslan.title()
+            )
         );
     }
 
