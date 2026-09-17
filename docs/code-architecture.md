@@ -491,9 +491,12 @@ In production those assets are compiled *into* the binary so there is no
 separate asset directory to deploy:
 
 - Gated behind the `memory-serve` cargo feature. `build.rs` calls
-  `memory_serve::load_directory`, and `router.rs` uses the `memory_serve::load!()`
-  macro to mount the assets under `/static`, with cache-busting filename
-  aliases (`/{hash}-index.js`, `/{hash}-index.css`).
+  `memory_serve::load_directory`, and `src/view/assets.rs` uses the
+  `memory_serve::load!()` macro to mount the assets under `/static` with
+  hashed routes enabled: every file is also served as `/static/index.{hash}.css`
+  with an immutable cache policy, and templates link those routes through
+  `filters::asset_path`, backed by the memory-serve manifest. Unknown paths
+  under `/static` answer a plain 404.
 - When the feature is **off** (development), `/static` instead proxies to the
   esbuild dev server on `localhost:8888`, which also gives hot-reloading of CSS
   and JS. The URL paths are identical in both modes, so templates never need to
