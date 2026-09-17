@@ -119,13 +119,14 @@ group:
   delete_note: "Het is altijd mogelijk om een politieke groepering te herimporteren maar aangemaakte papieren- en ambtshalve correcties, en verzuimen zullen verloren gaan!"
   deleted_label: verwijderd
   discovered_errors: Ontdekte fouten
-  discovered_errors_note: Hier vindt u alle BRP fouten verzameld terug
+  discovered_errors_note: Hier vindt u alle fouten verzameld terug
   examine_all: Naar alle fouten
   examine_general: Basisgegevens controleren
   examine_list: Kandidatenlijst controleren
   finished: Onderzoek afgerond
   instruction_group: Controleer de gegevens van de politieke groepering
   instruction_submitter: Controleer de gegevens van de lijstinleveraar(s)
+  problems_present: Potentiële problemen
   toggle: Onderzoek afronden of heropenen
   unfinished: Onderzoek afronden
 hearing:

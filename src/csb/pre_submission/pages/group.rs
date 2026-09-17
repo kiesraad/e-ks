@@ -4,6 +4,8 @@ use axum::{
     response::{IntoResponse, Response},
 };
 
+use crate::structs::common::HasSeverity;
+
 use crate::{
     AppError, AppRequestState, Context, CsbContext, HtmlTemplate,
     csb::{
@@ -15,6 +17,7 @@ use crate::{
         },
     },
     filters, redirect_success,
+    structs::problems::AllProblems,
 };
 
 #[derive(Template)]
@@ -26,6 +29,7 @@ struct PreSubmissionGroupTemplate {
     /// Why the list may be incomplete, when the check did not finish.
     brp_incomplete: Option<String>,
     all_findings: AllBrpFindings,
+    all_problems: AllProblems,
 }
 
 /// The BRP findings of one pre-submitted package, per candidate.
@@ -47,6 +51,7 @@ pub async fn group(
                 locale,
             ),
             all_findings: store.get_unlinked_brp_findings(locale),
+            all_problems: store.get_all_problems(context.election)?,
             group,
             brp_running,
         },

@@ -187,7 +187,7 @@
     <a class="restoration-strip-link" href="{{ overview_url }}">{{ "csb.omission.overview.title"|trans }}</a>
   </div>
 {% endmacro omission_strip %}
-{% macro brp_strip(brp, incomplete_reason) %}
+{% macro brp_strip(brp, incomplete_reason, problems) %}
   <div class="restoration-strip {% if brp.has_errors() %}restoration-strip-error{% endif %}">
     <ul class="restoration-tags">
       {% if brp.is_not_checked() %}
@@ -209,6 +209,9 @@
             <span class="restoration-tag restoration-tag-error">{{ "csb.group.brp_errors.plural"|trans(&brp.errors().to_string() ) }}</span>
           {% endif %}
         </li>
+      {% endif %}
+      {% if !problems.is_all_good() %}
+        <span class="restoration-tag restoration-tag-{{ problems.highest_severity_class() }}">{{ "csb.group.problems_present"|trans }}</span>
       {% endif %}
     </ul>
   </div>

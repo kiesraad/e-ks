@@ -12,6 +12,7 @@ use crate::{
         import::brp_sweep_running,
     },
     filters,
+    structs::{common::HasSeverity, problems::AllProblems},
 };
 
 #[derive(Template)]
@@ -24,6 +25,7 @@ struct CsbAllBrpFindingsTemplate {
     /// Why the list below may be incomplete, when the check did not finish.
     brp_incomplete: Option<String>,
     all_findings: AllBrpFindings,
+    all_problems: AllProblems,
 }
 
 pub async fn all_brp_findings(
@@ -33,6 +35,7 @@ pub async fn all_brp_findings(
 ) -> Result<Response, AppError> {
     let political_group = CsbPoliticalGroup::new_from_csb_store(&store);
     let all_findings = store.get_all_brp_findings(&political_group, context.session.locale);
+    let all_problems = store.get_all_problems(context.election)?;
 
     let brp = BrpCheckState::for_political_group(&store);
     let brp_running = brp_sweep_running(store.stream_id);
@@ -49,6 +52,7 @@ pub async fn all_brp_findings(
             brp_running,
             political_group,
             all_findings,
+            all_problems,
         },
         context,
     )

@@ -207,6 +207,10 @@
   --restoration-tag-icon: url("../icons/error.svg");
 }
 
+.restoration-tag-warning {
+  --restoration-tag-icon: url("../icons/warning.svg");
+}
+
 .restoration-tag-ok {
   --restoration-tag-color: var(--green-700);
   --restoration-tag-icon: url("../icons/checkmarkSmall.svg");

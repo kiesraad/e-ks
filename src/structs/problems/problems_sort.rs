@@ -1,6 +1,9 @@
 use std::cmp;
 
-use crate::structs::{common::Severity, problems::{AllProblems, EntityProblems}};
+use crate::structs::{
+    common::Severity,
+    problems::{AllProblems, EntityProblems},
+};
 
 impl AllProblems {
     pub fn sort_problems_by_severity(&mut self) {
@@ -62,11 +65,17 @@ impl AllProblems {
 mod tests {
     use crate::{
         structs::{
-            candidate_lists::CandidateListId, common::{
+            candidate_lists::CandidateListId,
+            common::{
                 InfoProblems::{self},
                 PotentialProblems,
-            }, list_submitters::ListSubmitterId, name_authorisations::NameAuthorisationId, persons::PersonId, problems::{EntityInfoProblems, GeneralProblems, ListProblems},
-        }, test_utils::{
+            },
+            list_submitters::ListSubmitterId,
+            name_authorisations::NameAuthorisationId,
+            persons::PersonId,
+            problems::{EntityInfoProblems, GeneralProblems, ListProblems},
+        },
+        test_utils::{
             sample_candidate_list, sample_list_submitter, sample_name_authorisation, sample_person,
         },
     };
