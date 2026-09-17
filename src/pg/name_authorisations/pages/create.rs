@@ -82,8 +82,13 @@ mod tests {
         .into_response();
 
         assert_eq!(response.status(), StatusCode::OK);
-        let body = dbg!(response_body_string(response).await);
-        assert!(body.contains("name=\"csrf_token\""));
+        let body = response_body_string(response).await;
+        assert_eq!(
+            // One for: logout, language selection ande create name authorisation
+            body.matches(r#"input type="hidden" name="csrf_token""#)
+                .count(),
+            3,
+        );
 
         Ok(())
     }

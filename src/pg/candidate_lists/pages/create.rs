@@ -133,7 +133,12 @@ mod test {
 
         assert_eq!(StatusCode::OK, response.status());
         let body = response_body_string(response).await;
-        assert!(body.contains("name=\"csrf_token\""));
+        assert_eq!(
+            // One for: logout, language selection and create list
+            body.matches(r#"input type="hidden" name="csrf_token""#)
+                .count(),
+            3,
+        );
 
         Ok(())
     }
