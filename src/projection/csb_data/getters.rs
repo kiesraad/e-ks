@@ -390,6 +390,17 @@ impl CsbStream {
         Some(person)
     }
 
+    /// Retrieve the first [CandidateList] (ordered on creation date) the person appears on,
+    /// or [None] if the person does not appear on any list
+    pub fn get_first_list(&self, person_id: PersonId) -> Option<CandidateList> {
+        let mut lists = self.get_candidate_lists(WithCorrections::All);
+        lists.sort_unstable_by_key(|list| list.created_at);
+        lists
+            .iter()
+            .find(|list| list.candidates.contains(&person_id))
+            .cloned()
+    }
+
     pub fn get_all_csb_corrected_persons(&self) -> Vec<PersonId> {
         self.data
             .read()

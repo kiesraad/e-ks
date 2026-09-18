@@ -3,10 +3,10 @@ action:
   examine: Onderzoeken
   finish: Afronden
 added: Toegevoegd
-all_brp_findings:
-  explanation: "Alle verschillen die de controle tegen de BRP heeft gevonden, per kandidaat."
-  none: De controle tegen de BRP heeft geen fouten gevonden.
-  title: Alle BRP fouten
+all_findings:
+  explanation: "Alle verschillen die de controle tegen de BRP heeft gevonden (per kandidaat) en andere potentiële problemen."
+  none: De controle heeft geen fouten gevonden.
+  title: Alle fouten
 all_restorations:
   corrections_explanation: Alle aangemaakte ambtshalve correcties vindt u hier.
   corrections_title: Overzicht gecorrigeerde acties

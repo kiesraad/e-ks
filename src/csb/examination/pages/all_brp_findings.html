@@ -4,13 +4,13 @@
 {% block breadcrumbs %}
   {{ breadcrumb(crate::csb::examination::CsbExaminationOverviewPath, "csb.examination") }}
   {{ breadcrumb(political_group.group_path() , political_group.csb_appellation(), is_translatable=false) }}
-  {{ breadcrumb(political_group.all_brp_findings_path() , "csb.all_brp_findings.title") }}
+  {{ breadcrumb(political_group.all_brp_findings_path() , "csb.all_findings.title") }}
 {% endblock %}
 {% block page_title %}
-  {{ "csb.all_brp_findings.title"|trans }}
+  {{ "csb.all_findings.title"|trans }}
 {% endblock %}
 {% block page_sub_title %}
-  <span class="subtitle">{{ "csb.all_brp_findings.explanation"|trans }}</span>
+  <span class="subtitle">{{ "csb.all_findings.explanation"|trans }}</span>
 {% endblock %}
 {% block header_action %}
   {% set back_url = political_group.group_path() %}
@@ -40,12 +40,13 @@
         {% endif %}
       </div>
       {{ restorations::brp_strip(brp, brp_incomplete.as_deref() , all_problems ) }}
-      {% if !all_findings.candidates.is_empty() %}
-        {% for candidate in all_findings.candidates %}
-          {{ restorations::brp_group(candidate.person.name.display() , candidate.path.as_deref(), candidate.messages.as_slice()) }}
+      {% if !all_findings.candidates.is_empty() || !all_problems.is_all_good() %}
+        {% for (person, path) in candidates %}
+
+          {{ restorations::brp_group(person.name.display() , path.as_deref(), all_findings.messages_for_person(person), all_problems.get_problems_for_person(person)) }}
         {% endfor %}
       {% else if brp.is_correct() %}
-        <p class="font-italic">{{ "csb.all_brp_findings.none"|trans }}</p>
+        <p class="font-italic">{{ "csb.all_findings.none"|trans }}</p>
       {% endif %}
     </div>
   </div>
