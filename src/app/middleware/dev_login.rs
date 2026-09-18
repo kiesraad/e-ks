@@ -552,8 +552,15 @@ mod tests {
             .await
             .expect("csb stores");
 
-        assert_eq!(csb_stores.len(), 1);
-        let csb_store = &csb_stores[0];
+        // Several groups are imported; the demo group carries the omissions.
+        assert!(csb_stores.len() > 1);
+        let csb_store = csb_stores
+            .iter()
+            .find(|store| {
+                store.get_appellation(crate::projection::WithCorrections::None)
+                    == "Beweging Losse Eindjes"
+            })
+            .expect("the fixture group with omissions");
 
         let events = csb_store.data.read().events.clone();
         // The import comes first, followed by the fixture omissions.
