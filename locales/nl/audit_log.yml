@@ -1,7 +1,6 @@
 detail:
   field: Veld
   fields:
-    address_type: Adrestype
     appellation: Geregistreerde aanduiding
     bsn: Burgerservicenummer (BSN)
     candidates: Kandidaten
@@ -17,9 +16,11 @@ detail:
     house_number: Huisnummer
     house_number_addition: Huisnummer toevoeging
     initials: Voorletters
+    known_in_bag: Bekend in de BAG
     last_name: Achternaam
     last_name_prefix: Voorvoegsel
     legal_name: Volledige statutaire naam
+    list_designation: Type lijstaanduiding
     list_id: Lijst-ID
     locality: Woonplaats
     long_list_allowed: Lange lijst toegestaan
@@ -27,13 +28,20 @@ detail:
     place_of_residence: Woonplaats
     political_group_id: Politieke groepering-ID
     postal_code: Postcode
+    previous_election_results: Uitslag vorige verkiezing
+    representative: Gemachtigde van kandidaat
     state_or_province: Staat / provincie
+    stream_id: Stream-ID
     street_name: Straatnaam
     updated_persons: Bijgewerkte kandidaten
   new_value: Nieuwe waarde
   no_changes: Geen veldwijzigingen vastgelegd voor deze gebeurtenis.
   old_value: Oude waarde
   subject_link: Subjectpagina
+  values:
+    bool_false: Nee
+    bool_true: Ja
+    bsn_none_confirmed: "Bevestigd: geen burgerservicenummer"
 documents:
   download: Documenten downloaden
   no_download: In deze versie was het downloaden van documenten niet mogelijk.

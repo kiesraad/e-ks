@@ -1,7 +1,6 @@
 detail:
   field: Field
   fields:
-    address_type: Address type
     appellation: Appellation
     bsn: Social security number (BSN)
     candidates: Candidates
@@ -17,9 +16,11 @@ detail:
     house_number: House number
     house_number_addition: House number addition
     initials: Initials
+    known_in_bag: Known in the BAG
     last_name: Last name
     last_name_prefix: Last name prefix
     legal_name: Full statutory name
+    list_designation: List type
     list_id: List ID
     locality: Locality
     long_list_allowed: Long list allowed
@@ -27,13 +28,20 @@ detail:
     place_of_residence: Place of residence
     political_group_id: Political group ID
     postal_code: Postal code
+    previous_election_results: Result of the previous election
+    representative: Authorised person
     state_or_province: State / province
+    stream_id: Stream ID
     street_name: Street name
     updated_persons: Updated candidates
   new_value: New value
   no_changes: No field changes recorded for this event.
   old_value: Old value
   subject_link: Subject page
+  values:
+    bool_false: "No"
+    bool_true: "Yes"
+    bsn_none_confirmed: "Confirmed: no social security number"
 documents:
   download: Download documents
   no_download: This version was not in a state where downloading documents was possible.
