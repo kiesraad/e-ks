@@ -49,7 +49,6 @@
                      name="electoral_districts"
                      id="omission_district_{{ d.code() }}"
                      value="{{ d.serde_name() }}"
-                     data-district-nl="{{ d.title() }}"
                      {% if form.data.electoral_districts.contains(&d) %}checked{% endif %}
                      {% if !available_districts.contains(&d) %}disabled{% endif %} />
               <label for="omission_district_{{ d.code() }}">{{ d|district_name }}</label>
