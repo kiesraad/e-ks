@@ -326,11 +326,11 @@ impl AllProblems {
             .any(|ii| ii.severity() == Severity::Error)
     }
 
-    pub fn get_problems_for_person(&self, person: &Person) -> Vec<PotentialProblems> {
+    pub fn get_problems_for_person(&self, person: &Person) -> Vec<&PotentialProblems> {
         self.candidates
             .iter()
             .find(|c| &c.entity == person)
-            .map_or_default(|c| c.problems.clone())
+            .map_or_default(|c| c.problems.iter().collect())
     }
 }
 

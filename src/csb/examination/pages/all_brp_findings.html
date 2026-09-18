@@ -41,8 +41,11 @@
       </div>
       {{ restorations::brp_strip(brp, brp_incomplete.as_deref() , all_problems ) }}
       {% if !all_findings.candidates.is_empty() || !all_problems.is_all_good() %}
-        {% for (person, path) in candidates %}
+        {% if !all_problems.general.flatten().is_empty() %}
+          {{ restorations::brp_group("common.general_information"|trans, Some(political_group.general_information_path()), Vec::<String>::new(), all_problems.general.flatten()) }}
+        {% endif %}
 
+        {% for (person, path) in candidates %}
           {{ restorations::brp_group(person.name.display() , path.as_deref(), all_findings.messages_for_person(person), all_problems.get_problems_for_person(person)) }}
         {% endfor %}
       {% else if brp.is_correct() %}
