@@ -72,54 +72,60 @@ mod tests {
     }
 
     #[cfg_attr(not(feature = "db-tests"), ignore = "requires database")]
-    #[sqlx::test(migrations = false)]
-    async fn challenge_roundtrip(pool: sqlx::PgPool) {
-        apply_schema(&pool).await;
+    #[tokio::test]
+    async fn challenge_roundtrip() {
+        crate::test_db::with_pool(|pool| async move {
+            apply_schema(&pool).await;
 
-        put_challenge(&pool, "tok", "tok.thumbprint").await.unwrap();
-        assert_eq!(
-            find_challenge(&pool, "tok").await.unwrap().as_deref(),
-            Some("tok.thumbprint")
-        );
-        assert_eq!(find_challenge(&pool, "other").await.unwrap(), None);
+            put_challenge(&pool, "tok", "tok.thumbprint").await.unwrap();
+            assert_eq!(
+                find_challenge(&pool, "tok").await.unwrap().as_deref(),
+                Some("tok.thumbprint")
+            );
+            assert_eq!(find_challenge(&pool, "other").await.unwrap(), None);
 
-        // Upsert replaces the key authorization for a re-used token.
-        put_challenge(&pool, "tok", "tok.renewed").await.unwrap();
-        assert_eq!(
-            find_challenge(&pool, "tok").await.unwrap().as_deref(),
-            Some("tok.renewed")
-        );
+            // Upsert replaces the key authorization for a re-used token.
+            put_challenge(&pool, "tok", "tok.renewed").await.unwrap();
+            assert_eq!(
+                find_challenge(&pool, "tok").await.unwrap().as_deref(),
+                Some("tok.renewed")
+            );
 
-        delete_challenge(&pool, "tok").await.unwrap();
-        assert_eq!(find_challenge(&pool, "tok").await.unwrap(), None);
+            delete_challenge(&pool, "tok").await.unwrap();
+            assert_eq!(find_challenge(&pool, "tok").await.unwrap(), None);
+        })
+        .await;
     }
 
     #[cfg_attr(not(feature = "db-tests"), ignore = "requires database")]
-    #[sqlx::test(migrations = false)]
-    async fn expired_challenges_are_invisible_and_swept(pool: sqlx::PgPool) {
-        apply_schema(&pool).await;
+    #[tokio::test]
+    async fn expired_challenges_are_invisible_and_swept() {
+        crate::test_db::with_pool(|pool| async move {
+            apply_schema(&pool).await;
 
-        sqlx::query(
-            "INSERT INTO acme_challenges (token, key_authorization, created_at) VALUES ($1, $2, $3)",
-        )
-        .bind("stale")
-        .bind("stale.thumbprint")
-        .bind(Utc::now() - Duration::hours(2))
-        .execute(&pool)
-        .await
-        .unwrap();
-
-        assert_eq!(find_challenge(&pool, "stale").await.unwrap(), None);
-
-        // A write sweeps expired rows.
-        put_challenge(&pool, "fresh", "fresh.thumbprint")
+            sqlx::query(
+                "INSERT INTO acme_challenges (token, key_authorization, created_at) VALUES ($1, $2, $3)",
+            )
+            .bind("stale")
+            .bind("stale.thumbprint")
+            .bind(Utc::now() - Duration::hours(2))
+            .execute(&pool)
             .await
             .unwrap();
-        let (count,): (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM acme_challenges WHERE token = 'stale'")
-                .fetch_one(&pool)
+
+            assert_eq!(find_challenge(&pool, "stale").await.unwrap(), None);
+
+            // A write sweeps expired rows.
+            put_challenge(&pool, "fresh", "fresh.thumbprint")
                 .await
                 .unwrap();
-        assert_eq!(count, 0);
+            let (count,): (i64,) =
+                sqlx::query_as("SELECT COUNT(*) FROM acme_challenges WHERE token = 'stale'")
+                    .fetch_one(&pool)
+                    .await
+                    .unwrap();
+            assert_eq!(count, 0);
+        })
+        .await;
     }
 }

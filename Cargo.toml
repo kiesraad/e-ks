@@ -65,7 +65,7 @@ parking_lot = "0.12.5"
 rand = "0.10.1"
 sha2 = { version = "0.11.0", default-features = false, features = ["alloc"] }
 subtle = { version = "2.6.1", default-features = false }
-sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "postgres", "chrono", "uuid", "macros", "migrate"] }
+sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "postgres", "chrono", "uuid", "json"] }
 uuid = { version = "1.23.2", features = ["serde", "v4", "v5", "v8"] }
 url = "2.5.8"
 reqwest = { version = "0.13.4", default-features = false, features = ["json", "stream"] }
@@ -206,6 +206,7 @@ eks-locales = { path = "tools/locales" }
 memory-serve = { workspace = true, optional = true }
 
 [dev-dependencies]
+dotenvy = { workspace = true }
 eks-locales = { path = "tools/locales" }
 futures-lite = { workspace = true }
 tower = { workspace = true }

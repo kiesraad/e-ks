@@ -1503,6 +1503,7 @@ dependencies = [
  "chrono-tz",
  "ciborium",
  "csv",
+ "dotenvy",
  "eks-districts-codegen",
  "eks-locales",
  "eks-utils",
@@ -4396,7 +4397,6 @@ dependencies = [
  "sqlx-postgres",
  "sqlx-sqlite",
  "syn 2.0.119",
- "thiserror",
  "tokio",
  "url",
 ]

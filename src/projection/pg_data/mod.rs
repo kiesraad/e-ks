@@ -763,102 +763,116 @@ mod tests {
         }
 
         #[cfg_attr(not(feature = "db-tests"), ignore = "requires database")]
-        #[sqlx::test(migrations = false)]
-        async fn update_persists_and_load_replays(pool: PgPool) -> Result<(), AppError> {
-            #[cfg(feature = "migrations")]
-            crate::store::database::migrate(&pool).await?;
+        #[tokio::test]
+        async fn update_persists_and_load_replays() -> Result<(), AppError> {
+            crate::test_db::with_pool(|pool| async move {
+                #[cfg(feature = "migrations")]
+                crate::store::database::migrate(&pool).await?;
 
-            let master = test_master();
-            let group_id = StreamId::new();
-            let store = PgStore::new_with_pool_for_stream(
-                pool.clone(),
-                group_id,
-                ElectionConfig::EK27,
-                &master,
-            )
+                let master = test_master();
+                let group_id = StreamId::new();
+                let store = PgStore::new_with_pool_for_stream(
+                    pool.clone(),
+                    group_id,
+                    ElectionConfig::EK27,
+                    &master,
+                )
+                .await
+                .unwrap();
+                let person_id = PersonId::new();
+                let person = sample_person(person_id);
+
+                person.create(&store).await?;
+
+                let loaded = store.get_person(person_id)?;
+                assert_eq!(loaded.id, person_id);
+
+                let fresh_store = PgStore::new_with_pool_for_stream(
+                    pool,
+                    group_id,
+                    ElectionConfig::EK27,
+                    &master,
+                )
+                .await
+                .unwrap();
+                fresh_store.load().await?;
+
+                let reloaded = fresh_store.get_person(person_id)?;
+                assert_eq!(reloaded.id, person_id);
+
+                Ok(())
+            })
             .await
-            .unwrap();
-            let person_id = PersonId::new();
-            let person = sample_person(person_id);
-
-            person.create(&store).await?;
-
-            let loaded = store.get_person(person_id)?;
-            assert_eq!(loaded.id, person_id);
-
-            let fresh_store =
-                PgStore::new_with_pool_for_stream(pool, group_id, ElectionConfig::EK27, &master)
-                    .await
-                    .unwrap();
-            fresh_store.load().await?;
-
-            let reloaded = fresh_store.get_person(person_id)?;
-            assert_eq!(reloaded.id, person_id);
-
-            Ok(())
         }
 
         #[cfg_attr(not(feature = "db-tests"), ignore = "requires database")]
-        #[sqlx::test(migrations = false)]
-        async fn load_fails_on_invalid_payloads(pool: PgPool) -> Result<(), AppError> {
-            #[cfg(feature = "migrations")]
-            crate::store::database::migrate(&pool).await?;
+        #[tokio::test]
+        async fn load_fails_on_invalid_payloads() -> Result<(), AppError> {
+            crate::test_db::with_pool(|pool| async move {
+                #[cfg(feature = "migrations")]
+                crate::store::database::migrate(&pool).await?;
 
-            let master = test_master();
-            let group_id = StreamId::new();
-            let store = PgStore::new_with_pool_for_stream(
-                pool.clone(),
-                group_id,
-                ElectionConfig::EK27,
-                &master,
-            )
-            .await
-            .unwrap();
-            let person_id = PersonId::new();
-            let person = sample_person(person_id);
-
-            person.create(&store).await?;
-
-            // Insert a bogus event: random payload bytes and a hash that does not
-            // match the chain. Either the chain check or the AES-GCM tag will reject it.
-            let invalid_payload: Vec<u8> = vec![0u8; 64];
-            let invalid_hash: Vec<u8> = vec![0u8; 32];
-            let election_id = ElectionConfig::EK27.stable_id();
-            sqlx::query(
-                r#"INSERT INTO events (stream_id, election, event_id, created_at, hash, payload)
-                VALUES ($1, $2, $3, $4, $5, $6)"#,
-            )
-            .bind(store.stream_id.uuid())
-            .bind(&election_id)
-            .bind(2_i64)
-            .bind(Utc::now())
-            .bind(invalid_hash)
-            .bind(invalid_payload)
-            .execute(&pool)
-            .await?;
-
-            sqlx::query(
-                r#"UPDATE streams SET last_event_id = $3
-                   WHERE stream_id = $1 AND election = $2"#,
-            )
-            .bind(store.stream_id.uuid())
-            .bind(&election_id)
-            .bind(2_i64)
-            .execute(&pool)
-            .await?;
-
-            let fresh_store =
-                PgStore::new_with_pool_for_stream(pool, group_id, ElectionConfig::EK27, &master)
-                    .await
-                    .unwrap();
-
-            let err = fresh_store
-                .load()
+                let master = test_master();
+                let group_id = StreamId::new();
+                let store = PgStore::new_with_pool_for_stream(
+                    pool.clone(),
+                    group_id,
+                    ElectionConfig::EK27,
+                    &master,
+                )
                 .await
-                .expect_err("load must fail when an event's payload cannot be decrypted");
-            assert!(matches!(err, AppError::EventDecodeError(_)));
+                .unwrap();
+                let person_id = PersonId::new();
+                let person = sample_person(person_id);
 
-            Ok(())
+                person.create(&store).await?;
+
+                // Insert a bogus event: random payload bytes and a hash that does not
+                // match the chain. Either the chain check or the AES-GCM tag will reject it.
+                let invalid_payload: Vec<u8> = vec![0u8; 64];
+                let invalid_hash: Vec<u8> = vec![0u8; 32];
+                let election_id = ElectionConfig::EK27.stable_id();
+                sqlx::query(
+                    r#"INSERT INTO events (stream_id, election, event_id, created_at, hash, payload)
+                    VALUES ($1, $2, $3, $4, $5, $6)"#,
+                )
+                .bind(store.stream_id.uuid())
+                .bind(&election_id)
+                .bind(2_i64)
+                .bind(Utc::now())
+                .bind(invalid_hash)
+                .bind(invalid_payload)
+                .execute(&pool)
+                .await?;
+
+                sqlx::query(
+                    r#"UPDATE streams SET last_event_id = $3
+                       WHERE stream_id = $1 AND election = $2"#,
+                )
+                .bind(store.stream_id.uuid())
+                .bind(&election_id)
+                .bind(2_i64)
+                .execute(&pool)
+                .await?;
+
+                let fresh_store = PgStore::new_with_pool_for_stream(
+                    pool,
+                    group_id,
+                    ElectionConfig::EK27,
+                    &master,
+                )
+                .await
+                .unwrap();
+
+                let err = fresh_store
+                    .load()
+                    .await
+                    .expect_err("load must fail when an event's payload cannot be decrypted");
+                assert!(matches!(err, AppError::EventDecodeError(_)));
+
+                Ok(())
+            })
+            .await
         }
 
         /// Each stream row carries its scope (set at creation). `streams_by_scope`
@@ -866,140 +880,146 @@ mod tests {
         /// and a committee stream never leaks into the political-group listing,
         /// even across several elections under one stream_id.
         #[cfg_attr(not(feature = "db-tests"), ignore = "requires database")]
-        #[sqlx::test(migrations = false)]
-        async fn streams_by_scope_lists_stream_election_pairs_per_scope(
-            pool: PgPool,
-        ) -> Result<(), AppError> {
-            use crate::store::database::streams_by_scope;
+        #[tokio::test]
+        async fn streams_by_scope_lists_stream_election_pairs_per_scope() -> Result<(), AppError> {
+            crate::test_db::with_pool(|pool| async move {
+                use crate::store::database::streams_by_scope;
 
-            #[cfg(feature = "migrations")]
-            crate::store::database::migrate(&pool).await?;
+                #[cfg(feature = "migrations")]
+                crate::store::database::migrate(&pool).await?;
 
-            let committee = StreamId::new();
-            let group = StreamId::new();
-            let ek27 = ElectionConfig::EK27;
-            let ps27 = ElectionConfig::PS27(Province::Gelderland);
+                let committee = StreamId::new();
+                let group = StreamId::new();
+                let ek27 = ElectionConfig::EK27;
+                let ps27 = ElectionConfig::PS27(Province::Gelderland);
 
-            // The committee stream joins two elections; each row is created with the
-            // committee scope. The political group joins one.
-            ensure_test_stream(&pool, committee, ek27, Scope::CentralElectoralCommittee).await?;
-            ensure_test_stream(&pool, committee, ps27, Scope::CentralElectoralCommittee).await?;
-            ensure_test_stream(&pool, group, ek27, Scope::PoliticalGroup).await?;
+                // The committee stream joins two elections; each row is created with the
+                // committee scope. The political group joins one.
+                ensure_test_stream(&pool, committee, ek27, Scope::CentralElectoralCommittee)
+                    .await?;
+                ensure_test_stream(&pool, committee, ps27, Scope::CentralElectoralCommittee)
+                    .await?;
+                ensure_test_stream(&pool, group, ek27, Scope::PoliticalGroup).await?;
 
-            // Empty placeholder rows (last_event_id = 0) are not yet accessible.
-            assert!(
-                streams_by_scope(&pool, Scope::CentralElectoralCommittee)
-                    .await?
-                    .is_empty(),
-                "data-less streams are excluded"
-            );
+                // Empty placeholder rows (last_event_id = 0) are not yet accessible.
+                assert!(
+                    streams_by_scope(&pool, Scope::CentralElectoralCommittee)
+                        .await?
+                        .is_empty(),
+                    "data-less streams are excluded"
+                );
 
-            // Give every stream some persisted data so it counts as accessible.
-            sqlx::query("UPDATE streams SET last_event_id = 1")
-                .execute(&pool)
-                .await?;
+                // Give every stream some persisted data so it counts as accessible.
+                sqlx::query("UPDATE streams SET last_event_id = 1")
+                    .execute(&pool)
+                    .await?;
 
-            // Both committee elections are listed under the committee scope.
-            let mut committee_streams =
-                streams_by_scope(&pool, Scope::CentralElectoralCommittee).await?;
-            committee_streams.sort_by_key(|(_, election)| election.stable_id());
-            assert_eq!(
-                committee_streams,
-                vec![(committee, ek27), (committee, ps27)]
-            );
+                // Both committee elections are listed under the committee scope.
+                let mut committee_streams =
+                    streams_by_scope(&pool, Scope::CentralElectoralCommittee).await?;
+                committee_streams.sort_by_key(|(_, election)| election.stable_id());
+                assert_eq!(
+                    committee_streams,
+                    vec![(committee, ek27), (committee, ps27)]
+                );
 
-            // The committee stream never leaks into the (default) political-group
-            // listing; only the political group's own stream appears there.
-            let political = streams_by_scope(&pool, Scope::PoliticalGroup).await?;
-            assert_eq!(political, vec![(group, ek27)]);
+                // The committee stream never leaks into the (default) political-group
+                // listing; only the political group's own stream appears there.
+                let political = streams_by_scope(&pool, Scope::PoliticalGroup).await?;
+                assert_eq!(political, vec![(group, ek27)]);
 
-            Ok(())
+                Ok(())
+            })
+            .await
         }
 
         /// A package hash resolves to the political-group event that produced it,
         /// both for a full chain hash and for the 16-byte prefix rendered on
         /// documents; an unrelated prefix resolves to nothing.
         #[cfg_attr(not(feature = "db-tests"), ignore = "requires database")]
-        #[sqlx::test(migrations = false)]
-        async fn find_event_by_hash_prefix_locates_political_group_events(
-            pool: PgPool,
-        ) -> Result<(), AppError> {
-            use crate::store::database::find_event_by_hash_prefix;
+        #[tokio::test]
+        async fn find_event_by_hash_prefix_locates_political_group_events() -> Result<(), AppError>
+        {
+            crate::test_db::with_pool(|pool| async move {
+                use crate::store::database::find_event_by_hash_prefix;
 
-            #[cfg(feature = "migrations")]
-            crate::store::database::migrate(&pool).await?;
+                #[cfg(feature = "migrations")]
+                crate::store::database::migrate(&pool).await?;
 
-            let master = test_master();
-            let group = StreamId::new();
-            let store = PgStore::new_with_pool_for_stream(
-                pool.clone(),
-                group,
-                ElectionConfig::EK27,
-                &master,
-            )
+                let master = test_master();
+                let group = StreamId::new();
+                let store = PgStore::new_with_pool_for_stream(
+                    pool.clone(),
+                    group,
+                    ElectionConfig::EK27,
+                    &master,
+                )
+                .await
+                .unwrap();
+                sample_person(PersonId::new()).create(&store).await?;
+
+                let target = store
+                    .get_events()
+                    .last()
+                    .cloned()
+                    .expect("at least one event");
+                let expected = Some((group, ElectionConfig::EK27, target.event_id));
+
+                assert_eq!(
+                    find_event_by_hash_prefix(&pool, &target.hash).await?,
+                    expected
+                );
+                assert_eq!(
+                    find_event_by_hash_prefix(&pool, &target.hash[..16]).await?,
+                    expected
+                );
+                assert_eq!(find_event_by_hash_prefix(&pool, &[0xFFu8; 32]).await?, None);
+
+                Ok(())
+            })
             .await
-            .unwrap();
-            sample_person(PersonId::new()).create(&store).await?;
-
-            let target = store
-                .get_events()
-                .last()
-                .cloned()
-                .expect("at least one event");
-            let expected = Some((group, ElectionConfig::EK27, target.event_id));
-
-            assert_eq!(
-                find_event_by_hash_prefix(&pool, &target.hash).await?,
-                expected
-            );
-            assert_eq!(
-                find_event_by_hash_prefix(&pool, &target.hash[..16]).await?,
-                expected
-            );
-            assert_eq!(find_event_by_hash_prefix(&pool, &[0xFFu8; 32]).await?, None);
-
-            Ok(())
         }
 
         /// The lookup is restricted to political-group streams, so a committee
         /// (CSB) event is never returned even when its hash matches exactly.
         #[cfg_attr(not(feature = "db-tests"), ignore = "requires database")]
-        #[sqlx::test(migrations = false)]
-        async fn find_event_by_hash_prefix_ignores_committee_events(
-            pool: PgPool,
-        ) -> Result<(), AppError> {
-            use crate::store::database::find_event_by_hash_prefix;
+        #[tokio::test]
+        async fn find_event_by_hash_prefix_ignores_committee_events() -> Result<(), AppError> {
+            crate::test_db::with_pool(|pool| async move {
+                use crate::store::database::find_event_by_hash_prefix;
 
-            #[cfg(feature = "migrations")]
-            crate::store::database::migrate(&pool).await?;
+                #[cfg(feature = "migrations")]
+                crate::store::database::migrate(&pool).await?;
 
-            let committee = StreamId::new();
-            let election_id = ElectionConfig::EK27.stable_id();
-            ensure_test_stream(
-                &pool,
-                committee,
-                ElectionConfig::EK27,
-                Scope::CentralElectoralCommittee,
-            )
-            .await?;
+                let committee = StreamId::new();
+                let election_id = ElectionConfig::EK27.stable_id();
+                ensure_test_stream(
+                    &pool,
+                    committee,
+                    ElectionConfig::EK27,
+                    Scope::CentralElectoralCommittee,
+                )
+                .await?;
 
-            let hash = vec![0x42u8; 32];
-            sqlx::query(
-                r#"INSERT INTO events (stream_id, election, event_id, created_at, hash, payload)
-                VALUES ($1, $2, $3, $4, $5, $6)"#,
-            )
-            .bind(committee.uuid())
-            .bind(&election_id)
-            .bind(1_i64)
-            .bind(Utc::now())
-            .bind(&hash)
-            .bind(vec![0u8; 8])
-            .execute(&pool)
-            .await?;
+                let hash = vec![0x42u8; 32];
+                sqlx::query(
+                    r#"INSERT INTO events (stream_id, election, event_id, created_at, hash, payload)
+                    VALUES ($1, $2, $3, $4, $5, $6)"#,
+                )
+                .bind(committee.uuid())
+                .bind(&election_id)
+                .bind(1_i64)
+                .bind(Utc::now())
+                .bind(&hash)
+                .bind(vec![0u8; 8])
+                .execute(&pool)
+                .await?;
 
-            assert_eq!(find_event_by_hash_prefix(&pool, &hash).await?, None);
+                assert_eq!(find_event_by_hash_prefix(&pool, &hash).await?, None);
 
-            Ok(())
+                Ok(())
+            })
+            .await
         }
 
         /// A stream row created before per-stream keys existed carries no
@@ -1007,88 +1027,90 @@ mod tests {
         /// such a row exactly once (later calls keep the stored key), and events
         /// written under the old scheme fail to decrypt rather than replay.
         #[cfg_attr(not(feature = "db-tests"), ignore = "requires database")]
-        #[sqlx::test(migrations = false)]
-        async fn ensure_stream_backfills_keys_onto_pre_upgrade_rows(
-            pool: PgPool,
-        ) -> Result<(), AppError> {
-            use crate::{
-                crypto::{StreamKey, WrappedKey},
-                store::{
-                    GENESIS_HASH, chain_hash, database::ensure_stream, event_aad,
-                    persistence::NewStream,
-                },
-            };
+        #[tokio::test]
+        #[allow(clippy::too_many_lines)]
+        async fn ensure_stream_backfills_keys_onto_pre_upgrade_rows() -> Result<(), AppError> {
+            crate::test_db::with_pool(|pool| async move {
+                use crate::{
+                    crypto::{StreamKey, WrappedKey},
+                    store::{
+                        GENESIS_HASH, chain_hash, database::ensure_stream, event_aad,
+                        persistence::NewStream,
+                    },
+                };
 
-            #[cfg(feature = "migrations")]
-            crate::store::database::migrate(&pool).await?;
+                #[cfg(feature = "migrations")]
+                crate::store::database::migrate(&pool).await?;
 
-            let master = test_master();
-            let group_id = StreamId::new();
-            let election = ElectionConfig::EK27;
-            let election_id = election.stable_id();
+                let master = test_master();
+                let group_id = StreamId::new();
+                let election = ElectionConfig::EK27;
+                let election_id = election.stable_id();
 
-            // A pre-upgrade row: no wrapped key, one event encrypted under the old
-            // scheme, whose key is not recoverable from the database.
-            sqlx::query(
-                r#"INSERT INTO streams (stream_id, election, last_event_id, scope, encrypted_key)
-                VALUES ($1, $2, 1, $3, NULL)"#,
-            )
-            .bind(group_id.uuid())
-            .bind(&election_id)
-            .bind(Scope::PoliticalGroup.as_str())
-            .execute(&pool)
-            .await?;
+                // A pre-upgrade row: no wrapped key, one event encrypted under the old
+                // scheme, whose key is not recoverable from the database.
+                sqlx::query(
+                    r#"INSERT INTO streams (stream_id, election, last_event_id, scope, encrypted_key)
+                    VALUES ($1, $2, 1, $3, NULL)"#,
+                )
+                .bind(group_id.uuid())
+                .bind(&election_id)
+                .bind(Scope::PoliticalGroup.as_str())
+                .execute(&pool)
+                .await?;
 
-            let old_cipher = StreamKey::generate().cipher();
-            let created_at = Utc::now();
-            let event = PgEvent::CreatePerson(sample_person(PersonId::new()));
-            let payload = old_cipher.encrypt(&event, &event_aad(1, created_at, &GENESIS_HASH))?;
-            let hash = chain_hash(&GENESIS_HASH, 1, created_at, &payload);
-            sqlx::query(
-                r#"INSERT INTO events (stream_id, election, event_id, created_at, hash, payload)
-                VALUES ($1, $2, $3, $4, $5, $6)"#,
-            )
-            .bind(group_id.uuid())
-            .bind(&election_id)
-            .bind(1_i64)
-            .bind(created_at)
-            .bind(hash.as_slice())
-            .bind(&payload)
-            .execute(&pool)
-            .await?;
+                let old_cipher = StreamKey::generate().cipher();
+                let created_at = Utc::now();
+                let event = PgEvent::CreatePerson(sample_person(PersonId::new()));
+                let payload = old_cipher.encrypt(&event, &event_aad(1, created_at, &GENESIS_HASH))?;
+                let hash = chain_hash(&GENESIS_HASH, 1, created_at, &payload);
+                sqlx::query(
+                    r#"INSERT INTO events (stream_id, election, event_id, created_at, hash, payload)
+                    VALUES ($1, $2, $3, $4, $5, $6)"#,
+                )
+                .bind(group_id.uuid())
+                .bind(&election_id)
+                .bind(1_i64)
+                .bind(created_at)
+                .bind(hash.as_slice())
+                .bind(&payload)
+                .execute(&pool)
+                .await?;
 
-            let new_stream = |encrypted_key: WrappedKey| NewStream {
-                stream_id: group_id,
-                election,
-                scope: Scope::PoliticalGroup,
-                encrypted_key,
-            };
+                let new_stream = |encrypted_key: WrappedKey| NewStream {
+                    stream_id: group_id,
+                    election,
+                    scope: Scope::PoliticalGroup,
+                    encrypted_key,
+                };
 
-            // The first call backfills its fresh key onto the NULL column.
-            let first_key = master.wrap_key(&StreamKey::generate(), group_id, election)?;
-            assert_eq!(
-                ensure_stream(&pool, &new_stream(first_key.clone())).await?,
-                first_key
-            );
+                // The first call backfills its fresh key onto the NULL column.
+                let first_key = master.wrap_key(&StreamKey::generate(), group_id, election)?;
+                assert_eq!(
+                    ensure_stream(&pool, &new_stream(first_key.clone())).await?,
+                    first_key
+                );
 
-            // Later calls keep the stored key; the new candidate is discarded.
-            let second_key = master.wrap_key(&StreamKey::generate(), group_id, election)?;
-            assert_eq!(
-                ensure_stream(&pool, &new_stream(second_key)).await?,
-                first_key
-            );
+                // Later calls keep the stored key; the new candidate is discarded.
+                let second_key = master.wrap_key(&StreamKey::generate(), group_id, election)?;
+                assert_eq!(
+                    ensure_stream(&pool, &new_stream(second_key)).await?,
+                    first_key
+                );
 
-            // The old event was not written under the backfilled key, so it must
-            // fail to decrypt instead of silently replaying.
-            let store =
-                PgStore::new_with_pool_for_stream(pool, group_id, election, &master).await?;
-            let err = store
-                .load()
-                .await
-                .expect_err("pre-upgrade events must not decrypt under the backfilled key");
-            assert!(matches!(err, AppError::EventDecodeError(_)));
+                // The old event was not written under the backfilled key, so it must
+                // fail to decrypt instead of silently replaying.
+                let store =
+                    PgStore::new_with_pool_for_stream(pool, group_id, election, &master).await?;
+                let err = store
+                    .load()
+                    .await
+                    .expect_err("pre-upgrade events must not decrypt under the backfilled key");
+                assert!(matches!(err, AppError::EventDecodeError(_)));
 
-            Ok(())
+                Ok(())
+            })
+            .await
         }
     }
 }

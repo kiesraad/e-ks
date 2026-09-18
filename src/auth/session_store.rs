@@ -387,105 +387,109 @@ mod tests {
     /// fixed across a touch, and `remove`.
     #[cfg(feature = "database")]
     #[cfg_attr(not(feature = "db-tests"), ignore = "requires database")]
-    #[sqlx::test(migrations = false)]
-    async fn database_backend_roundtrips_session(pool: sqlx::PgPool) -> Result<(), AppError> {
-        crate::store::database::migrate(&pool).await?;
-        let store = SessionStore::Database(pool);
+    #[tokio::test]
+    async fn database_backend_roundtrips_session() -> Result<(), AppError> {
+        crate::test_db::with_pool(|pool| async move {
+            crate::store::database::migrate(&pool).await?;
+            let store = SessionStore::Database(pool);
 
-        let stream_id = crate::StreamId::new();
-        let mut session = crate::Session::for_political_group(
-            stream_id,
-            "nid-1".to_string(),
-            None,
-            crate::Locale::default(),
-        );
-        session.set_user_agent_hash("ua-hash-xyz".to_string());
-        let token = session.token_string();
-        let created_at = session.created_at;
-        let original_user = session.user.clone();
-        store.insert(session).await;
+            let stream_id = crate::StreamId::new();
+            let mut session = crate::Session::for_political_group(
+                stream_id,
+                "nid-1".to_string(),
+                None,
+                crate::Locale::default(),
+            );
+            session.set_user_agent_hash("ua-hash-xyz".to_string());
+            let token = session.token_string();
+            let created_at = session.created_at;
+            let original_user = session.user.clone();
+            store.insert(session).await;
 
-        // Look up by the raw cookie token (hashed internally).
-        let loaded = store.get(&token).await?.expect("session present");
-        assert_eq!(loaded.user, original_user);
-        assert_eq!(loaded.user_agent_hash.as_deref(), Some("ua-hash-xyz"));
-        assert_eq!(loaded.token_hash(), hash_token(&token));
-        assert!(
-            loaded.reveal_token().is_none(),
-            "a reloaded session must not carry its raw token"
-        );
+            // Look up by the raw cookie token (hashed internally).
+            let loaded = store.get(&token).await?.expect("session present");
+            assert_eq!(loaded.user, original_user);
+            assert_eq!(loaded.user_agent_hash.as_deref(), Some("ua-hash-xyz"));
+            assert_eq!(loaded.token_hash(), hash_token(&token));
+            assert!(
+                loaded.reveal_token().is_none(),
+                "a reloaded session must not carry its raw token"
+            );
 
-        // A touch must not reset created_at, even carrying a bogus one.
-        let mut touched = loaded;
-        touched.last_activity = Utc::now();
-        touched.created_at = created_at + Duration::hours(1);
-        store.insert(touched).await;
-        let reloaded = store.get(&token).await?.expect("still present");
-        // Tolerance: Postgres TIMESTAMPTZ truncates the Rust DateTime's nanoseconds.
-        assert!(
-            (reloaded.created_at - created_at).abs() < Duration::milliseconds(1),
-            "created_at must be fixed across touches (got {}, expected ~{created_at})",
-            reloaded.created_at,
-        );
+            // A touch must not reset created_at, even carrying a bogus one.
+            let mut touched = loaded;
+            touched.last_activity = Utc::now();
+            touched.created_at = created_at + Duration::hours(1);
+            store.insert(touched).await;
+            let reloaded = store.get(&token).await?.expect("still present");
+            // Tolerance: Postgres TIMESTAMPTZ truncates the Rust DateTime's nanoseconds.
+            assert!(
+                (reloaded.created_at - created_at).abs() < Duration::milliseconds(1),
+                "created_at must be fixed across touches (got {}, expected ~{created_at})",
+                reloaded.created_at,
+            );
 
-        // `update` writes the identity within its role and the CSRF token.
-        let mut changed = reloaded.clone();
-        changed.set_test_election(crate::ElectionConfig::EK27);
-        changed.rotate_csrf_token();
-        store.update(&changed).await;
-        let updated = store.get(&token).await?.expect("still present");
-        assert_eq!(updated.user.election(), Some(crate::ElectionConfig::EK27));
-        assert!(updated.csrf_matches(&changed.csrf_token().0));
+            // `update` writes the identity within its role and the CSRF token.
+            let mut changed = reloaded.clone();
+            changed.set_test_election(crate::ElectionConfig::EK27);
+            changed.rotate_csrf_token();
+            store.update(&changed).await;
+            let updated = store.get(&token).await?.expect("still present");
+            assert_eq!(updated.user.election(), Some(crate::ElectionConfig::EK27));
+            assert!(updated.csrf_matches(&changed.csrf_token().0));
 
-        // An update that changes the session's role is refused.
-        let mut escalated = updated.clone();
-        escalated.user = crate::SessionUser::CentralElectoralCommittee {
-            user: crate::CsbUser::new_test(),
-            election: crate::ElectionConfig::EK27,
-            paper_correction_stream_id: None,
-        };
-        store.update(&escalated).await;
-        let unchanged = store.get(&token).await?.expect("still present");
-        assert_eq!(
-            unchanged.user, changed.user,
-            "role escalation must be refused"
-        );
+            // An update that changes the session's role is refused.
+            let mut escalated = updated.clone();
+            escalated.user = crate::SessionUser::CentralElectoralCommittee {
+                user: crate::CsbUser::new_test(),
+                election: crate::ElectionConfig::EK27,
+                paper_correction_stream_id: None,
+            };
+            store.update(&escalated).await;
+            let unchanged = store.get(&token).await?.expect("still present");
+            assert_eq!(
+                unchanged.user, changed.user,
+                "role escalation must be refused"
+            );
 
-        store.remove(&token).await;
-        assert!(store.get(&token).await?.is_none());
+            store.remove(&token).await;
+            assert!(store.get(&token).await?.is_none());
 
-        // A touch or an update after logout must not resurrect the session row.
-        store.touch(&reloaded).await;
-        store.update(&reloaded).await;
-        assert!(store.get(&token).await?.is_none());
-        Ok(())
+            // A touch or an update after logout must not resurrect the session row.
+            store.touch(&reloaded).await;
+            store.update(&reloaded).await;
+            assert!(store.get(&token).await?.is_none());
+            Ok(())
+        })
+        .await
     }
 
     /// A stored row whose identity does not parse is dropped on load (fail
     /// closed), never mapped to a default identity.
     #[cfg(feature = "database")]
     #[cfg_attr(not(feature = "db-tests"), ignore = "requires database")]
-    #[sqlx::test(migrations = false)]
-    async fn database_backend_drops_unreadable_identity(
-        pool: sqlx::PgPool,
-    ) -> Result<(), AppError> {
-        crate::store::database::migrate(&pool).await?;
+    #[tokio::test]
+    async fn database_backend_drops_unreadable_identity() -> Result<(), AppError> {
+        crate::test_db::with_pool(|pool| async move {
+            crate::store::database::migrate(&pool).await?;
 
-        let session = Session::new_test();
-        let token = session.token_string();
-        let store = SessionStore::Database(pool.clone());
-        store.insert(session).await;
+            let session = Session::new_test();
+            let token = session.token_string();
+            let store = SessionStore::Database(pool.clone());
+            store.insert(session).await;
 
-        sqlx::query("UPDATE sessions SET identity = '{\"Unknown\":{}}'::jsonb")
-            .execute(&pool)
-            .await?;
+            sqlx::query("UPDATE sessions SET identity = '{\"Unknown\":{}}'::jsonb")
+                .execute(&pool)
+                .await?;
 
-        assert!(store.get(&token).await?.is_none());
-        // The corrupt row itself is deleted, not retried forever.
-        let remaining: i64 = sqlx::query_scalar("SELECT count(*) FROM sessions")
-            .fetch_one(&pool)
-            .await?;
-        assert_eq!(remaining, 0);
-        Ok(())
+            assert!(store.get(&token).await?.is_none());
+            // The corrupt row itself is deleted, not retried forever.
+            let remaining: i64 = sqlx::query_scalar("SELECT count(*) FROM sessions")
+                .fetch_one(&pool)
+                .await?;
+            assert_eq!(remaining, 0);
+            Ok(())
+        })
+        .await
     }
 }

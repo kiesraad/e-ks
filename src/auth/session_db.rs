@@ -16,7 +16,6 @@ use crate::{
 
 /// A `sessions` row, mapped by column name. `token` holds the token hash;
 /// `identity` holds the serialized [`SessionUser`].
-#[derive(sqlx::FromRow)]
 struct SessionRow {
     token: String,
     identity: serde_json::Value,
@@ -25,6 +24,22 @@ struct SessionRow {
     created_at: DateTime<Utc>,
     user_agent_hash: Option<String>,
     csrf_token: String,
+}
+
+impl<'r> sqlx::FromRow<'r, sqlx::postgres::PgRow> for SessionRow {
+    fn from_row(row: &'r sqlx::postgres::PgRow) -> Result<Self, sqlx::Error> {
+        use sqlx::Row;
+
+        Ok(Self {
+            token: row.try_get("token")?,
+            identity: row.try_get("identity")?,
+            locale: row.try_get("locale")?,
+            last_activity: row.try_get("last_activity")?,
+            created_at: row.try_get("created_at")?,
+            user_agent_hash: row.try_get("user_agent_hash")?,
+            csrf_token: row.try_get("csrf_token")?,
+        })
+    }
 }
 
 /// Insert or update a session row (`token` column holds the hash). `created_at`

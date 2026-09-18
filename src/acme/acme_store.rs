@@ -121,22 +121,25 @@ mod tests {
     }
 
     #[cfg_attr(not(feature = "db-tests"), ignore = "requires database")]
-    #[sqlx::test(migrations = false)]
-    async fn database_challenge_roundtrip(pool: sqlx::PgPool) {
-        sqlx::raw_sql(include_str!("../../deploy/schema.sql"))
-            .execute(&pool)
-            .await
-            .expect("apply deploy/schema.sql");
-        let store = AcmeStore::Database(pool);
+    #[tokio::test]
+    async fn database_challenge_roundtrip() {
+        crate::test_db::with_pool(|pool| async move {
+            sqlx::raw_sql(include_str!("../../deploy/schema.sql"))
+                .execute(&pool)
+                .await
+                .expect("apply deploy/schema.sql");
+            let store = AcmeStore::Database(pool);
 
-        store.put_challenge("tok", "tok.thumbprint").await.unwrap();
-        assert_eq!(
-            store.find_challenge("tok").await.as_deref(),
-            Some("tok.thumbprint")
-        );
+            store.put_challenge("tok", "tok.thumbprint").await.unwrap();
+            assert_eq!(
+                store.find_challenge("tok").await.as_deref(),
+                Some("tok.thumbprint")
+            );
 
-        store.delete_challenge("tok").await;
-        assert_eq!(store.find_challenge("tok").await, None);
+            store.delete_challenge("tok").await;
+            assert_eq!(store.find_challenge("tok").await, None);
+        })
+        .await;
     }
 
     #[tokio::test]

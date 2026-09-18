@@ -156,6 +156,8 @@ pub(crate) use view::{Context, ErrorPage, filters};
 
 #[cfg(test)]
 mod test_support;
+#[cfg(all(test, feature = "database"))]
+pub(crate) use test_support::test_db;
 #[cfg(test)]
 pub(crate) use test_support::{brp_stub, test_utils};
 
