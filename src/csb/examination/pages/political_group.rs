@@ -4,6 +4,8 @@ use axum::{
     response::{IntoResponse, Response},
 };
 
+use crate::structs::common::HasSeverity;
+
 use crate::{
     AppError, AppRequestState, Context,
     CsbAction::{self},
@@ -17,7 +19,10 @@ use crate::{
         import::{brp_sweep_running, do_brp_verification},
     },
     filters, redirect_success,
-    structs::csb::{CsbPhase, Omission},
+    structs::{
+        csb::{CsbPhase, Omission},
+        problems::AllProblems,
+    },
 };
 
 #[derive(Template)]
@@ -35,6 +40,7 @@ struct CsbPoliticalGroupTemplate {
     declarations_of_support_omissions: Vec<Omission>,
     has_paper_corrections: bool,
     scrapped_districts: Vec<crate::ElectoralDistrict>,
+    all_problems: AllProblems,
 }
 
 #[derive(Template)]
@@ -94,7 +100,7 @@ pub(in crate::csb) async fn render(
     );
     let political_group_status = RestorationStatus::for_political_group(&store);
     let scrapped_districts = political_group.scrapped.districts(&store.election);
-
+    let all_problems = store.get_all_problems(context.election)?;
     Ok(HtmlTemplate(
         CsbPoliticalGroupTemplate {
             political_group,
@@ -106,6 +112,7 @@ pub(in crate::csb) async fn render(
             declarations_of_support_omissions: store.get_all_declarations_of_support_omissions(),
             has_paper_corrections: store.has_paper_corrections(),
             scrapped_districts,
+            all_problems,
         },
         context,
     )

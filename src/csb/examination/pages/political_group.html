@@ -40,7 +40,7 @@
                href="{{ political_group.all_brp_findings_path() }}">{{ "csb.group.examine_all"|trans }}</a>
           </div>
         </div>
-        {{ restorations::brp_strip(brp, brp_incomplete.as_deref() ) }}
+        {{ restorations::brp_strip(brp, brp_incomplete.as_deref() , all_problems) }}
       </div>
       <form method="post"
             class="examination-panel"

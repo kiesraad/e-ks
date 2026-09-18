@@ -37,13 +37,14 @@
           </div>
         {% endif %}
       </div>
-      <div class="mb-lg">{{ restorations::brp_strip(group.brp, brp_incomplete.as_deref() ) }}</div>
+      <div class="mb-lg">{{ restorations::brp_strip(group.brp, brp_incomplete.as_deref() , all_problems ) }}</div>
       {% if !all_findings.candidates.is_empty() %}
         {% for candidate in all_findings.candidates %}
-          {{ restorations::brp_group(candidate.person.name.display() , candidate.path.as_deref(), candidate.messages.as_slice()) }}
+          <!-- FIXME -->
+          {# {{ restorations::brp_group(candidate.person.name.display() , candidate.path.as_deref(), candidate.messages.as_slice()) }} #}
         {% endfor %}
       {% else if group.brp.is_correct() %}
-        <p class="font-italic">{{ "csb.all_brp_findings.none"|trans }}</p>
+        <p class="font-italic">{{ "csb.all_findings.none"|trans }}</p>
       {% endif %}
     </div>
   </div>

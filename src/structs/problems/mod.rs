@@ -1,3 +1,6 @@
+//! Validation problems reported on the finalise page and on the CSB examination pages
+mod problems_sort;
+
 use axum_extra::routing::TypedPath as _;
 
 use crate::{
@@ -321,6 +324,13 @@ impl AllProblems {
         !self
             .flatten_problems()
             .any(|ii| ii.severity() == Severity::Error)
+    }
+
+    pub fn get_problems_for_person(&self, person: &Person) -> Vec<&PotentialProblems> {
+        self.candidates
+            .iter()
+            .find(|c| &c.entity == person)
+            .map_or_default(|c| c.problems.iter().collect())
     }
 }
 

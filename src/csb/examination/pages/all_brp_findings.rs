@@ -12,6 +12,11 @@ use crate::{
         import::brp_sweep_running,
     },
     filters,
+    structs::{
+        common::HasSeverity,
+        persons::Person,
+        problems::AllProblems,
+    },
 };
 
 #[derive(Template)]
@@ -24,6 +29,9 @@ struct CsbAllBrpFindingsTemplate {
     /// Why the list below may be incomplete, when the check did not finish.
     brp_incomplete: Option<String>,
     all_findings: AllBrpFindings,
+    all_problems: AllProblems,
+    /// all candidates that have finding(s), problem(s), or both
+    candidates: Vec<(Person, Option<String>)>,
 }
 
 pub async fn all_brp_findings(
@@ -33,6 +41,8 @@ pub async fn all_brp_findings(
 ) -> Result<Response, AppError> {
     let political_group = CsbPoliticalGroup::new_from_csb_store(&store);
     let all_findings = store.get_all_brp_findings(&political_group, context.session.locale);
+    let all_problems = store.get_all_problems(context.election)?;
+    let candidates = problematic_candidates(&all_findings, &all_problems, &political_group, &store);
 
     let brp = BrpCheckState::for_political_group(&store);
     let brp_running = brp_sweep_running(store.stream_id);
@@ -49,10 +59,34 @@ pub async fn all_brp_findings(
             brp_running,
             political_group,
             all_findings,
+            all_problems,
+            candidates,
         },
         context,
     )
     .into_response())
+}
+
+fn problematic_candidates(
+    all_findings: &AllBrpFindings,
+    all_problems: &AllProblems,
+    political_group: &CsbPoliticalGroup,
+    store: &CsbStore,
+) -> Vec<(Person, Option<String>)> {
+    let mut candidates = all_findings
+        .candidates
+        .iter()
+        .map(|c| (c.person.clone(), c.path.to_owned()))
+        .collect::<Vec<_>>();
+    for person in all_problems.candidates.iter().map(|c| c.entity.clone()) {
+        if !candidates.iter().any(|(p, _)| *p == person) {
+            let path = store.get_first_list(person.id).map_or(None, |l| {
+                Some(political_group.candidate_path(&l.id, &person.id))
+            });
+            candidates.push((person, path));
+        }
+    }
+    candidates
 }
 
 #[cfg(test)]
