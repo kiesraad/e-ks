@@ -170,7 +170,7 @@ modules:
 | `src/error/` | `AppError`, the application-wide error type. Its mapping to a response lives in `src/view/`, the page layouts in `src/pg/` and `src/csb/`. |
 | `src/form/` | Generic form extraction and validation: the `Form<T>` extractor, CSRF tokens, file uploads, string validators. |
 | `src/pagination/` | Reusable list-pagination helpers (params, page links, page info). |
-| `src/fixtures/` | Sample data loaded into the store on startup in development/test (`fixtures` feature). |
+| `src/fixtures/` | Sample data loaded into the store on startup in development/test (`fixtures` feature). The CSB counterpart, `src/csb/import/fixture.rs`, registers sample political groups with their previous election result and imports several of them, one with omissions and one with paper corrections. |
 | `src/utils/` | Small standalone helpers (id newtypes, redirects, health check, embedding helpers, etc.). |
 
 ### `src/pg/` domain modules

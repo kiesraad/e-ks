@@ -43,15 +43,18 @@ fn address(
     })
 }
 
-pub async fn load(store: &PgStore, appellation: Option<Appellation>) -> Result<(), AppError> {
-    let political_group = PoliticalGroup {
+/// The demo political group, named `appellation` when given.
+pub fn fixture_group(appellation: Option<Appellation>) -> PoliticalGroup {
+    PoliticalGroup {
         appellation: Some(
             appellation.unwrap_or_else(|| "Kiesraad Demo".parse().expect("appellation")),
         ),
         list_designation: Some(ListDesignation::Standalone),
         previous_election_results: None,
-    };
+    }
+}
 
+pub async fn load(store: &PgStore, political_group: PoliticalGroup) -> Result<(), AppError> {
     political_group.update(store).await?;
 
     NameAuthorisation {
@@ -100,7 +103,7 @@ mod tests {
     #[tokio::test]
     async fn test_load() {
         let store = PgStore::new_for_test();
-        load(&store, None).await.unwrap();
+        load(&store, fixture_group(None)).await.unwrap();
 
         let list_submitter = store.get_list_submitter();
         assert!(list_submitter.get_problems(()).is_all_good());
