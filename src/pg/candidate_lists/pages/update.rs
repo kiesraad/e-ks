@@ -19,7 +19,7 @@ struct CandidateListUpdateTemplate {
     form: FormData<CandidateListForm>,
     candidate_list: CandidateList,
     available_districts: Vec<ElectoralDistrict>,
-    duplicate_districts: Vec<ElectoralDistrict>,
+    districts_on_other_lists: Vec<ElectoralDistrict>,
     overlay: Overlay,
 }
 
@@ -31,7 +31,8 @@ pub async fn update_candidate_list(
     Query(query): Query<QueryParamState>,
 ) -> Result<Response, AppError> {
     let available_districts = CandidateList::available_districts(&store, &context.election);
-    let duplicate_districts = candidate_list.duplicate_districts(&store);
+    let districts_on_other_lists =
+        CandidateList::districts_on_other_lists(&store, Some(candidate_list.id));
     Ok(HtmlTemplate(
         CandidateListUpdateTemplate {
             form: FormData::new_with_data(CandidateListForm::from(candidate_list.clone())),
@@ -39,7 +40,7 @@ pub async fn update_candidate_list(
             overlay: Overlay::new(&query),
             candidate_list,
             available_districts,
-            duplicate_districts,
+            districts_on_other_lists,
         },
         context,
     )
@@ -60,7 +61,8 @@ pub async fn update_candidate_list_submit(
         ));
     }
     let available_districts = CandidateList::available_districts(&store, &context.election);
-    let duplicate_districts = candidate_list.duplicate_districts(&store);
+    let districts_on_other_lists =
+        CandidateList::districts_on_other_lists(&store, Some(candidate_list.id));
     form.electoral_districts = context.election.known_districts(&form.electoral_districts);
     match form.validate_update(&candidate_list) {
         Err(form_data) => Ok(HtmlTemplate(
@@ -70,7 +72,7 @@ pub async fn update_candidate_list_submit(
                 overlay: Overlay::new(&query),
                 candidate_list,
                 available_districts,
-                duplicate_districts,
+                districts_on_other_lists,
             },
             context,
         )

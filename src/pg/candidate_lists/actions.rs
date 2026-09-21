@@ -9,7 +9,7 @@ use crate::{
             CandidateList, CandidateListId, CandidateListSummary, FullCandidateList,
         },
         candidates::{Candidate, CandidateWithProblems},
-        common::Problematic,
+        common::{HasSeverity, Problematic, Severity},
         persons::{Person, PersonId},
     },
 };
@@ -34,13 +34,23 @@ impl CandidateList {
         election.available_districts(used)
     }
 
-    pub fn duplicate_districts(&self, store: &PgStore) -> Vec<ElectoralDistrict> {
-        let other_districts: BTreeSet<ElectoralDistrict> = store
+    /// Districts already claimed by candidate lists other than `list_id`
+    pub fn districts_on_other_lists(
+        store: &PgStore,
+        list_id: Option<CandidateListId>,
+    ) -> Vec<ElectoralDistrict> {
+        let districts: BTreeSet<ElectoralDistrict> = store
             .get_candidate_lists()
             .into_iter()
-            .filter(|list| list.id != self.id)
+            .filter(|list| Some(list.id) != list_id)
             .flat_map(|list| list.electoral_districts)
             .collect();
+
+        districts.into_iter().collect()
+    }
+
+    pub fn duplicate_districts(&self, store: &PgStore) -> Vec<ElectoralDistrict> {
+        let other_districts = Self::districts_on_other_lists(store, Some(self.id));
 
         self.electoral_districts
             .iter()
@@ -250,6 +260,22 @@ impl FullCandidateList {
 }
 
 impl CandidateListSummary {
+    /// A list is usable once it holds at least one candidate and neither the
+    /// list nor any of its candidates have errors
+    pub fn is_usable(&self, store: &PgStore) -> bool {
+        self.candidate_count() > 0
+            && !self
+                .get_problems(())
+                .has_severity_or_higher(Severity::Error)
+            && !self.list.candidates.iter().any(|id| {
+                store.get_person(*id).is_ok_and(|person| {
+                    person
+                        .get_problems(store.election)
+                        .has_severity_or_higher(Severity::Error)
+                })
+            })
+    }
+
     pub fn list(store: &PgStore) -> Vec<CandidateListSummary> {
         let max_count = store.get_political_group().get_max_candidates();
         store

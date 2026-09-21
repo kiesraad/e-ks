@@ -1,6 +1,7 @@
 import bsnInput from "./scripts/form-inputs/bsn-input";
 import countryCodeInput from "./scripts/form-inputs/country-input";
 import dateInput from "./scripts/form-inputs/date-input";
+import duplicateDistricts from "./scripts/form-inputs/duplicate-districts";
 import electionDomain from "./scripts/form-inputs/election-domain";
 import listDesignation from "./scripts/form-inputs/list-designation";
 import setupFileImport from "./scripts/form-inputs/file-import";
@@ -58,6 +59,7 @@ setupSelectAllCheckbox();
 electionDomain();
 listDesignation();
 omissionPreset();
+duplicateDistricts();
 staleErrors(); // last: snapshots the values the other initialisers normalised
 
 // generic UI

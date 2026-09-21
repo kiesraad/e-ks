@@ -14,6 +14,7 @@ actions:
   select_all_districts: Select all electoral districts
 add_all: Add all candidates
 add_candidate: Add candidate
+add_list_note: "Multiple lists can be created for the {}. Note that the electoral districts must be unique per list."
 all_candidates: All candidates
 all_candidates_note: All created candidates can be found here
 candidate:
@@ -24,7 +25,7 @@ candidate_list_description:
   add_candidate_list: Create candidate list(s)
 districts:
   all: All
-  duplicate_hint: One or more electoral districts appear on multiple candidate lists
+  duplicate_warning: You have selected electoral district(s) that are on multiple candidate lists
 edit_position: Position on the list
 errors:
   candidate_set_changed: Reordering can only change the order of the current candidates.

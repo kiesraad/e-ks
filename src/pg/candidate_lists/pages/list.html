@@ -87,11 +87,12 @@
       {% if election.has_only_one_district() && candidate_lists.len() > 0 %}
         {# do not show the add button #}
       {% else %}
-        <div class="card card-add-list">
+        <div class="card card-add-list {% if all_districts_assigned %}muted{% endif %}">
           <div>
             <a href="{{ CandidateList::create_path() }}"
                class="button secondary icon-plus">{{
             "candidate_list.actions.add"|trans }}</a>
+            <p>{{ "candidate_list.add_list_note"|trans(&election|election_type_title) }}</p>
           </div>
         </div>
       {% endif %}

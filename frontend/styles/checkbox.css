@@ -226,6 +226,14 @@
       background: url("../icons/error.svg") no-repeat right center / 1.1rem;
     }
   }
+
+  &.warning {
+    label {
+      color: var(--color-warning-darker);
+      padding-right: var(--space-ml);
+      background: url("../icons/warning.svg") no-repeat right center / 1.1rem;
+    }
+  }
 }
 
 label:has(input[type="checkbox"]) {

@@ -20,6 +20,7 @@ struct CandidateListIndexTemplate {
     total_persons: usize,
     persons_with_problems: usize,
     person_problem_severity: &'static str,
+    all_districts_assigned: bool,
 }
 
 pub async fn list_candidate_lists(
@@ -47,12 +48,16 @@ pub async fn list_candidate_lists(
         .map(Severity::class)
         .unwrap_or_default();
 
+    let all_districts_assigned =
+        CandidateList::available_districts(&store, &context.election).is_empty();
+
     Ok(HtmlTemplate(
         CandidateListIndexTemplate {
             candidate_lists,
             total_persons: persons.len(),
             persons_with_problems,
             person_problem_severity,
+            all_districts_assigned,
         },
         context,
     ))
