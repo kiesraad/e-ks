@@ -266,8 +266,8 @@ mod tests {
         };
         list_early.create(&store).await?;
 
-        // sleep for a second to ensure a different created_at timestamp for the next list
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        // a pause, so the next list gets a later created_at timestamp
+        tokio::time::sleep(std::time::Duration::from_millis(1)).await;
 
         let list_late = CandidateList {
             electoral_districts: BTreeSet::from([ElectoralDistrict::Overijssel]),
