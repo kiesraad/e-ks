@@ -1,9 +1,10 @@
 use crate::{
-    id_newtype,
+    Locale, id_newtype,
     structs::common::{
         Address, CountryCode, FullName, InternationalAddress, InternationalPostalCode, PostalCode,
         Problematic, Problems, Severity,
     },
+    trans,
 };
 use serde::{Deserialize, Serialize};
 
@@ -131,6 +132,16 @@ impl ListSubmitter {
 
     pub fn address_line_2(&self) -> String {
         self.address.address_line_2().unwrap_or_default()
+    }
+
+    pub fn display(&self, locale: &Locale, is_substitute: bool) -> String {
+        let role = if is_substitute {
+            trans!("political_group.substitute_submitter", locale)
+        } else {
+            trans!("political_group.list_submitter", locale)
+        };
+
+        format!("{} ({role})", self.name.display())
     }
 }
 

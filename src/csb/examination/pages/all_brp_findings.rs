@@ -12,11 +12,7 @@ use crate::{
         import::brp_sweep_running,
     },
     filters,
-    structs::{
-        common::HasSeverity,
-        persons::Person,
-        problems::AllProblems,
-    },
+    structs::{common::HasSeverity, persons::Person, problems::AllProblems},
 };
 
 #[derive(Template)]
@@ -80,9 +76,9 @@ fn problematic_candidates(
         .collect::<Vec<_>>();
     for person in all_problems.candidates.iter().map(|c| c.entity.clone()) {
         if !candidates.iter().any(|(p, _)| *p == person) {
-            let path = store.get_first_list(person.id).map_or(None, |l| {
-                Some(political_group.candidate_path(&l.id, &person.id))
-            });
+            let path = store
+                .get_first_list(person.id)
+                .map(|l| political_group.candidate_path(&l.id, &person.id));
             candidates.push((person, path));
         }
     }
