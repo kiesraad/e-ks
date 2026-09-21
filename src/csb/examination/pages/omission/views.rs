@@ -108,8 +108,6 @@ fn placeholders_for(target: &OmissionTarget, store: &CsbStream) -> OmissionPlace
                     .map(|nr| nr.to_string()),
             }
         }
-        // The {district}/{districts} tokens in candidate-list presets are filled
-        // in by the front-end
         OmissionType::CandidateList
         | OmissionType::DeclarationsOfSupport
         | OmissionType::PoliticalGroup

@@ -87,10 +87,6 @@ test.describe("add omissions for declarations of support", async () => {
       await page.getByRole("checkbox", { name: "1. Groningen" }).check();
       await page.getByRole("checkbox", { name: "2. Fryslân" }).check();
       await button.click();
-      if (button === omissionsPage.buttonMissingMultipleDistricts) {
-        await expect(omissionsPage.textfieldLetter).toHaveValue(/Fryslân/);
-        await expect(omissionsPage.textfieldLetter).toHaveValue(/Groningen/);
-      }
       if (resolvable) {
         await expect(omissionsPage.checkboxRecoverable).toBeChecked();
         await omissionsPage.textfieldLetter.fill("Testtoevoeging");

@@ -368,6 +368,16 @@ mod tests {
         body.split_whitespace().collect::<Vec<_>>().join(" ")
     }
 
+    /// The rendered district checkbox up to its value attribute, so a test can
+    /// append what should follow (e.g. ` disabled`).
+    fn district_checkbox(district: ElectoralDistrict) -> String {
+        format!(
+            r#"id="omission_district_{}" value="{}""#,
+            district.code(),
+            district.serde_name()
+        )
+    }
+
     #[tokio::test]
     async fn add_appellation_omission_is_not_found_for_a_blank_list() {
         let store = CsbStore::new_for_test();
@@ -500,9 +510,12 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let body = normalized(&response_body_string(response).await);
         // The corrected districts are selectable, the replaced district is disabled
-        assert!(body.contains(r#"data-district-nl="Groningen" />"#));
-        assert!(body.contains(r#"data-district-nl="Fryslân" />"#));
-        assert!(body.contains(r#"data-district-nl="Utrecht" disabled />"#));
+        assert!(body.contains(&district_checkbox(ElectoralDistrict::Groningen)));
+        assert!(body.contains(&district_checkbox(ElectoralDistrict::Fryslan)));
+        assert!(body.contains(&format!(
+            "{} disabled",
+            district_checkbox(ElectoralDistrict::Utrecht)
+        )));
     }
 
     #[tokio::test]
@@ -536,14 +549,14 @@ mod tests {
 
         // With only one district the selector is hidden
         let body = render(store.clone()).await;
-        assert!(!body.contains("data-district-nl"));
+        assert!(!body.contains("omission_district_"));
         // A second list in Drenthe shows the selector
         let mut list2 = sample_candidate_list(CandidateListId::new());
         list2.electoral_districts = BTreeSet::from([crate::ElectoralDistrict::Drenthe]);
         store.set_paper_corrected_candidate_list(list2);
         let body = render(store.clone()).await;
-        assert!(body.contains(r#"data-district-nl="Utrecht" />"#));
-        assert!(body.contains(r#"data-district-nl="Drenthe" />"#));
+        assert!(body.contains(&district_checkbox(ElectoralDistrict::Utrecht)));
+        assert!(body.contains(&district_checkbox(ElectoralDistrict::Drenthe)));
     }
 
     #[tokio::test]
