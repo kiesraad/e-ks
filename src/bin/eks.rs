@@ -38,12 +38,29 @@ async fn start(address: String) {
         &format!("Failed to bind to address {address}"),
     );
 
-    or_exit(run(listener, config).await, "Application error");
+    // `CSB_BIND_ADDRESS` moves the CSB section to a listener of its own, so it
+    // can be published on a separate domain.
+    let csb_listener = match config.csb_bind_address {
+        Some(address) => Some(or_exit(
+            TcpListener::bind(address).await,
+            &format!("Failed to bind CSB_BIND_ADDRESS {address}"),
+        )),
+        None => None,
+    };
+
+    or_exit(
+        run(listener, csb_listener, config).await,
+        "Application error",
+    );
 }
 
-/// Runs the application with the given TCP listener and resolved configuration.
+/// Runs the application with the given TCP listeners and resolved configuration.
 /// Initializes application state, builds the router, and starts the server.
-async fn run(listener: TcpListener, config: Config) -> Result<(), AppError> {
+async fn run(
+    listener: TcpListener,
+    csb_listener: Option<TcpListener>,
+    config: Config,
+) -> Result<(), AppError> {
     // Create application state
     let state = AppState::new_with_config(config).await?;
 
@@ -63,22 +80,17 @@ async fn run(listener: TcpListener, config: Config) -> Result<(), AppError> {
     // otherwise).
     tokio::spawn(run_session_sweeper(state.sessions.clone()));
 
-    // `CSB_BIND_ADDRESS` moves the CSB section to a listener of its own, so it
-    // can be published on a separate domain. It serves the whole application:
+    // A second listener (from `CSB_BIND_ADDRESS`) serves the whole application:
     // a committee session correcting paper documents uses the political-group
     // routes too, and its host-scoped session cookie never reaches the other
     // listener. Both routers get clones of the one `AppState`, so the stores,
     // sessions and caches behind it are shared, not duplicated.
-    let csb = match state.config.csb_bind_address {
-        Some(address) => Some((
-            or_exit(
-                TcpListener::bind(address).await,
-                &format!("Failed to bind CSB_BIND_ADDRESS {address}"),
-            ),
+    let csb = csb_listener.map(|listener| {
+        (
+            listener,
             router::create(state.clone()).with_state(state.clone()),
-        )),
-        None => None,
-    };
+        )
+    });
 
     let csb_routes = match csb {
         Some(_) => WithCsbRoutes::Excluded,
@@ -131,7 +143,7 @@ mod tests {
     use super::*;
     use axum::http::StatusCode;
     use reqwest::Client;
-    use std::net::{SocketAddr, TcpListener as StdTcpListener};
+    use std::net::TcpListener as StdTcpListener;
     use tokio::{
         net::TcpListener,
         time::{Duration, sleep},
@@ -159,12 +171,17 @@ mod tests {
 
     /// Logs in through the development bypass and returns the session cookie;
     /// `extra` appends query parameters (`csb=true` for a committee session).
+    ///
+    /// No `bsn`, so the route mints a fresh stream instead of deriving one from
+    /// it. A shared stream is a shared event log: the tests in this binary run
+    /// in parallel against one database, and the second login to append to the
+    /// same stream is refused with a conflict.
     async fn dev_login_with(base: &str, extra: &str) -> String {
         let client = Client::builder()
             .redirect(reqwest::redirect::Policy::none())
             .build()
             .unwrap();
-        let url = format!("{base}/dev/login?bsn=999999990&fixtures=false{extra}");
+        let url = format!("{base}/dev/login?fixtures=false{extra}");
         let resp = client.get(&url).send().await.unwrap();
         assert_eq!(resp.status(), StatusCode::SEE_OTHER);
         resp.headers()
@@ -184,7 +201,7 @@ mod tests {
         let addr = listener.local_addr().unwrap();
         let config = Config::from_env().expect("config");
         let server = tokio::spawn(async move {
-            run(listener, config).await.unwrap();
+            run(listener, None, config).await.unwrap();
         });
 
         let base = format!("http://{addr}");
@@ -201,18 +218,9 @@ mod tests {
         server.abort();
     }
 
-    /// A free port, released again before the server binds it.
-    fn free_port() -> u16 {
-        StdTcpListener::bind("127.0.0.1:0")
-            .unwrap()
-            .local_addr()
-            .unwrap()
-            .port()
-    }
-
-    /// Waits until `url` answers, so the spawned server has bound its listener.
-    /// Before the bind the connection is refused rather than held open, so the
-    /// request returns at once and the sleep is what paces the retries.
+    /// Waits until `url` answers, so the spawned server is serving. Its listener
+    /// is already bound, so a request that arrives first waits in the accept
+    /// queue instead of being refused; the client timeout bounds that wait.
     async fn wait_until_ready(url: &str) {
         let client = Client::builder()
             .redirect(reqwest::redirect::Policy::none())
@@ -236,14 +244,20 @@ mod tests {
     async fn csb_bind_address_serves_the_csb_section_on_a_second_listener() {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
-        let csb_port = free_port();
+
+        // Hold the CSB listener rather than picking a port and releasing it: a
+        // port handed back to the kernel is claimed by whatever binds next, and
+        // the tests in this binary run in parallel.
+        let csb_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let csb_addr = csb_listener.local_addr().unwrap();
 
         let mut config = Config::from_env().expect("config");
-        config.csb_bind_address = Some(SocketAddr::from(([127, 0, 0, 1], csb_port)));
+        config.csb_bind_address = Some(csb_addr);
 
-        let server = tokio::spawn(async move { run(listener, config).await.unwrap() });
+        let server =
+            tokio::spawn(async move { run(listener, Some(csb_listener), config).await.unwrap() });
 
-        let csb_base = format!("http://127.0.0.1:{csb_port}");
+        let csb_base = format!("http://{csb_addr}");
         wait_until_ready(&format!("{csb_base}/lb-health")).await;
 
         let cookie = dev_login_with(&csb_base, "&csb=true").await;
