@@ -1,5 +1,5 @@
 collection:
-  gather_h9: Collect the H 9 declarations of consent from all candidates. Also ensure that all copies of identity documents are included and legible.
+  gather_h9: Collect the signatures on the H 9 declarations of consent from all candidates. Also ensure that all copies of identity documents are included and legible.
   pre_submission: "In the 2 weeks before nomination day, you can have the documents reviewed in advance by the central electoral committee, known as a 'pre-submission'. Please make an appointment for this."
   title: "Gather, review and sign"
 complete_list:
@@ -15,7 +15,7 @@ delivery:
   only_on: "Nomination day is on <strong>{}</strong>"
   title: Submit documents
 follow_up_steps:
-  description: "After printing the documents, there are a few more steps to take outside of e-KS. Below, the rest of the nomination process up to and including the public session is described."
+  description: "After printing the documents, there are a few more steps to take outside of this application. Below, the rest of the nomination process up to and including the public session is described."
   title: Follow-up steps
 hearing:
   date: "The session is on <strong>{}</strong> at <strong>{}</strong>"
