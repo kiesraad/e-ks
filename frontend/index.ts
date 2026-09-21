@@ -23,6 +23,7 @@ import setupStepNav from "./scripts/generic-ui/step-nav";
 import setupStickyNav from "./scripts/generic-ui/sticky-nav";
 import highlightActiveLinks from "./scripts/highlights-alerts/active-link";
 import alertSuccess from "./scripts/highlights-alerts/alert-success";
+import setupDownloadWarning from "./scripts/highlights-alerts/download-warning";
 import highlightRow from "./scripts/highlights-alerts/highlight-row";
 import setupClickCard from "./scripts/generic-ui/click-card";
 import setupClickRow from "./scripts/table-interaction/click-row";
@@ -40,6 +41,7 @@ setupClickCard();
 // highlights and alerts
 highlightActiveLinks();
 alertSuccess();
+setupDownloadWarning();
 highlightRow();
 
 // form inputs
