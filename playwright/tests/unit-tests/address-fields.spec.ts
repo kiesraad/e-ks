@@ -76,15 +76,15 @@ test.describe("address fields", () => {
     await setupPage(page);
 
     const error = page.locator("#postal_code ~ span.error");
-    await expect(error).toBeVisible();
+    await expect(error).not.toHaveClass(/hidden/);
 
     await page.fill("#postal_code", "1012JS");
     // Still shown while the field is being edited.
-    await expect(error).toBeVisible();
+    await expect(error).not.toHaveClass(/hidden/);
 
     // Leaving the field drops the message, before the lookup even resolves.
     await page.fill("#house_number", "1");
-    await expect(error).toHaveCount(0);
+    await expect(error).toHaveClass(/hidden/);
     await page.locator("#house_number_addition").click();
 
     // The lookup still auto-fills and marks the address as found.
@@ -93,7 +93,7 @@ test.describe("address fields", () => {
     await expect(page.locator("#unknown-address")).toHaveClass(/hidden/);
     expect(await fieldClass(page, "postal_code")).toContain("success");
     expect(await fieldClass(page, "postal_code")).not.toContain("warning");
-    await expect(error).toHaveCount(0);
+    await expect(error).toHaveClass(/hidden/);
   });
 
   test("dropping the stale error leaves the BAG warning to the lookup", async ({
@@ -107,7 +107,7 @@ test.describe("address fields", () => {
     await page.locator("#house_number_addition").click();
 
     // The stale message is gone, but the address is still flagged as unknown.
-    await expect(error).toHaveCount(0);
+    await expect(error).toHaveClass(/hidden/);
     await expect(page.locator("#unknown-address")).not.toHaveClass(/hidden/);
     expect(await fieldClass(page, "postal_code")).toContain("warning");
     expect(await fieldClass(page, "house_number")).toContain("warning");
