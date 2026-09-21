@@ -1,18 +1,11 @@
 {% extends "pg/common/components/layout.html" %}
-{% block page_title %}
-  {{ "candidate_list.title_single"|trans }}
-  {% let election = "election"|election_value %}
-  {% if !election.has_only_one_district() %}
-    <a href="{{ full_list.list.update_path() }}"
-       class="button secondary icon-edit">{{ "candidate_list.actions.edit"|trans }}</a>
-  {% endif %}
-{% endblock %}
+{% block page_title %}{{ "candidate_list.title_single"|trans }}{% endblock %}
 {% block candidate_lists_nav_class %}active{% endblock %}
 {% block page_sub_title %}
-  {% if !full_list.list.electoral_districts.is_empty() %}
-    {% let election = "election"|election_value %}
-    <span class="tags">
-      {% if !full_list.list.contains_all_districts(election) && !election.has_only_one_district() %}
+  {% let election = "election"|election_value %}
+  {% if !election.has_only_one_district() %}
+    <div class="districts-subtitle">
+      {% if !full_list.list.electoral_districts.is_empty() && !full_list.list.contains_all_districts(election) %}
         <ul class="tags-list">
           {% for district in full_list.list.electoral_districts %}
             <li class="tag {% if duplicate_districts.contains(district) %}error{% endif %}">
@@ -24,7 +17,9 @@
           {% endfor %}
         </ul>
       {% endif %}
-    </span>
+      <a href="{{ full_list.list.update_path() }}"
+         class="button tertiary icon-edit">{{ "candidate_list.form.update.title"|trans }}</a>
+    </div>
   {% endif %}
 {% endblock %}
 {% block header_action %}
@@ -59,7 +54,9 @@
           <p>{{ "candidate_list.actions.import_export"|trans }}:</p>
           <a href="{{ full_list.list.import_path() }}"
              class="button secondary icon-download"
-             title="{{ "candidate_list.actions.import_export"|trans }}"></a>
+             title="{{ "candidate_list.actions.import_export"|trans }}">
+            {{ "candidate_list.actions.import"|trans }}
+          </a>
         {% endif %}
       </div>
       {% if full_list.candidates.len() < candidate_limit %}
@@ -83,12 +80,8 @@
     {% else %}
       {% let max_candidates = "max_candidates"|integer_value %}
       {% include "pg/candidate_lists/components/candidates_table.html" %}
-      <p class="mt-xl">
-        <a href="/" class="button">{{ "common.continue_to_home"|trans }}</a>
-        <a href="{{ CandidateList::list_path() }}" class="button secondary">
-          {{ "candidate_list.actions.back_to_list"|trans }}
-        </a>
-      </p>
     {% endif %}
   </section>
+  {% set delete_path = full_list.list.delete_path().to_string() %}
+  {% include "pg/candidate_lists/components/finalise_nav.html" %}
 {% endblock %}

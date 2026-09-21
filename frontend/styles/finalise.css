@@ -142,6 +142,38 @@
   gap: 0;
 }
 
+/* The download call to action and its button(s) share one row */
+.download-card {
+  --card-padding: var(--space-6);
+  align-items: center;
+  flex-direction: row;
+  gap: var(--space-8);
+  justify-content: space-between;
+
+  p {
+    margin: 0;
+  }
+
+  .download-card-title {
+    color: var(--text-color-header);
+    font-weight: var(--font-weight-bold);
+  }
+
+  .step-downloads {
+    display: flex;
+    gap: var(--space-6);
+  }
+
+  /* Nothing to download yet: the whole card reads as unavailable */
+  &.disabled {
+    color: var(--gray-400);
+
+    .download-card-title {
+      color: var(--gray-400);
+    }
+  }
+}
+
 .step-download {
   display: flex;
   flex-direction: column;
