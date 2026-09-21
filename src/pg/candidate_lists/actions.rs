@@ -283,10 +283,23 @@ impl CandidateListSummary {
             .into_iter()
             .map(|list| {
                 let duplicate_districts = list.duplicate_districts(store);
+                let candidates_with_problems = list
+                    .candidates
+                    .iter()
+                    .filter(|id| {
+                        store.get_person(**id).is_ok_and(|person| {
+                            !person
+                                .get_problems(store.election)
+                                .potential_problems
+                                .is_empty()
+                        })
+                    })
+                    .count();
                 CandidateListSummary {
                     list,
                     max_count,
                     duplicate_districts,
+                    candidates_with_problems,
                 }
             })
             .collect()

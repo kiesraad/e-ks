@@ -190,7 +190,7 @@
                 <p>{{ "finalise.print.eml"|trans }}</p>
               </div>
             </div>
-            <div class="card download-card {% if !problems.models_downloadable() %}disabled{% endif %}">
+            <div class="card download-card {% if !problems.models_downloadable() %}disabled{% endif %} {% if problems.highest_severity() == Some(Severity::Warn) %}warning{% endif %}">
               <div class="download-card-text">
                 <p class="download-card-title">{{ "finalise.print.download_title"|trans }}</p>
                 <p>{{ "finalise.print.download_description"|trans }}</p>

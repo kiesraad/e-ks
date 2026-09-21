@@ -13,6 +13,8 @@ pub struct CandidateListSummary {
     pub list: CandidateList,
     pub max_count: usize,
     pub duplicate_districts: Vec<ElectoralDistrict>,
+    /// Candidates on this list with at least one warning or error
+    pub candidates_with_problems: usize,
 }
 
 pub type CandidateListWithProblems = WithProblems<CandidateListSummary>;
@@ -46,6 +48,12 @@ impl CandidateListSummary {
             });
         }
 
+        if self.candidates_with_problems > 0 {
+            items.push(PotentialProblems::CandidatesWithProblems {
+                count: self.candidates_with_problems,
+            });
+        }
+
         items
     }
 
@@ -60,7 +68,11 @@ mod tests {
         AppError,
         ElectoralDistrict::PsAmsterdam,
         PgStore,
-        structs::{candidate_lists::CandidateListId, persons::PersonId},
+        structs::{
+            candidate_lists::CandidateListId,
+            common::{HasSeverity, Severity},
+            persons::PersonId,
+        },
         test_utils::{sample_candidate_list, sample_person},
     };
     use std::collections::BTreeSet;
@@ -93,8 +105,28 @@ mod tests {
             list,
             max_count: 20,
             duplicate_districts,
+            candidates_with_problems: 0,
         }
         .get_problems(()))
+    }
+
+    #[test]
+    fn candidates_with_problems_is_warning() {
+        let mut list = sample_candidate_list(CandidateListId::new());
+        list.candidates = vec![PersonId::new(), PersonId::new()];
+        let problems = CandidateListSummary {
+            list,
+            max_count: 20,
+            duplicate_districts: Vec::new(),
+            candidates_with_problems: 2,
+        }
+        .get_problems(());
+
+        assert_eq!(
+            problems.potential_problems,
+            vec![PotentialProblems::CandidatesWithProblems { count: 2 }]
+        );
+        assert_eq!(problems.highest_severity(), Some(Severity::Warn));
     }
 
     #[tokio::test]
