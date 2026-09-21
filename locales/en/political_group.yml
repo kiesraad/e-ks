@@ -9,7 +9,7 @@ appellation_any: Appellation
 appellation_combined: Combined appellation
 authorised_agent: Authorised agent
 authorised_agent_data: (Deputy) authorised agent data
-authorised_agent_info: "Add the statutory name and authorised representative. The statutory name is registered in the notarial deed and with the Chamber of Commerce. An authorised representative or deputy representative for the party's appellation is registered with the central electoral committee. This person grants the person submitting the list permission to put the appellation on the candidate list. This is done using form H 3-1 or H 3-2."
+authorised_agent_info: "Add the statutory name and authorised representative. The statutory name is registered in the notarial deed and with the Chamber of Commerce. An authorised representative or deputy representative for the party's appellation is registered with the central electoral committee. This person grants the list submitter permission to put the appellation on the candidate list. This is done using form H 3-1 or H 3-2."
 basic_information_political_group: Information political group
 blank_list_warning: You are using a blank list. Any changes made here will have no effect.
 delete_name_authorisation_warning_text: Are you sure you want to delete this? This action cannot be undone.
