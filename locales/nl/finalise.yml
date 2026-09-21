@@ -1,5 +1,5 @@
 collection:
-  gather_h9: Verzamel van alle kandidaten de H 9 instemmings\u00ADverklaringen. Zorg ook dat alle kopieën van identiteitsbewijzen meegeleverd worden en leesbaar zijn.
+  gather_h9: Verzamel van alle kandidaten de handtekeningen op de H 9 instemmings\u00ADverklaringen. Zorg ook dat alle kopieën van identiteitsbewijzen meegeleverd worden en leesbaar zijn.
   pre_submission: "De 2 weken voor de dag van kandidaatstelling kunt u de documenten alvast laten controleren door het centraal stembureau, de zogeheten 'voorinlevering'. Maak hiervoor een afspraak."
   title: "Verzamelen, controleren en ondertekenen"
 complete_list:
@@ -15,7 +15,7 @@ delivery:
   only_on: "De dag van kandidaatstelling is op <strong>{}</strong>"
   title: Documenten inleveren
 follow_up_steps:
-  description: Na het printen van de documenten zijn er nog enkele vervolgstappen die u buiten e-KS moet zetten. Hieronder wordt de rest van het kandidaatstellings\u00ADproces tot en met de openbare zitting beschreven.
+  description: Na het printen van de documenten zijn er nog enkele vervolgstappen die u buiten deze applicatie moet zetten. Hieronder wordt de rest van het kandidaatstellings\u00ADproces tot en met de openbare zitting beschreven.
   title: Vervolgstappen
 hearing:
   date: "De zitting is op <strong>{}</strong> om <strong>{}</strong>"
