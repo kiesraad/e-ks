@@ -1546,7 +1546,7 @@ dependencies = [
 
 [[package]]
 name = "eks-development"
-version = "0.5.9"
+version = "0.5.10"
 dependencies = [
  "anyhow",
  "dotenvy",
@@ -4588,9 +4588,9 @@ dependencies = [
 
 [[package]]
 name = "textris-pdf"
-version = "0.10.3"
+version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d693ffeb331f09178f697350b5304baf7a9e407bca9af340075a970337a8779"
+checksum = "c96253f696de4fe156673c51c3d3fe50a9b7e9339516a110b599c365b6eeaea4"
 dependencies = [
  "docx-rs",
  "harfrust",
