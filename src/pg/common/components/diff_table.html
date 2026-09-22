@@ -1,0 +1,118 @@
+{#
+  The field-level changes of an audit-log event, grouped by the part of the
+  entity they belong to. Shared by the PG and CSB detail overlays; entity
+  references link when the render context gave them a link.
+#}
+{% macro kind_marker(kind) %}
+  {% match kind %}
+    {% when crate::structs::audit_log::RowKind::Added %}
+      <span class="kind kind-added"><span aria-hidden="true">+</span><span class="visually-hidden">{{ "audit_log.detail.kind.added"|trans }}</span></span>
+    {% when crate::structs::audit_log::RowKind::Removed %}
+      <span class="kind kind-removed"><span aria-hidden="true">−</span><span class="visually-hidden">{{ "audit_log.detail.kind.removed"|trans }}</span></span>
+    {% when crate::structs::audit_log::RowKind::Changed %}
+      <span class="kind kind-changed"><span aria-hidden="true">±</span><span class="visually-hidden">{{ "audit_log.detail.kind.changed"|trans }}</span></span>
+    {% when crate::structs::audit_log::RowKind::Collection %}
+      <span class="kind kind-collection"><span aria-hidden="true">↕</span><span class="visually-hidden">{{ "audit_log.detail.kind.collection"|trans }}</span></span>
+  {% endmatch %}
+{% endmacro %}
+{% macro cell(c) %}
+  {% if let Some(marker) = c.marker %}<span class="position">{{ marker }}</span>{% endif %}
+  {% if let Some(entity) = c.entity %}
+    <span class="entity-ref">
+      {% if let Some(href) = entity.href %}
+        <a href="{{ href }}"><abbr title="{{ entity.id_full }}">{{ entity.id_full|abbreviate_str }}</abbr></a>
+      {% else %}
+        <abbr title="{{ entity.id_full }}">{{ entity.id_full|abbreviate_str }}</abbr>
+      {% endif %}
+      {% if !c.text.is_empty() %}<span>{{ c.text }}</span>{% endif %}
+    </span>
+  {% else %}
+    {{ c.text }}
+  {% endif %}
+{% endmacro %}
+{% macro cells(list) %}
+  {% if list.is_empty() %}
+    <em class="empty-value">{{ "audit_log.detail.values.empty"|trans }}</em>
+  {% else %}
+    {% for c in list %}<div class="cell">{{ cell(c) }}</div>{% endfor %}
+  {% endif %}
+{% endmacro %}
+{% macro table(groups) %}
+  <table class="diff-table mb-md">
+    <thead>
+      <tr>
+        <th scope="col" class="kind-col">
+          <span class="visually-hidden">{{ "audit_log.detail.kind.column"|trans }}</span>
+        </th>
+        <th scope="col">{{ "audit_log.detail.field"|trans }}</th>
+        <th scope="col">{{ "audit_log.detail.old_value"|trans }}</th>
+        <th scope="col">{{ "audit_log.detail.new_value"|trans }}</th>
+      </tr>
+    </thead>
+    {% for group in groups %}
+      <tbody>
+        {% if let Some(label) = group.label %}
+          <tr class="group-heading">
+            <th scope="colgroup" colspan="4">{{ label }}</th>
+          </tr>
+        {% endif %}
+        {% for row in group.rows %}
+          <tr class="{{ row.kind.css_class() }}">
+            <td class="kind-col">{{ kind_marker(row.kind) }}</td>
+            <th scope="row">{{ row.label }}</th>
+            {% match row.detail %}
+              {% when crate::structs::audit_log::RowDetail::Scalar with { old, new } %}
+                <td>
+                  {% if row.kind == crate::structs::audit_log::RowKind::Removed %}
+                    <del>{{ cells(old) }}</del>
+                  {% else %}
+                    {{ cells(old) }}
+                  {% endif %}
+                </td>
+                <td>
+                  {% if row.kind == crate::structs::audit_log::RowKind::Added %}
+                    <ins>{{ cells(new) }}</ins>
+                  {% else %}
+                    {{ cells(new) }}
+                  {% endif %}
+                </td>
+              {% when crate::structs::audit_log::RowDetail::Collection with { removed, added, moved } %}
+                <td colspan="2" class="collection">
+                  {% if !removed.is_empty() %}
+                    <ul class="chips">
+                      {% for c in removed %}
+                        <li class="chip chip-removed">
+                          <span aria-hidden="true">−</span><span class="visually-hidden">{{ "audit_log.detail.kind.removed"|trans }}</span>
+                          <del>{{ cell(c) }}</del>
+                        </li>
+                      {% endfor %}
+                    </ul>
+                  {% endif %}
+                  {% if !added.is_empty() %}
+                    <ul class="chips">
+                      {% for c in added %}
+                        <li class="chip chip-added">
+                          <span aria-hidden="true">+</span><span class="visually-hidden">{{ "audit_log.detail.kind.added"|trans }}</span>
+                          <ins>{{ cell(c) }}</ins>
+                        </li>
+                      {% endfor %}
+                    </ul>
+                  {% endif %}
+                  {% if !moved.is_empty() %}
+                    <ul class="moves">
+                      {% for m in moved %}
+                        <li>
+                          {{ cell(m.cell) }}
+                          <span class="position">#{{ m.from }} <span aria-hidden="true">→</span><span class="visually-hidden">{{ "audit_log.detail.collections.to"|trans }}</span> #{{ m.to }}</span>
+                        </li>
+                      {% endfor %}
+                    </ul>
+                  {% endif %}
+                </td>
+            {% endmatch %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    {% endfor %}
+  </table>
+{% endmacro %}

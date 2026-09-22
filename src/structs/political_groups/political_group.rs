@@ -1,6 +1,7 @@
 use crate::{
     AppError, OptionAsStrExt,
     structs::{
+        audit_log::audit_fields,
         common::{Appellation, FullName, PreviousElectionResults, Problematic, Problems},
         list_designation::ListDesignation,
     },
@@ -13,6 +14,12 @@ pub struct PoliticalGroup {
     pub list_designation: Option<ListDesignation>,
     pub previous_election_results: Option<PreviousElectionResults>,
 }
+
+audit_fields!(PoliticalGroup {
+    appellation: leaf(Appellation),
+    list_designation: leaf(ListDesignation),
+    previous_election_results: leaf(PreviousElectionResults),
+});
 
 impl Problematic<()> for PoliticalGroup {
     fn get_problems(&self, _: ()) -> Problems {

@@ -1,8 +1,12 @@
 detail:
+  collections:
+    to: naar
   field: Veld
   fields:
+    address: Correspondentie\u00ADadres
     appellation: Geregistreerde aanduiding
     bsn: Burgerservicenummer (BSN)
+    candidate_lists: Kandidatenlijsten
     candidates: Kandidaten
     country: Landcode
     created_persons: Aangemaakte kandidaten
@@ -23,17 +27,30 @@ detail:
     list_designation: Type lijstaanduiding
     list_id: Lijst-ID
     locality: Woonplaats
-    long_list_allowed: Lange lijst toegestaan
-    person_id: Persoon-ID
+    name_authorisations: Statutaire namen en gemachtigden
+    omission_description: Omschrijving
+    omission_help_text: Hersteltekst
+    omission_status: Status
+    omission_title: Titel
+    persons: Personen
     place_of_residence: Woonplaats
-    political_group_id: Politieke groepering-ID
     postal_code: Postcode
     previous_election_results: Uitslag vorige verkiezing
-    representative: Gemachtigde van kandidaat
+    previous_seats: Zetels vorige verkiezing
+    previous_votes: Stemmen vorige verkiezing
+    recoverable: Herstelbaar
+    representative: Gemachtigde
     state_or_province: Staat / provincie
     stream_id: Stream-ID
     street_name: Straatnaam
+    substitute_submitters: Vervangers herstel verzuim
     updated_persons: Bijgewerkte kandidaten
+  kind:
+    added: Toegevoegd
+    changed: Gewijzigd
+    collection: Samenstelling gewijzigd
+    column: Soort wijziging
+    removed: Verwijderd
   new_value: Nieuwe waarde
   no_changes: Geen veldwijzigingen vastgelegd voor deze gebeurtenis.
   old_value: Oude waarde
@@ -42,6 +59,8 @@ detail:
     bool_false: Nee
     bool_true: Ja
     bsn_none_confirmed: "Bevestigd: geen burgerservicenummer"
+    empty: (leeg)
+    omission_pending: In afwachting
 documents:
   download: Documenten downloaden
   no_download: In deze versie was het downloaden van documenten niet mogelijk.

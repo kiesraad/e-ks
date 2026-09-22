@@ -6,13 +6,13 @@ use axum::{
 use chrono::{DateTime, Utc};
 
 use crate::{
-    AppError, AppRequestState, Context, CsbAction, CsbContext, CsbEvent, CsbMainStore, CsbStream,
-    ElectionConfig, Event, HasCsbUser, HtmlTemplate, Locale, Overlay, QueryParamState,
+    AppError, AppRequestState, Context, CsbContext, CsbMainStore, CsbMainStoreData, CsbStoreData,
+    Event, HasCsbUser, HtmlTemplate, Locale, Overlay, QueryParamState,
     csb::audit_log::pages::CsbAuditLogDetailPath,
     filters,
     projection::{CSB_MAIN_STREAM_ID, WithCorrections},
     store::{StoreData, StoreEvent},
-    structs::{audit_log::FieldChange, csb::Correction},
+    structs::audit_log::{ChangeGroup, RenderContext, render_groups},
     trans,
 };
 
@@ -24,72 +24,45 @@ struct CsbEventDetail {
     user: String,
     details: String,
     created_at: DateTime<Utc>,
-    changes: Vec<FieldChange>,
+    changes: Vec<ChangeGroup>,
 }
 
 impl CsbEventDetail {
-    /// Look up `event_id` in a stream's events and build its detail view.
-    fn find<E: Event + HasCsbUser>(
-        events: &[StoreEvent<E>],
+    /// Look up `event_id` in a stream's events and build its detail view. The
+    /// event's changes are read against the stream replayed up to the event
+    /// before it.
+    fn find<D>(
+        events: &[StoreEvent<D::Event>],
         event_id: usize,
         stream_label: String,
         locale: Locale,
-    ) -> Result<Self, AppError> {
-        let event = events
+    ) -> Result<Self, AppError>
+    where
+        D: StoreData,
+        D::Event: Event<State = D> + HasCsbUser + Clone,
+    {
+        let index = events
             .iter()
-            .find(|e| e.event_id == event_id)
+            .position(|e| e.event_id == event_id)
             .ok_or(AppError::GenericNotFound)?;
+        let event = &events[index];
+
+        let mut before = D::default();
+        for earlier in &events[..index] {
+            before.apply(earlier.clone());
+        }
+        let changes = event.payload.changes(&before);
+
         Ok(Self {
             event_id: event.event_id,
             stream_label,
             description: event.payload.description(locale),
             user: event.payload.csb_user().describe(locale),
             details: event.payload.details(),
-            changes: event.payload.changes(locale),
+            changes: render_groups(&changes, &RenderContext::without_links(locale)),
             created_at: event.created_at,
         })
     }
-}
-
-/// The field changes of a correction event. The value it replaced comes from
-/// the stream replayed up to the event before it; other events have none.
-fn correction_changes(
-    events: &[StoreEvent<CsbEvent>],
-    event_id: usize,
-    election: ElectionConfig,
-    locale: Locale,
-) -> Vec<FieldChange> {
-    let Some(index) = events.iter().position(|e| e.event_id == event_id) else {
-        return vec![];
-    };
-    let CsbAction::UpdateCorrection(correction) = &events[index].payload.action else {
-        return vec![];
-    };
-
-    let before = CsbStream::new_for_temp_stream(election);
-    {
-        let mut data = before.data.write();
-        for event in &events[..index] {
-            data.apply(event.clone());
-        }
-    }
-
-    let change = match correction {
-        Correction::Appellation(appellation) => FieldChange::Regular {
-            field: trans!("audit_log.detail.fields.appellation", locale),
-            old_value: before
-                .get_political_group(WithCorrections::All)
-                .appellation
-                .map(|a| a.to_string())
-                .unwrap_or_default(),
-            new_value: appellation.to_string(),
-        },
-        Correction::Person(person_id, person_correction) => person_correction.change(
-            before.get_person(*person_id, WithCorrections::All).as_ref(),
-            locale,
-        ),
-    };
-    vec![change]
 }
 
 #[derive(Template)]
@@ -112,7 +85,7 @@ pub async fn csb_audit_log_detail<S: AppRequestState>(
     let locale = context.session.locale;
     let detail = if stream_id == CSB_MAIN_STREAM_ID {
         let data = main_store.data.read();
-        CsbEventDetail::find(
+        CsbEventDetail::find::<CsbMainStoreData>(
             &data.events,
             event_id,
             trans!("audit_log.filter.csb_main_stream", locale),
@@ -142,9 +115,7 @@ pub async fn csb_audit_log_detail<S: AppRequestState>(
             trans!("audit_log.filter.pre_submission_stream", locale, label)
         };
         let data = store.data.read();
-        let mut detail = CsbEventDetail::find(&data.events, event_id, label, locale)?;
-        detail.changes = correction_changes(&data.events, event_id, context.election, locale);
-        detail
+        CsbEventDetail::find::<CsbStoreData>(&data.events, event_id, label, locale)?
     };
 
     Ok(HtmlTemplate(

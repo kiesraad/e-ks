@@ -10,7 +10,14 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{form::ValidationError, id_newtype, structs::common::Appellation};
+use crate::{
+    form::ValidationError,
+    id_newtype,
+    structs::{
+        audit_log::{AuditLeaf, AuditValue, audit_fields},
+        common::Appellation,
+    },
+};
 
 id_newtype!(pub struct RegisteredPoliticalGroupId);
 
@@ -62,6 +69,12 @@ macro_rules! count_newtypes {
                     self.0.fmt(f)
                 }
             }
+
+            impl AuditLeaf for $name {
+                fn audit_value(&self) -> AuditValue {
+                    AuditValue::text(self.0)
+                }
+            }
         )*
     };
 }
@@ -85,6 +98,13 @@ pub struct RegisteredPoliticalGroup {
     /// Seats the group obtained at the previous election.
     pub previous_seats: SeatCount,
 }
+
+audit_fields!(RegisteredPoliticalGroup {
+    id: skip,
+    appellation: leaf(Appellation),
+    previous_votes: leaf(PreviousVotes),
+    previous_seats: leaf(PreviousSeats),
+});
 
 impl RegisteredPoliticalGroup {
     /// Whether the group's list is numbered on its previous votes (Kieswet

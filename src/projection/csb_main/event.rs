@@ -1,11 +1,14 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    CsbUser, Event, HasCsbUser, StreamId,
+    CsbMainStoreData, CsbUser, Event, HasCsbUser, StreamId,
     core::constants::DEFAULT_DATE_TIME_FORMAT,
-    structs::csb::{
-        HearingDetails, HearingModel, Objection, ObjectionId, RegisteredPoliticalGroup,
-        RegisteredPoliticalGroupId,
+    structs::{
+        audit_log::{Change, diff},
+        csb::{
+            HearingDetails, HearingModel, Objection, ObjectionId, RegisteredPoliticalGroup,
+            RegisteredPoliticalGroupId,
+        },
     },
     trans,
 };
@@ -55,6 +58,29 @@ impl HasCsbUser for CsbMainEvent {
 }
 
 impl Event for CsbMainEvent {
+    type State = CsbMainStoreData;
+
+    fn changes(&self, before: &CsbMainStoreData) -> Vec<Change> {
+        let group = |id: &RegisteredPoliticalGroupId| {
+            before
+                .registered_political_groups
+                .iter()
+                .find(|group| group.id == *id)
+        };
+        match &self.action {
+            CsbMainAction::CreateRegisteredPoliticalGroup(g)
+            | CsbMainAction::UpdateRegisteredPoliticalGroup(g) => diff(group(&g.id), Some(g)),
+            CsbMainAction::DeleteRegisteredPoliticalGroup(id) => diff(group(id), None),
+            CsbMainAction::Login
+            | CsbMainAction::Logout
+            | CsbMainAction::UpdateHearingDetails(..)
+            | CsbMainAction::UpdateListOrder(_)
+            | CsbMainAction::AddObjection(_)
+            | CsbMainAction::UpdateObjection(_)
+            | CsbMainAction::DeleteObjection(_) => Vec::new(),
+        }
+    }
+
     fn category(&self) -> &'static str {
         match self.action {
             CsbMainAction::Login | CsbMainAction::Logout => "system",

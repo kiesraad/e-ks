@@ -2,14 +2,9 @@ use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    Locale,
-    structs::{
-        audit_log::FieldChange,
-        common::{Appellation, DateOfBirth, Initials, LastName, LastNamePrefix, PlaceOfResidence},
-        persons::{Person, PersonId},
-    },
-    trans,
+use crate::structs::{
+    common::{Appellation, DateOfBirth, Initials, LastName, LastNamePrefix, PlaceOfResidence},
+    persons::{Person, PersonId},
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
@@ -93,64 +88,6 @@ impl PersonCorrection {
             PersonCorrection::PlaceOfResidence(place_of_residence) => {
                 person.personal_data.place_of_residence.as_ref() != Some(place_of_residence)
             }
-        }
-    }
-
-    /// The value this correction replaces, as `person` has it.
-    fn current_value(&self, person: &Person) -> String {
-        match self {
-            PersonCorrection::Initials(_) => person.name.initials.to_string(),
-            PersonCorrection::LastNamePrefix(_) => person
-                .name
-                .last_name_prefix
-                .as_ref()
-                .map(ToString::to_string)
-                .unwrap_or_default(),
-            PersonCorrection::LastName(_) => person.name.last_name.to_string(),
-            PersonCorrection::DateOfBirth(_) => person
-                .personal_data
-                .date_of_birth
-                .as_ref()
-                .map(ToString::to_string)
-                .unwrap_or_default(),
-            PersonCorrection::PlaceOfResidence(_) => person
-                .personal_data
-                .place_of_residence
-                .as_ref()
-                .map(ToString::to_string)
-                .unwrap_or_default(),
-        }
-    }
-
-    /// The audit-log change from `before` (the person as corrected so far) to
-    /// this correction's value.
-    pub fn change(&self, before: Option<&Person>, locale: Locale) -> FieldChange {
-        let (field, new_value) = match self {
-            PersonCorrection::Initials(v) => (
-                trans!("audit_log.detail.fields.initials", locale),
-                v.to_string(),
-            ),
-            PersonCorrection::LastNamePrefix(v) => (
-                trans!("audit_log.detail.fields.last_name_prefix", locale),
-                v.as_ref().map(ToString::to_string).unwrap_or_default(),
-            ),
-            PersonCorrection::LastName(v) => (
-                trans!("audit_log.detail.fields.last_name", locale),
-                v.to_string(),
-            ),
-            PersonCorrection::DateOfBirth(v) => (
-                trans!("audit_log.detail.fields.date_of_birth", locale),
-                v.to_string(),
-            ),
-            PersonCorrection::PlaceOfResidence(v) => (
-                trans!("audit_log.detail.fields.place_of_residence", locale),
-                v.to_string(),
-            ),
-        };
-        FieldChange::Regular {
-            field,
-            old_value: before.map(|p| self.current_value(p)).unwrap_or_default(),
-            new_value,
         }
     }
 

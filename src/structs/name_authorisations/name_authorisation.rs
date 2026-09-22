@@ -1,6 +1,7 @@
 use crate::{
     id_newtype,
     structs::{
+        audit_log::audit_fields,
         common::{FullName, LegalName, PotentialProblems, Problematic, Problems, Severity},
         list_designation::ListDesignation,
     },
@@ -16,6 +17,12 @@ pub struct NameAuthorisation {
     pub name: FullName,
     pub legal_name: LegalName,
 }
+
+audit_fields!(NameAuthorisation {
+    id: skip,
+    name: flatten,
+    legal_name: leaf(LegalName),
+});
 
 impl Problematic<()> for NameAuthorisation {
     fn get_problems(&self, _: ()) -> Problems {

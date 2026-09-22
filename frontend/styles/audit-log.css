@@ -44,38 +44,91 @@ dl.event-meta {
 table.diff-table {
   width: 100%;
 
-  th:first-child,
-  td:first-child {
-    width: 40%;
+  th,
+  td {
     overflow-wrap: break-word;
+    vertical-align: top;
   }
 
-  th:nth-child(2),
-  th:nth-child(3) {
+  /* The change marker: a glyph plus visually hidden text, never colour alone. */
+  .kind-col {
+    width: 2.5rem;
+    text-align: center;
+  }
+
+  .kind {
+    font-family: var(--font-number);
+    font-weight: 600;
+  }
+
+  .kind-added {
+    color: var(--green-700);
+  }
+
+  .kind-removed {
+    color: var(--red-700);
+  }
+
+  .kind-changed,
+  .kind-collection {
+    color: var(--blue-700);
+  }
+
+  th[scope="row"] {
+    width: 30%;
+    text-align: left;
+    font-weight: 600;
+  }
+
+  thead th:nth-child(3),
+  thead th:nth-child(4) {
     /* Ensure that 'Oude waarde' and 'Nieuwe waarde' go on one line */
     white-space: nowrap;
   }
 
-  tr:nth-child(even) {
+  tbody tr:nth-child(even):not(.group-heading) {
     background-color: var(--gray-100);
   }
 
-  tr.added td:last-child {
-    color: var(--green-700, #15803d);
+  tr.group-heading th {
+    padding-top: var(--space-4);
+    font-size: var(--font-size-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--gray-600);
   }
 
-  tr.removed td:nth-child(2) {
-    color: var(--red-700, #b91c1c);
+  ins {
+    text-decoration: underline;
+    text-decoration-color: var(--green-600);
+    background-color: var(--green-100);
+  }
+
+  del {
+    text-decoration: line-through;
+    color: var(--gray-600);
+    background-color: var(--red-100);
+  }
+
+  .empty-value {
+    color: var(--gray-500);
+    font-style: italic;
+  }
+
+  .cell + .cell {
+    margin-top: 0.25rem;
+  }
+
+  .position {
+    font-family: var(--font-number);
+    color: var(--gray-600);
+    margin-right: 0.5rem;
   }
 
   .entity-ref {
-    display: flex;
+    display: inline-flex;
     gap: 0.5rem;
     align-items: baseline;
-  }
-
-  .entity-ref + .entity-ref {
-    margin-top: 0.25rem;
   }
 
   .entity-ref abbr {
@@ -83,6 +136,83 @@ table.diff-table {
     text-decoration: none;
     cursor: pointer;
     color: var(--blue-600);
+  }
+
+  /* Items that entered or left a collection. */
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    list-style: none;
+    margin: 0 0 var(--space-2);
+    padding: 0;
+  }
+
+  .chip {
+    --chip-color: var(--gray-600);
+    --chip-bg: var(--gray-100);
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--chip-color);
+    border-radius: var(--rounded-lg);
+    background-color: var(--chip-bg);
+    color: var(--chip-color);
+    font-size: var(--font-size-sm);
+    line-height: var(--leading-sm);
+
+    ins,
+    del {
+      background-color: transparent;
+      color: inherit;
+    }
+  }
+
+  .chip-added {
+    --chip-color: var(--green-700);
+    --chip-bg: var(--green-100);
+  }
+
+  .chip-removed {
+    --chip-color: var(--red-700);
+    --chip-bg: var(--red-100);
+  }
+
+  /* Items that changed place: "name  #3 → #1". */
+  .moves {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+
+    li + li {
+      margin-top: 0.25rem;
+    }
+
+    .position {
+      margin-left: 0.5rem;
+      margin-right: 0;
+      white-space: nowrap;
+    }
+  }
+}
+
+@media print {
+  table.diff-table {
+    ins,
+    del,
+    .chip {
+      background-color: transparent;
+    }
+
+    tr {
+      break-inside: avoid;
+    }
+
+    /* The full id is what an auditor needs on paper. */
+    abbr[title]::after {
+      content: " (" attr(title) ")";
+    }
   }
 }
 
@@ -101,17 +231,5 @@ table.diff-table {
       padding: 0 1rem;
       min-height: 3rem;
     }
-  }
-
-  .visually-hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
   }
 }

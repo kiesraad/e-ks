@@ -9,7 +9,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::{Locale, structs::audit_log::FieldChange};
+use crate::{Locale, structs::audit_log::Change};
 
 /// SHA-256 digest linking one persisted event to the previous one.
 pub type EventHash = [u8; 32];
@@ -26,6 +26,10 @@ pub(crate) struct EncryptedEvent {
 }
 
 pub trait Event {
+    /// The projection this event is applied to. [`Event::changes`] reads the
+    /// state as it stood before the event.
+    type State;
+
     /// Return a stable category key for filtering in the audit log
     fn category(&self) -> &'static str;
 
@@ -41,11 +45,10 @@ pub trait Event {
     /// Short human-readable details for a listing row (name, file, districts, ...)
     fn details(&self) -> String;
 
-    /// Field-level changes to show in the audit log detail view. Returns an
-    /// empty vec for events that have no structured change data.
-    fn changes(&self, _locale: Locale) -> Vec<FieldChange> {
-        vec![]
-    }
+    /// Field-level changes this event makes to `before`, the projection as it
+    /// stood when the event was applied. Empty for events that change no
+    /// structured data (a login, a download).
+    fn changes(&self, before: &Self::State) -> Vec<Change>;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

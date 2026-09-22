@@ -2,8 +2,9 @@ use crate::store::EventHash;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    CsbUser, Event, HasCsbUser, PgEvent, PgStoreData, StreamId,
+    CsbStoreData, CsbUser, Event, HasCsbUser, PgEvent, PgStoreData, StreamId,
     structs::{
+        audit_log::{Change, diff},
         brp::{BrpFinding, BrpStatus},
         csb::{Correction, Omission, OmissionId, OmissionPart, OmissionStatus},
         persons::PersonId,
@@ -35,6 +36,8 @@ impl HasCsbUser for CsbEvent {
 }
 
 impl Event for CsbEvent {
+    type State = CsbStoreData;
+
     fn category(&self) -> &'static str {
         self.action.category()
     }
@@ -51,8 +54,9 @@ impl Event for CsbEvent {
         self.action.details()
     }
 
-    // `changes` stays the empty default: a correction's old value needs the
-    // stream as it stood before the event, which the audit detail page replays.
+    fn changes(&self, before: &CsbStoreData) -> Vec<Change> {
+        self.action.changes(before)
+    }
 }
 
 /// Domain actions that mutate the CSB (Centraal Stembureau) store.
@@ -113,6 +117,39 @@ pub enum CsbAction {
 }
 
 impl CsbAction {
+    /// Field-level changes this action makes to `before`, for the audit log.
+    fn changes(&self, before: &CsbStoreData) -> Vec<Change> {
+        let omission = |id: &OmissionId| before.omissions.get(id);
+        match self {
+            // The snapshot is what the import brings in; it is summarised, not
+            // diffed field by field.
+            CsbAction::Import { snapshot, .. } => snapshot.import_summary(),
+            CsbAction::PaperCorrectedUpdate(event) => event.changes(&before.paper_corrected_data),
+            CsbAction::UpdateCorrection(correction) => correction_changes(before, correction),
+            CsbAction::CreateOmission(o) | CsbAction::UpdateOmission(o) => {
+                diff(omission(&o.id), Some(o))
+            }
+            CsbAction::DeleteOmission { omission_id } => diff(omission(omission_id), None),
+            CsbAction::SetOmissionStatus {
+                omission_id,
+                status,
+            } => {
+                let old = omission(omission_id);
+                let new = old.cloned().map(|mut o| {
+                    o.status = *status;
+                    o
+                });
+                diff(old, new.as_ref())
+            }
+            CsbAction::CreateEmpty
+            | CsbAction::Delete
+            | CsbAction::SetFinished(_)
+            | CsbAction::SetOmissionPartStatus { .. }
+            | CsbAction::BrpPersonChecked { .. }
+            | CsbAction::SetBrpStatus(_) => Vec::new(),
+        }
+    }
+
     fn category(&self) -> &'static str {
         match self {
             CsbAction::Import { .. } => "import",
@@ -216,9 +253,150 @@ impl CsbAction {
     }
 }
 
+/// What a committee correction changes: the corrected value against the
+/// entity as corrected so far (paper corrections and earlier committee
+/// corrections included).
+fn correction_changes(before: &CsbStoreData, correction: &Correction) -> Vec<Change> {
+    match correction {
+        Correction::Appellation(appellation) => {
+            let old = before.corrected_political_group();
+            let mut new = old.clone();
+            new.appellation = Some(appellation.clone());
+            diff(Some(&old), Some(&new))
+        }
+        Correction::Person(person_id, correction) => {
+            let old = before.corrected_person(*person_id);
+            let new = old.clone().map(|mut person| {
+                correction.clone().apply(&mut person);
+                person
+            });
+            diff(old.as_ref(), new.as_ref())
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{
+        store::{StoreData, StoreEvent},
+        structs::{
+            audit_log::{AuditValue, ChangeKind, FieldKey, FieldPath},
+            csb::{OmissionCategory, PersonCorrection, sample_omission},
+        },
+        test_utils::sample_person,
+    };
+
+    fn state_with(actions: Vec<CsbAction>) -> CsbStoreData {
+        let mut data = CsbStoreData::default();
+        for (index, action) in actions.into_iter().enumerate() {
+            data.apply(StoreEvent::new(index + 1, action.by(CsbUser::new_test())));
+        }
+        data
+    }
+
+    fn import_of(person: &crate::structs::persons::Person) -> CsbAction {
+        let mut snapshot = PgStoreData::default();
+        snapshot.persons.insert(person.id, person.clone());
+        CsbAction::Import {
+            hash: [1; 32],
+            source_stream_id: StreamId::new(),
+            snapshot: Box::new(snapshot),
+        }
+    }
+
+    #[test]
+    fn correction_diffs_against_the_person_as_corrected_so_far() {
+        let person = sample_person(PersonId::new());
+        let before = state_with(vec![
+            import_of(&person),
+            CsbAction::UpdateCorrection(Correction::Person(
+                person.id,
+                PersonCorrection::LastName("Eerste".parse().unwrap()),
+            )),
+        ]);
+
+        let changes = CsbAction::UpdateCorrection(Correction::Person(
+            person.id,
+            PersonCorrection::LastName("Tweede".parse().unwrap()),
+        ))
+        .changes(&before);
+
+        assert_eq!(
+            changes,
+            vec![Change {
+                path: FieldPath::from(FieldKey::LastName),
+                kind: ChangeKind::Changed {
+                    old: AuditValue::text("Eerste"),
+                    new: AuditValue::text("Tweede"),
+                },
+            }]
+        );
+    }
+
+    #[test]
+    fn appellation_correction_diffs_the_political_group() {
+        let before = state_with(vec![import_of(&sample_person(PersonId::new()))]);
+
+        let changes =
+            CsbAction::UpdateCorrection(Correction::Appellation("Nieuwe Naam".parse().unwrap()))
+                .changes(&before);
+
+        assert_eq!(
+            changes,
+            vec![Change::added(
+                FieldKey::Appellation,
+                AuditValue::text("Nieuwe Naam")
+            )]
+        );
+    }
+
+    #[test]
+    fn paper_corrected_update_diffs_the_paper_corrected_projection() {
+        let person = sample_person(PersonId::new());
+        let before = state_with(vec![import_of(&person)]);
+        let mut updated = person.clone();
+        updated.name.first_name = Some("Gecorrigeerd".parse().unwrap());
+
+        let changes = CsbAction::PaperCorrectedUpdate(Box::new(PgEvent::UpdatePerson(updated)))
+            .changes(&before);
+
+        assert_eq!(
+            changes,
+            vec![Change {
+                path: FieldPath::from(FieldKey::FirstName),
+                kind: ChangeKind::Changed {
+                    old: AuditValue::text("Henk"),
+                    new: AuditValue::text("Gecorrigeerd"),
+                },
+            }]
+        );
+    }
+
+    #[test]
+    fn import_is_summarised_and_omissions_are_diffed() {
+        let import = import_of(&sample_person(PersonId::new()));
+        let summary = import.changes(&CsbStoreData::default());
+        assert_eq!(
+            summary[0],
+            Change::added(FieldKey::Persons, AuditValue::text(1))
+        );
+
+        let omission = sample_omission(OmissionCategory::PoliticalGroup);
+        let before = state_with(vec![import, CsbAction::CreateOmission(omission.clone())]);
+
+        let changes = CsbAction::SetOmissionStatus {
+            omission_id: omission.id,
+            status: OmissionStatus::Recovered,
+        }
+        .changes(&before);
+
+        assert_eq!(changes.len(), 1);
+        assert_eq!(changes[0].path, FieldPath::from(FieldKey::OmissionStatus));
+        assert!(matches!(changes[0].kind, ChangeKind::Changed { .. }));
+
+        assert!(CsbAction::SetFinished(true).changes(&before).is_empty());
+    }
 
     fn import_event() -> CsbEvent {
         CsbAction::Import {

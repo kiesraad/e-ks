@@ -2,9 +2,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     ElectionConfig, OptionAsStrExt,
-    structs::common::{
-        BsnOrNoneConfirmed, CountryCode, DateOfBirth, Gender, InfoProblems, PlaceOfResidence,
-        PotentialProblems, Problematic, Problems,
+    structs::{
+        audit_log::audit_fields,
+        common::{
+            BsnOrNoneConfirmed, CountryCode, DateOfBirth, Gender, InfoProblems, PlaceOfResidence,
+            PotentialProblems, Problematic, Problems,
+        },
     },
 };
 
@@ -18,6 +21,14 @@ pub struct PersonalData {
     pub place_of_residence: Option<PlaceOfResidence>,
     pub country: Option<CountryCode>,
 }
+
+audit_fields!(PersonalData {
+    gender: leaf(Gender),
+    bsn: leaf(Bsn),
+    date_of_birth: leaf(DateOfBirth),
+    place_of_residence: leaf(PlaceOfResidence),
+    country: leaf(Country),
+});
 
 impl Problematic<ElectionConfig> for PersonalData {
     fn get_problems(&self, election: ElectionConfig) -> Problems {

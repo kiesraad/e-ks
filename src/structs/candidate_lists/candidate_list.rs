@@ -1,6 +1,6 @@
 use crate::{
     ElectionConfig, ElectoralDistrict, id_newtype,
-    structs::{common::UtcDateTime, persons::PersonId},
+    structs::{audit_log::audit_fields, common::UtcDateTime, persons::PersonId},
 };
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
@@ -16,6 +16,15 @@ pub struct CandidateList {
     pub candidates: Vec<PersonId>,
     pub created_at: UtcDateTime,
 }
+
+// The candidates are ids that need the store to be shown as names, so the
+// event that changes a list diffs them itself (see `PgEvent::changes`).
+audit_fields!(CandidateList {
+    id: skip,
+    electoral_districts: leaf(ElectoralDistricts),
+    candidates: skip,
+    created_at: skip,
+});
 
 impl CandidateList {
     /// One-based position of the candidate on this list.

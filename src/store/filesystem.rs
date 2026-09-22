@@ -416,6 +416,8 @@ mod tests {
     }
 
     impl Event for TestEvent {
+        type State = ();
+
         fn category(&self) -> &'static str {
             "test_event"
         }
@@ -430,6 +432,10 @@ mod tests {
 
         fn details(&self) -> String {
             self.label.to_string()
+        }
+
+        fn changes(&self, _: &()) -> Vec<crate::structs::audit_log::Change> {
+            Vec::new()
         }
     }
 
@@ -463,6 +469,8 @@ mod tests {
     }
 
     impl Event for WiderTestEvent {
+        type State = ();
+
         fn category(&self) -> &'static str {
             "test_event"
         }
@@ -477,6 +485,10 @@ mod tests {
 
         fn details(&self) -> String {
             self.label.to_string()
+        }
+
+        fn changes(&self, _: &()) -> Vec<crate::structs::audit_log::Change> {
+            Vec::new()
         }
     }
 

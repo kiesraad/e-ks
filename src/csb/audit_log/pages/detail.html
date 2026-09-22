@@ -1,4 +1,5 @@
 {% extends "csb/components/overlay.html" %}
+{% import "pg/common/components/diff_table.html" as diff %}
 {% set close_action = crate::csb::audit_log::CsbAuditLogPath{}.to_string() %}
 {% block overlay_title %}{{ detail.description }}{% endblock %}
 {% block overlay_content %}
@@ -27,46 +28,10 @@
         </dd>
       {% endif %}
     </dl>
-    {% if !detail.changes.is_empty() %}
-      <table class="diff-table mb-md">
-        <thead>
-          <tr>
-            <th scope="col">{{ "audit_log.detail.field"|trans }}</th>
-            <th scope="col">{{ "audit_log.detail.old_value"|trans }}</th>
-            <th scope="col">{{ "audit_log.detail.new_value"|trans }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for change in detail.changes %}
-            <tr class="{{ change.change_kind() }}">
-              {% match change %}
-              {% when FieldChange::Regular with { field, old_value, new_value } %}
-              <td>{{ field }}</td>
-              <td>{{ old_value }}</td>
-              <td>{{ new_value }}</td>
-              {% when FieldChange::Entities with { field, old_refs, new_refs } %}
-              <td>{{ field }}</td>
-              <td>
-                {% for entity_ref in old_refs %}
-                  <div class="entity-ref">
-                    <abbr title="{{ entity_ref.id_full }}">{{ entity_ref.id_full|abbreviate_str }}</abbr>
-                    {% if !entity_ref.description.is_empty() %}<span>{{ entity_ref.description }}</span>{% endif %}
-                  </div>
-                {% endfor %}
-              </td>
-              <td>
-                {% for entity_ref in new_refs %}
-                  <div class="entity-ref">
-                    <abbr title="{{ entity_ref.id_full }}">{{ entity_ref.id_full|abbreviate_str }}</abbr>
-                    {% if !entity_ref.description.is_empty() %}<span>{{ entity_ref.description }}</span>{% endif %}
-                  </div>
-                {% endfor %}
-              </td>
-            {% endmatch %}
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  {% endif %}
-</div>
+    {% if detail.changes.is_empty() %}
+      <p class="mb-md">{{ "audit_log.detail.no_changes"|trans }}</p>
+    {% else %}
+      {{ diff::table(detail.changes) }}
+    {% endif %}
+  </div>
 {% endblock %}

@@ -11,8 +11,6 @@ use std::collections::{HashMap, hash_map::Entry};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[cfg(test)]
-use crate::structs::political_groups::PoliticalGroup;
 use crate::{
     ElectoralDistrict, PgEvent, PgStoreData, Scope,
     store::{StoreData, StoreEvent},
@@ -23,7 +21,8 @@ use crate::{
             Correction, Omission, OmissionCategory, OmissionDecision, OmissionId, OmissionPart,
             OmissionStatus, PersonCorrection, PersonCorrectionDelta,
         },
-        persons::PersonId,
+        persons::{Person, PersonId},
+        political_groups::PoliticalGroup,
     },
 };
 
@@ -126,6 +125,24 @@ impl CsbStoreData {
     /// Derive what is scrapped from the current omissions and corrected data.
     pub(crate) fn refresh_scrapped(&mut self) {
         self.scrapped = Scrapped::derive(&self.paper_corrected_data, &self.omissions);
+    }
+
+    /// The political group with the committee's appellation correction applied.
+    pub(crate) fn corrected_political_group(&self) -> PoliticalGroup {
+        let mut group = self.paper_corrected_data.political_group.clone();
+        if let Some(appellation) = self.csb_corrected_appellation.clone() {
+            group.appellation = Some(appellation);
+        }
+        group
+    }
+
+    /// The person with the committee's corrections applied, if present.
+    pub(crate) fn corrected_person(&self, person_id: PersonId) -> Option<Person> {
+        let mut person = self.paper_corrected_data.persons.get(&person_id).cloned()?;
+        if let Some(delta) = self.csb_corrected_persons.get(&person_id) {
+            delta.clone().apply(&mut person);
+        }
+        Some(person)
     }
 
     /// Take over an imported package as both projections. `import` becomes

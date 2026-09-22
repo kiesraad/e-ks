@@ -699,7 +699,11 @@ This fits the application well for a few reasons:
   transparent, and verifiable. An append-only event log *is* the audit trail:
   every change to a candidate list, person, or submitter is recorded with who
   made it and when, and nothing is ever silently overwritten. The `audit_log`
-  domain is simply a read view over this same stream.
+  domain is simply a read view over this same stream. What an event changed is
+  computed by the event itself (`Event::changes`) against the projection as it
+  stood before it, using typed field listings of the domain structs
+  (`audit_fields!`), so the detail page needs one replay and never goes
+  through a serialised form of the data.
 - **Bounded, short-lived data.** The data set is small and tied to a single
   election: it covers one nomination procedure and is cleared once that
   election is over. There is no long-lived, ever-growing dataset to replay, so

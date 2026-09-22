@@ -1,6 +1,6 @@
 use crate::{
-    core::ModelLocale, finalise::AllProblems, models::documents::DocumentData,
-    structs::audit_log::FieldChange, utils::format_hash,
+    core::ModelLocale, finalise::AllProblems, models::documents::DocumentData, store::StoreData,
+    utils::format_hash,
 };
 use askama::Template;
 use axum::response::IntoResponse;
@@ -31,22 +31,26 @@ pub async fn audit_log_detail(
     context: Context,
     store: PgStore,
 ) -> Result<impl IntoResponse, AppError> {
-    let events = store.get_events();
     let locale = context.session.locale;
 
-    let base = store.imported_snapshot().unwrap_or_default();
-    let detail = AuditLogDetail::compute(&base, &events, event_id, locale)
-        .ok_or(AppError::GenericNotFound)?;
-
-    let temp_store = create_temp_store(&store, event_id);
-    let is_downloadable_state = AllProblems::find_all(&temp_store)?.models_downloadable();
-
-    let hash = store
-        .get_events()
+    let target = store
+        .data
+        .read()
+        .events
         .iter()
         .find(|e| e.event_id == event_id)
-        .ok_or(AppError::GenericNotFound)?
-        .hash;
+        .cloned()
+        .ok_or(AppError::GenericNotFound)?;
+
+    // The stream as it stood before the event: what its changes are read against.
+    let temp_store = create_temp_store(&store, event_id - 1);
+    let detail = AuditLogDetail::from_event(&temp_store.data.read(), &target, locale);
+
+    // Applying the event gives the state after it, which decides whether the
+    // documents could be downloaded at that point.
+    let hash = target.hash;
+    temp_store.data.write().apply(target);
+    let is_downloadable_state = AllProblems::find_all(&temp_store)?.models_downloadable();
 
     let event_hash = EventHashPrefix::of(&hash);
 
@@ -117,11 +121,15 @@ fn create_temp_store(store: &PgStore, event_id: usize) -> PgStore {
         *temp_store.data.write() = imported;
     }
 
+    let mut data = temp_store.data.write();
     store
-        .get_events()
+        .data
+        .read()
+        .events
         .iter()
         .take_while(|e| e.event_id <= event_id)
-        .for_each(|e| temp_store.apply_event(e.clone()));
+        .for_each(|e| data.apply(e.clone()));
+    drop(data);
 
     temp_store
 }
@@ -174,6 +182,44 @@ mod tests {
         let body = response_body_string(response).await;
         assert!(body.contains("Created person"));
         assert!(body.contains("diff-table"));
+        // Additions are marked with text as well as a glyph, and inserted values
+        // are marked up as insertions.
+        assert!(body.contains(r#"<span class="visually-hidden">Added</span>"#));
+        assert!(body.contains("<ins>"));
+        // The address fields sit under their own heading.
+        assert!(body.contains(r#"<th scope="colgroup" colspan="4">Correspondence address</th>"#));
+
+        Ok(())
+    }
+
+    /// An update shows the field's old and new value; a field that was
+    /// cleared shows a placeholder instead of an empty cell.
+    #[tokio::test]
+    async fn renders_changed_and_cleared_fields() -> Result<(), AppError> {
+        let store = PgStore::new_for_test();
+        let person = sample_person(PersonId::new());
+        person.create(&store).await?;
+        let mut address = person.address.clone();
+        address.locality = Some("Nieuwegein".parse().expect("locality"));
+        address.house_number_addition = None;
+        person.update_address(&store, address).await?;
+
+        let response = audit_log_detail(
+            AuditLogDetailPath { event_id: 2 },
+            Context::new_test_without_db(),
+            store,
+        )
+        .await
+        .unwrap()
+        .into_response();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response_body_string(response).await;
+        assert!(body.contains(r#"<th scope="row">Locality</th>"#), "{body}");
+        assert!(body.contains("Juinen") && body.contains("Nieuwegein"));
+        assert!(body.contains(r#"<span class="visually-hidden">Removed</span>"#));
+        assert!(body.contains(r#"<em class="empty-value">(empty)</em>"#));
+        assert!(body.contains("<del>"));
 
         Ok(())
     }

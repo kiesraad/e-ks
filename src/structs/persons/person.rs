@@ -5,6 +5,7 @@ use crate::{
     core::{AnyLocale, Locale},
     id_newtype,
     structs::{
+        audit_log::audit_fields,
         common::{
             DutchAddress, FullName, Gender, HasSeverity, PotentialProblems, Problematic, Problems,
             Severity, UtcDateTime, WithProblems,
@@ -25,6 +26,15 @@ pub struct Person {
     pub representative: Option<Representative>,
     pub updated_at: UtcDateTime,
 }
+
+audit_fields!(Person {
+    id: skip,
+    name: flatten,
+    personal_data: flatten,
+    address: group(Address),
+    representative: group(Representative),
+    updated_at: skip,
+});
 
 pub type PersonWithProblems = WithProblems<Person>;
 
@@ -47,6 +57,11 @@ pub struct Representative {
     pub name: FullName,
     pub address: DutchAddress,
 }
+
+audit_fields!(Representative {
+    name: flatten,
+    address: group(Address),
+});
 
 impl Problematic<&Person> for Option<Representative> {
     fn get_problems(&self, associated_person: &Person) -> Problems {

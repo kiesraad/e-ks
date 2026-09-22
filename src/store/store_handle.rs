@@ -167,6 +167,8 @@ mod tests {
     }
 
     impl Event for usize {
+        type State = ();
+
         fn category(&self) -> &'static str {
             "number"
         }
@@ -181,6 +183,10 @@ mod tests {
 
         fn details(&self) -> String {
             self.to_string()
+        }
+
+        fn changes(&self, _: &()) -> Vec<crate::structs::audit_log::Change> {
+            Vec::new()
         }
     }
 

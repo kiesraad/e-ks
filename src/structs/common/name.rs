@@ -2,7 +2,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     OptionAsStrExt,
-    structs::common::{InfoProblems, PotentialProblems, Problematic, Problems, Severity},
+    structs::{
+        audit_log::audit_fields,
+        common::{InfoProblems, PotentialProblems, Problematic, Problems, Severity},
+    },
 };
 
 use super::{FirstName, Initials, LastName, LastNamePrefix};
@@ -14,6 +17,13 @@ pub struct FullName {
     pub last_name_prefix: Option<LastNamePrefix>,
     pub initials: Initials,
 }
+
+audit_fields!(FullName {
+    first_name: leaf(FirstName),
+    last_name: leaf(LastName),
+    last_name_prefix: leaf(LastNamePrefix),
+    initials: leaf(Initials),
+});
 
 impl FullName {
     /// Returns e.g. "van Dijk, A.B. (Anne)"

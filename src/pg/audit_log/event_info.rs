@@ -7,12 +7,13 @@
 use std::collections::BTreeSet;
 
 use crate::{
-    ElectoralDistrict, Event, Locale, PgEvent,
+    ElectoralDistrict, Event, Locale, PgEvent, PgStoreData,
     candidate_lists::ViewCandidateListPath,
     persons::UpdatePersonPath,
     political_groups::PoliticalGroupUpdatePath,
     structs::{
-        candidate_lists::CandidateListId, list_submitters::ListSubmitter, persons::PersonId,
+        audit_log::Change, candidate_lists::CandidateListId, list_submitters::ListSubmitter,
+        persons::PersonId,
     },
     trans,
     utils::format_hash,
@@ -219,6 +220,8 @@ impl PgEvent {
 }
 
 impl Event for PgEvent {
+    type State = PgStoreData;
+
     /// Return a stable category key for filtering in the audit log.
     fn category(&self) -> &'static str {
         match self {
@@ -295,5 +298,9 @@ impl Event for PgEvent {
 
     fn details(&self) -> String {
         event_details(self)
+    }
+
+    fn changes(&self, before: &PgStoreData) -> Vec<Change> {
+        self.audit_changes(before)
     }
 }

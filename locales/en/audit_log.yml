@@ -1,8 +1,12 @@
 detail:
+  collections:
+    to: to
   field: Field
   fields:
+    address: Correspondence address
     appellation: Appellation
     bsn: Social security number (BSN)
+    candidate_lists: Candidate lists
     candidates: Candidates
     country: Country code
     created_persons: Created candidates
@@ -23,17 +27,30 @@ detail:
     list_designation: List type
     list_id: List ID
     locality: Locality
-    long_list_allowed: Long list allowed
-    person_id: Person ID
+    name_authorisations: Statutory names and authorised agents
+    omission_description: Description
+    omission_help_text: Recovery instructions
+    omission_status: Status
+    omission_title: Title
+    persons: Persons
     place_of_residence: Place of residence
-    political_group_id: Political group ID
     postal_code: Postal code
     previous_election_results: Result of the previous election
+    previous_seats: Seats at the previous election
+    previous_votes: Votes at the previous election
+    recoverable: Recoverable
     representative: Authorised person
     state_or_province: State / province
     stream_id: Stream ID
     street_name: Street name
+    substitute_submitters: Substitute submitters
     updated_persons: Updated candidates
+  kind:
+    added: Added
+    changed: Changed
+    collection: Collection changed
+    column: Type of change
+    removed: Removed
   new_value: New value
   no_changes: No field changes recorded for this event.
   old_value: Old value
@@ -42,6 +59,8 @@ detail:
     bool_false: "No"
     bool_true: "Yes"
     bsn_none_confirmed: "Confirmed: no social security number"
+    empty: (empty)
+    omission_pending: Pending
 documents:
   download: Download documents
   no_download: This version was not in a state where downloading documents was possible.
