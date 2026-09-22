@@ -21,6 +21,16 @@ impl Problems {
         }
     }
 
+    pub fn total_problem_count(&self) -> usize {
+        self.potential_problems
+            .iter()
+            .map(|p| match p {
+                PotentialProblems::CandidatesWithProblems { count } => *count,
+                _ => 1,
+            })
+            .sum::<usize>()
+    }
+
     /// Get a summary of the potential problems, if any
     pub fn problem_summary(&self, locale: &Locale) -> Option<String> {
         if self.potential_problems.is_empty() && self.info_problems.is_empty() {

@@ -68,7 +68,7 @@ import_errors:
   too_many_errors: "The file contains too many errors. Only the first {} are shown here; fix those and try again."
   upload_failed: Your file could not be uploaded. Please try again.
 import_export:
-  export_intro: "Want to download this list as a CSV file to continue working on it in Excel?"
+  export_intro: Want to download this list as a CSV file to continue working on it in Excel?
   export_title: Export
   import_failed: Import failed
   import_instructions: "<strong>Headers</strong><br> Use the correct column names. Download the export CSV file and use it as a template.<br><br> <strong>Order</strong><br> The order of the individuals in the CSV file determines the order on the candidate list.<br><br> <strong>Required fields</strong><br> At a minimum, the following fields must be completed: <ul> <li>Initials</li> <li>Last name</li> </ul> <strong>Date of birth</strong><br> Use the format <code>dd-mm-jjjj</code> (for example: 31-12-1990).<br><br> <strong>Gender</strong><br> Only the following values are accepted: <ul> <li><code>female</code> | <code>vrouw</code> | <code>f</code> | <code>v</code></li> <li><code>male</code> | <code>man</code> | <code>m</code></li> </ul> <strong>Address details</strong><br> There are two types of addresses: <ul> <li>Enter the <strong>correspondence address</strong> if the person lives in the Netherlands.</li> <li>If the person does not live in the Netherlands, enter the details of the <strong>authorised person</strong> .</li> </ul> <strong>Postal code</strong><br> Use the format <code>1234AB</code>"

@@ -68,13 +68,13 @@ import_errors:
   too_many_errors: "Het bestand bevat te veel fouten. Alleen de eerste {} fouten worden hier getoond; herstel deze en probeer het opnieuw."
   upload_failed: Het bestand kon niet worden geüpload. Probeer het opnieuw.
 import_export:
-  export_intro: "Wil je deze lijst downloaden naar een CSV-bestand om vervolgens verder te werken in Excel?"
+  export_intro: Wil je deze lijst downloaden naar een CSV-bestand om vervolgens verder te werken in Excel?
   export_title: Exporteren
   import_failed: Importeren niet gelukt
   import_instructions: "<strong>Kopregels</strong><br> Gebruik de correcte kolomnamen. Download het export-CSV-bestand en gebruik dit als sjabloon.<br><br> <strong>Volgorde</strong><br> De volgorde van personen in het CSV-bestand bepaalt de volgorde op de kandidatenlijst.<br><br> <strong>Verplichte velden</strong><br> Minimaal de volgende velden moeten ingevuld zijn:<ul> <li>Voorletters</li> <li>Achternaam</li> </ul> <strong>Geboortedatum</strong><br> Gebruik het formaat <code>dd-mm-jjjj</code> (bijvoorbeeld: 31-12-1990).<br><br> <strong>Geslacht</strong><br> Alleen de volgende waarden worden geaccepteerd:<ul> <li><code>female</code> | <code>vrouw</code> | <code>f</code> | <code>v</code></li> <li><code>male</code> | <code>man</code> | <code>m</code></li> </ul> <strong>Adresgegevens</strong><br> Er zijn twee typen adressen:<ul> <li>Vul het <strong>correspondentie\u00ADadres</strong> in als de persoon in Nederland woont.</li> <li>Woont de persoon niet in Nederland, vul dan de gegevens van de <strong>gemachtigde</strong> in.</li> </ul> <strong>Postcode</strong><br> Gebruik het formaat <code>1234AB</code>"
   import_instructions_header: CSV-import instructies kandidatenlijst
   import_instructions_intro: "Gebruik een CSV-bestand om kandidaten naar deze lijst te importeren. Het bestand moet aan de volgende eisen voldoen:"
-  import_intro: Upload je eigen kandidatenlijst, bekijk hieronder waar het bestand aan moet voldoen
+  import_intro: "Upload je eigen kandidatenlijst, bekijk hieronder waar het bestand aan moet voldoen"
   import_title: Importeren
   overwrite_title: Let op!
 import_warning: Deze lijst bevat al kandidaten. Het importeren van kandidaten zal de huidige kandidaten in deze lijst overschrijven. Weet u zeker dat u door wilt gaan?
