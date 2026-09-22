@@ -89,7 +89,7 @@ saphyr = { version = "0.0.12", default-features = false }
 serde-saphyr = { version = "1.0.0", default-features = false, features = ["deserialize"] }
 
 # tweedegolf
-memory-serve = "2.1.0"
+memory-serve = "2.4.0"
 textris-pdf = { version = "0.10.4", features = ["docx"] }
 bagatel = "0.8.3"
 
@@ -219,3 +219,7 @@ workspace = true
 # https://askama.readthedocs.io/en/stable/performance.html#slow-debug-recompilations
 [profile.dev.package.askama_derive]
 opt-level = 3
+
+# Optimize dependencies (not our own crates): much faster tests in debug builds
+[profile.dev.package."*"]
+opt-level = 2

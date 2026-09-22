@@ -9,10 +9,10 @@ appellation_any: Aanduiding
 appellation_combined: Samengevoegde aanduiding
 authorised_agent: Gemachtigde
 authorised_agent_data: Gegevens (plv.) gemachtigde
-authorised_agent_info: Voeg hier de statutaire naam met bijbehorende gemachtigde toe. Bij het centraal stembureau is een gemachtigde of plaatsvervangend gemachtigde voor de aanduiding geregistreerd. Deze persoon geeft de lijstinleveraar toestemming om de naam van de partij boven de kandidatenlijst te plaatsen. Dit gebeurt met formulier H 3-1 of H 3-2.
+authorised_agent_info: Voeg hier de statutaire naam met bijbehorende gemachtigde toe. De statutaire naam is de naam van de partij die is vastgelegd in de notariële akte en bij de Kamer van Koophandel. De gemachtigde of plaatsvervangend gemachtigde is geregistreerd bij het centraal stembureau samen met de aanduiding. Deze persoon geeft de lijstinleveraar toestemming om de naam van de partij boven de kandidatenlijst te plaatsen. Dit gebeurt met formulier H 3-1 of H 3-2.
 basic_information_political_group: Gegevens politieke groepering
 blank_list_warning: U gebruikt een blanco lijst. Wijzigingen die u hier maakt hebben geen effect.
-delete_name_authorisation_warning_text: Weet u zeker dat u de machtiging voor deze statutaire naam wilt verwijderen? Deze actie kan niet ongedaan worden gemaakt.
+delete_name_authorisation_warning_text: Weet u zeker dat u dit wilt verwijderen? Deze actie kan niet ongedaan worden gemaakt.
 delete_substitute_submitter_warning_text: Weet u zeker dat u deze vervanger voor het herstel van verzuimen wilt verwijderen? Deze actie kan niet ongedaan worden gemaakt.
 edit_legal_name: Statutaire naam en gemachtigde aanpassen
 edit_list_submitter: Gegevens lijstinleveraar aanpassen
@@ -23,7 +23,7 @@ legal_name_data_combined: Statutaire namen
 list_submitter: Lijstinleveraar
 list_submitter_address_info: Naar dit adres wordt de verzuimbrief verstuurd.
 list_submitter_data: Gegevens lijstinleveraar
-list_submitter_info: "Het centraal stembureau controleert de stukken die worden overhandigd op de dag van kandidaatstelling. Mochten hierbij verzuimen worden vastgesteld, dan ontvangt u hierover schriftelijk bericht. In het bericht dat u van het centraal stembureau ontvangt staat ook tot wanneer verzuimen kunnen worden hersteld. De lijstinleveraar is de enige persoon die bevoegd is om de kandidatenlijst in te leveren."
+list_submitter_info: "De lijstinleveraar is de enige persoon die bevoegd is om de kandidatenlijst in te leveren. Het centraal stembureau controleert de stukken die worden overhandigd op de dag van kandidaatstelling. Mochten hierbij stukken ontbreken of fouten zijn gemaakt, dan ontvangt u schriftelijk bericht over deze verzuimen. In het bericht dat u van het centraal stembureau ontvangt staat ook tot wanneer verzuimen kunnen worden hersteld."
 list_type: Type lijstaanduiding
 names_size_hint_add_name: Voeg de statutaire naam van de partij toe.
 names_size_hint_combination: Combinaties van meerdere geregistreerde namen moeten uit minstens twee statutaire namen bestaan.
@@ -38,7 +38,7 @@ substitute_submitters_data: Gegevens vervangers voor het herstel van verzuimen
 substitute_submitters_info: Alleen de lijstinleveraar en de vervangers voor het herstel van verzuimen mogen verzuimen herstellen bij het centraal stembureau. Wij adviseren om tenminste één vervanger op te geven.
 type:
   appellation_combined_hint: "Een samengevoegde aanduiding bestaat uit de geregistreerde aanduidingen, gescheiden door een “-“ of “/”. Het is toegestaan om aanduidingen af te korten. De samengevoegde aanduiding bestaat uit maximaal 35 tekens (exclusief leestekens, verbindings\u00ADstreepjes, haakjes en spaties). Het is niet toegestaan om letters of andere tekens toe te voegen die geen onderdeel zijn van de geregistreerde aanduidingen."
-  appellation_hint: De naam die is geregistreerd bij het centraal stembureau. Deze komt op het stembiljet te staan.
+  appellation_hint: De partijnaam die is geregistreerd bij het centraal stembureau. Deze naam komt boven de lijst op het stembiljet te staan.
   blank_name: Blanco lijst
   blank_name_hint: Er is geen geregistreerde aanduiding.
   legal_name_hint: De naam die is vastgelegd in de notariële akte en bij de Kamer van Koophandel.

@@ -39,7 +39,7 @@
           </div>
         {% endif %}
       </div>
-      {{ restorations::brp_strip(brp, brp_incomplete.as_deref() ) }}
+      {{ restorations::brp_strip(brp, brp_incomplete.as_deref() , running=brp_running) }}
       {% if !all_findings.candidates.is_empty() %}
         {% for candidate in all_findings.candidates %}
           {{ restorations::brp_group(candidate.person.name.display() , candidate.path.as_deref(), candidate.messages.as_slice()) }}

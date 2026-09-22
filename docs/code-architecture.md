@@ -170,7 +170,7 @@ modules:
 | `src/error/` | `AppError`, the application-wide error type. Its mapping to a response lives in `src/view/`, the page layouts in `src/pg/` and `src/csb/`. |
 | `src/form/` | Generic form extraction and validation: the `Form<T>` extractor, CSRF tokens, file uploads, string validators. |
 | `src/pagination/` | Reusable list-pagination helpers (params, page links, page info). |
-| `src/fixtures/` | Sample data loaded into the store on startup in development/test (`fixtures` feature). |
+| `src/fixtures/` | Sample data loaded into the store on startup in development/test (`fixtures` feature). The CSB counterpart, `src/csb/import/fixture.rs`, registers sample political groups with their previous election result and imports several of them, one with omissions and one with paper corrections. |
 | `src/utils/` | Small standalone helpers (id newtypes, redirects, health check, embedding helpers, etc.). |
 
 ### `src/pg/` domain modules
@@ -491,9 +491,12 @@ In production those assets are compiled *into* the binary so there is no
 separate asset directory to deploy:
 
 - Gated behind the `memory-serve` cargo feature. `build.rs` calls
-  `memory_serve::load_directory`, and `router.rs` uses the `memory_serve::load!()`
-  macro to mount the assets under `/static`, with cache-busting filename
-  aliases (`/{hash}-index.js`, `/{hash}-index.css`).
+  `memory_serve::load_directory`, and `src/view/assets.rs` uses the
+  `memory_serve::load!()` macro to mount the assets under `/static` with
+  hashed routes enabled: every file is also served as `/static/index.{hash}.css`
+  with an immutable cache policy, and templates link those routes through
+  `filters::asset_path`, backed by the memory-serve manifest. Unknown paths
+  under `/static` answer a plain 404.
 - When the feature is **off** (development), `/static` instead proxies to the
   esbuild dev server on `localhost:8888`, which also gives hot-reloading of CSS
   and JS. The URL paths are identical in both modes, so templates never need to

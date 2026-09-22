@@ -12,6 +12,8 @@
 //! holds the master secret. The threat model is read access to the database or
 //! files without access to the server's memory.
 
+use std::sync::Arc;
+
 use aes_gcm::{
     Aes256Gcm, KeyInit,
     aead::{AeadInOut, Generate, Nonce},
@@ -40,7 +42,7 @@ const TAG_LEN: usize = 16;
 /// per-stream [`StreamKey`]s; never encrypts event payloads itself.
 #[derive(Clone)]
 pub struct MasterKey {
-    cipher: Aes256Gcm,
+    cipher: Arc<Aes256Gcm>,
 }
 
 impl MasterKey {
@@ -54,7 +56,9 @@ impl MasterKey {
         let cipher = Aes256Gcm::new_from_slice(kek.as_ref())
             .expect("32 bytes is a valid AES-256 key length");
 
-        Self { cipher }
+        Self {
+            cipher: Arc::new(cipher),
+        }
     }
 
     /// Encrypt `key` for storage next to its stream, binding
