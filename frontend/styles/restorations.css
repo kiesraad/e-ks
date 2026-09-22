@@ -221,6 +221,37 @@
   flex-direction: row-reverse;
 }
 
+/* The sweep is under way: a turning ring in place of the tag's icon. */
+.restoration-tag-running {
+  --restoration-tag-bg: transparent;
+  --restoration-tag-color: var(--gray-500);
+  border-radius: var(--rounded-md);
+
+  &::before {
+    animation: brp-spinner 0.8s linear infinite;
+    background-color: transparent;
+    border: 2px solid currentColor;
+    border-block-start-color: transparent;
+    border-radius: 50%;
+    height: var(--space-4);
+    mask-image: none;
+    width: var(--space-4);
+  }
+}
+
+@keyframes brp-spinner {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+/* Still turning, slowly enough not to distract. */
+@media (prefers-reduced-motion: reduce) {
+  .restoration-tag-running::before {
+    animation-duration: 3s;
+  }
+}
+
 /* The link to the overview of everything registered for this item. */
 .restoration-strip-link {
   align-items: center;

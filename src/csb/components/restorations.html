@@ -187,19 +187,23 @@
     <a class="restoration-strip-link" href="{{ overview_url }}">{{ "csb.omission.overview.title"|trans }}</a>
   </div>
 {% endmacro omission_strip %}
-{% macro brp_strip(brp, incomplete_reason) %}
+{% macro brp_strip(brp, incomplete_reason, running=false) %}
   <div class="restoration-strip {% if brp.has_errors() %}restoration-strip-error{% endif %}">
     <ul class="restoration-tags">
-      {% if brp.is_not_checked() %}
+      {% if running %}
+        <li>
+          <span class="restoration-tag restoration-tag-running">{{ "csb.brp.checking"|trans }}</span>
+        </li>
+      {% else if brp.is_not_checked() %}
         <li>
           <span class="restoration-tag restoration-tag-pending">{{ "csb.brp.not_checked"|trans }}</span>
         </li>
-      {% else %}
-        {% if brp.is_incomplete() %}
-          <li>
-            <span class="restoration-tag restoration-tag-pending">{{ "csb.brp.incomplete"|trans }}</span>
-          </li>
-        {% endif %}
+      {% else if brp.is_incomplete() %}
+        <li>
+          <span class="restoration-tag restoration-tag-pending">{{ "csb.brp.incomplete"|trans }}</span>
+        </li>
+      {% endif %}
+      {% if !brp.is_not_checked() %}
         <li>
           {% if brp.errors() == 0 %}
             <span class="restoration-tag restoration-tag-ok">{{ "csb.group.brp_errors.none"|trans }}</span>

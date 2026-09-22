@@ -24,6 +24,7 @@ auth:
     title: Inloggen bij het centraal stembureau
 brp:
   check_candidate: Deze kandidaat controleren met de BRP
+  checking: Bezig met controleren
   correct: Correct
   errors: Fouten
   finding:

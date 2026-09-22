@@ -24,6 +24,7 @@ auth:
     title: Sign in to the central electoral committee
 brp:
   check_candidate: Check this candidate against the BRP
+  checking: Checking
   correct: Correct
   errors: Errors
   finding:
