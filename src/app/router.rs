@@ -282,37 +282,32 @@ fn apply_no_store(router: Router<AppState>) -> Router<AppState> {
     ))
 }
 
-/// Mount the cache-busted `/static` asset routes: served from the embedded
-/// bundle in release builds, proxied to the dev asset server otherwise.
+/// Mount the `/static` asset routes: served from the embedded bundle in
+/// release builds (also on hashed, immutable routes that templates reach via
+/// [`crate::view::assets::asset_path`]), proxied to the dev asset server
+/// otherwise.
 ///
-/// [`apply_no_store`] runs first, so these cache-busted assets stay cacheable
-/// while every page above them does not.
+/// [`apply_no_store`] runs first, so these assets stay cacheable while every
+/// page above them does not.
+///
+/// An unknown asset path answers a plain 404 rather than falling through to
+/// the app fallback, whose login redirect would hand the browser HTML where
+/// it expects a stylesheet or script.
 fn mount_static_assets(router: Router<AppState>) -> Router<AppState> {
     let router = apply_no_store(router);
-    let code = crate::filters::cache_buster();
-    let index_js = format!("/{code}-index.js");
-    let index_css = format!("/{code}-index.css");
 
     #[cfg(feature = "memory-serve")]
-    let router = {
-        let memory_serve = memory_serve::load!()
-            .index_file(None)
-            .add_alias(index_js.leak(), "/index.js")
-            .add_alias(index_css.leak(), "/index.css");
-
-        router.nest("/static", memory_serve.into_router())
-    };
+    let router = router.nest(
+        crate::view::assets::STATIC_PREFIX,
+        crate::view::assets::memory_serve()
+            .into_router()
+            .fallback(|| async { axum::http::StatusCode::NOT_FOUND }),
+    );
 
     #[cfg(not(feature = "memory-serve"))]
     let router = router.nest(
-        "/static",
-        Router::new().fallback(crate::proxy_handler(
-            "http://localhost:8888",
-            vec![
-                (index_js, "/index.js".to_string()),
-                (index_css, "/index.css".to_string()),
-            ],
-        )),
+        crate::view::assets::STATIC_PREFIX,
+        Router::new().fallback(crate::proxy_handler("http://localhost:8888", vec![])),
     );
 
     router
@@ -723,8 +718,55 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
             response.headers().get("clear-site-data").unwrap(),
-            "\"cache\", \"storage\""
+            "\"storage\""
         );
+    }
+
+    /// Templates link the hashed route, which changes with the file and is
+    /// therefore served as immutable in release builds. Debug builds serve
+    /// the files dynamically and keep the regular cache policy there.
+    #[cfg(feature = "memory-serve")]
+    #[tokio::test]
+    async fn hashed_asset_route_is_served_cacheable() {
+        let state = AppState::new_for_tests().await;
+        let app: Router = create(state.clone()).with_state(state.clone());
+
+        let request = Request::builder()
+            .uri(crate::view::assets::asset_path("/index.css"))
+            .body(Body::empty())
+            .unwrap();
+        let response = app.oneshot(request).await.expect("response");
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.headers().get(header::CONTENT_TYPE).unwrap(),
+            "text/css"
+        );
+
+        let cache_control = response.headers().get(header::CACHE_CONTROL).unwrap();
+        if cfg!(debug_assertions) {
+            assert_ne!(cache_control, "no-store");
+        } else {
+            assert_eq!(cache_control, "max-age=31536000, immutable");
+        }
+    }
+
+    /// A missing asset must fail as a 404, not as the login redirect: with
+    /// `nosniff` the browser refuses HTML in place of a stylesheet, and the
+    /// redirect is what a mixed-version deploy would otherwise hand out.
+    #[cfg(feature = "memory-serve")]
+    #[tokio::test]
+    async fn unknown_static_asset_is_not_found() {
+        let state = AppState::new_for_tests().await;
+        let app: Router = create(state.clone()).with_state(state.clone());
+
+        let request = Request::builder()
+            .uri("/static/deadbeef-index.css")
+            .body(Body::empty())
+            .unwrap();
+        let response = app.oneshot(request).await.expect("response");
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 
     /// The load balancer has no `x-eks-key`, so its probe must answer from

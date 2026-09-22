@@ -10,6 +10,9 @@ use crate::{
     structs::persons::Person,
 };
 
+// Templates reach the asset URLs through the filters namespace.
+pub use super::assets::asset_path;
+
 #[askama::filter_fn]
 pub fn display<T: std::fmt::Display>(
     value: &Option<T>,
@@ -192,9 +195,4 @@ pub fn error<T>(
 #[askama::filter_fn]
 pub fn abbreviate_str(s: &str, _: &dyn askama::Values) -> askama::Result<String> {
     Ok(crate::abbreviate_str(s))
-}
-
-/// Returns a cache buster string based on the current git commit hash (set during build on github).
-pub fn cache_buster() -> &'static str {
-    option_env!("GITHUB_SHA").unwrap_or("development")
 }

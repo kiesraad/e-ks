@@ -5,13 +5,13 @@ function isInViewport(element: Element): boolean {
 
 function getRows(personId: string | null, last: number): Element[] | null {
   if (personId) {
-    const row = document.querySelector(`[data-id="${personId}"]`);
+    const row = document.querySelector(`[data-id="${CSS.escape(personId)}"]`);
     if (row) {
       return [row];
     }
   }
 
-  if (last) {
+  if (last > 0) {
     const rows = document.querySelectorAll(
       `tbody > tr:nth-last-child(-n + ${last})`,
     );
