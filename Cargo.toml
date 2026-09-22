@@ -219,3 +219,7 @@ workspace = true
 # https://askama.readthedocs.io/en/stable/performance.html#slow-debug-recompilations
 [profile.dev.package.askama_derive]
 opt-level = 3
+
+# Optimize dependencies (not our own crates): much faster tests in debug builds
+[profile.dev.package."*"]
+opt-level = 2

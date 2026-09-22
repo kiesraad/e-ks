@@ -29,7 +29,10 @@ use crate::{
 
 use super::{CsbCreateEmptyPath, CsbImportPath};
 
+#[cfg(not(test))]
 const BRP_COURTESY_TIMEOUT: Duration = Duration::from_secs(1);
+#[cfg(test)]
+const BRP_COURTESY_TIMEOUT: Duration = Duration::from_millis(20);
 
 #[derive(Template)]
 #[template(path = "csb/import/pages/import.html")]

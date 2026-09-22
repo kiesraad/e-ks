@@ -141,9 +141,10 @@ mod tests {
 
     #[tokio::test]
     async fn database_errors_fail_closed() {
-        // Nothing listens on port 1, so every query errors.
+        // Nothing listens on port 1, so every query errors. The connection is
+        // refused at once; the timeout only bounds sqlx's retry loop.
         let pool = sqlx::postgres::PgPoolOptions::new()
-            .acquire_timeout(std::time::Duration::from_secs(1))
+            .acquire_timeout(std::time::Duration::from_millis(50))
             .connect_lazy("postgres://nobody@127.0.0.1:1/nothing")
             .unwrap();
         let store = AcmeStore::Database(pool);
