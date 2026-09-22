@@ -27,26 +27,24 @@
           {% endif %}
         </p>
       {% endif %}
-      <div class="card card-plain submitters-card">
-        <div class="submitters">
-          {% if name_authorisations.is_empty() %}
-            <p class="submitters-empty">{{ "political_group.no_legal_names"|trans }}</p>
-          {% else %}
-            {% for agent in name_authorisations %}
-              <a href="{{ steps.step_url(agent.update_path() ) }}"
-                 class="person-block {{ agent.get_problems(*() ).highest_severity_class() }}">
-                {{ agent.legal_name }} ({{ agent.name.display() }})
-              </a>
-            {% endfor %}
-          {% endif %}
-        </div>
-        {% if name_authorisations.is_empty() || steps.is_combined() %}
+      {% if name_authorisations.is_empty() %}
+        <p class="mt-md font-italic">{{ "political_group.no_legal_names"|trans }}</p>
+      {% else %}
+        {% for agent in name_authorisations %}
+          <a href="{{ steps.step_url(agent.update_path() ) }}"
+             class="person-block {{ agent.get_problems(*() ).highest_severity_class() }}">
+            {{ agent.legal_name }} ({{ agent.name.display() }})
+          </a>
+        {% endfor %}
+      {% endif %}
+      {% if name_authorisations.is_empty() || steps.is_combined() %}
+        <p class="mt-lg">
           <a href="{{ steps.step_url(NameAuthorisation::create_path() ) }}"
              class="button secondary icon-plus"
              type="button">{{ "political_group.add_legal_name"|trans }}</a>
-        {% endif %}
-      </div>
-      <p class="mt-xl">
+        </p>
+      {% endif %}
+      <p class="mt-lg">
         <a href="{{ steps.step_url(crate::structs::list_submitters::ListSubmitter::view_path() ) }}"
            class="button">{{ "action.next"|trans }}</a>
       </p>

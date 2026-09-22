@@ -2,8 +2,6 @@ and_other_problems: "(en {} andere problemen)"
 and_other_problems_one: (en 1 ander probleem)
 candidate_too_young: Te jong
 candidate_too_young_long: kandidaat te jong om met verkiezing mee te doen
-candidates_with_problems: "{} kandidaten met problemen"
-candidates_with_problems_one: 1 kandidaat met problemen
 duplicate_districts: Dubbele kieskringen
 incomplete_address: Adres
 legend:

@@ -38,10 +38,6 @@
   --font-weight-medium: 500;
   --font-weight-bold: 700;
 
-  /* LAYOUT */
-  --header-height: 3rem;
-  --page-min-width: 960px;
-
   /* SPACING */
   --space-xs: 0.25rem;
   --space-sm: 0.5rem;

@@ -250,7 +250,7 @@ test.describe("End-to-end", () => {
     await page.waitForURL("/");
     await overviewPage.linkFinalise.click();
     await page.waitForURL("/finalise");
-    const downloadLink = page.locator("a", { hasText: "Download zip" });
+    const downloadLink = page.locator("a", { hasText: "Alles in één zip" });
     await expect(downloadLink).toBeVisible();
     await expect(downloadLink).toHaveAttribute("aria-disabled", "true");
     await expect(downloadLink).toHaveClass(/disabled/);

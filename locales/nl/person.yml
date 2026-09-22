@@ -37,7 +37,6 @@ hints:
   optional: optioneel
 list:
   empty: Geen kandidaten gevonden.
-  subtitle: Hier worden alle toegevoegde kandidaten opgeslagen.
 no_bsn_confirm: Ik bevestig dat deze persoon geen BSN heeft.
 not_found: "Persoon {} niet gevonden."
 not_found_in_candidate_list: Kandidaat niet gevonden in kandidatenlijst.

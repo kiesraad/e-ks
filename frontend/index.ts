@@ -15,7 +15,6 @@ import setupSelectAllCheckbox from "./scripts/form-inputs/select-all-checkbox";
 import staleErrors from "./scripts/form-inputs/stale-errors";
 import setupBfcacheReload from "./scripts/generic-ui/bfcache-reload";
 import setupModal from "./scripts/generic-ui/modal";
-import setupHeaderShadow from "./scripts/generic-ui/header-shadow";
 import setupHintPopover from "./scripts/generic-ui/hint-popover";
 import setupKeepScroll from "./scripts/generic-ui/keep-scroll";
 import setupOverlay from "./scripts/generic-ui/overlay";
@@ -65,7 +64,6 @@ staleErrors(); // last: snapshots the values the other initialisers normalised
 
 // generic UI
 setupBfcacheReload();
-setupHeaderShadow();
 setupStickyNav();
 setupModal();
 setupHintPopover();

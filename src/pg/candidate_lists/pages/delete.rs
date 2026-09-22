@@ -78,9 +78,7 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
-        // the overlay posts back to the delete path it is served from, so the
-        // page carries the destructive submit button, not a link to that path
-        assert!(body.contains("tertiary-destructive"));
+        assert!(body.contains(&candidate_list.delete_path().to_string()));
 
         Ok(())
     }

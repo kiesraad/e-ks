@@ -98,8 +98,4 @@
       {% endif %}
     </div>
   </section>
-  {% if !candidate_lists.is_empty() %}
-    {% set delete_path = "" %}
-    {% include "pg/candidate_lists/components/finalise_nav.html" %}
-  {% endif %}
 {% endblock %}

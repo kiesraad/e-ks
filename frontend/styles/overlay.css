@@ -79,7 +79,7 @@ body.overlay-open {
       display: flex;
       justify-content: stretch;
 
-      & > div:last-child {
+      & > div:nth-child(2) {
         padding-bottom: var(--space-lg);
         flex: 1;
       }

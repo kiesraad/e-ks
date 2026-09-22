@@ -16,15 +16,13 @@ delivery:
   title: Documenten inleveren
 follow_up_steps:
   description: Na het printen van de documenten zijn er nog enkele vervolgstappen die u buiten deze applicatie moet zetten. Hieronder wordt de rest van het kandidaatstellings\u00ADproces tot en met de openbare zitting beschreven.
-  title: Vervolgstappen buiten dit systeem
+  title: Vervolgstappen
 hearing:
   date: "De zitting is op <strong>{}</strong> om <strong>{}</strong>"
   description: "Bij deze zitting bepaalt het centraal stembureau welke partijen er op het stembiljet komen te staan, en wordt indien nodig door een loting de volgorde van partijen bepaald."
   open_to_public: U kunt de zitting bijwonen.
   title: Openbare zitting
 print:
-  download_description: Houd er rekening mee dat de laatste wijzigingen uit dit systeem overeenkomen met de laatst gedownloade zip.
-  download_title: Download hier de bestanden en print ze uit.
   eml: Per kandidatenlijst is ook een EML bestand van de kandidatenlijst aanwezig. EML is een bestandsformaat dat softwarematig verwerkbaar is. Dit document hoeft niet ingeleverd te worden.
   eml_title: EML210 Kandidatenlijst
   errors_warning: "Voordat u de documenten kunt printen, moet u eerst alle fouten in stap 1 oplossen."

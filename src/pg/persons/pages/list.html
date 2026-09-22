@@ -1,8 +1,5 @@
 {% extends "pg/common/components/layout.html" %}
 {% block page_title %}{{ "person.title"|trans }}{% endblock %}
-{% block page_sub_title %}
-  <span class="subtitle">{{ "person.list.subtitle"|trans }}</span>
-{% endblock %}
 {% block header_action %}
   <a href="{{ crate::structs::candidate_lists::CandidateList::list_path() }}"
      class="button secondary">{{ "candidate_list.actions.back_to_list"|trans }}</a>

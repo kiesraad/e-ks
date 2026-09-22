@@ -120,7 +120,7 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
-        assert!(body.contains("Manage electoral districts"));
+        assert!(body.contains("Edit candidate list"));
         assert!(body.contains(&candidate_list.update_path().to_string()));
         assert!(body.contains("electoral_district_prov7"));
         assert!(body.contains("checked"));
@@ -211,7 +211,7 @@ mod tests {
 
         assert_eq!(StatusCode::OK, response.status());
         let body = response_body_string(response).await;
-        assert!(body.contains("Manage electoral districts"));
+        assert!(body.contains("Edit candidate list"));
 
         let lists = CandidateListSummary::list(&store);
         assert_eq!(lists.len(), 1);

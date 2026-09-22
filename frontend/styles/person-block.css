@@ -44,31 +44,3 @@ a.person-block {
     background-color: var(--gray-100);
   }
 }
-
-/* The submitter blocks sit in a white frame, with the add button on its right */
-.submitters-card {
-  --card-padding: var(--space-6);
-  align-items: flex-start;
-  flex-direction: row;
-  gap: var(--space-6);
-  justify-content: space-between;
-  margin-bottom: var(--space-10);
-
-  .submitters {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    gap: var(--space-4);
-  }
-
-  a.person-block {
-    margin-bottom: 0;
-  }
-
-  .submitters-empty {
-    color: var(--gray-400);
-    margin: 0;
-    /* centers the single line against the button next to it */
-    padding-block: var(--space-3);
-  }
-}

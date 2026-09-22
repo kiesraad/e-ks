@@ -5,9 +5,9 @@ actions:
   add_new: New
   back_to_list: Back
   delete_list: Delete candidate list
+  edit: Edit list
   export_csv: Download CSV file
   export_csv_template: Download CSV template
-  import: Import
   import_csv: Upload CSV file
   import_export: Import and export candidate list
   select_all_candidate_lists: Select all candidate lists
@@ -26,7 +26,6 @@ candidate_list_description:
 districts:
   all: All
   duplicate_warning: You have selected electoral district(s) that are on multiple candidate lists
-  select_hint: Select the areas you are submitting this list for
 edit_position: Position on the list
 errors:
   candidate_set_changed: Reordering can only change the order of the current candidates.
@@ -34,9 +33,6 @@ errors:
 fields:
   electoral_districts: Electoral districts
   position: Position
-finalise_nav:
-  action: Go to finalise
-  question: Have all candidates and candidate list(s) been added?
 form:
   copy_candidates_from_previous: Copy candidates from the last created list
   copy_candidates_from_previous_legend: Copy candidates
@@ -44,7 +40,7 @@ form:
     title: Create candidate list
   delete_warning_text: Are you sure you want to delete this candidate list?
   update:
-    title: Manage electoral districts
+    title: Edit candidate list
 import_errors:
   csv:
     deserialize: "one of the values in this row is in the wrong format. {}"
@@ -68,13 +64,11 @@ import_errors:
   too_many_errors: "The file contains too many errors. Only the first {} are shown here; fix those and try again."
   upload_failed: Your file could not be uploaded. Please try again.
 import_export:
-  export_intro: "Want to download this list as a CSV file to continue working on it in Excel?"
   export_title: Export
   import_failed: Import failed
   import_instructions: "<strong>Headers</strong><br> Use the correct column names. Download the export CSV file and use it as a template.<br><br> <strong>Order</strong><br> The order of the individuals in the CSV file determines the order on the candidate list.<br><br> <strong>Required fields</strong><br> At a minimum, the following fields must be completed: <ul> <li>Initials</li> <li>Last name</li> </ul> <strong>Date of birth</strong><br> Use the format <code>dd-mm-jjjj</code> (for example: 31-12-1990).<br><br> <strong>Gender</strong><br> Only the following values are accepted: <ul> <li><code>female</code> | <code>vrouw</code> | <code>f</code> | <code>v</code></li> <li><code>male</code> | <code>man</code> | <code>m</code></li> </ul> <strong>Address details</strong><br> There are two types of addresses: <ul> <li>Enter the <strong>correspondence address</strong> if the person lives in the Netherlands.</li> <li>If the person does not live in the Netherlands, enter the details of the <strong>authorised person</strong> .</li> </ul> <strong>Postal code</strong><br> Use the format <code>1234AB</code>"
   import_instructions_header: Import instructions candidate list
   import_instructions_intro: "Use a CSV file to import candidates into this list. The file must meet the following requirements:"
-  import_intro: Upload your own candidate list; the requirements for the file are listed below
   import_title: Import
   overwrite_title: Warning
 import_warning: This list already contains candidates. The import action will overwrite the current candidates. Are you sure you want to continue?

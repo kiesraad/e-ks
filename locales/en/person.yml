@@ -37,7 +37,6 @@ hints:
   optional: optional
 list:
   empty: No candidates found.
-  subtitle: All added candidates are stored here.
 no_bsn_confirm: I confirm this person does not have a BSN.
 not_found: "Person {} not found."
 not_found_in_candidate_list: Candidate not found in candidate list.

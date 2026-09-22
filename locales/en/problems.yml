@@ -2,8 +2,6 @@ and_other_problems: "(and {} other problems)"
 and_other_problems_one: (and 1 other problem)
 candidate_too_young: Too young
 candidate_too_young_long: Candidate too young to participate in election
-candidates_with_problems: "{} candidates with problems"
-candidates_with_problems_one: 1 candidate with problems
 duplicate_districts: Duplicate districts
 incomplete_address: Address
 legend:

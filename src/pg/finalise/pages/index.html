@@ -190,40 +190,35 @@
                 <p>{{ "finalise.print.eml"|trans }}</p>
               </div>
             </div>
-            <div class="card download-card {% if !problems.models_downloadable() %}disabled{% endif %} {% if problems.highest_severity() == Some(Severity::Warn) %}warning{% endif %}">
-              <div class="download-card-text">
-                <p class="download-card-title">{{ "finalise.print.download_title"|trans }}</p>
-                <p>{{ "finalise.print.download_description"|trans }}</p>
-              </div>
+            <div class="card">
               <div class="step-downloads">
                 <div class="step-download">
                   {% if frisian_export_allowed %}
                     <div>{{ "common.languages.dutch"|trans }}:</div>
                   {% endif %}
                   {% if problems.models_downloadable() %}
-                    <a href="{{ download_path_nl }}" class="button primary icon-download">{{ "action.download_zip"|trans }}</a>
+                    <a href="{{ download_path_nl }}" class="button primary icon-download">{{ "action.all_in_one_zip"|trans }}</a>
                   {% else %}
                     <a class="button primary icon-download disabled"
                        disabled
                        aria-disabled="true">{{
-                      "action.download_zip"|trans
+                      "action.all_in_one_zip"|trans
                     }}</a>
                   {% endif %}
                 </div>
-                {% if frisian_export_allowed %}
-                  <div class="step-download">
+                <div class="step-download">
+                  {% if frisian_export_allowed %}
                     <div>{{ "common.languages.frisian"|trans }}:</div>
                     {% if problems.models_downloadable() %}
-                      <a href="{{ download_path_fry }}" class="button primary icon-download">{{ "action.download_zip"|trans }}</a>
+                      <a href="{{ download_path_fry }}" class="button primary icon-download">Alles yn ien zip</a>
                     {% else %}
-                      <a class="button primary icon-download disabled"
+                      <a href="{{ download_path_fry }}"
+                         class="button primary icon-download disabled"
                          disabled
-                         aria-disabled="true">{{
-                        "action.download_zip"|trans
-                      }}</a>
+                         aria-disabled="true">Alles yn ien zip</a>
                     {% endif %}
-                  </div>
-                {% endif %}
+                  {% endif %}
+                </div>
               </div>
             </div>
           </section>

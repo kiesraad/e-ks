@@ -66,9 +66,7 @@ export class ManageCandidateListPage {
     );
     this.textfieldStreetName = this.page.getByLabel("Straatnaam");
     this.buttonAdd = this.page.getByRole("button", { name: "Toevoegen" });
-    this.buttonEditList = this.page.getByRole("link", {
-      name: "Kieskringen beheren",
-    });
+    this.buttonEditList = this.page.getByRole("link", { name: "Aanpassen" });
     this.buttonRemoveList = this.page.getByRole("link", {
       name: "Kandidatenlijst verwijderen",
     });
@@ -77,7 +75,7 @@ export class ManageCandidateListPage {
       exact: true,
     });
     this.buttonCSV = this.page.getByRole("link", {
-      name: "Importeren",
+      name: "Import en export kandidatenlijst",
     });
     this.headingCandidateList = this.page.getByRole("heading", {
       name: "Kandidatenlijst",
@@ -92,7 +90,7 @@ export class ManageCandidateListPage {
       name: "Uit deze lijst verwijderen",
     });
     this.buttonOverviewPage = this.page.getByRole("link", {
-      name: "Start",
+      name: "Verder naar het startscherm",
     });
   }
 
@@ -178,6 +176,7 @@ export class ManageCandidateListPage {
   }
 
   async removeList() {
+    await this.buttonEditList.click();
     await this.buttonRemoveList.click();
     await Promise.all([
       this.page.waitForURL(/\/candidate-lists$/),

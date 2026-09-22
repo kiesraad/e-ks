@@ -25,15 +25,6 @@ type Fixtures = {
 };
 
 export const test = base.extend<Fixtures>({
-  // The overlay slides in over 240ms. A click that lands while it is still
-  // moving is lost: mousedown focuses the button, mouseup misses it, so no
-  // click event is generated and the form never submits. The app drops that
-  // animation under prefers-reduced-motion, so every page asks for it.
-  page: async ({ page }, use) => {
-    await page.emulateMedia({ reducedMotion: "reduce" });
-    await use(page);
-  },
-
   login: async ({ page }, use) => {
     await page.goto("/dev/login?fixtures=true");
     await use(page);
