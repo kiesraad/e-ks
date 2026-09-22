@@ -83,6 +83,9 @@ pub enum PotentialProblems {
     },
     DuplicateDistricts,
     NoDistricts,
+    CandidatesWithProblems {
+        count: usize,
+    },
 
     // political group
     NoLegalName,
@@ -138,6 +141,15 @@ fn too_many_candidates(count: usize, locale: &Locale) -> String {
     }
 }
 
+/// Singular or plural message for a count of candidates with problems.
+fn candidates_with_problems(count: usize, locale: &Locale) -> String {
+    if count == 1 {
+        trans!("problems.candidates_with_problems_one", *locale)
+    } else {
+        trans!("problems.candidates_with_problems", *locale, count)
+    }
+}
+
 /// Singular or plural message for a count of surplus authorized names.
 fn too_many_authorized_names(count: usize, locale: &Locale) -> String {
     if count == 1 {
@@ -171,6 +183,9 @@ impl PotentialProblems {
                 trans!("problems.duplicate_districts", *locale)
             }
             PotentialProblems::NoDistricts => trans!("problems.no_districts", *locale),
+            PotentialProblems::CandidatesWithProblems { count } => {
+                candidates_with_problems(*count, locale)
+            }
 
             // political group
             PotentialProblems::NoLegalName => trans!("problems.no_legal_name", *locale),
@@ -229,6 +244,7 @@ impl PotentialProblems {
             PotentialProblems::TooManyCandidates { .. } => Severity::Warn,
             PotentialProblems::DuplicateDistricts => Severity::Error,
             PotentialProblems::NoDistricts => Severity::Error,
+            PotentialProblems::CandidatesWithProblems { .. } => Severity::Warn,
 
             // political group
             PotentialProblems::NoLegalName => Severity::Warn,

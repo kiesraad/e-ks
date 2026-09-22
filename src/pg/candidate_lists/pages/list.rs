@@ -68,10 +68,32 @@ mod tests {
     use super::*;
     use crate::{
         Context, PgStore,
-        structs::candidate_lists::CandidateListId,
-        test_utils::{response_body_string, sample_candidate_list},
+        structs::{candidate_lists::CandidateListId, persons::PersonId},
+        test_utils::{response_body_string, sample_candidate_list, sample_person},
     };
     use axum::{http::StatusCode, response::IntoResponse};
+
+    #[tokio::test]
+    async fn list_tile_is_warning_with_candidate_error() -> Result<(), AppError> {
+        let store = PgStore::new_for_test();
+        let mut person = sample_person(PersonId::new());
+        person.personal_data.date_of_birth = None;
+        person.create(&store).await?;
+
+        let mut list = sample_candidate_list(CandidateListId::new());
+        list.candidates = vec![person.id];
+        list.create(&store).await?;
+
+        let response =
+            list_candidate_lists(CandidateListsPath {}, Context::new_test_without_db(), store)
+                .await?
+                .into_response();
+        let body = response_body_string(response).await;
+
+        assert!(body.contains("badge badge-candidates-list warning"));
+
+        Ok(())
+    }
 
     #[tokio::test]
     async fn list_candidate_lists_shows_created_list() -> Result<(), AppError> {

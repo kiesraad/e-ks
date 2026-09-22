@@ -68,7 +68,10 @@ test.describe("fix submit warnings", async () => {
     await finalisePage.linkIncorrectDate.first().click();
     await createPersonPage.textfieldYearOfBirth.fill("1925");
     await createPersonPage.buttonNext.click();
-    await page.waitForURL("/finalise*");
+    // Waiting on the remaining warning rather than on the URL: it is back on
+    // the finalise page, one warning fixed and one left, so the click below
+    // resolves to a single link.
+    await expect(finalisePage.linkIncorrectDate).toHaveCount(1);
 
     await finalisePage.linkIncorrectDate.click();
     await createPersonPage.textfieldYearOfBirth.fill("1990");

@@ -86,10 +86,12 @@ pub async fn index(
 mod tests {
     use super::*;
 
+    use std::collections::BTreeSet;
+
     use axum_extra::routing::TypedPath;
 
     use crate::{
-        AppError, ElectionConfig, QueryParamState,
+        AppError, ElectionConfig, ElectoralDistrict, QueryParamState,
         core::AnyLocale,
         structs::{
             candidate_lists::CandidateListId, list_designation::ListDesignation, persons::PersonId,
@@ -209,7 +211,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn candidate_list_card_is_not_success_when_another_list_has_an_error()
+    async fn candidate_list_card_is_warning_when_another_list_has_a_candidate_error()
     -> Result<(), AppError> {
         let store = PgStore::new_for_test();
         let person = sample_person(PersonId::new());
@@ -225,16 +227,17 @@ mod tests {
 
         let mut other_list = sample_candidate_list(CandidateListId::new());
         other_list.candidates = vec![other_person.id];
+        other_list.electoral_districts = BTreeSet::from([ElectoralDistrict::Groningen]);
         other_list.create(&store).await?;
 
         let body = render_index(store).await;
-        assert!(!body.contains(&candidate_list_badge("success")));
+        assert!(body.contains(&candidate_list_badge("warning")));
 
         Ok(())
     }
 
     #[tokio::test]
-    async fn candidate_list_card_is_not_success_with_candidate_error() -> Result<(), AppError> {
+    async fn candidate_list_card_is_warning_with_candidate_error() -> Result<(), AppError> {
         let store = PgStore::new_for_test();
         let mut person = sample_person(PersonId::new());
         person.personal_data.date_of_birth = None;
@@ -245,7 +248,7 @@ mod tests {
         list.create(&store).await?;
 
         let body = render_index(store).await;
-        assert!(!body.contains(&candidate_list_badge("success")));
+        assert!(body.contains(&candidate_list_badge("warning")));
 
         Ok(())
     }

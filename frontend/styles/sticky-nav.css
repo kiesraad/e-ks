@@ -1,7 +1,8 @@
 .sticky-nav {
   position: sticky;
   z-index: 100;
-  top: -2px;
+  /* 2px past the fixed header, so the observer in sticky-nav.ts sees it stick */
+  top: calc(var(--header-height) - 2px);
   height: 5.5rem;
   margin-bottom: 5rem;
   padding-top: var(--space-sm);

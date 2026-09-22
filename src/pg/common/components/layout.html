@@ -4,18 +4,6 @@
   <meta name="csrf-token" content="{{ "csrf_token"|str_value }}">
 {% endblock %}
 {% block body %}
-  {% if "paper_correction_mode"|value_true %}
-    {% let paper_corrections_group_name = "paper_corrections_group_name"|str_value %}
-    <div class="paper-corrections-banner">
-      <div class="alert alert-warning">
-        <div>{{ "csb.paper_corrections.banner"|trans(&paper_corrections_group_name) }}</div>
-        <form method="post" action="{{ "paper_corrections_exit_path"|str_value }}">
-          {{ macros::csrf_field() }}
-          <button type="submit" class="button sm secondary">{{ "csb.paper_corrections.stop"|trans }}</button>
-        </form>
-      </div>
-    </div>
-  {% endif %}
   <header>
     <nav>
       <div>
@@ -67,6 +55,18 @@
         </ul>
       </div>
     </nav>
+    {% if "paper_correction_mode"|value_true %}
+      {% let paper_corrections_group_name = "paper_corrections_group_name"|str_value %}
+      <div class="paper-corrections-banner">
+        <div class="alert alert-warning">
+          <div>{{ "csb.paper_corrections.banner"|trans(&paper_corrections_group_name) }}</div>
+          <form method="post" action="{{ "paper_corrections_exit_path"|str_value }}">
+            {{ macros::csrf_field() }}
+            <button type="submit" class="button sm secondary">{{ "csb.paper_corrections.stop"|trans }}</button>
+          </form>
+        </div>
+      </div>
+    {% endif %}
     <div class="header-content">
       <div>
         <h1>{% block page_title %}{{ "common.title"|trans }}{% endblock %}</h1>
