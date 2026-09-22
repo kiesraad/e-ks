@@ -1,6 +1,7 @@
 import bsnInput from "./scripts/form-inputs/bsn-input";
 import countryCodeInput from "./scripts/form-inputs/country-input";
 import dateInput from "./scripts/form-inputs/date-input";
+import duplicateDistricts from "./scripts/form-inputs/duplicate-districts";
 import electionDomain from "./scripts/form-inputs/election-domain";
 import listDesignation from "./scripts/form-inputs/list-designation";
 import setupFileImport from "./scripts/form-inputs/file-import";
@@ -14,6 +15,7 @@ import setupSelectAllCheckbox from "./scripts/form-inputs/select-all-checkbox";
 import staleErrors from "./scripts/form-inputs/stale-errors";
 import setupBfcacheReload from "./scripts/generic-ui/bfcache-reload";
 import setupModal from "./scripts/generic-ui/modal";
+import setupHeaderShadow from "./scripts/generic-ui/header-shadow";
 import setupHintPopover from "./scripts/generic-ui/hint-popover";
 import setupKeepScroll from "./scripts/generic-ui/keep-scroll";
 import setupOverlay from "./scripts/generic-ui/overlay";
@@ -58,10 +60,12 @@ setupSelectAllCheckbox();
 electionDomain();
 listDesignation();
 omissionPreset();
+duplicateDistricts();
 staleErrors(); // last: snapshots the values the other initialisers normalised
 
 // generic UI
 setupBfcacheReload();
+setupHeaderShadow();
 setupStickyNav();
 setupModal();
 setupHintPopover();

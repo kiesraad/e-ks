@@ -201,6 +201,19 @@
     color: var(--gray-500);
     text-wrap: balance;
     display: block;
+
+    a {
+      color: var(--link-default);
+      text-decoration: underline;
+
+      &:hover {
+        color: var(--link-hover);
+      }
+
+      &:active {
+        color: var(--link-active);
+      }
+    }
   }
 
   span.suggestion {

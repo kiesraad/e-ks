@@ -31,12 +31,13 @@ form:
   delete_warning_text: Are you sure you want to delete this candidate?
 hints:
   country: "For a candidate that does not have a Dutch correspondence address, an authorised agent is required."
-  country_code: "A list of countries with corresponding country codes can be found <a href={}>here</a>."
+  country_code: "A list of countries with corresponding country codes <a href={}>can be found here</a>."
   first_name: Only fill in if this should be displayed on the candidate list.
   gender: Only fill in if this should be displayed on the candidate list.
   optional: optional
 list:
   empty: No candidates found.
+  subtitle: All added candidates are stored here.
 no_bsn_confirm: I confirm this person does not have a BSN.
 not_found: "Person {} not found."
 not_found_in_candidate_list: Candidate not found in candidate list.

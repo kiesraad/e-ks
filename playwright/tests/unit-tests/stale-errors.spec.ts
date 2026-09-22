@@ -12,21 +12,21 @@ const postalCodeField = `
 `;
 
 test.describe("stale-errors", () => {
-  test("removes a server-rendered error once the edited field is left", async ({
+  test("hides a server-rendered error once the edited field is left", async ({
     page,
   }) => {
     await page.setContent(postalCodeField);
     await page.evaluate(staleErrors);
 
     const error = page.locator("#postal_code ~ span.error");
-    await expect(error).toBeVisible();
+    await expect(error).not.toHaveClass(/hidden/);
 
     // Typing alone leaves the message in place.
     await page.fill("#postal_code", "1234GG");
-    await expect(error).toBeVisible();
+    await expect(error).not.toHaveClass(/hidden/);
 
     await page.locator("#elsewhere").focus();
-    await expect(error).toHaveCount(0);
+    await expect(error).toHaveClass(/hidden/);
   });
 
   test("keeps the error when the field is left unedited", async ({ page }) => {
@@ -37,7 +37,7 @@ test.describe("stale-errors", () => {
 
     await page.locator("#postal_code").focus();
     await page.locator("#elsewhere").focus();
-    await expect(error).toBeVisible();
+    await expect(error).not.toHaveClass(/hidden/);
   });
 
   test("keeps the error when the submitted value is restored", async ({
@@ -51,7 +51,7 @@ test.describe("stale-errors", () => {
     await page.fill("#postal_code", "1234GG");
     await page.fill("#postal_code", "1234");
     await page.locator("#elsewhere").focus();
-    await expect(error).toBeVisible();
+    await expect(error).not.toHaveClass(/hidden/);
   });
 
   test("ignores checkboxes that belong to the field itself", async ({
@@ -71,10 +71,10 @@ test.describe("stale-errors", () => {
     const error = page.locator("#initials ~ span.error");
 
     await page.uncheck("#autoformat");
-    await expect(error).toBeVisible();
+    await expect(error).not.toHaveClass(/hidden/);
 
     await page.fill("#initials", "H.J.");
     await page.locator("#elsewhere").focus();
-    await expect(error).toHaveCount(0);
+    await expect(error).toHaveClass(/hidden/);
   });
 });

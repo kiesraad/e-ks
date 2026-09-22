@@ -14,7 +14,7 @@ use crate::{
 struct CandidateListCreateTemplate {
     form: FormData<CandidateListCreateForm>,
     available_districts: Vec<ElectoralDistrict>,
-    duplicate_districts: Vec<ElectoralDistrict>,
+    districts_on_other_lists: Vec<ElectoralDistrict>,
     has_previous_list: bool,
     overlay: Overlay,
 }
@@ -46,12 +46,13 @@ pub async fn create_candidate_list(
     }
 
     let available_districts = CandidateList::available_districts(&store, &context.election);
+    let districts_on_other_lists = CandidateList::districts_on_other_lists(&store, None);
     let has_previous_list = !store.get_candidate_lists().is_empty();
     Ok(HtmlTemplate(
         CandidateListCreateTemplate {
             form: FormData::new(),
             available_districts,
-            duplicate_districts: vec![],
+            districts_on_other_lists,
             has_previous_list,
             overlay: Overlay::default(),
         },
@@ -72,6 +73,7 @@ pub async fn create_candidate_list_submit(
         ));
     }
     let available_districts = CandidateList::available_districts(&store, &context.election);
+    let districts_on_other_lists = CandidateList::districts_on_other_lists(&store, None);
     let should_copy_candidates = form.copy_candidates;
     form.electoral_districts = context.election.known_districts(&form.electoral_districts);
 
@@ -81,7 +83,7 @@ pub async fn create_candidate_list_submit(
                 form: form_data,
                 has_previous_list: !store.get_candidate_lists().is_empty(),
                 available_districts,
-                duplicate_districts: vec![],
+                districts_on_other_lists,
                 overlay: Overlay::default(),
             },
             context,

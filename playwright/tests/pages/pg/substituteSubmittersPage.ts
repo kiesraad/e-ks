@@ -25,7 +25,7 @@ export class SubstituteSubmittersPage {
       exact: true,
     });
     this.buttonAdd = this.page.getByRole("link", {
-      name: "Vervanger voor het herstel van verzuimen",
+      name: "Vervanger toevoegen",
     });
     this.buttonSave = this.page.getByRole("button", { name: "Opslaan" });
     this.textfieldInitials = this.page.getByRole("textbox", {
@@ -62,7 +62,7 @@ export class SubstituteSubmittersPage {
   async deleteExistingSubstituteSubmitters() {
     //takes all links from table and saves href attributes of each link in list
     const hrefs = await this.page
-      .locator(".substitute-list-submitters .person-block")
+      .locator('a.person-block[href*="/substitute-submitters/"]')
       .evaluateAll((links) => links.map((link) => link.getAttribute("href")));
 
     for (const href of hrefs) {
