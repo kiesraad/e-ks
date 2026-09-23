@@ -1,4 +1,4 @@
-use std::{str::FromStr, time::Duration};
+use std::{str::FromStr, sync::Arc, time::Duration};
 
 use chrono::NaiveDate;
 use reqwest::Client;
@@ -47,6 +47,10 @@ const BRP_DATE_FORMAT: &str = "%Y-%m-%d";
 
 #[derive(Clone)]
 pub struct BrpClient {
+    inner: Arc<BrpClientInner>,
+}
+
+struct BrpClientInner {
     http_client: Client,
     base_url: String,
     api_key: SecretString,
@@ -62,11 +66,13 @@ impl BrpClient {
         timeout: Duration,
     ) -> Self {
         Self {
-            http_client: Client::new(),
-            base_url: base_url.to_string(),
-            api_key,
-            persons_endpoint: persons_endpoint.to_string(),
-            timeout,
+            inner: Arc::new(BrpClientInner {
+                http_client: Client::new(),
+                base_url: base_url.to_string(),
+                api_key,
+                persons_endpoint: persons_endpoint.to_string(),
+                timeout,
+            }),
         }
     }
 
@@ -84,17 +90,18 @@ impl BrpClient {
     }
 
     pub async fn get_persons(&self, query: &BrpQuery) -> Result<Vec<BrpPerson>, AppError> {
-        let url = format!("{}/{}", self.base_url, self.persons_endpoint);
+        let url = format!("{}/{}", self.inner.base_url, self.inner.persons_endpoint);
 
         let response = self
+            .inner
             .http_client
             .post(&url)
             .header(
                 "Authorization",
-                format!("Bearer {}", self.api_key.expose_secret()),
+                format!("Bearer {}", self.inner.api_key.expose_secret()),
             )
             .json(query)
-            .timeout(self.timeout)
+            .timeout(self.inner.timeout)
             .send()
             .await?
             .error_for_status()?;
