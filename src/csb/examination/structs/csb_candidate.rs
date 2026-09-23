@@ -1,8 +1,5 @@
 use crate::{
-    AnyLocale, CsbStream,
-    csb::examination::structs::{BrpCheckState, RestorationStatus},
-    projection::{Scrapped, WithCorrections},
-    structs::{candidate_lists::CandidateList, persons::Person},
+    AnyLocale, CsbStream, csb::examination::structs::{BrpCheckState, RestorationStatus}, projection::{Scrapped, WithCorrections}, structs::{candidate_lists::CandidateList, persons::Person, problems::PersonProblems},
 };
 
 use super::paper_corrected::PaperCorrected;
@@ -32,10 +29,11 @@ impl CsbCandidate {
         store: &CsbStream,
         list: &CandidateList,
         locale: AnyLocale,
+        problems: &Vec<PersonProblems>
     ) -> Vec<CsbCandidate> {
         let scrapped = store.get_scrapped();
-        let mut rows = imported_rows(store, list, locale, &scrapped);
-        rows.extend(corrected_only_rows(store, list, locale, &scrapped));
+        let mut rows = imported_rows(store, list, locale, &scrapped, problems);
+        rows.extend(corrected_only_rows(store, list, locale, &scrapped, problems));
         rows.sort_by_key(|(position, _)| *position);
         rows.into_iter().map(|(_, row)| row).collect()
     }
@@ -48,6 +46,7 @@ fn imported_rows(
     list: &CandidateList,
     locale: AnyLocale,
     scrapped: &Scrapped,
+    problems: &Vec<PersonProblems>,
 ) -> Vec<(usize, CsbCandidate)> {
     list.candidates
         .iter()
@@ -81,7 +80,7 @@ fn imported_rows(
                         corrected.as_ref().map(residence_string).unwrap_or_default(),
                     )
                     .with_csb_correction(csb_corrected.as_ref().map(residence_string)),
-                    restoration_status: RestorationStatus::for_candidate(store, person.id, list.id),
+                    restoration_status: RestorationStatus::for_candidate(store, person.id, list.id, problems),
                     brp: BrpCheckState::for_candidate(store, person.id),
                     is_scrapped: scrapped.is_candidate_scrapped(list.id, person.id),
                     recovery_position: store.get_recovery_position(list.id, person.id),
@@ -99,6 +98,7 @@ fn corrected_only_rows(
     list: &CandidateList,
     locale: AnyLocale,
     scrapped: &Scrapped,
+    problems: &Vec<PersonProblems>,
 ) -> Vec<(usize, CsbCandidate)> {
     let Some(corrected_list) = store.get_candidate_list(list.id, WithCorrections::All) else {
         return Vec::new();
@@ -123,7 +123,7 @@ fn corrected_only_rows(
                     residence: PaperCorrected::new(String::new(), residence_string(&person))
                         .with_csb_correction(csb_corrected.as_ref().map(residence_string)),
                     brp: BrpCheckState::for_candidate(store, person.id),
-                    restoration_status: RestorationStatus::for_candidate(store, person.id, list.id),
+                    restoration_status: RestorationStatus::for_candidate(store, person.id, list.id, problems),
                     is_scrapped: scrapped.is_candidate_scrapped(list.id, person.id),
                     recovery_position: store.get_recovery_position(list.id, person.id),
                     person,
@@ -185,7 +185,7 @@ mod tests {
         corrected_list.candidates = vec![b, a];
         store.set_paper_corrected_candidate_list(corrected_list);
 
-        let rows = CsbCandidate::rows_for_list(&store, &list, AnyLocale::En);
+        let rows = CsbCandidate::rows_for_list(&store, &list, AnyLocale::En, &Vec::new());
 
         assert_eq!(
             rows.iter().map(|r| r.person.id).collect::<Vec<_>>(),
@@ -211,7 +211,7 @@ mod tests {
         store.set_paper_corrected_candidate_list(corrected_list);
         store.add_person(sample_person_with_last_name(d, "Nieuw"));
 
-        let rows = CsbCandidate::rows_for_list(&store, &list, AnyLocale::En);
+        let rows = CsbCandidate::rows_for_list(&store, &list, AnyLocale::En, &Vec::new());
 
         assert_eq!(
             rows.iter().map(|r| r.person.id).collect::<Vec<_>>(),

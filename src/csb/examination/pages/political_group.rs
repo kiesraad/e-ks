@@ -71,6 +71,7 @@ pub(in crate::csb) async fn render(
 
     let imported_lists = store.get_candidate_lists(crate::projection::WithCorrections::None);
     let brp_findings = store.get_brp_findings();
+    let all_problems = store.get_all_problems(context.election)?;
     let mut candidate_lists = Vec::new();
     let mut all_candidates = Vec::new();
     for list in store.get_candidate_lists(crate::projection::WithCorrections::All) {
@@ -79,7 +80,11 @@ pub(in crate::csb) async fn render(
 
         let from_original_import = imported_lists.iter().any(|l| l.id == list.id);
         candidate_lists.push(CsbCandidateList {
-            restoration_status: RestorationStatus::for_candidate_list(&store, list.id)?,
+            restoration_status: RestorationStatus::for_candidate_list(
+                &store,
+                list.id,
+                &all_problems.lists,
+            )?,
             is_scrapped: political_group.scrapped.is_list_scrapped(list.id),
             scrapped_districts: political_group.scrapped.list_districts(list.id).to_vec(),
             list,
@@ -98,9 +103,9 @@ pub(in crate::csb) async fn render(
         brp_running,
         context.session.locale,
     );
-    let political_group_status = RestorationStatus::for_political_group(&store);
+    let political_group_status =
+        RestorationStatus::for_political_group(&store, &all_problems.general);
     let scrapped_districts = political_group.scrapped.districts(&store.election);
-    let all_problems = store.get_all_problems(context.election)?;
     Ok(HtmlTemplate(
         CsbPoliticalGroupTemplate {
             political_group,

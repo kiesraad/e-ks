@@ -33,7 +33,7 @@
   background-color: var(--base-white);
   padding: var(--space-8);
 
-  > h2 {
+  >h2 {
     margin-block: 0 var(--space-6);
   }
 }
@@ -90,14 +90,12 @@
 .restoration-strip {
   --restoration-strip-color: var(--gray-100);
   align-items: center;
-  background-image: repeating-linear-gradient(
-    135deg,
-    var(--restoration-strip-color) 0 1px,
-    transparent 1px 10px
-  );
+  background-image: repeating-linear-gradient(135deg,
+      var(--restoration-strip-color) 0 1px,
+      transparent 1px 10px);
   border: 1px solid var(--restoration-strip-color);
   border-radius: var(--rounded-md);
-  column-gap: var(--space-6);
+  column-gap: var(--space-1);
   display: flex;
   justify-content: space-between;
   min-height: 3.5rem;
@@ -196,6 +194,7 @@
 /* Errors and their absence carry no fill, and state the count before the icon
    rather than after it. */
 .restoration-tag-error,
+.restoration-tag-warning,
 .restoration-tag-ok {
   --restoration-tag-bg: transparent;
   border-radius: var(--rounded-md);
@@ -264,6 +263,10 @@
 .restoration-strip .icon-container {
   margin-inline-start: auto;
 
+  >* {
+    margin-right: var(--space-1);
+  }
+
   > :last-child {
     margin-right: 0;
   }
@@ -331,6 +334,7 @@
 }
 
 .omission-part-table {
+
   th,
   td {
     border-bottom: none;

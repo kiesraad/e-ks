@@ -124,7 +124,9 @@
               <li>{{ "csb.group.instruction_submitter"|trans }}</li>
             </ul>
             {% if political_group_status.has_changes() %}
-              <div class="restoration-strip">{{ omission_badge(political_group_status) }}</div>
+              <div class="restoration-strip">
+              {{ omission_badge(political_group_status) }}
+              </div>
             {% endif %}
           </div>
           <a class="card-footer"

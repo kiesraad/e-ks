@@ -17,6 +17,9 @@
 {% macro omission_badge(status) %}
   {% if status.has_changes() %}
     <div class="icon-container">
+      {% if let Some(severity) = status.problems_severity() %}
+        <span class="restoration-tag restoration-tag-{{ severity.class() }}">{{ "csb.group.problems_present"|trans }}</span>
+      {% endif %}
       {% if status.has_omissions() %}
         <div class="icon-small omission-icon-small"
              title="{{ "csb.status.omission"|trans }}"></div>

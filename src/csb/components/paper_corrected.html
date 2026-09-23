@@ -63,6 +63,7 @@
   {% if !findings.is_empty() %}
     <ul class="restoration-tags">
       {% for finding in findings %}
+      {# TODO the has severity stuff needs to go in here, not into restoration status #}
         <li class="restoration-tag restoration-tag-error">{{ finding }}</li>
       {% endfor %}
     </ul>
