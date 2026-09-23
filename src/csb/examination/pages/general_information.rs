@@ -2,8 +2,7 @@ use askama::Template;
 use axum::response::{IntoResponse, Response};
 
 use crate::{
-    AppError, Context, CsbContext, CsbStore, HtmlTemplate,
-    csb::examination::{
+    AppError, Context, CsbContext, CsbStore, HtmlTemplate, csb::examination::{
         extractors::CsbPoliticalGroup,
         pages::CsbGeneralInformationPath,
         structs::{
@@ -11,15 +10,14 @@ use crate::{
             PaperCorrectedSubmitter, paper_corrected_list_submitter,
             paper_corrected_name_authorisations, paper_corrected_substitute_submitters,
         },
-    },
-    filters,
-    structs::csb::{CsbPhase, Omission},
+    }, filters, structs::{csb::{CsbPhase, Omission}, problems::GeneralProblems},
 };
 
 #[derive(Template)]
 #[template(path = "csb/examination/pages/general_information.html")]
 struct CsbGeneralInformationTemplate {
     political_group: CsbPoliticalGroup,
+    general_problems: GeneralProblems,
     group_info: PaperCorrectedPoliticalGroupInfo,
     name_authorisations: Vec<PaperCorrectedNameAuthorisation>,
     list_submitter: Option<PaperCorrectedSubmitter>,
@@ -54,6 +52,7 @@ pub(in crate::csb) async fn render(
             substitute_submitters: paper_corrected_substitute_submitters(&store),
             political_group_omissions: store.get_political_group_omissions(),
             appellation_omissions: store.get_appellation_omissions(),
+            general_problems: store.get_all_problems(context.election)?.general
         },
         context,
     )

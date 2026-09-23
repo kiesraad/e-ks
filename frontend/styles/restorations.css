@@ -196,6 +196,7 @@
 /* Errors and their absence carry no fill, and state the count before the icon
    rather than after it. */
 .restoration-tag-error,
+.restoration-tag-warning,
 .restoration-tag-ok {
   --restoration-tag-bg: transparent;
   border-radius: var(--rounded-md);
