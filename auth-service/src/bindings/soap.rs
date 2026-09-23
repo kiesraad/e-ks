@@ -1,5 +1,6 @@
 //! SAML SOAP binding: the mTLS back-channel used for artifact resolution
-//! (eID §7.5, §9.4).
+//! (eID §7.5, §9.4). The TLS side (pinned root, RD OIN check, client identity)
+//! lives in [`super::mtls`].
 
 use crate::{
     config::TlsConfig,
@@ -71,7 +72,15 @@ fn cached_mtls_client(tls: &TlsConfig) -> Option<reqwest::Client> {
 /// Build a reqwest async client configured for mTLS per eID §9.4.
 ///
 /// eID §9.4: Back-channel requires mutual TLS with PKIoverheid certificates
-/// (key length >= 2048 bits). TLS v1.2 or higher per NCSC directive.
+/// (key length >= 2048 bits). TLS v1.2 or higher per NCSC directive. The TLS
+/// configuration (pinned root, RD OIN check on the server cert, protocol floor,
+/// client identity) is built in [`super::mtls`] and handed to reqwest as a
+/// preconfigured backend; reqwest's own TLS builder methods are ignored for such
+/// a client, so none are set here.
+///
+/// A preconfigured backend requires reqwest and this crate to use the same
+/// `rustls` crate version; on a mismatch `build()` fails, which the unit test
+/// below (and the first back-channel call) catches.
 async fn build_mtls_client(tls: &TlsConfig) -> Result<reqwest::Client> {
     debug!(
         "[soap] Building mTLS client: client_cert={}, client_key=<redacted>",
@@ -85,21 +94,15 @@ async fn build_mtls_client(tls: &TlsConfig) -> Result<reqwest::Client> {
         .await
         .map_err(|e| AuthError::Http(format!("Failed to read TLS client key: {e}")))?;
 
-    let mut identity_pem = cert_pem;
-    identity_pem.push(b'\n');
-    identity_pem.extend_from_slice(&key_pem);
-    let identity = reqwest::Identity::from_pem(&identity_pem)
-        .map_err(|e| AuthError::Http(format!("Failed to build TLS identity: {e}")))?;
-
-    let ca = reqwest::Certificate::from_pem(crate::saml::pki::BACKCHANNEL_ROOT_CA_PEM)
-        .map_err(|e| AuthError::Http(format!("Failed to parse back-channel root CA: {e}")))?;
+    let config = super::mtls::client_config(
+        crate::saml::pki::BACKCHANNEL_ROOT_CA_PEM,
+        crate::config::RD_OIN,
+        &cert_pem,
+        &key_pem,
+    )?;
 
     reqwest::Client::builder()
-        .identity(identity)
-        .tls_certs_only([ca])
-        // eID §9.4 / NCSC: TLS 1.2 or higher. rustls already refuses older
-        // versions; pin it explicitly so the floor survives a backend change.
-        .min_tls_version(reqwest::tls::Version::TLS_1_2)
+        .tls_backend_preconfigured(config)
         // Bound a slow/unresponsive RD so a back-channel call cannot hang a
         // request (or a tokio worker) indefinitely.
         .connect_timeout(CONNECT_TIMEOUT)

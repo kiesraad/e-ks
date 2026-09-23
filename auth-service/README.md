@@ -80,7 +80,8 @@ Two channels are used, and they have very different trust properties:
   here is attacker-reachable, so nothing on it is trusted without a signature.
 - **Back-channel**: direct DV→RD HTTPS with **mutual TLS** (§9.4): PKIoverheid
   client certificate, TLS ≥ 1.2, and the RD server pinned to the back-channel
-  root CA ([`pki`](src/saml/pki.rs)). Carries the SOAP `ArtifactResolve` /
+  root CA ([`pki`](src/saml/pki.rs)) and required to carry the RD OIN in its
+  certificate subject ([`mtls`](src/bindings/mtls.rs)). Carries the SOAP `ArtifactResolve` /
   `ArtifactResponse` exchange that actually delivers the assertion.
 
 ## The authentication happy flow
@@ -147,6 +148,10 @@ metadata document is trusted by an *external* anchor, never by its own signature
 - `validUntil`, if present, has to be in the future (§8.2/§8.5); endpoints are clean
   absolute **https** URLs with no characters that could break out of an HTML
   attribute / CSP header / request target.
+- The SSO, ARS and SLO endpoint hosts are **under the pinned RD domain** for the
+  environment (`toegang.overheid.nl`, or `eks-test.nl` for the mock), so even a
+  mis-verified document cannot send the browser or the mTLS back-channel to an
+  arbitrary host.
 
 ### Front-channel binding, login-CSRF / forced login ([`flow.rs`](src/handlers/flow.rs))
 
