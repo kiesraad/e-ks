@@ -24,6 +24,7 @@ pub enum ValidationError {
     BsnAlreadyExists,
     DateInFuture,
     InvalidDateFormat,
+    ContainsPlaceholder,
 }
 
 impl std::fmt::Display for ValidationError {
@@ -74,6 +75,9 @@ impl ValidationError {
             ValidationError::BsnAlreadyExists => trans!("validation.bsn_already_exists", locale),
             ValidationError::DateInFuture => trans!("validation.date_of_birth_in_future", locale),
             ValidationError::InvalidDateFormat => trans!("validation.invalid_date_format", locale),
+            ValidationError::ContainsPlaceholder => {
+                trans!("validation.contains_placeholder", locale)
+            }
         }
         .to_string()
     }

@@ -205,13 +205,12 @@ omission:
     edit_heading: Type or edit the omission here
     help_text_hint: Only for a recoverable omission. Irreparable omissions do not go into the omission letter.
     help_text_label: Add omission letter note
-    placeholder_warning: The text still contains unfilled placeholders.
+    no_omission_letter_hint: "Note: this omission will therefore not be included in the omission letter and in the model I 1"
     presets_heading: Use one of these omissions as a template (optional)
     recoverable_hint: "A recoverable omission can still be remedied by the political group, an irreparable one cannot."
     recoverable_label: Recoverable omission
     submit: Add and close
     title_label: Omission title
-    no_omission_letter_hint: "Note: this omission will therefore not be included in the omission letter and in the model I 1"
   overview:
     description: Description
     help_text: Note in omission letter

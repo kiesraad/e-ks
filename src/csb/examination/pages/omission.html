@@ -102,7 +102,6 @@
                     rows="5"
                     data-omission-description>{{ form.data.description }}</textarea>
           {% for error in form|error("description") %}<span class="error">{{ error }}</span>{% endfor %}
-          <span class="warning hidden" data-omission-placeholder-warning>{{ "csb.omission.form.placeholder_warning"|trans }}</span>
         </p>
       </div>
       <div class="form-row">

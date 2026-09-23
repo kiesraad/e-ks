@@ -2,13 +2,16 @@ mod preset;
 
 pub use preset::OmissionPlaceholders;
 
-use std::str::FromStr;
+use std::{
+    ops::{Deref, DerefMut},
+    str::FromStr,
+};
 
 use serde::{Deserialize, Serialize};
 
 use crate::{
     ElectionConfig, ElectoralDistrict,
-    form::ValidationError,
+    form::{ValidationError, validate_length, validate_multi_line_teletex_chars},
     id_newtype,
     structs::{
         candidate_lists::CandidateListId,
@@ -29,9 +32,44 @@ id_newtype!(pub struct OmissionId);
 constrained_strings! {
     /// Short omission title shown in the pill/badge layout.
     pub struct OmissionTitle(max = 100, multiline = false);
-    /// Free omission text: the model I 1 description or the omission letter
-    /// help text.
-    pub struct OmissionText(max = 2000, multiline = true);
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone, Default)]
+pub struct OmissionText(String);
+
+impl FromStr for OmissionText {
+    type Err = ValidationError;
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        let normalized = value.replace("\r\n", "\n");
+        let trimmed_value = validate_length(&normalized, 1, 2000)?;
+        validate_multi_line_teletex_chars(&trimmed_value)?;
+
+        if trimmed_value.contains(['{', '}']) {
+            Err(Self::Err::ContainsPlaceholder)
+        } else {
+            Ok(Self(trimmed_value))
+        }
+    }
+}
+
+impl std::fmt::Display for OmissionText {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl DerefMut for OmissionText {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl Deref for OmissionText {
+    type Target = String;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 /// The kind of item an omission is added to, carried as a path parameter so a

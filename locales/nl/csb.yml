@@ -205,13 +205,12 @@ omission:
     edit_heading: Type of bewerk hier het verzuim
     help_text_hint: Alleen bij een herstelbaar verzuim. Onherstelbare verzuimen komen niet in de verzuimbrief.
     help_text_label: Verzuimbriefnotitie toevoegen
-    placeholder_warning: De tekst bevat nog niet ingevulde placeholders.
+    no_omission_letter_hint: "Let op: dit verzuim komt nu niet in de verzuimbrief en het model I 1 te staan"
     presets_heading: Gebruik deze verzuimen als sjabloon (optioneel)
     recoverable_hint: "Een herstelbaar verzuim kan de politieke groepering nog herstellen, een onherstelbaar verzuim niet."
     recoverable_label: Herstelbaar verzuim
     submit: Toevoegen en sluiten
     title_label: Titel verzuim
-    no_omission_letter_hint: "Let op: dit verzuim komt nu niet in de verzuimbrief en het model I 1 te staan"
   overview:
     description: Omschrijving
     help_text: Verzuimbriefnotitie
