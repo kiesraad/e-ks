@@ -62,7 +62,6 @@ pub(in crate::csb) async fn render(
         &store,
         &imported_list,
         AnyLocale::from(context.session.locale),
-        &store.get_all_problems(context.election)?.candidates
     );
 
     let omissions = store.get_candidate_list_omissions(list_id)?;
