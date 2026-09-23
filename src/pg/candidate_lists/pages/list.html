@@ -43,12 +43,11 @@
               {% let problems = candidate_list.problems.potential_problems %}
               {% if !problems.is_empty() %}
                 <p class="{{ candidate_list.problems.highest_severity_class() }}">
-                  {{ problems[0].translate(locale) }}
-                  {% let other_problems = candidate_list.problems.total_problem_count() - 1 %}
-                  {% if other_problems == 1 %}
-                    {{ "problems.and_other_problems_one"|trans(&(other_problems).to_string()) }}
-                  {% else if other_problems > 1 %}
-                    {{ "problems.and_other_problems"|trans(&(other_problems).to_string()) }}
+                  {% let total_problems = candidate_list.problems.total_problem_count() %}
+                  {% if total_problems == 1 %}
+                    {{ "common.possible_problems_one"|trans }}
+                  {% else if total_problems > 1 %}
+                    {{ "common.possible_problems"|trans(&(total_problems).to_string()) }}
                   {% endif %}
                 </p>
               {% endif %}
@@ -92,7 +91,9 @@
             <a href="{{ CandidateList::create_path() }}"
                class="button secondary icon-plus">{{
             "candidate_list.actions.add"|trans }}</a>
-            <p>{{ "candidate_list.add_list_note"|trans(&election|election_type_title) }}</p>
+            {% if !candidate_lists.is_empty() %}
+              <p>{{ "candidate_list.add_list_note"|trans(&election|election_type_title) }}</p>
+            {% endif %}
           </div>
         </div>
       {% endif %}
