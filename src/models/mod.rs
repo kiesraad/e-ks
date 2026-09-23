@@ -33,7 +33,7 @@ pub mod omission_letter;
 pub use examples::{Example, examples};
 pub use fonts::fonts;
 
-use textris_pdf::build::Textris;
+use textris_pdf::{build::Textris, render::RenderError};
 
 use crate::AppError;
 
@@ -52,11 +52,7 @@ pub trait Pdf: Sized {
     #[allow(async_fn_in_trait)]
     async fn generate_bytes(&self) -> Result<Vec<u8>, AppError> {
         let document = self.document()?;
-        Ok(
-            tokio::task::spawn_blocking(move || document.render(fonts()))
-                .await
-                .map_err(|_| AppError::InternalServerError)??,
-        )
+        render_blocking(move || document.render(fonts())).await
     }
 
     /// [`Self::filename`] with the `.docx` extension.
@@ -79,6 +75,15 @@ pub trait Pdf: Sized {
             .map_err(|_| AppError::InternalServerError)?
             .map_err(AppError::DocxError)
     }
+}
+
+/// Run a PDF render on a blocking thread
+pub(crate) async fn render_blocking(
+    render: impl FnOnce() -> Result<Vec<u8>, RenderError> + Send + 'static,
+) -> Result<Vec<u8>, AppError> {
+    Ok(tokio::task::spawn_blocking(render)
+        .await
+        .map_err(|_| AppError::InternalServerError)??)
 }
 
 #[cfg(test)]
