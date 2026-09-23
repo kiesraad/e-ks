@@ -2,8 +2,11 @@
 // with, so drop it once the user has edited that value and left the field.
 export default function staleErrors() {
   for (const field of document.querySelectorAll<HTMLElement>(".form-field")) {
+    // Messages hidden at load are script-owned and describe the live value.
     const messages = [
-      ...field.querySelectorAll<HTMLElement>("span.error, span.warning"),
+      ...field.querySelectorAll<HTMLElement>(
+        "span.error:not(.hidden), span.warning:not(.hidden)",
+      ),
     ];
     const marked =
       field.classList.contains("error") || field.classList.contains("warning");
