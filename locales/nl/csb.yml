@@ -211,6 +211,7 @@ omission:
     recoverable_label: Herstelbaar verzuim
     submit: Toevoegen en sluiten
     title_label: Titel verzuim
+    no_omission_letter_hint: "Let op: dit verzuim komt nu niet in de verzuimbrief en het model I 1 te staan"
   overview:
     description: Omschrijving
     help_text: Verzuimbriefnotitie

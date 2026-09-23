@@ -211,6 +211,7 @@ omission:
     recoverable_label: Recoverable omission
     submit: Add and close
     title_label: Omission title
+    no_omission_letter_hint: "Note: this omission will therefore not be included in the omission letter and in the model I 1"
   overview:
     description: Description
     help_text: Note in omission letter

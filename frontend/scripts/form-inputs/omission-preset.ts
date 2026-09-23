@@ -26,6 +26,21 @@ function syncHelpText(
   }
 }
 
+// Only recoverable omissions reach the omission letter, ensure that the user is
+// aware of this by adding a warning span
+function showNoOmissionLetterHint(
+  noLetterWarning: HTMLSpanElement | null,
+  recoverable: HTMLInputElement | null,
+) {
+  if (noLetterWarning && recoverable) {
+    if (recoverable.checked) {
+      noLetterWarning.classList.add("hidden")
+    } else {
+      noLetterWarning.classList.remove("hidden")
+    }
+  }
+}
+
 // Fill the omission description and help-text fields when a preset is clicked.
 export default function omissionPreset() {
   const title = document.querySelector<HTMLInputElement>(
@@ -40,16 +55,20 @@ export default function omissionPreset() {
   const recoverable = document.querySelector<HTMLInputElement>(
     "[data-omission-recoverable]",
   );
-  const warning = document.querySelector<HTMLElement>(
+  const containsPlaceholderWarning = document.querySelector<HTMLElement>(
     "[data-omission-placeholder-warning]",
   );
 
-  if (!description || !warning) {
+  const noLetterWarning = document.querySelector<HTMLElement>(
+    "[data-omission-no-letter-warning]",
+  );
+
+  if (!description || !containsPlaceholderWarning) {
     return;
   }
 
   description.addEventListener("input", () =>
-    updatePlaceholderWarning(description, warning),
+    updatePlaceholderWarning(description, containsPlaceholderWarning),
   );
 
   recoverable?.addEventListener("change", () =>
@@ -57,14 +76,18 @@ export default function omissionPreset() {
   );
   syncHelpText(helpText, recoverable);
 
+  recoverable?.addEventListener("change", () =>
+    showNoOmissionLetterHint(noLetterWarning, recoverable),
+  );
+
   document
     .querySelectorAll<HTMLButtonElement>("[data-omission-preset]")
     .forEach((button) => {
       button.addEventListener("click", () => {
         setValue(title, button.dataset.title);
-
+        noLetterWarning?.classList.add("hidden")
         setValue(description, button.dataset.description);
-        updatePlaceholderWarning(description, warning);
+        updatePlaceholderWarning(description, containsPlaceholderWarning);
         setValue(helpText, button.dataset.helpText);
         if (recoverable) {
           recoverable.checked = button.dataset.recoverable !== "false";

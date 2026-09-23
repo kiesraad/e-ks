@@ -46,10 +46,23 @@ test.describe("check general information and add appellation corrections and omi
         }),
       ).toBeVisible();
       await button.click();
+
+      // Verify warning is hidden after preset click. Even if non-recoverable,
+      // only show when manually unchecking the checkbox.
+      await expect(omissionsPage.noLetterWarning).toHaveClass(/hidden/);
+
       if (resolvable) {
         await expect(omissionsPage.checkboxRecoverable).toBeChecked();
         await omissionsPage.textfieldLetter.fill("Testtoevoeging");
+
+        // Manually uncheck to show warning
+        await omissionsPage.checkboxRecoverable.uncheck();
+        await expect(omissionsPage.noLetterWarning).not.toHaveClass(/hidden/);
+        await expect(omissionsPage.noLetterWarning).toContainText(
+          "Let op: dit verzuim komt nu niet in de verzuimbrief",
+        );
       }
+
       await omissionsPage.buttonAddAndClose.click();
       await expect(page.locator("form.overlay")).toBeHidden();
       await generalInformationPage.linkManageAppellationOmissions.click();
