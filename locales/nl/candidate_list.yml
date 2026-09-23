@@ -14,7 +14,7 @@ actions:
   select_all_districts: Selecteer alle kieskringen
 add_all: Alle kandidaten toevoegen
 add_candidate: Kandidaat toevoegen
-add_list_note: "Voor de {} kunnen meerdere lijsten worden aangemaakt. Let op, de kieskringen moeten per lijst uniek zijn."
+add_list_note: "Bij de {} is het mogelijk om in verschillende kieskringen met verschillende kandidatenlijsten mee te doen. Let op, de kieskringen moeten per lijst uniek zijn."
 all_candidates: Adresboek
 all_candidates_note: Kandidaten die u heeft aangemaakt vindt u hier terug
 candidate:
