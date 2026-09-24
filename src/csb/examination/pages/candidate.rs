@@ -24,6 +24,7 @@ use crate::{
     redirect_success,
     structs::{
         candidate_lists::CandidateListId,
+        common::PotentialProblems,
         csb::{CsbPhase, Omission},
         persons::{Person, PersonId},
     },
@@ -44,6 +45,7 @@ struct CsbCandidateTemplate {
     recovery_position: Option<usize>,
     scrapped_districts: Vec<ElectoralDistrict>,
     all_districts_scrapped: bool,
+    problems: Vec<PotentialProblems>,
 }
 
 /// What the candidate page shows about the BRP check.
@@ -132,6 +134,13 @@ pub(in crate::csb) async fn render(
     let is_scrapped = scrapped.is_candidate_scrapped(list_id, person_id);
     let scrapped_districts = scrapped.list_districts(list_id).to_vec();
     let all_districts_scrapped = scrapped.all_list_districts_scrapped(list_id);
+    let problems = store
+        .get_all_problems(context.election)?
+        .candidates
+        .iter()
+        .find(|c| c.entity.id == person_id)
+        .map(|c| c.problems.clone())
+        .unwrap_or_default();
 
     Ok(HtmlTemplate(
         CsbCandidateTemplate {
@@ -147,6 +156,7 @@ pub(in crate::csb) async fn render(
             recovery_position: store.get_recovery_position(list_id, person_id),
             scrapped_districts,
             all_districts_scrapped,
+            problems
         },
         context,
     )

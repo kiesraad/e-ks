@@ -13,7 +13,7 @@ use crate::{
         list_designation::ListDesignation,
         list_submitters::{ListSubmitter, ListSubmitterId},
         name_authorisations::NameAuthorisation,
-        persons::Person,
+        persons::{Person, PersonId},
         political_groups::PoliticalGroup,
     },
 };
@@ -445,6 +445,19 @@ impl<T: Problematic<()>> EntityProblems<T> {
 }
 
 pub type PersonProblems = EntityProblems<Person>;
+
+impl PersonProblems {
+    pub fn get_highest_severity_for_person(
+        problems: &Vec<Self>,
+        person_id: PersonId,
+    ) -> Option<Severity> {
+        problems
+            .iter()
+            .find(|pss| pss.entity.id == person_id)
+            .map(|ps| ps.problems.iter().map(|p| p.severity()).max())
+            .flatten()
+    }
+}
 
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq, Clone))]

@@ -242,3 +242,12 @@
     </ul>
   </div>
 {% endmacro brp_group %}
+{% macro problems(problems) %}
+  <ul>
+    {% for problem in problems %}
+      <li>
+        <span class="restoration-tag restoration-tag-{{ problem.severity().class() }}">{{ problem.translate(locale) }}</span>
+      </li>
+    {% endfor %}
+  </ul>
+{% endmacro problems %}

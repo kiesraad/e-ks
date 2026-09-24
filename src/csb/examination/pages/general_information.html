@@ -1,15 +1,6 @@
 {% extends "csb/components/layout.html" %}
 {% import "csb/components/paper_corrected.html" as paper_corrected %}
 {% import "csb/components/restorations.html" as restorations %}
-{% macro problems(problems) %}
-  <ul>
-    {% for problem in problems %}
-      <li>
-        <span class="restoration-tag restoration-tag-{{ problem.severity().class() }}">{{ problem.translate(locale) }}</span>
-      </li>
-    {% endfor %}
-  </ul>
-{% endmacro problems %}
 {% block breadcrumbs %}
   {{ breadcrumb(political_group.overview_path() , political_group.overview_title_key()) }}
   {{ breadcrumb(political_group.group_path() , political_group.csb_appellation(), is_translatable=false) }}
@@ -61,7 +52,7 @@
     <h2>{{ "csb.general.group_info"|trans }}</h2>
     {% set combined_problems = general_problems.get_general_name_authorisation_problems_combined() %}
     {% if !combined_problems.is_empty() %}
-      {{ problems(combined_problems) }}
+      {{ restorations::problems(combined_problems) }}
     {% endif %}
     <table class="detail-table">
       {{ paper_corrected::columns_head("common.general_information"|trans) }}
@@ -124,7 +115,7 @@
     {% endif %}
     <h2>{{ "political_group.list_submitter_data"|trans }}</h2>
     {% if let Some(ls) = general_problems.list_submitter && !ls.problems.is_empty() %}
-      {{ problems(ls.problems.clone() ) }}
+      {{ restorations::problems(ls.problems.clone() ) }}
     {% endif %}
     {% if let Some(submitter) = list_submitter %}
       {{ submitter_tables(submitter) }}
@@ -138,7 +129,7 @@
       {% for submitter in substitute_submitters %}
         <h3 class="mt-md">{{ submitter.heading }}</h3>
         {% if let Some(id) = submitter.id && let Some(problems) = general_problems.get_substitute_submitter_problems(**id) %}
-          {{ problems(problems) }}
+          {{ restorations::problems(problems) }}
         {% endif %}
         {{ submitter_tables(submitter) }}
       {% endfor %}

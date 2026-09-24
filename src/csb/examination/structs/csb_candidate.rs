@@ -1,8 +1,5 @@
 use crate::{
-    AnyLocale, CsbStream,
-    csb::examination::structs::{BrpCheckState, RestorationStatus},
-    projection::{Scrapped, WithCorrections},
-    structs::{candidate_lists::CandidateList, persons::Person},
+    AnyLocale, CsbStream, csb::examination::structs::{BrpCheckState, RestorationStatus}, projection::{Scrapped, WithCorrections}, structs::{candidate_lists::CandidateList, persons::Person},
 };
 
 use super::paper_corrected::PaperCorrected;
