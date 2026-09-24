@@ -376,6 +376,7 @@ mod tests {
                     .count(),
                 2
             );
+            assert!(entry_names.contains(&format!("{folder}/h9-instemmingsverklaringen.pdf")));
         }
 
         Ok(())
@@ -407,6 +408,7 @@ mod tests {
                 .count(),
             2
         );
+        assert!(entry_names.contains(&"h9-instemmingsverklaringen.pdf".to_string()));
         assert!(
             entry_names
                 .iter()
