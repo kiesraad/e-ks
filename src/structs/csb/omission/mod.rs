@@ -2,10 +2,7 @@ mod preset;
 
 pub use preset::OmissionPlaceholders;
 
-use std::{
-    ops::{Deref, DerefMut},
-    str::FromStr,
-};
+use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
@@ -18,6 +15,7 @@ use crate::{
         common::{UtcDateTime, constrained_strings},
         persons::PersonId,
     },
+    transparent_string,
 };
 
 // constants to use for `as_str` and `from_str` implementations of `OmissionType`
@@ -34,11 +32,15 @@ constrained_strings! {
     pub struct OmissionTitle(max = 100, multiline = false);
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone, Default)]
-pub struct OmissionText(String);
+transparent_string! {
+    /// Free omission text: the model I 1 description or the omission letter
+    /// help text. Rejects unfilled preset placeholders.
+    pub struct OmissionText(String);
+}
 
 impl FromStr for OmissionText {
     type Err = ValidationError;
+
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         let normalized = value.replace("\r\n", "\n");
         let trimmed_value = validate_length(&normalized, 1, 2000)?;
@@ -49,26 +51,6 @@ impl FromStr for OmissionText {
         } else {
             Ok(Self(trimmed_value))
         }
-    }
-}
-
-impl std::fmt::Display for OmissionText {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl DerefMut for OmissionText {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-impl Deref for OmissionText {
-    type Target = String;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
     }
 }
 

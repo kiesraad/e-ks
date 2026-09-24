@@ -19,21 +19,6 @@ function syncHelpText(
   }
 }
 
-// Only recoverable omissions reach the omission letter, ensure that the user is
-// aware of this by adding a warning span
-function showNoOmissionLetterHint(
-  noLetterWarning: HTMLSpanElement | null,
-  recoverable: HTMLInputElement | null,
-) {
-  if (noLetterWarning && recoverable) {
-    if (recoverable.checked) {
-      noLetterWarning.classList.add("hidden");
-    } else {
-      noLetterWarning.classList.remove("hidden");
-    }
-  }
-}
-
 // Fill the omission description and help-text fields when a preset is clicked.
 export default function omissionPreset() {
   const title = document.querySelector<HTMLInputElement>(
@@ -52,14 +37,12 @@ export default function omissionPreset() {
     "[data-omission-no-letter-warning]",
   );
 
-  recoverable?.addEventListener("change", () =>
-    syncHelpText(helpText, recoverable),
-  );
+  // Only warn on a manual uncheck, not when a preset is irreparable.
+  recoverable?.addEventListener("change", () => {
+    syncHelpText(helpText, recoverable);
+    noLetterWarning?.classList.toggle("hidden", recoverable.checked);
+  });
   syncHelpText(helpText, recoverable);
-
-  recoverable?.addEventListener("change", () =>
-    showNoOmissionLetterHint(noLetterWarning, recoverable),
-  );
 
   document
     .querySelectorAll<HTMLButtonElement>("[data-omission-preset]")
