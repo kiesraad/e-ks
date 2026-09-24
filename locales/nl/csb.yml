@@ -241,6 +241,7 @@ paper_corrections:
   stop: Terug naar onderzoek
   title: Papieren correcties
 pre_submission:
+  download_title: Overzicht voor de politieke groepering
   explanation: "Controleer de kandidatenlijsten die politieke groeperingen vóór de dag van kandidaatstelling aanleveren tegen de BRP, zodat zij fouten vóór de officiële inlevering kunnen herstellen."
   group_explanation: "Alle verschillen die de controle tegen de BRP heeft gevonden, per kandidaat. Geef ze door aan de politieke groepering, zodat ze vóór de dag van kandidaatstelling hersteld kunnen worden."
   none: Er zijn nog geen politieke groeperingen geïmporteerd voor de voorinlevering.

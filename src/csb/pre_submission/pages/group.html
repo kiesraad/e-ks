@@ -19,6 +19,21 @@
 {% endblock %}
 {% block content %}
   <div class="examination-panels">
+    {% if !group.brp.is_not_checked() %}
+      <div class="examination-panel">
+        <div class="examination-panel-header">
+          <div>
+            <h2 class="h3">{{ "csb.pre_submission.download_title"|trans }}</h2>
+          </div>
+        </div>
+        <div class="examination-strip">
+          <a href="{{ group.brp_overview_docx_path() }}"
+             class="button secondary icon-download">{{ "csb.finish_examination.download_word"|trans }}</a>
+          <a href="{{ group.brp_overview_pdf_path() }}"
+             class="button primary icon-download">{{ "csb.finish_examination.download_pdf"|trans }}</a>
+        </div>
+      </div>
+    {% endif %}
     <div class="examination-panel">
       <div class="examination-panel-header">
         <div>

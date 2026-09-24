@@ -1,10 +1,13 @@
+use chrono::NaiveDate;
 use uuid::Uuid;
 
 use crate::{
-    AppError, AppRequestState, CsbAction, CsbMainAction, CsbMainStore, CsbStore, CsbStream,
-    CsbUser, ElectionConfig, ElectoralDistrict, PgStore, PgStoreData, StreamId,
+    AppError, AppRequestState, CsbAction, CsbMainAction, CsbMainStore, CsbStore, CsbStoreData,
+    CsbStream, CsbUser, ElectionConfig, ElectoralDistrict, PgStore, PgStoreData, StreamId,
     projection::WithCorrections,
+    store::StoreRegistry,
     structs::{
+        brp::{BrpFinding, BrpStatus, BrpValue},
         candidate_lists::{CandidateList, CandidateListId},
         common::{Address, PreviousElectionResults},
         csb::{Omission, OmissionCategory, OmissionType, RegisteredPoliticalGroup},
@@ -79,6 +82,10 @@ const FIXTURE_GROUPS: [FixtureGroup; 6] = [
     },
 ];
 
+/// The fixture group that also hands its package in ahead of nomination day
+/// for the pre-submission check (*voorinlevering*).
+const PRE_SUBMISSION_GROUP: &str = "De Stille Meerderheid";
+
 impl FixtureGroup {
     /// The group's registration with the committee, under a stable id.
     fn registered_political_group(&self) -> Option<RegisteredPoliticalGroup> {
@@ -107,36 +114,64 @@ impl FixtureGroup {
     }
 }
 
-/// Register the fixture political groups with the committee and import their
-/// candidate lists as CSB streams, unless the fixture was imported already.
+/// Register the fixture political groups with the committee, import their
+/// candidate lists as CSB streams and import one of them for the pre-submission
+/// check, each unless that fixture was imported already.
 pub async fn import_csb_fixture<S: AppRequestState>(
     state: &S,
     election: ElectionConfig,
     user: CsbUser,
 ) -> Result<(), AppError> {
-    // Skip if a fixture import already exists for this election.
-    for store in state
-        .csb_store_registry()
-        .stores_for_election(election)
-        .await?
-    {
+    if !has_fixture_import(state.csb_store_registry(), election).await? {
+        import_examination_fixture(state, election, &user).await?;
+    }
+    if !has_fixture_import(state.pre_submission_store_registry(), election).await? {
+        import_pre_submission_fixture(state, election, &user).await?;
+    }
+
+    Ok(())
+}
+
+/// Whether `registry` holds a fixture import for this election.
+async fn has_fixture_import(
+    registry: &StoreRegistry<CsbStoreData>,
+    election: ElectionConfig,
+) -> Result<bool, AppError> {
+    for store in registry.stores_for_election(election).await? {
         let comes_from_fixtures = store.data.read().events.first().is_some_and(
             |e| matches!(&e.payload.action, CsbAction::Import { hash, .. } if *hash == FIXTURE_IMPORT_HASH),
         );
         if comes_from_fixtures {
-            return Ok(());
+            return Ok(true);
         }
     }
 
+    Ok(false)
+}
+
+/// Register the fixture political groups with the committee and import their
+/// candidate lists as CSB streams for the examination.
+async fn import_examination_fixture<S: AppRequestState>(
+    state: &S,
+    election: ElectionConfig,
+    user: &CsbUser,
+) -> Result<(), AppError> {
     let main_store = state.csb_main_store(election).await?;
 
     for group in &FIXTURE_GROUPS {
-        register(&main_store, &user, group).await?;
+        register(&main_store, user, group).await?;
 
         let store = match group.handling {
             Handling::NotHandedIn => continue,
             Handling::Imported | Handling::WithOmissions | Handling::WithPaperCorrections => {
-                import_fixture_group(state, election, user.clone(), group).await?
+                import_fixture_group(
+                    state,
+                    state.csb_store_registry(),
+                    election,
+                    user.clone(),
+                    group,
+                )
+                .await?
             }
         };
 
@@ -152,6 +187,29 @@ pub async fn import_csb_fixture<S: AppRequestState>(
     }
 
     Ok(())
+}
+
+/// Import the [`PRE_SUBMISSION_GROUP`]'s package for the pre-submission check,
+/// with the BRP check already done and some candidates found wanting.
+async fn import_pre_submission_fixture<S: AppRequestState>(
+    state: &S,
+    election: ElectionConfig,
+    user: &CsbUser,
+) -> Result<(), AppError> {
+    let group = FIXTURE_GROUPS
+        .iter()
+        .find(|group| group.appellation == PRE_SUBMISSION_GROUP)
+        .expect("the pre-submission group is a fixture group");
+    let store = import_fixture_group(
+        state,
+        state.pre_submission_store_registry(),
+        election,
+        user.clone(),
+        group,
+    )
+    .await?;
+
+    fixture_brp_check(&store).await
 }
 
 /// Record the group's registration on the main stream, unless the group is
@@ -173,9 +231,10 @@ async fn register(
 }
 
 /// Load the fixtures into a fresh political group stream as `group` and
-/// import it as a fresh CSB stream.
+/// import it as a fresh stream of `registry`.
 async fn import_fixture_group<S: AppRequestState>(
     state: &S,
+    registry: &StoreRegistry<CsbStoreData>,
     election: ElectionConfig,
     user: CsbUser,
     group: &FixtureGroup,
@@ -190,9 +249,7 @@ async fn import_fixture_group<S: AppRequestState>(
     let snapshot = PgStoreData::snapshot_until(&events, usize::MAX);
 
     let store = CsbStore::acting_as(
-        state
-            .csb_store_for_stream(StreamId::new(), election)
-            .await?,
+        registry.get_or_create(StreamId::new(), election).await?,
         user,
     );
     store
@@ -204,6 +261,52 @@ async fn import_fixture_group<S: AppRequestState>(
         .await?;
 
     Ok(store)
+}
+
+/// The outcome of a BRP check over the whole package, recorded rather than
+/// looked up so the fixture needs no BRP to be reachable: the first four
+/// candidates on the first list are found wanting, one of them on two fields,
+/// and the BRP agrees with everyone else.
+async fn fixture_brp_check(store: &CsbStore) -> Result<(), AppError> {
+    let flagged: Vec<PersonId> = fixture_lists(store)
+        .first()
+        .map(|list| list.candidates.iter().copied().take(4).collect())
+        .unwrap_or_default();
+    let findings_at = |position: usize| -> Vec<BrpFinding> {
+        match position {
+            0 => vec![
+                BrpFinding::Mismatch {
+                    brp_value: BrpValue::PlaceOfResidence("Utrecht".parse().expect("locality")),
+                },
+                BrpFinding::Mismatch {
+                    brp_value: BrpValue::Initials("A.B.C.".parse().expect("initials")),
+                },
+            ],
+            1 => vec![BrpFinding::BsnUnknown],
+            2 => vec![BrpFinding::Deceased {
+                date_of_death: NaiveDate::from_ymd_opt(2025, 11, 3),
+            }],
+            3 => vec![BrpFinding::NotDutch],
+            _ => Vec::new(),
+        }
+    };
+
+    for person in store.get_persons(WithCorrections::All) {
+        let findings = flagged
+            .iter()
+            .position(|flagged| *flagged == person.id)
+            .map(findings_at)
+            .unwrap_or_default();
+        store
+            .update(CsbAction::BrpPersonChecked {
+                person: person.id,
+                findings,
+            })
+            .await?;
+    }
+    store
+        .update(CsbAction::SetBrpStatus(BrpStatus::Finished))
+        .await
 }
 
 /// Where the paper documents differ from the imported package: the list
@@ -434,7 +537,9 @@ fn preset_omission(
 mod tests {
     use super::*;
     use crate::{
-        AppState, core::election::WaterCouncil, csb::examination::numbering::list_numbering,
+        AppState,
+        core::election::WaterCouncil,
+        csb::examination::{numbering::list_numbering, structs::BrpCheckState},
     };
 
     /// The fixture groups that were imported, as many as have a handed-in list.
@@ -477,6 +582,15 @@ mod tests {
         fixture_store_named(&state, "Beweging Losse Eindjes").await
     }
 
+    /// The streams imported for the pre-submission check.
+    async fn pre_submission_stores(state: &AppState) -> Vec<CsbStream> {
+        state
+            .pre_submission_store_registry
+            .stores_by_scope()
+            .await
+            .expect("pre-submission stores")
+    }
+
     #[tokio::test]
     async fn repeated_import_is_a_no_op() {
         let state = AppState::new_for_tests().await;
@@ -499,12 +613,77 @@ mod tests {
             IMPORTED_GROUP_COUNT,
             "a second fixture import should be skipped"
         );
+        assert_eq!(
+            pre_submission_stores(&state).await.len(),
+            1,
+            "a second pre-submission fixture import should be skipped"
+        );
         let main_store = state.csb_main_store(election).await.unwrap();
         assert_eq!(
             main_store.registered_political_groups().len(),
             REGISTERED_GROUP_COUNT,
             "a second fixture import should register nothing"
         );
+    }
+
+    #[tokio::test]
+    async fn pre_submission_fixture_is_one_group_with_its_brp_check_done() -> Result<(), AppError> {
+        let state = fixture_state(ElectionConfig::EK27).await;
+
+        let stores = pre_submission_stores(&state).await;
+        assert_eq!(stores.len(), 1);
+        let store = &stores[0];
+        assert_eq!(
+            store.get_appellation(WithCorrections::None),
+            PRE_SUBMISSION_GROUP
+        );
+        // The same package the examination got, without anything the
+        // examination adds to it.
+        assert_eq!(
+            store.get_candidate_lists(WithCorrections::None).len(),
+            fixture_store_named(&state, PRE_SUBMISSION_GROUP)
+                .await
+                .get_candidate_lists(WithCorrections::None)
+                .len()
+        );
+        assert_eq!(store.get_omission_count(), 0);
+        assert!(!store.has_paper_corrections());
+
+        // Every candidate was checked; the first four on the first list have
+        // five findings between them.
+        assert!(matches!(store.get_brp_status(), BrpStatus::Finished));
+        assert_eq!(
+            BrpCheckState::for_political_group(store),
+            BrpCheckState::Errors { errors: 5 }
+        );
+        let first_list = fixture_lists(store).remove(0);
+        let findings = store.get_brp_findings();
+        let flagged: Vec<usize> = first_list
+            .candidates
+            .iter()
+            .map(|person| findings[person].len())
+            .collect();
+        assert_eq!(&flagged[..5], &[2, 1, 1, 1, 0]);
+        assert!(flagged[4..].iter().all(|count| *count == 0));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn pre_submission_fixture_is_added_to_an_existing_examination_fixture()
+    -> Result<(), AppError> {
+        let state = AppState::new_for_tests().await;
+        let election = ElectionConfig::EK27;
+        let user = CsbUser::new_test();
+        import_examination_fixture(&state, election, &user).await?;
+        assert!(pre_submission_stores(&state).await.is_empty());
+
+        import_csb_fixture(&state, election, user).await?;
+
+        assert_eq!(fixture_stores(&state).await.len(), IMPORTED_GROUP_COUNT);
+        assert_eq!(pre_submission_stores(&state).await.len(), 1);
+
+        Ok(())
     }
 
     #[tokio::test]

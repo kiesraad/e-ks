@@ -241,6 +241,7 @@ paper_corrections:
   stop: Back to examination
   title: Paper corrections
 pre_submission:
+  download_title: Overview for the political group
   explanation: "Check the candidate lists political groups hand in ahead of nomination day against the BRP, so they can correct errors before the official submission."
   group_explanation: "Every difference the check against the BRP found, per candidate. Report them to the political group, so they can be corrected before nomination day."
   none: No political groups have been imported for the pre-submission yet.

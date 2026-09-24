@@ -197,7 +197,7 @@
    rather than after it. */
 .restoration-tag-error,
 .restoration-tag-ok {
-  --restoration-tag-bg: transparent;
+  --restoration-tag-bg: var(--base-white);
   border-radius: var(--rounded-md);
   flex-direction: row-reverse;
 }
@@ -214,7 +214,7 @@
 
 /* The BRP check has not run, or did not cover every candidate. */
 .restoration-tag-pending {
-  --restoration-tag-bg: transparent;
+  --restoration-tag-bg: var(--base-white);
   --restoration-tag-color: var(--gray-500);
   --restoration-tag-icon: url("../icons/info.svg");
   border-radius: var(--rounded-md);
@@ -223,7 +223,7 @@
 
 /* The sweep is under way: a turning ring in place of the tag's icon. */
 .restoration-tag-running {
-  --restoration-tag-bg: transparent;
+  --restoration-tag-bg: var(--base-white);
   --restoration-tag-color: var(--gray-500);
   border-radius: var(--rounded-md);
 

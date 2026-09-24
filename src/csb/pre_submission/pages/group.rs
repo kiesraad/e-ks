@@ -135,6 +135,8 @@ mod tests {
         assert!(body.contains("Not checked"));
         assert!(body.contains(&format!("/csb/pre-submission/{stream_id}/brp-check")));
         assert!(body.contains("Check against the BRP"));
+        // Nothing to download before the check ran.
+        assert!(!body.contains("brp-overzicht"));
     }
 
     #[tokio::test]
@@ -163,6 +165,15 @@ mod tests {
         assert!(!body.contains("/csb/examination"));
         // The check is done, so there is nothing left to start.
         assert!(!body.contains(&format!("/csb/pre-submission/{stream_id}/brp-check")));
+        // The overview is offered as Word and PDF.
+        assert!(body.contains(&format!(
+            "href=\"/csb/pre-submission/{stream_id}/brp-overzicht.docx\""
+        )));
+        assert!(body.contains(&format!(
+            "href=\"/csb/pre-submission/{stream_id}/brp-overzicht.pdf\""
+        )));
+        assert!(body.contains("Download Word"));
+        assert!(body.contains("Download PDF"));
     }
 
     #[tokio::test]

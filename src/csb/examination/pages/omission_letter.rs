@@ -29,10 +29,6 @@ use crate::{
     utils::no_cache_headers,
 };
 
-const PDF_CONTENT_TYPE: &str = "application/pdf";
-const DOCX_CONTENT_TYPE: &str =
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-
 /// The recovery period closes at 17:00 on its last day.
 // TODO: move to the election configuration; the deadlines there are plain dates.
 const RECOVERY_DEADLINE_TIME: &str = "17:00";
@@ -101,34 +97,16 @@ fn omission_letter_model(store: &CsbStream) -> Result<OmissionLetter, AppError> 
 pub async fn gen_omission_letter(
     _: CsbOmissionLetterDownloadPath,
     store: CsbStore,
-) -> Result<impl IntoResponse, AppError> {
-    let model = omission_letter_model(&store)?;
-    let filename = model.filename();
-    let bytes = model.generate_bytes().await?;
-
-    let headers = no_cache_headers::generate_attachment_headers(
-        &filename,
-        HeaderValue::from_static(PDF_CONTENT_TYPE),
-    )?;
-
-    Ok((headers, bytes).into_response())
+) -> Result<Response, AppError> {
+    omission_letter_model(&store)?.pdf_response().await
 }
 
 /// The same letter as [`gen_omission_letter`], exported as a Word document.
 pub async fn gen_omission_letter_docx(
     _: CsbOmissionLetterDocxDownloadPath,
     store: CsbStore,
-) -> Result<impl IntoResponse, AppError> {
-    let model = omission_letter_model(&store)?;
-    let filename = model.docx_filename();
-    let bytes = model.generate_docx_bytes().await?;
-
-    let headers = no_cache_headers::generate_attachment_headers(
-        &filename,
-        HeaderValue::from_static(DOCX_CONTENT_TYPE),
-    )?;
-
-    Ok((headers, bytes).into_response())
+) -> Result<Response, AppError> {
+    omission_letter_model(&store)?.docx_response().await
 }
 
 /// Every omission letter of the election, as PDF and Word, in one ZIP: the
@@ -213,6 +191,7 @@ fn unique_stem(used: &mut HashSet<String>, pdf_filename: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::DOCX_CONTENT_TYPE;
     use axum::{
         body::to_bytes,
         http::{StatusCode, header},

@@ -4,7 +4,13 @@ use serde::{Deserialize, Serialize};
 use crate::{
     Locale,
     constants::DEFAULT_DATE_FORMAT,
-    structs::common::{Bsn, Gender, Initials, LastName, LastNamePrefix, PlaceOfResidence},
+    structs::{
+        common::{
+            Bsn, BsnOrNoneConfirmed, DateOfBirth, Gender, Initials, LastName, LastNamePrefix,
+            PlaceOfResidence,
+        },
+        persons::Person,
+    },
     trans,
 };
 
@@ -26,6 +32,41 @@ pub enum BrpCheckedField {
 }
 
 impl BrpCheckedField {
+    /// Every checked field, in the order the candidate detail table lists
+    /// them.
+    pub const IN_TABLE_ORDER: [Self; 7] = [
+        Self::Initials,
+        Self::LastNamePrefix,
+        Self::LastName,
+        Self::Gender,
+        Self::DateOfBirth,
+        Self::Bsn,
+        Self::PlaceOfResidence,
+    ];
+
+    /// The candidate's own value of this field, as the candidate detail table
+    /// shows it; empty when it was not given.
+    pub fn value_of(self, person: &Person, locale: Locale) -> String {
+        fn or_empty<T: std::fmt::Display>(value: &Option<T>) -> String {
+            value.as_ref().map(ToString::to_string).unwrap_or_default()
+        }
+
+        match self {
+            Self::Bsn => person
+                .personal_data
+                .bsn
+                .as_ref()
+                .map(BsnOrNoneConfirmed::to_exposed_string)
+                .unwrap_or_default(),
+            Self::Initials => person.name.initials.to_string(),
+            Self::LastNamePrefix => or_empty(&person.name.last_name_prefix),
+            Self::LastName => person.name.last_name.to_string(),
+            Self::Gender => person.gender_label(locale),
+            Self::DateOfBirth => DateOfBirth::format_option(&person.personal_data.date_of_birth),
+            Self::PlaceOfResidence => or_empty(&person.personal_data.place_of_residence),
+        }
+    }
+
     /// The label of the candidate-detail row this field belongs to.
     pub fn label(self, locale: Locale) -> String {
         match self {
