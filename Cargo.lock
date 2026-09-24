@@ -4588,8 +4588,9 @@ dependencies = [
 
 [[package]]
 name = "textris-pdf"
-version = "0.10.4"
-source = "git+https://github.com/tweedegolf/textris-pdf.git?branch=document-bundle#25d6fc7a857f0c2eb382969f126e385519d3e536"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56d6acdd72b88066f1274f046c5d96265e20fbfa44d5f838434373913c1dd8ed"
 dependencies = [
  "docx-rs",
  "harfrust",
