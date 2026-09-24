@@ -87,17 +87,18 @@ fn problematic_candidates(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use super::*;
     use axum::http::StatusCode;
 
     use crate::{
-        CsbAction,
-        structs::{
-            brp::{BrpFinding, BrpStatus, BrpValue},
-            candidate_lists::CandidateListId,
-            persons::PersonId,
+        CsbAction, ElectoralDistrict, PgEvent, structs::{
+            brp::{BrpFinding, BrpStatus, BrpValue}, candidate_lists::{CandidateList, CandidateListId}, common::{Address, PreviousElectionResults, UtcDateTime}, list_designation::ListDesignation, list_submitters::ListSubmitterId, persons::PersonId, political_groups::PoliticalGroup,
+        }, test_utils::{
+            response_body_string, sample_candidate_list, sample_list_submitter, sample_person,
+            sample_person_with_last_name,
         },
-        test_utils::{response_body_string, sample_candidate_list, sample_person_with_last_name},
     };
 
     /// A store with `candidates` on one list, in that order.
@@ -198,5 +199,131 @@ mod tests {
         let body = render(store).await;
 
         assert!(body.contains("No BRP errors"), "{body}");
+    }
+
+    #[tokio::test]
+    async fn general_problem_shows_up() {
+        let store = store_with_candidates(&[PersonId::new()]);
+        let stream_id = store.stream_id;
+        store.set_political_group(PoliticalGroup {
+            appellation: None,
+            list_designation: Some(ListDesignation::Standalone),
+            previous_election_results: Some(PreviousElectionResults::ZeroSeats),
+        });
+
+        let body = render(store).await;
+
+        assert!(body.contains("General Information</h4>"));
+        assert!(body.contains(&format!(
+            "href=\"/csb/examination/{stream_id}/general-information\">Appellation</a>"
+        )));
+    }
+
+    #[tokio::test]
+    async fn list_submitter_problem_shows_up() {
+        let store = store_with_candidates(&[PersonId::new()]);
+        let stream_id = store.stream_id;
+        let mut list_submitter = sample_list_submitter(ListSubmitterId::new());
+        list_submitter.name.initials = "A.".parse().expect("parse initials");
+        list_submitter.name.last_name = "Nagelhout II".parse().expect("parse last name");
+        if let Address::Dutch(ref mut address) = list_submitter.address {
+            address.locality = None
+        } else {
+            panic!("expected Dutch Address")
+        }
+
+        store
+            .update(CsbAction::PaperCorrectedUpdate(Box::new(
+                PgEvent::UpdateListSubmitter(list_submitter),
+            )))
+            .await
+            .expect("Update list submitter");
+
+        let body = render(store).await;
+
+        assert!(body.contains("General Information</h4>"));
+        assert!(body.contains("Nagelhout II, A. (List submitter)</h3>"));
+        assert!(body.contains(&format!(
+            "href=\"/csb/examination/{stream_id}/general-information\">Address</a>"
+        )));
+    }
+
+    #[tokio::test]
+    async fn substitute_submitter_problem_shows_up() {
+        let store = store_with_candidates(&[PersonId::new()]);
+        let stream_id = store.stream_id;
+        let mut list_submitter = sample_list_submitter(ListSubmitterId::new());
+        list_submitter.name.initials = "A.".parse().expect("parse initials");
+        list_submitter.name.last_name = "Nagelhout III".parse().expect("parse last name");
+        if let Address::Dutch(ref mut address) = list_submitter.address {
+            address.locality = None
+        } else {
+            panic!("expected Dutch Address")
+        }
+
+        store
+            .update(CsbAction::PaperCorrectedUpdate(Box::new(
+                PgEvent::CreateSubstituteSubmitter(list_submitter),
+            )))
+            .await
+            .expect("Create substitute submitter");
+
+        let body = render(store).await;
+
+        assert!(body.contains("General Information</h4>"));
+        assert!(body.contains("Nagelhout III, A. (Substitute submitter)</h3>"));
+        assert!(body.contains(&format!(
+            "href=\"/csb/examination/{stream_id}/general-information\">Address</a>"
+        )));
+    }
+
+    #[tokio::test]
+    async fn list_problem_shows_up() {
+        let store = store_with_candidates(&[PersonId::new()]);
+        let stream_id = store.stream_id;
+        let list_id = CandidateListId::new();
+
+        store.add_candidate_list(CandidateList {
+            id: list_id,
+            electoral_districts: BTreeSet::from([ElectoralDistrict::Flevoland]),
+            candidates: Vec::new(),
+            created_at: UtcDateTime::now(),
+        });
+
+        let body = render(store).await;
+
+        assert!(body.contains("Candidate lists</h4>"));
+        assert!(body.contains("Flevoland</h3>"));
+        assert!(body.contains(&format!(
+            "href=\"/csb/examination/{stream_id}/list/{list_id}\">No candidates</a>"
+        )));
+    }
+
+    #[tokio::test]
+    async fn candidate_problem_shows_up() {
+        let store = CsbStore::new_for_test();
+        let stream_id = store.stream_id;
+        let list_id = CandidateListId::new();
+        let person_id = PersonId::new();
+
+        let mut person = sample_person(person_id);
+        person.name.first_name = None;
+        person.name.initials = "A.".parse().expect("parse initials");
+        person.name.last_name = "Nagelhout IV".parse().expect("parse last name");
+        person.personal_data.bsn = None;
+        
+        let mut list = sample_candidate_list(list_id);
+        list.candidates.push(person_id);
+        
+        store.add_person(person);
+        store.add_candidate_list(list);
+
+        let body = render(store).await;
+
+        assert!(body.contains("Candidates</h4>"));
+        assert!(body.contains("Nagelhout IV, A.</h3>"));
+        assert!(body.contains(&format!(
+            "href=\"/csb/examination/{stream_id}/list/{list_id}/candidate/{person_id}\">BSN</a>"
+        )));
     }
 }
