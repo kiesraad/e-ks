@@ -36,6 +36,7 @@ brp:
     deceased: "The BRP records this candidate as deceased on {}."
     deceased_date_unknown: "The BRP records this candidate as deceased, without a full date of death."
     excluded_from_suffrage: The BRP records this candidate as excluded from the right to vote.
+    last_name_not_allowed: "According to the BRP, the last name may be: {}"
     mismatch: "{} differs from the BRP, which holds: {}"
     missing_in_brp: "The BRP holds no {} for this candidate."
     not_dutch: The BRP records no Dutch nationality for this candidate.

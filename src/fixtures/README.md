@@ -13,8 +13,10 @@ deceased, not Dutch or excluded from the right to vote, residences without a
 absent. Three rows exercise the fallback search on personal details: a
 typo'd number and a missing one are resolved to the right person anyway, and
 the confirmed-absent one belongs to a `Precise` sibling, ten of whom share a
-surname and date of birth, so no combination of details can tell them apart. Only `BsnNotUnique` is absent, which the mock
-cannot serve because it keys its records on the burgerservicenummer.
+surname and date of birth, so no combination of details can tell them apart. Two
+findings are absent: `BsnNotUnique`, which the mock cannot serve because it
+keys its records on the burgerservicenummer, and `LastNameNotAllowed`, which
+needs a candidate with a partner in the mock and a name that fits neither.
 
 `brp_agrees_with_four_out_of_five_fixture_candidates` in `persons.rs` checks
 this against the running mock. The rows with a mistake are spread over the first

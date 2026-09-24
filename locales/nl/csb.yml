@@ -36,6 +36,7 @@ brp:
     deceased: "Volgens de BRP is deze kandidaat overleden op {}."
     deceased_date_unknown: "Volgens de BRP is deze kandidaat overleden, zonder volledige datum van overlijden."
     excluded_from_suffrage: Volgens de BRP is deze kandidaat uitgesloten van het kiesrecht.
+    last_name_not_allowed: "De achternaam mag volgens de BRP zijn: {}"
     mismatch: "{} wijkt af van de BRP, waarin staat: {}"
     missing_in_brp: "De BRP bevat geen {} voor deze kandidaat."
     not_dutch: Volgens de BRP heeft deze kandidaat niet de Nederlandse nationaliteit.

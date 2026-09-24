@@ -5,7 +5,10 @@ use reqwest::Client;
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
 
-use super::{BrpCheckedField, BrpField, BrpFinding, BrpPerson, BrpValue, person::BrpResidence};
+use super::{
+    BrpCheckedField, BrpField, BrpFinding, BrpLastName, BrpPerson, BrpValue,
+    person::{BrpName, BrpResidence},
+};
 use crate::{
     AppError,
     structs::{
@@ -29,6 +32,9 @@ pub const CANDIDATE_FIELDS: &[BrpField] = &[
     BrpField::DateOfDeath,
     BrpField::Nationality,
     BrpField::SuffrageExclusion,
+    // The names a candidate may stand under besides their own.
+    BrpField::PartnerLastNamePrefix,
+    BrpField::PartnerLastName,
 ];
 
 /// The `geslacht` code the BRP uses when the gender is unknown.
@@ -296,8 +302,7 @@ fn bsn_of(person: &Person) -> Option<&Bsn> {
 fn findings_for(person: &Person, brp_person: &BrpPerson) -> Vec<BrpFinding> {
     let mut findings = Vec::new();
 
-    findings.extend(last_name_prefix_finding(person, brp_person));
-    findings.extend(last_name_finding(person, brp_person));
+    findings.extend(name_findings(person, brp_person));
     findings.extend(initials_finding(person, brp_person));
     findings.extend(gender_finding(person, brp_person));
     findings.extend(date_of_birth_finding(person, brp_person));
@@ -340,6 +345,90 @@ where
             brp_value: into_value(parsed),
         }),
     }
+}
+
+/// The candidate's prefix and last name, checked together against every name
+/// the BRP allows them to stand under. The Kieswet lets a candidate be listed
+/// under their own last name, the last name of a (former) spouse or registered
+/// partner, or both joined by a hyphen in either order, as article 1:9 BW
+/// allows. Without partners in the BRP, the prefix and the last name are
+/// reported apart, so the committee sees which of the two differs; with
+/// partners, a name that fits none of the allowed ones is reported once, with
+/// every name that would fit.
+fn name_findings(person: &Person, brp_person: &BrpPerson) -> Vec<BrpFinding> {
+    let separate = || {
+        last_name_prefix_finding(person, brp_person)
+            .into_iter()
+            .chain(last_name_finding(person, brp_person))
+            .collect()
+    };
+
+    // An own name the BRP lacks or that cannot be read is reported field by
+    // field, as before.
+    let Some(own) = brp_person.name.as_ref().and_then(parse_brp_name) else {
+        return separate();
+    };
+    let allowed = allowed_names(&own, brp_person);
+
+    let ours = BrpLastName {
+        last_name_prefix: person.name.last_name_prefix.clone(),
+        last_name: person.name.last_name.clone(),
+    };
+    if allowed.contains(&ours) {
+        return Vec::new();
+    }
+    if allowed.len() == 1 {
+        return separate();
+    }
+    vec![BrpFinding::LastNameNotAllowed { allowed }]
+}
+
+/// A BRP name as a typed last name with prefix; `None` when the last name is
+/// absent or either part is no value this application accepts.
+fn parse_brp_name(name: &BrpName) -> Option<BrpLastName> {
+    let non_empty = |value: &Option<String>| {
+        value
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
+    };
+    let last_name = non_empty(&name.last_name)?.parse().ok()?;
+    let last_name_prefix = match non_empty(&name.last_name_prefix) {
+        Some(prefix) => Some(prefix.parse().ok()?),
+        None => None,
+    };
+    Some(BrpLastName {
+        last_name_prefix,
+        last_name,
+    })
+}
+
+/// Every name the candidate may stand under: their own first, then per
+/// partner in BRP order the partner's name and the two hyphenated either way.
+/// Partners without a readable name are skipped, as are duplicates.
+fn allowed_names(own: &BrpLastName, brp_person: &BrpPerson) -> Vec<BrpLastName> {
+    let mut allowed = vec![own.clone()];
+    let partners = brp_person
+        .partners
+        .iter()
+        .filter_map(|partner| partner.name.as_ref())
+        .filter_map(parse_brp_name);
+
+    for partner in partners {
+        let variants = [
+            Some(partner.clone()),
+            own.hyphenated_with(&partner),
+            partner.hyphenated_with(own),
+        ];
+        for name in variants.into_iter().flatten() {
+            if !allowed.contains(&name) {
+                allowed.push(name);
+            }
+        }
+    }
+
+    allowed
 }
 
 fn last_name_finding(person: &Person, brp_person: &BrpPerson) -> Option<BrpFinding> {
@@ -613,6 +702,136 @@ mod tests {
             findings,
             vec![BrpFinding::Mismatch {
                 brp_value: BrpValue::LastName("Bruijn".parse().unwrap()),
+            }]
+        );
+    }
+
+    /// The BRP record with a partner named `last_name`, prefixed when given.
+    fn record_with_partner(bsn: &str, prefix: Option<&str>, last_name: &str) -> Value {
+        let mut record = matching_record(bsn);
+        let mut name = json!({ "geslachtsnaam": last_name });
+        if let Some(prefix) = prefix {
+            name["voorvoegsel"] = json!(prefix);
+        }
+        record["partners"] = json!([{ "naam": name }]);
+        record
+    }
+
+    /// The candidate listed under `prefix` and `last_name`.
+    fn candidate_named(prefix: Option<&str>, last_name: &str) -> (Person, String) {
+        let (mut person, bsn) = candidate();
+        person.name.last_name_prefix = prefix.map(|prefix| prefix.parse().unwrap());
+        person.name.last_name = last_name.parse().unwrap();
+        (person, bsn)
+    }
+
+    #[tokio::test]
+    async fn a_partners_name_is_allowed_as_last_name() {
+        let (person, bsn) = candidate_named(None, "Jansen");
+
+        let findings =
+            findings_for_record(&person, record_with_partner(&bsn, None, "Jansen")).await;
+
+        assert!(
+            findings.is_empty(),
+            "expected no findings, got {findings:?}"
+        );
+    }
+
+    /// The BRP lists former partners too; article 1:9 BW keeps their name
+    /// available, so no filtering on the dissolution.
+    #[tokio::test]
+    async fn a_former_partners_name_is_allowed_as_well() {
+        let (person, bsn) = candidate_named(None, "Jansen");
+        let mut record = record_with_partner(&bsn, None, "Jansen");
+        record["partners"][0]["ontbindingHuwelijkPartnerschap"] =
+            json!({ "datum": { "datum": "2015-06-01" } });
+
+        let findings = findings_for_record(&person, record).await;
+
+        assert!(
+            findings.is_empty(),
+            "expected no findings, got {findings:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_own_name_hyphenated_with_the_partners_is_allowed() {
+        let (person, bsn) = candidate_named(Some("de"), "Bruin-Jansen");
+
+        let findings =
+            findings_for_record(&person, record_with_partner(&bsn, None, "Jansen")).await;
+
+        assert!(
+            findings.is_empty(),
+            "expected no findings, got {findings:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_partners_name_hyphenated_with_the_own_takes_the_partners_prefix() {
+        let (person, bsn) = candidate_named(Some("van der"), "Groot-de Bruin");
+
+        let findings =
+            findings_for_record(&person, record_with_partner(&bsn, Some("van der"), "Groot")).await;
+
+        assert!(
+            findings.is_empty(),
+            "expected no findings, got {findings:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_name_fitting_no_allowed_name_lists_every_allowed_name() {
+        let (person, bsn) = candidate_named(Some("de"), "Bruijn");
+        let name = |prefix: Option<&str>, last_name: &str| BrpLastName {
+            last_name_prefix: prefix.map(|prefix| prefix.parse().unwrap()),
+            last_name: last_name.parse().unwrap(),
+        };
+
+        let findings =
+            findings_for_record(&person, record_with_partner(&bsn, None, "Jansen")).await;
+
+        assert_eq!(
+            findings,
+            vec![BrpFinding::LastNameNotAllowed {
+                allowed: vec![
+                    name(Some("de"), "Bruin"),
+                    name(None, "Jansen"),
+                    name(Some("de"), "Bruin-Jansen"),
+                    name(None, "Jansen-de Bruin"),
+                ],
+            }]
+        );
+    }
+
+    #[tokio::test]
+    async fn with_partners_a_wrong_prefix_is_reported_with_the_allowed_names() {
+        let (person, bsn) = candidate_named(Some("van der"), "Bruin");
+
+        let findings =
+            findings_for_record(&person, record_with_partner(&bsn, None, "Jansen")).await;
+
+        assert_eq!(findings.len(), 1, "{findings:?}");
+        assert!(matches!(
+            &findings[0],
+            BrpFinding::LastNameNotAllowed { allowed } if allowed.len() == 4
+        ));
+    }
+
+    #[tokio::test]
+    async fn a_partner_without_a_readable_name_adds_no_allowed_names() {
+        let (person, bsn) = candidate_named(Some("de"), "Bruijn");
+        let mut record = matching_record(&bsn);
+        record["partners"] = json!([{ "naam": { "geslachtsnaam": "" } }, {}]);
+
+        let findings = findings_for_record(&person, record).await;
+
+        // Nothing to list besides the own name, so the plain difference.
+        assert_eq!(
+            findings,
+            vec![BrpFinding::Mismatch {
+                brp_value: BrpValue::LastName("Bruin".parse().unwrap()),
             }]
         );
     }

@@ -123,6 +123,36 @@ impl BrpValue {
     }
 }
 
+/// A last name with its prefix, as the BRP holds it: the candidate's own, a
+/// partner's, or the two joined by a hyphen.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BrpLastName {
+    pub last_name_prefix: Option<LastNamePrefix>,
+    pub last_name: LastName,
+}
+
+impl BrpLastName {
+    /// This name followed by a hyphen and `other` written out in full, under
+    /// this name's prefix: `de Bruin` joined with `van der Groot` is `de
+    /// Bruin-van der Groot`. `None` when the result is no last name this
+    /// application accepts.
+    pub fn hyphenated_with(&self, other: &Self) -> Option<Self> {
+        Some(Self {
+            last_name_prefix: self.last_name_prefix.clone(),
+            last_name: format!("{}-{other}", self.last_name).parse().ok()?,
+        })
+    }
+}
+
+impl std::fmt::Display for BrpLastName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.last_name_prefix {
+            Some(prefix) => write!(f, "{prefix} {}", self.last_name),
+            None => write!(f, "{}", self.last_name),
+        }
+    }
+}
+
 /// One thing the BRP check found for a single candidate.
 ///
 /// Findings are shown next to the candidate's data and are deliberately not
@@ -144,6 +174,11 @@ pub enum BrpFinding {
     },
     /// The BRP holds no value for a field that was requested.
     MissingInBrp { field: BrpCheckedField },
+    /// The candidate's prefix and last name together are none of the names
+    /// the BRP allows them to stand under: their own, a (former) partner's, or
+    /// both joined by a hyphen in either order. `allowed` lists every name
+    /// that would do, the candidate's own first.
+    LastNameNotAllowed { allowed: Vec<BrpLastName> },
     /// No person in the BRP has this burgerservicenummer.
     BsnUnknown,
     /// More than one person in the BRP matched this burgerservicenummer.
@@ -183,6 +218,7 @@ impl BrpFinding {
         match self {
             Self::Mismatch { brp_value } => Some(brp_value.field()),
             Self::Unparsable { field, .. } | Self::MissingInBrp { field } => Some(*field),
+            Self::LastNameNotAllowed { .. } => Some(BrpCheckedField::LastName),
             Self::ResidenceAbroad | Self::ResidenceWithoutAddress | Self::ResidenceUnknown => {
                 Some(BrpCheckedField::PlaceOfResidence)
             }
@@ -228,8 +264,9 @@ impl BrpFinding {
         }
     }
 
-    /// What the committee is shown for this finding.
-    pub fn message(&self, locale: Locale) -> String {
+    /// What the committee is shown for a finding about one of the candidate's
+    /// fields.
+    fn field_message(&self, locale: Locale) -> String {
         match self {
             Self::Mismatch { brp_value } => {
                 trans!(
@@ -254,6 +291,25 @@ impl BrpFinding {
                     field.label(locale)
                 )
             }
+            Self::LastNameNotAllowed { allowed } => {
+                let allowed: Vec<String> = allowed.iter().map(ToString::to_string).collect();
+                trans!(
+                    "csb.brp.finding.last_name_not_allowed",
+                    locale,
+                    allowed.join(", ")
+                )
+            }
+            _ => unreachable!("only the findings about one field"),
+        }
+    }
+
+    /// What the committee is shown for this finding.
+    pub fn message(&self, locale: Locale) -> String {
+        match self {
+            Self::Mismatch { .. }
+            | Self::Unparsable { .. }
+            | Self::MissingInBrp { .. }
+            | Self::LastNameNotAllowed { .. } => self.field_message(locale),
             Self::BsnUnknown
             | Self::BsnNotUnique
             | Self::BsnMissing
@@ -284,5 +340,55 @@ impl BrpFinding {
             }
             Self::ResidenceUnknown => trans!("csb.brp.finding.residence_unknown", locale),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn name(prefix: Option<&str>, last_name: &str) -> BrpLastName {
+        BrpLastName {
+            last_name_prefix: prefix.map(|prefix| prefix.parse().unwrap()),
+            last_name: last_name.parse().unwrap(),
+        }
+    }
+
+    #[test]
+    fn a_hyphenated_name_keeps_the_first_prefix_and_writes_the_second_out() {
+        let own = name(Some("de"), "Bruin");
+        let partner = name(Some("van der"), "Groot");
+
+        assert_eq!(
+            own.hyphenated_with(&partner).unwrap().to_string(),
+            "de Bruin-van der Groot"
+        );
+        assert_eq!(
+            partner.hyphenated_with(&own).unwrap().to_string(),
+            "van der Groot-de Bruin"
+        );
+        assert_eq!(
+            name(None, "Jansen").hyphenated_with(&own),
+            Some(name(None, "Jansen-de Bruin"))
+        );
+    }
+
+    #[test]
+    fn the_not_allowed_message_lists_every_allowed_name() {
+        let finding = BrpFinding::LastNameNotAllowed {
+            allowed: vec![
+                name(Some("de"), "Bruin"),
+                name(None, "Jansen"),
+                name(Some("de"), "Bruin-Jansen"),
+                name(None, "Jansen-de Bruin"),
+            ],
+        };
+
+        assert_eq!(finding.field(), Some(BrpCheckedField::LastName));
+        assert!(finding.brp_value().is_none());
+        assert_eq!(
+            finding.message(Locale::Nl),
+            "De achternaam mag volgens de BRP zijn: de Bruin, Jansen, de Bruin-Jansen, Jansen-de Bruin"
+        );
     }
 }
