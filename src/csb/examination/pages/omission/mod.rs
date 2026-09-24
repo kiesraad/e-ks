@@ -316,13 +316,14 @@ pub async fn delete_omission(
     path: CsbDeleteOmissionPath,
     store: CsbStore,
     Query(query): Query<QueryParamState>,
+    Query(list_query): Query<OmissionListQuery>,
 ) -> Result<Response, AppError> {
     let CsbDeleteOmissionPath {
         stream_id,
         omission_id,
     } = path;
     let omission = store.get_omission(omission_id)?;
-    let overview = overview_url_for(&omission.category, stream_id);
+    let overview = overview_url_for(&omission.category, stream_id, list_query.list);
     omission.delete(&store).await?;
     Ok(Redirect::to(
         &overview
@@ -782,6 +783,7 @@ mod tests {
             },
             store.clone(),
             Query(QueryParamState::default()),
+            Query(OmissionListQuery::default()),
         )
         .await
         .unwrap()
@@ -805,6 +807,72 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn delete_omission_returns_to_the_list_the_overview_was_opened_for() {
+        let store = CsbStore::new_for_test();
+        let stream_id = store.stream_id;
+        let first_list = CandidateListId::new();
+        let second_list = CandidateListId::new();
+        store.add_candidate_list(sample_candidate_list(first_list));
+        store.add_candidate_list(sample_candidate_list(second_list));
+
+        let omission = Omission::new(
+            OmissionCategory::CandidateList(vec![first_list, second_list]),
+            "Waarborgsom ontbreekt".parse().unwrap(),
+            "De waarborgsom ontbreekt.".parse().unwrap(),
+            None,
+        );
+        omission.create(&store).await.unwrap();
+
+        // The remove button on the second list's overview carries that list
+        let response = overview(
+            CsbOmissionOverviewPath {
+                stream_id,
+                omission_type: OmissionType::CandidateList,
+                reference: second_list.into(),
+            },
+            CsbContext::new_test(),
+            store.clone(),
+            Query(QueryParamState::default()),
+            Query(OmissionListQuery::default()),
+        )
+        .await
+        .unwrap()
+        .into_response();
+        let body = response_body_string(response).await;
+        assert!(body.contains(&format!(
+            // Askama escapes the `&` that `with_query_params` emits.
+            "/csb/examination/{stream_id}/delete-omission/{}?&#38;list={second_list}",
+            omission.id
+        )));
+
+        let response = delete_omission(
+            CsbDeleteOmissionPath {
+                stream_id,
+                omission_id: omission.id,
+            },
+            store.clone(),
+            Query(QueryParamState::default()),
+            Query(OmissionListQuery {
+                list: Some(second_list),
+            }),
+        )
+        .await
+        .unwrap()
+        .into_response();
+
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        let location = response
+            .headers()
+            .get("Location")
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert!(location.contains(&format!(
+            "/csb/examination/{stream_id}/omission/candidate-list/{second_list}/overview"
+        )));
+    }
+
+    #[tokio::test]
     async fn delete_omission_preserves_the_redirect_to() {
         let store = CsbStore::new_for_test();
         let stream_id = store.stream_id;
@@ -825,6 +893,7 @@ mod tests {
             },
             store.clone(),
             Query(QueryParamState::redirect_to("/back/here".to_string())),
+            Query(OmissionListQuery::default()),
         )
         .await
         .unwrap()
