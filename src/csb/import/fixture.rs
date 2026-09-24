@@ -301,14 +301,15 @@ fn declarations_of_support_omissions(lists: &[CandidateList]) -> Vec<Omission> {
     )]
 }
 
-/// Missing declarations of support for `districts`.
+/// Missing declarations of support for `districts`, named in the omission
+/// letter note.
 fn declarations_of_support_omission(key: &[u8], districts: &[ElectoralDistrict]) -> Omission {
     preset_omission(
         key,
         OmissionType::DeclarationsOfSupport,
         "Voor meerdere kieskringen ontbreken ondersteuningsverklaringen",
         OmissionCategory::DeclarationsOfSupport(districts.to_vec()),
-        &[],
+        &[("{districts}", district_names(districts))],
     )
 }
 
@@ -428,6 +429,16 @@ fn preset_omission(
     omission.id = Uuid::new_v5(&Uuid::NAMESPACE_OID, key).into();
     omission.recoverable = preset.recoverable;
     omission
+}
+
+/// District titles listed the way the add-omission dialog does: "A, B en C".
+fn district_names(districts: &[ElectoralDistrict]) -> String {
+    let titles: Vec<&str> = districts.iter().map(ElectoralDistrict::title).collect();
+    match titles.split_last() {
+        Some((last, [])) => last.to_string(),
+        Some((last, rest)) => format!("{} en {last}", rest.join(", ")),
+        None => String::new(),
+    }
 }
 
 #[cfg(test)]
@@ -801,6 +812,20 @@ mod tests {
             omissions
                 .iter()
                 .all(|o| o.decision_count(&store.election) == 1)
+        );
+    }
+
+    #[test]
+    fn district_names_are_joined_with_en() {
+        assert_eq!(district_names(&[]), "");
+        assert_eq!(district_names(&[ElectoralDistrict::Utrecht]), "Utrecht");
+        assert_eq!(
+            district_names(&[
+                ElectoralDistrict::Groningen,
+                ElectoralDistrict::Fryslan,
+                ElectoralDistrict::Utrecht,
+            ]),
+            "Groningen, Fryslân en Utrecht"
         );
     }
 }
