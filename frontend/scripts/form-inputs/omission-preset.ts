@@ -27,9 +27,9 @@ function showNoOmissionLetterHint(
 ) {
   if (noLetterWarning && recoverable) {
     if (recoverable.checked) {
-      noLetterWarning.classList.add("hidden")
+      noLetterWarning.classList.add("hidden");
     } else {
-      noLetterWarning.classList.remove("hidden")
+      noLetterWarning.classList.remove("hidden");
     }
   }
 }
@@ -66,7 +66,7 @@ export default function omissionPreset() {
     .forEach((button) => {
       button.addEventListener("click", () => {
         setValue(title, button.dataset.title);
-        noLetterWarning?.classList.add("hidden")
+        noLetterWarning?.classList.add("hidden");
         setValue(description, button.dataset.description);
         setValue(helpText, button.dataset.helpText);
         if (recoverable) {
