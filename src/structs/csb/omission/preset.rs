@@ -25,6 +25,10 @@ pub struct OmissionPlaceholders {
     pub candidate_number: Option<String>,
     /// `{candidate_name}`: the candidate's initials and last name.
     pub candidate_name: Option<String>,
+    /// `{district}` and `{districts}`: the district names the omission applies
+    /// to. Only known up front when the group has a single district; otherwise
+    /// the dialog fills them from the selected district checkboxes.
+    pub districts: Option<String>,
 }
 
 impl OmissionPlaceholders {
@@ -35,6 +39,8 @@ impl OmissionPlaceholders {
         for (token, value) in [
             ("{candidate_number}", &self.candidate_number),
             ("{candidate_name}", &self.candidate_name),
+            ("{district}", &self.districts),
+            ("{districts}", &self.districts),
         ] {
             if let Some(value) = value {
                 result = result.replace(token, value);
@@ -145,8 +151,21 @@ pub mod tests {
     #[test]
     fn presets_fit_the_omission_field_constraints() {
         // A preset-filled form must pass validation unmodified, so every
-        // preset has to parse into the constrained omission types.
+        // preset has to parse into the constrained omission types, unless it
+        // has placeholders left to fill in.
         use crate::structs::csb::{OmissionText, OmissionTitle};
+
+        fn assert_fits(text: &str) {
+            let omission_text = text.parse::<OmissionText>();
+            if text.contains(['{', '}']) {
+                assert!(
+                    matches!(omission_text, Err(ValidationError::ContainsPlaceholder)),
+                    "{text:?}"
+                )
+            } else {
+                assert!(omission_text.is_ok(), "{text:?}: {omission_text:?}")
+            }
+        }
 
         for presets in PRESET_OMISSIONS.values() {
             for preset in presets {
@@ -154,27 +173,37 @@ pub mod tests {
                     .title
                     .parse::<OmissionTitle>()
                     .unwrap_or_else(|e| panic!("preset title {:?}: {e:?}", preset.title));
-
-                let omission_text = preset.description.parse::<OmissionText>();
-                if preset.description.contains(['{', '}']) {
-                    assert!(matches!(
-                        omission_text,
-                        Err(ValidationError::ContainsPlaceholder)
-                    ))
-                } else {
-                    assert!(omission_text.is_ok())
-                }
-
+                assert_fits(&preset.description);
                 if !preset.help_text.is_empty() {
-                    preset
-                        .help_text
-                        .parse::<OmissionText>()
-                        .unwrap_or_else(|e| {
-                            panic!("preset help text {:?}: {e:?}", preset.help_text)
-                        });
+                    assert_fits(&preset.help_text);
                 }
             }
         }
+    }
+
+    #[test]
+    fn declarations_of_support_presets_name_the_districts_in_the_help_text_only() {
+        // Model I 1 never names districts, the omission letter does.
+        for preset in OmissionType::DeclarationsOfSupport.presets() {
+            assert!(
+                !preset.description.contains("{district"),
+                "{:?}",
+                preset.title
+            );
+        }
+        let with_districts: Vec<_> = OmissionType::DeclarationsOfSupport
+            .presets()
+            .iter()
+            .filter(|p| p.help_text.contains("{district}") || p.help_text.contains("{districts}"))
+            .map(|p| p.title.as_str())
+            .collect();
+        assert_eq!(
+            with_districts,
+            [
+                "Voor één kieskring ontbreken ondersteuningsverklaringen",
+                "Voor meerdere kieskringen ontbreken ondersteuningsverklaringen",
+            ]
+        );
     }
 
     #[test]
@@ -182,6 +211,7 @@ pub mod tests {
         let placeholders = OmissionPlaceholders {
             candidate_number: Some("3".to_string()),
             candidate_name: Some("A.B. de Vries".to_string()),
+            districts: None,
         };
 
         let result = placeholders
@@ -200,5 +230,18 @@ pub mod tests {
             OmissionPlaceholders::default().interpolate("nr. {candidate_number} {candidate_name}");
 
         assert_eq!(result, "nr. {candidate_number} {candidate_name}");
+    }
+
+    #[test]
+    fn interpolate_fills_both_district_tokens_with_the_same_names() {
+        let placeholders = OmissionPlaceholders {
+            districts: Some("Utrecht".to_string()),
+            ..Default::default()
+        };
+
+        assert_eq!(
+            placeholders.interpolate("kieskring {district}; kieskring(en) {districts}"),
+            "kieskring Utrecht; kieskring(en) Utrecht"
+        );
     }
 }

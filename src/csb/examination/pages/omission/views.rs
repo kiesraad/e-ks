@@ -70,8 +70,9 @@ impl OmissionView {
     }
 }
 
-/// A preset shown in the dialog, with `{token}` placeholders in its description
-/// already filled from the referenced item (the rest left for manual entry).
+/// A preset shown in the dialog, with the `{token}` placeholders in its texts
+/// already filled from the referenced item (the rest left for the dialog or
+/// manual entry).
 pub(super) struct PresetView {
     title: String,
     description: String,
@@ -103,12 +104,22 @@ fn placeholders_for(target: &OmissionTarget, store: &CsbStream) -> OmissionPlace
                         store.get_candidate_position(list, person, WithCorrections::All)
                     })
                     .map(|nr| nr.to_string()),
+                districts: None,
             }
         }
-        OmissionType::CandidateList
-        | OmissionType::DeclarationsOfSupport
-        | OmissionType::PoliticalGroup
-        | OmissionType::Appellation => OmissionPlaceholders::default(),
+        // With a single district the district selector is hidden, so the
+        // district tokens are filled here; otherwise the dialog fills them from
+        // the selected checkboxes.
+        OmissionType::DeclarationsOfSupport => OmissionPlaceholders {
+            districts: match available_electoral_districts(store).as_slice() {
+                [district] => Some(district.title().to_string()),
+                _ => None,
+            },
+            ..OmissionPlaceholders::default()
+        },
+        OmissionType::CandidateList | OmissionType::PoliticalGroup | OmissionType::Appellation => {
+            OmissionPlaceholders::default()
+        }
     }
 }
 
@@ -151,7 +162,7 @@ pub(super) fn preset_views(target: &OmissionTarget, store: &CsbStream) -> Vec<Pr
         let view = PresetView {
             title: preset.title.clone(),
             description: placeholders.interpolate(&preset.description),
-            help_text: preset.help_text.clone(),
+            help_text: placeholders.interpolate(&preset.help_text),
             recoverable: preset.recoverable,
         };
 

@@ -47,6 +47,7 @@
             <div class="checkbox {% if !available_districts.contains(&d) %}disabled{% endif %}">
               <input type="checkbox"
                      name="electoral_districts"
+                     data-district-nl="{{ d.title() }}"
                      id="omission_district_{{ d.code() }}"
                      value="{{ d.serde_name() }}"
                      {% if form.data.electoral_districts.contains(&d) %}checked{% endif %}
