@@ -600,7 +600,7 @@ mod tests {
             1,
             CsbAction::UpdateCorrection(Correction::Person(
                 person.id,
-                PersonCorrection::Initials(Initials::from_str("A.B.").unwrap()),
+                PersonCorrection::Initials(Some(Initials::from_str("A.B.").unwrap())),
             ))
             .by(CsbUser::new_test()),
         ));
@@ -740,7 +740,7 @@ mod tests {
         data.apply(StoreEvent::new(1, import_event_with_person(person)));
 
         let corrections = [
-            PersonCorrection::Initials("X.Y.Z.".parse().unwrap()),
+            PersonCorrection::Initials(Some("X.Y.Z.".parse().unwrap())),
             PersonCorrection::LastName("Bakker".parse().unwrap()),
             PersonCorrection::DateOfBirth("15-06-1985".parse().unwrap()),
             PersonCorrection::PlaceOfResidence(PlaceOfResidence::Known("Amsterdam".to_string())),

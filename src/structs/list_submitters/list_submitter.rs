@@ -196,7 +196,7 @@ mod tests {
         let data = ListSubmitterData {
             name: FullName {
                 last_name: "Bos".parse().expect("last name"),
-                initials: "E.F.".parse().expect("initials"),
+                initials: Some("E.F.".parse().expect("initials")),
                 ..Default::default()
             },
             address: InternationalAddress {

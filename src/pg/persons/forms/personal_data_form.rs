@@ -136,9 +136,16 @@ impl PersonalDataForm {
             return errors;
         }
 
-        if let Ok(last_name) = LastName::from_str(&self.name.last_name)
-            && let Ok(initials) = Initials::from_str(&self.name.initials)
-        {
+        if let Ok(last_name) = LastName::from_str(&self.name.last_name) {
+            let initials = if self.name.initials.is_empty() {
+                None
+            } else {
+                match Initials::from_str(&self.name.initials) {
+                    Ok(initials) => Some(initials),
+                    // Reported by the outer validation, like the prefix.
+                    Err(_) => return Vec::new(),
+                }
+            };
             let last_name_prefix = if self.name.last_name_prefix.is_empty() {
                 None
             } else {
@@ -179,7 +186,7 @@ mod tests {
         OptionAsStrExt,
         form::ValidationError,
         structs::{
-            common::{DutchAddress, UtcDateTime},
+            common::{DutchAddress, PotentialProblems, Problematic, Severity, UtcDateTime},
             persons::PersonId,
         },
         test_utils::{self, display_opt, parse_country_code, sample_person_with},
@@ -243,7 +250,7 @@ mod tests {
             display_opt(&updated.name.first_name).as_deref(),
             Some("Evert")
         );
-        assert_eq!(updated.name.initials.to_string(), "E.D.");
+        assert_eq!(updated.name.initials.clone().to_string_or_default(), "E.D.");
         assert_eq!(
             updated
                 .personal_data
@@ -280,6 +287,24 @@ mod tests {
             Some("Spoorstraat")
         );
         assert!(updated.updated_at >= current.updated_at);
+    }
+
+    /// The BRP allows a person without first names, so a form without
+    /// initials is valid; the missing initials are a warning on the person.
+    #[test]
+    fn personal_data_form_accepts_empty_initials() {
+        let current = current_person();
+        let mut form = valid_update_form();
+        form.name.initials = "  ".to_string();
+
+        let updated = form.validate_update(&current).unwrap();
+
+        assert_eq!(updated.name.initials, None);
+        let problems = updated.name.get_problems(Severity::Error);
+        assert_eq!(
+            problems.potential_problems,
+            vec![PotentialProblems::NoInitials(Severity::Warn)]
+        );
     }
 
     #[test]

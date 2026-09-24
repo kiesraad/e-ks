@@ -403,7 +403,10 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
         let corrected = store.get_person(person_id, WithCorrections::All).unwrap();
-        assert_eq!(corrected.name.initials.to_string(), "X.Y.Z.");
+        assert_eq!(
+            corrected.name.initials.as_ref().map(ToString::to_string),
+            Some("X.Y.Z.".to_string())
+        );
     }
 
     #[tokio::test]
@@ -426,7 +429,8 @@ mod tests {
             Query(QueryParamState::default()),
             Query(OmissionListQuery::default()),
             Form(CorrectionForm {
-                value: String::new(),
+                // The BRP allows initials this application rejects.
+                value: "T4".to_string(),
             }),
         )
         .await

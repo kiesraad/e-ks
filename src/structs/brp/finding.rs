@@ -58,7 +58,7 @@ impl BrpCheckedField {
                 .as_ref()
                 .map(BsnOrNoneConfirmed::to_exposed_string)
                 .unwrap_or_default(),
-            Self::Initials => person.name.initials.to_string(),
+            Self::Initials => or_empty(&person.name.initials),
             Self::LastNamePrefix => or_empty(&person.name.last_name_prefix),
             Self::LastName => person.name.last_name.to_string(),
             Self::Gender => person.gender_label(locale),

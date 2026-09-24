@@ -1,12 +1,14 @@
 <div class="form-row">
   <p class="form-field form-field-sm {% if form.data.name.initials.is_empty() && should_warn|default(false) %}warning{% endif %}">
-    <label for="initials">{{ "person.fields.initials"|trans }}</label>
+    <label for="initials">
+      {{ "person.fields.initials"|trans }}
+      <span class="hint">({{ "person.hints.optional"|trans }})</span>
+    </label>
     <input type="text"
            name="initials"
            id="initials"
            value="{{ form.data.name.initials }}"
-           class="initials-input"
-           required />
+           class="initials-input" />
     <label class="autoformat">
       <input type="checkbox" checked  tabindex="-1" />
       <span>{{ "person.autoformat_initials"|trans }}</span>

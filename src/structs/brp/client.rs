@@ -473,16 +473,25 @@ fn last_name_prefix_finding(person: &Person, brp_person: &BrpPerson) -> Option<B
     })
 }
 
+/// Like the prefix, absent initials are a value rather than a gap: the BRP
+/// holds none for a person without first names, so only a candidate who has
+/// initials is told the BRP holds none.
 fn initials_finding(person: &Person, brp_person: &BrpPerson) -> Option<BrpFinding> {
-    compare(
-        BrpCheckedField::Initials,
-        Some(&person.name.initials),
-        brp_person
-            .name
-            .as_ref()
-            .and_then(|name| name.initials.as_deref()),
-        BrpValue::Initials,
-    )
+    let field = BrpCheckedField::Initials;
+    let ours = person.name.initials.as_ref();
+
+    let theirs = brp_person
+        .name
+        .as_ref()
+        .and_then(|name| name.initials.as_deref())
+        .map(str::trim)
+        .filter(|initials| !initials.is_empty());
+
+    let Some(theirs) = theirs else {
+        return ours.map(|_| BrpFinding::MissingInBrp { field });
+    };
+
+    compare(field, ours, Some(theirs), BrpValue::Initials)
 }
 
 /// Only compared when the candidate supplied a gender, since that is also when
@@ -895,6 +904,36 @@ mod tests {
             findings,
             vec![BrpFinding::Mismatch {
                 brp_value: BrpValue::PlaceOfResidence("Amsterdam".parse().unwrap()),
+            }]
+        );
+    }
+
+    #[tokio::test]
+    async fn a_candidate_without_initials_matches_a_brp_record_without_them() {
+        let (mut person, bsn) = candidate();
+        person.name.initials = None;
+        let mut record = matching_record(&bsn);
+        record["naam"]["voorletters"] = json!("");
+
+        let findings = findings_for_record(&person, record).await;
+
+        assert!(
+            findings.is_empty(),
+            "expected no findings, got {findings:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_candidate_without_initials_is_told_which_the_brp_holds() {
+        let (mut person, bsn) = candidate();
+        person.name.initials = None;
+
+        let findings = findings_for_record(&person, matching_record(&bsn)).await;
+
+        assert_eq!(
+            findings,
+            vec![BrpFinding::Mismatch {
+                brp_value: BrpValue::Initials("T.".parse().unwrap()),
             }]
         );
     }

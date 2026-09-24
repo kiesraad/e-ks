@@ -334,7 +334,7 @@ async fn fixture_paper_corrections(store: &CsbStore) -> Result<(), AppError> {
     }
     if let Some(person_id) = candidates.next() {
         let mut person = corrections.get_person(*person_id)?;
-        person.name.initials = "A.B.C.".parse().expect("initials");
+        person.name.initials = Some("A.B.C.".parse().expect("initials"));
         person.update(&corrections).await?;
     }
 
@@ -854,7 +854,8 @@ mod tests {
         );
         let initials = store
             .get_person(changed[1], WithCorrections::Paper)
-            .map(|person| person.name.initials.to_string());
+            .and_then(|person| person.name.initials)
+            .map(|initials| initials.to_string());
         assert_eq!(initials, Some("A.B.C.".to_string()));
 
         Ok(())

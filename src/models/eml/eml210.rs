@@ -34,7 +34,10 @@ use crate::{
 impl From<&FullName> for eml_nl::common::PersonNameStructure {
     fn from(val: &FullName) -> Self {
         eml_nl::common::PersonNameStructure::new(PersonName {
-            name_line_initials: Some(NameLineInitials::new(val.initials.to_string())),
+            name_line_initials: val
+                .initials
+                .as_ref()
+                .map(|initials| NameLineInitials::new(initials.to_string())),
             first_name: val
                 .first_name
                 .as_ref()

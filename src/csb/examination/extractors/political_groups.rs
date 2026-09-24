@@ -331,7 +331,7 @@ mod tests {
             },
             first_candidate_name: Some(FullName {
                 last_name: "Jansen".parse().unwrap(),
-                initials: "A.B.".parse().unwrap(),
+                initials: Some("A.B.".parse().unwrap()),
                 ..Default::default()
             }),
             ..CsbPoliticalGroup::sample("Kiesraad Demo")
@@ -366,14 +366,14 @@ mod tests {
                 first_name: None,
                 last_name: "Scrapped".parse().unwrap(),
                 last_name_prefix: None,
-                initials: "S.".parse().unwrap(),
+                initials: Some("S.".parse().unwrap()),
             }),
             // should be used as first candidate
             first_non_scrapped_candidate_name: Some(FullName {
                 first_name: None,
                 last_name: "Present".parse().unwrap(),
                 last_name_prefix: None,
-                initials: "P.".parse().unwrap(),
+                initials: Some("P.".parse().unwrap()),
             }),
             scrapped: Scrapped::new_for_test(
                 BTreeSet::from([OmissionId::new()]),

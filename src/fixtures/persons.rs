@@ -87,7 +87,9 @@ impl PersonRecord {
             last_name_prefix: prefix
                 .map(|prefix| Self::parse_value::<LastNamePrefix>(prefix, "last name prefix"))
                 .transpose()?,
-            initials: Self::parse_value::<Initials>(initials, "initials")?,
+            initials: (!initials.is_empty())
+                .then(|| Self::parse_value::<Initials>(initials, "initials"))
+                .transpose()?,
         })
     }
 

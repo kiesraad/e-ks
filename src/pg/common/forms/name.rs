@@ -15,7 +15,7 @@ pub struct MinimalNameForm {
     pub last_name: String,
     #[validate(parse = "LastNamePrefix", optional)]
     pub last_name_prefix: String,
-    #[validate(parse = "Initials")]
+    #[validate(parse = "Initials", optional)]
     pub initials: String,
 }
 
@@ -35,7 +35,7 @@ impl From<FullName> for MinimalNameForm {
         MinimalNameForm {
             last_name: name.last_name.to_string(),
             last_name_prefix: name.last_name_prefix.to_string_or_default(),
-            initials: name.initials.to_string(),
+            initials: name.initials.to_string_or_default(),
         }
     }
 }
@@ -50,7 +50,7 @@ pub struct FullNameForm {
     pub last_name: String,
     #[validate(parse = "LastNamePrefix", optional)]
     pub last_name_prefix: String,
-    #[validate(parse = "Initials")]
+    #[validate(parse = "Initials", optional)]
     pub initials: String,
 }
 
@@ -60,7 +60,7 @@ impl From<FullName> for FullNameForm {
             first_name: name.first_name.to_string_or_default(),
             last_name: name.last_name.to_string(),
             last_name_prefix: name.last_name_prefix.to_string_or_default(),
-            initials: name.initials.to_string(),
+            initials: name.initials.to_string_or_default(),
         }
     }
 }

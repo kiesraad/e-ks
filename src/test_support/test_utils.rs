@@ -60,7 +60,7 @@ pub fn sample_full_name(
         first_name: first_name.map(parse_first_name),
         last_name: parse_last_name(last_name),
         last_name_prefix: last_name_prefix.map(parse_last_name_prefix),
-        initials: parse_initials(initials),
+        initials: Some(parse_initials(initials)),
     }
 }
 
@@ -179,7 +179,7 @@ pub fn sample_person_from_brp() -> Person {
             first_name: Some("Tina-Antïna".parse().unwrap()),
             last_name: "Bruin".parse().unwrap(),
             last_name_prefix: Some("de".parse().unwrap()),
-            initials: "T.".parse().unwrap(),
+            initials: Some("T.".parse().unwrap()),
         },
         personal_data: PersonalData {
             gender: Some(Gender::Female),
