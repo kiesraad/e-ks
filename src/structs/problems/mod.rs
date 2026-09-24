@@ -339,12 +339,16 @@ impl AllProblems {
         list_id: &CandidateListId,
     ) -> Option<Severity> {
         if let Some(list_problems) = self.lists.per_list.iter().find(|l| &l.entity.id == list_id) {
-            let highest_list = list_problems.problems.iter().map(|p| p.severity()).max();
+            let highest_list = list_problems
+                .problems
+                .iter()
+                .map(PotentialProblems::severity)
+                .max();
             let highest_candidate = self
                 .candidates
                 .iter()
                 .filter(|c| list_problems.entity.candidates.contains(&c.entity.id))
-                .flat_map(|c| c.problems.iter().map(|p| p.severity()))
+                .flat_map(|c| c.problems.iter().map(PotentialProblems::severity))
                 .max();
             highest_list.max(highest_candidate)
         } else {
@@ -448,14 +452,13 @@ pub type PersonProblems = EntityProblems<Person>;
 
 impl PersonProblems {
     pub fn get_highest_severity_for_person(
-        problems: &Vec<Self>,
+        problems: &[Self],
         person_id: PersonId,
     ) -> Option<Severity> {
         problems
             .iter()
             .find(|pss| pss.entity.id == person_id)
-            .map(|ps| ps.problems.iter().map(|p| p.severity()).max())
-            .flatten()
+            .and_then(|ps| ps.problems.iter().map(PotentialProblems::severity).max())
     }
 }
 

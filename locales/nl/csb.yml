@@ -4,7 +4,7 @@ action:
   finish: Afronden
 added: Toegevoegd
 all_findings:
-  explanation: "Alle verschillen die de controle tegen de BRP heeft gevonden (per kandidaat) en andere potentiële problemen."
+  explanation: Alle verschillen die de controle tegen de BRP heeft gevonden (per kandidaat) en andere potentiële problemen.
   none: De controle heeft geen fouten gevonden.
   title: Alle fouten
 all_restorations:

@@ -4,7 +4,7 @@ action:
   finish: Finish
 added: Added
 all_findings:
-  explanation: "Every difference the check against the BRP found (per candidate) and other potential problems."
+  explanation: Every difference the check against the BRP found (per candidate) and other potential problems.
   none: The check against the BRP found no errors.
   title: All errors
 all_restorations:

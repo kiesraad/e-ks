@@ -59,7 +59,7 @@
         {% if !all_problems.lists.is_empty() %}
           <h4 class="mt-md">{{ "candidate_list.title_plural"|trans }}</h4>
           {% if !all_problems.lists.general.is_empty() %}
-          {{ restorations::brp_group("" , None::<String>, Vec::<String>::new(), all_problems.lists.general ) }}
+            {{ restorations::brp_group("" , None::<String>, Vec::<String>::new() , all_problems.lists.general ) }}
           {% endif %}
           {% for list in all_problems.lists.per_list %}
             {{ restorations::brp_group(list.entity.districts_name() , Some(political_group.candidate_list_path(list.entity.id) ), Vec::<String>::new(), list.problems.clone() ) }}

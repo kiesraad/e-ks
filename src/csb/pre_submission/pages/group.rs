@@ -4,7 +4,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 
-use crate::structs::common::HasSeverity;
+use crate::structs::{common::HasSeverity, persons::Person};
 
 use crate::{
     AppError, AppRequestState, Context, CsbContext, HtmlTemplate,
@@ -30,6 +30,7 @@ struct PreSubmissionGroupTemplate {
     brp_incomplete: Option<String>,
     all_findings: AllBrpFindings,
     all_problems: AllProblems,
+    candidates: Vec<Person>,
 }
 
 /// The BRP findings of one pre-submitted package, per candidate.
@@ -42,6 +43,9 @@ pub async fn group(
     let brp_running = brp_sweep_running(store.stream_id);
     let locale = context.session.locale;
 
+    let all_findings = store.get_unlinked_brp_findings(locale);
+    let all_problems = store.get_all_problems(context.election)?;
+
     Ok(HtmlTemplate(
         PreSubmissionGroupTemplate {
             brp_incomplete: brp_incomplete_reason(
@@ -50,8 +54,9 @@ pub async fn group(
                 brp_running,
                 locale,
             ),
-            all_findings: store.get_unlinked_brp_findings(locale),
-            all_problems: store.get_all_problems(context.election)?,
+            candidates: problematic_candidates(&all_findings, &all_problems),
+            all_findings,
+            all_problems,
             group,
             brp_running,
         },
@@ -71,6 +76,18 @@ pub async fn start_brp_check<S: AppRequestState>(
     Ok(redirect_success(CsbPreSubmissionGroupPath {
         stream_id: path.stream_id,
     }))
+}
+
+fn problematic_candidates(
+    all_findings: &AllBrpFindings,
+    all_problems: &AllProblems,
+) -> Vec<Person> {
+    all_findings
+        .candidates
+        .iter()
+        .map(|c| c.person.clone())
+        .chain(all_problems.candidates.iter().map(|c| c.entity.clone()))
+        .collect()
 }
 
 #[cfg(test)]
@@ -178,7 +195,7 @@ mod tests {
         let body = render(store).await;
 
         assert!(body.contains("No BRP errors"), "{body}");
-        assert!(body.contains("found no errors"));
+        assert!(body.contains("Problems</span>"));
     }
 
     #[tokio::test]

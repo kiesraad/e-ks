@@ -233,7 +233,8 @@
       {% for problem in problems %}
         <li>
           {% if let Some(url) = url %}
-            <a class="restoration-tag restoration-tag-{{ problem.severity().class() }}" href="{{ url }}">{{ problem.translate(locale) }}</a>
+            <a class="restoration-tag restoration-tag-{{ problem.severity().class() }}"
+               href="{{ url }}">{{ problem.translate(locale) }}</a>
           {% else %}
             <span class="restoration-tag restoration-tag-{{ problem.severity().class() }}">{{ problem.translate(locale) }}</span>
           {% endif %}

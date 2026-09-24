@@ -38,11 +38,37 @@
         {% endif %}
       </div>
       <div class="mb-lg">{{ restorations::brp_strip(group.brp, brp_incomplete.as_deref() , all_problems ) }}</div>
-      {% if !all_findings.candidates.is_empty() %}
-        {% for candidate in all_findings.candidates %}
-          <!-- FIXME -->
-          {# {{ restorations::brp_group(candidate.person.name.display() , candidate.path.as_deref(), candidate.messages.as_slice()) }} #}
-        {% endfor %}
+      {% if !(all_findings.candidates.is_empty() && all_problems.is_all_good()) %}
+        {% if !all_problems.general.flatten().is_empty() %}
+          <h4 class="mt-md">{{ "common.general_information"|trans }}</h4>
+          {% if !all_problems.general.general.is_empty() %}
+            {{ restorations::brp_group("", None::<String>, Vec::<String>::new() , all_problems.general.general) }}
+          {% endif %}
+          {% for na in all_problems.general.name_authorisations %}
+            {{ restorations::brp_group(na.entity.display(locale) , None::<String>, Vec::<String>::new(), na.problems.clone() ) }}
+          {% endfor %}
+          {% if let Some(ls) = all_problems.general.list_submitter %}
+            {{ restorations::brp_group(ls.entity.display(locale, false) , None::<String>, Vec::<String>::new(), ls.problems.clone() ) }}
+          {% endif %}
+          {% for ss in all_problems.general.substitute_submitters %}
+            {{ restorations::brp_group(ss.entity.display(locale, true) , None::<String>, Vec::<String>::new(), ss.problems.clone() ) }}
+          {% endfor %}
+        {% endif %}
+        {% if !all_problems.lists.is_empty() %}
+          <h4 class="mt-md">{{ "candidate_list.title_plural"|trans }}</h4>
+          {% if !all_problems.lists.general.is_empty() %}
+            {{ restorations::brp_group("" , None::<String>, Vec::<String>::new() , all_problems.lists.general ) }}
+          {% endif %}
+          {% for list in all_problems.lists.per_list %}
+            {{ restorations::brp_group(list.entity.districts_name() , None::<String>, Vec::<String>::new(), list.problems.clone() ) }}
+          {% endfor %}
+        {% endif %}
+        {% if !(all_findings.candidates.is_empty() && all_problems.candidates.is_empty()) %}
+          <h4 class="mt-md">{{ "common.candidates"|trans }}</h4>
+          {% for person in candidates %}
+            {{ restorations::brp_group(person.name.display() , None::<String>, all_findings.messages_for_person(person), all_problems.get_problems_for_person(person)) }}
+          {% endfor %}
+        {% endif %}
       {% else if group.brp.is_correct() %}
         <p class="font-italic">{{ "csb.all_findings.none"|trans }}</p>
       {% endif %}

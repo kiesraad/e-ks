@@ -3,10 +3,17 @@ use axum::response::{IntoResponse, Response};
 use std::collections::BTreeSet;
 
 use crate::{
-    AnyLocale, AppError, Context, CsbContext, CsbStore, ElectoralDistrict, HtmlTemplate, csb::examination::{
+    AnyLocale, AppError, Context, CsbContext, CsbStore, ElectoralDistrict, HtmlTemplate,
+    csb::examination::{
         extractors::CsbPoliticalGroup, pages::CsbCandidateListPath, structs::CsbCandidate,
-    }, filters, projection::WithCorrections, structs::{
-        candidate_lists::{CandidateList, CandidateListId}, common::PotentialProblems, csb::{CsbPhase, Omission}, problems::PersonProblems,
+    },
+    filters,
+    projection::WithCorrections,
+    structs::{
+        candidate_lists::{CandidateList, CandidateListId},
+        common::PotentialProblems,
+        csb::{CsbPhase, Omission},
+        problems::PersonProblems,
     },
 };
 
@@ -22,7 +29,7 @@ struct CsbCandidateListTemplate {
     scrapped_districts: Vec<ElectoralDistrict>,
     all_districts_scrapped: bool,
     list_problems: Vec<PotentialProblems>,
-    candidate_problems: Vec<PersonProblems>
+    candidate_problems: Vec<PersonProblems>,
 }
 
 pub async fn overview(
@@ -72,9 +79,8 @@ pub(in crate::csb) async fn render(
     let is_scrapped = scrapped.is_list_scrapped(list_id);
     let scrapped_districts = scrapped.list_districts(list_id).to_vec();
     let all_districts_scrapped = scrapped.all_list_districts_scrapped(list_id);
-    
-    let all_problems = store
-        .get_all_problems(context.election)?;
+
+    let all_problems = store.get_all_problems(context.election)?;
     let list_problems = all_problems
         .lists
         .per_list
@@ -95,7 +101,7 @@ pub(in crate::csb) async fn render(
             scrapped_districts,
             all_districts_scrapped,
             list_problems,
-            candidate_problems
+            candidate_problems,
         },
         context,
     )

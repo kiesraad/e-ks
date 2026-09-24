@@ -91,6 +91,7 @@ pub async fn overview(
 
 /// The candidate detail page, shared between the examination and the recovery
 /// ("Herstelde lijsten") phase.
+#[allow(clippy::too_many_lines)] // The length does not contribute much to the function complexity
 pub(in crate::csb) async fn render(
     list_id: CandidateListId,
     person_id: PersonId,
@@ -156,7 +157,7 @@ pub(in crate::csb) async fn render(
             recovery_position: store.get_recovery_position(list_id, person_id),
             scrapped_districts,
             all_districts_scrapped,
-            problems
+            problems,
         },
         context,
     )
