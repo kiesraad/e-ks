@@ -45,6 +45,14 @@ brp:
     residence_unknown: De verblijfplaats van deze kandidaat is onbekend in de BRP.
     residence_without_address: "Deze kandidaat heeft geen woonadres in de BRP (bijvoorbeeld een briefadres), waardoor de BRP geen woonplaats bevat."
     unparsable: "De waarde uit de BRP voor {} is niet te interpreteren en is daarom niet vergeleken: {}"
+  handled:
+    candidate: Kandidaat
+    count: "{} van {} afgehandeld"
+    explanation: "Markeer een BRP-fout als afgehandeld wanneer die geen probleem blijkt te zijn, of wanneer er een verzuim voor is toegevoegd."
+    finding: Fout
+    mark: Markeer als afgehandeld
+    title: BRP-fouten
+    undo: Ongedaan maken
   incomplete: Controle niet afgerond
   not_checked: Niet gecontroleerd
   refresh: Pagina verversen

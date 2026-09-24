@@ -143,7 +143,7 @@ mod tests {
         CsbAction, CsbStore,
         models::DOCX_CONTENT_TYPE,
         structs::{
-            brp::{BrpFinding, BrpStatus, BrpValue},
+            brp::{BrpFindingKind, BrpStatus, BrpValue},
             candidate_lists::CandidateListId,
             persons::PersonId,
         },
@@ -174,10 +174,11 @@ mod tests {
             .update(CsbAction::BrpPersonChecked {
                 person: ids[0],
                 findings: vec![
-                    BrpFinding::NotDutch,
-                    BrpFinding::Mismatch {
+                    BrpFindingKind::NotDutch.into(),
+                    BrpFindingKind::Mismatch {
                         brp_value: BrpValue::PlaceOfResidence("Utrecht".parse().unwrap()),
-                    },
+                    }
+                    .into(),
                 ],
             })
             .await

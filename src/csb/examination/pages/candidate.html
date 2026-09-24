@@ -60,6 +60,64 @@
   <section class="general-information">
     {% if political_group.mode.is_examination() %}
       {{ restorations::omission_panel("csb.omission.title_for.candidate"|trans(&candidate.name.display() ) , "csb.candidate.add_candidate_text"|trans, political_group.add_candidate_omission_path(candidate.id, list_id) , political_group.manage_candidate_omissions_path(candidate.id, list_id) , candidate_omissions.as_slice()) }}
+      {% if !brp.rows.is_empty() %}
+        <div class="examination-panel">
+          <div class="examination-panel-header">
+            <div>
+              <h2 class="h3">{{ "csb.brp.handled.title"|trans }}</h2>
+              <p>{{ "csb.brp.handled.explanation"|trans }}</p>
+            </div>
+            <div class="examination-panel-actions">
+              {% if brp.handled_count() == brp.rows.len() %}
+                <span class="restoration-tag restoration-tag-ok">{{ "csb.brp.handled.count"|trans(&brp.handled_count().to_string() , &brp.rows.len().to_string() ) }}</span>
+              {% else %}
+                <span class="restoration-tag restoration-tag-error">{{ "csb.brp.handled.count"|trans(&brp.handled_count().to_string() , &brp.rows.len().to_string() ) }}</span>
+              {% endif %}
+            </div>
+          </div>
+          <table class="detail-table brp-findings-table">
+            <thead>
+              <tr>
+                <th scope="col">{{ "person.personal_details"|trans }}</th>
+                <th scope="col">{{ "csb.brp.handled.finding"|trans }}</th>
+                <th scope="col"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in brp.rows %}
+                <tr {% if row.handled %}class="brp-finding-handled"{% endif %}>
+                  <td>
+                    {% if row.value.is_empty() %}
+                      {{ row.label }}
+                    {% else %}
+                      {{ row.label }}: <strong>{{ row.value }}</strong>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <ul class="restoration-tags">
+                      <li class="restoration-tag {% if row.handled %}restoration-tag-handled{% else %}restoration-tag-error{% endif %}">{{ row.message }}</li>
+                    </ul>
+                  </td>
+                  <td class="actions">
+                    <form method="post"
+                          data-keep-scroll
+                          action="{{ political_group.candidate_brp_finding_handled_path(list_id, candidate.id, row.index) }}">
+                      {{ macros::csrf_field() }}
+                      {% if row.handled %}
+                        <input type="hidden" name="handled" value="false">
+                        <button type="submit" class="button secondary xs">{{ "csb.brp.handled.undo"|trans }}</button>
+                      {% else %}
+                        <input type="hidden" name="handled" value="true">
+                        <button type="submit" class="button secondary xs">{{ "csb.brp.handled.mark"|trans }}</button>
+                      {% endif %}
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endif %}
     {% else %}
       {{ restorations::status_panel(political_group, "csb.omission.title_for.candidate"|trans(&candidate.name.display() ) , "csb.recovery.omissions_explanation"|trans, candidate_omissions.as_slice() , political_group.candidate_path(list_id, candidate.id)) }}
     {% endif %}

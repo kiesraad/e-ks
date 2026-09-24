@@ -63,7 +63,7 @@ mod tests {
     use crate::{
         CsbAction,
         structs::{
-            brp::{BrpFinding, BrpStatus, BrpValue},
+            brp::{BrpFindingKind, BrpStatus, BrpValue},
             candidate_lists::CandidateListId,
             persons::PersonId,
         },
@@ -107,10 +107,11 @@ mod tests {
             .update(CsbAction::BrpPersonChecked {
                 person: first,
                 findings: vec![
-                    BrpFinding::NotDutch,
-                    BrpFinding::Mismatch {
+                    BrpFindingKind::NotDutch.into(),
+                    BrpFindingKind::Mismatch {
                         brp_value: BrpValue::PlaceOfResidence("Amsterdam".parse().unwrap()),
-                    },
+                    }
+                    .into(),
                 ],
             })
             .await

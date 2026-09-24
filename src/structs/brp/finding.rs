@@ -153,13 +153,72 @@ impl std::fmt::Display for BrpLastName {
     }
 }
 
-/// One thing the BRP check found for a single candidate.
+/// One thing the BRP check found for a single candidate, with whether the
+/// committee has dealt with it.
 ///
 /// Findings are shown next to the candidate's data and are deliberately not
 /// turned into omissions: the committee first confirms a difference and may
 /// correct it ambtshalve, and only what remains becomes a verzuim.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum BrpFinding {
+#[serde(from = "BrpFindingRepr")]
+pub struct BrpFinding {
+    pub kind: BrpFindingKind,
+    /// Set by the committee once the finding needs no further attention: it
+    /// turned out not to be a problem, or an omission was added for it.
+    pub handled: bool,
+}
+
+/// Findings recorded before the flag existed are the bare kind; both forms are
+/// read.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum BrpFindingRepr {
+    Flagged {
+        kind: BrpFindingKind,
+        #[serde(default)]
+        handled: bool,
+    },
+    Bare(BrpFindingKind),
+}
+
+impl From<BrpFindingRepr> for BrpFinding {
+    fn from(repr: BrpFindingRepr) -> Self {
+        match repr {
+            BrpFindingRepr::Flagged { kind, handled } => Self { kind, handled },
+            BrpFindingRepr::Bare(kind) => Self::from(kind),
+        }
+    }
+}
+
+impl From<BrpFindingKind> for BrpFinding {
+    fn from(kind: BrpFindingKind) -> Self {
+        Self {
+            kind,
+            handled: false,
+        }
+    }
+}
+
+impl BrpFinding {
+    /// See [`BrpFindingKind::field`].
+    pub fn field(&self) -> Option<BrpCheckedField> {
+        self.kind.field()
+    }
+
+    /// See [`BrpFindingKind::brp_value`].
+    pub fn brp_value(&self) -> Option<&BrpValue> {
+        self.kind.brp_value()
+    }
+
+    /// See [`BrpFindingKind::message`].
+    pub fn message(&self, locale: Locale) -> String {
+        self.kind.message(locale)
+    }
+}
+
+/// What the BRP check found, apart from what the committee did with it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BrpFindingKind {
     /// The candidate's value differs from the value in the BRP.
     Mismatch { brp_value: BrpValue },
     /// The BRP value could not be interpreted, so nothing was compared. Kept
@@ -211,7 +270,7 @@ pub enum BrpFinding {
     ResidenceUnknown,
 }
 
-impl BrpFinding {
+impl BrpFindingKind {
     /// The candidate-detail field this finding belongs to, or `None` when it is
     /// about the candidate as a whole.
     pub fn field(&self) -> Option<BrpCheckedField> {
@@ -375,7 +434,7 @@ mod tests {
 
     #[test]
     fn the_not_allowed_message_lists_every_allowed_name() {
-        let finding = BrpFinding::LastNameNotAllowed {
+        let finding = BrpFindingKind::LastNameNotAllowed {
             allowed: vec![
                 name(Some("de"), "Bruin"),
                 name(None, "Jansen"),
@@ -390,5 +449,32 @@ mod tests {
             finding.message(Locale::Nl),
             "De achternaam mag volgens de BRP zijn: de Bruin, Jansen, de Bruin-Jansen, Jansen-de Bruin"
         );
+    }
+
+    #[test]
+    fn a_finding_recorded_before_the_handled_flag_still_reads() {
+        let bare: BrpFinding = serde_json::from_str(r#""NotDutch""#).unwrap();
+        assert_eq!(bare, BrpFinding::from(BrpFindingKind::NotDutch));
+
+        let bare: BrpFinding =
+            serde_json::from_str(r#"{"MissingInBrp":{"field":"Initials"}}"#).unwrap();
+        assert_eq!(
+            bare.kind,
+            BrpFindingKind::MissingInBrp {
+                field: BrpCheckedField::Initials
+            }
+        );
+        assert!(!bare.handled);
+    }
+
+    #[test]
+    fn the_handled_flag_survives_a_round_trip() {
+        let finding = BrpFinding {
+            kind: BrpFindingKind::BsnUnknown,
+            handled: true,
+        };
+        let json = serde_json::to_string(&finding).unwrap();
+        let read: BrpFinding = serde_json::from_str(&json).unwrap();
+        assert_eq!(read, finding);
     }
 }

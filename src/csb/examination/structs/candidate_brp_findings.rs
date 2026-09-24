@@ -5,19 +5,26 @@ use crate::{
     trans,
 };
 
+/// One finding as the candidate detail table tags it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BrpFindingTag {
+    pub message: String,
+    pub handled: bool,
+}
+
 /// The BRP findings for one candidate, grouped and translated the way the
 /// candidate detail table is laid out.
 #[derive(Debug, Default)]
 pub struct CandidateBrpFindings {
-    pub bsn: Vec<String>,
-    pub initials: Vec<String>,
-    pub last_name_prefix: Vec<String>,
-    pub last_name: Vec<String>,
-    pub gender: Vec<String>,
-    pub date_of_birth: Vec<String>,
-    pub place_of_residence: Vec<String>,
+    pub bsn: Vec<BrpFindingTag>,
+    pub initials: Vec<BrpFindingTag>,
+    pub last_name_prefix: Vec<BrpFindingTag>,
+    pub last_name: Vec<BrpFindingTag>,
+    pub gender: Vec<BrpFindingTag>,
+    pub date_of_birth: Vec<BrpFindingTag>,
+    pub place_of_residence: Vec<BrpFindingTag>,
     /// Findings about the candidate as a whole rather than about one row.
-    pub candidate: Vec<String>,
+    pub candidate: Vec<BrpFindingTag>,
 }
 
 impl CandidateBrpFindings {
@@ -25,7 +32,10 @@ impl CandidateBrpFindings {
         let mut grouped = Self::default();
 
         for finding in findings {
-            let message = finding.message(locale);
+            let message = BrpFindingTag {
+                message: finding.message(locale),
+                handled: finding.handled,
+            };
             let target = match finding.field() {
                 Some(BrpCheckedField::Bsn) => &mut grouped.bsn,
                 Some(BrpCheckedField::Initials) => &mut grouped.initials,
@@ -76,20 +86,22 @@ pub fn brp_incomplete_reason(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::structs::brp::BrpValue;
+    use crate::structs::brp::{BrpFindingKind, BrpValue};
 
     #[test]
     fn findings_are_grouped_onto_the_row_they_belong_to() {
         let grouped = CandidateBrpFindings::new(
             &[
-                BrpFinding::Mismatch {
+                BrpFindingKind::Mismatch {
                     brp_value: BrpValue::LastName("Bruin".parse().unwrap()),
-                },
-                BrpFinding::Mismatch {
+                }
+                .into(),
+                BrpFindingKind::Mismatch {
                     brp_value: BrpValue::LastNamePrefix("de".parse().unwrap()),
-                },
-                BrpFinding::ResidenceAbroad,
-                BrpFinding::NotDutch,
+                }
+                .into(),
+                BrpFindingKind::ResidenceAbroad.into(),
+                BrpFindingKind::NotDutch.into(),
             ],
             Locale::En,
         );

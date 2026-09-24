@@ -117,11 +117,12 @@ impl BrpCheckState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::structs::brp::BrpFindingKind;
 
     fn findings(entries: &[(PersonId, usize)]) -> HashMap<PersonId, Vec<BrpFinding>> {
         entries
             .iter()
-            .map(|(id, count)| (*id, vec![BrpFinding::NotDutch; *count]))
+            .map(|(id, count)| (*id, vec![BrpFindingKind::NotDutch.into(); *count]))
             .collect()
     }
 

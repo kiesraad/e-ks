@@ -76,6 +76,7 @@ event:
   logout: Uitgelogd
   paper_correction: Papieren correcties
   remove_candidate_from_list: Kandidaat van lijst verwijderd
+  set_brp_finding_handled: BRP-fout afgehandeld gezet
   set_brp_validation_state: BRP validatie status gezet
   set_finished: Afgerond gezet
   set_omission_part_status: Verzuimstatus per kieskring of lijst vastgelegd

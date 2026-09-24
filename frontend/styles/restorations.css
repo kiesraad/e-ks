@@ -212,6 +212,15 @@
   --restoration-tag-icon: url("../icons/checkmarkSmall.svg");
 }
 
+/* A BRP finding the committee dealt with: no problem, or an omission added. */
+.restoration-tag-handled {
+  --restoration-tag-bg: var(--base-white);
+  --restoration-tag-color: var(--gray-500);
+  --restoration-tag-icon: url("../icons/checkmarkSmall.svg");
+  border-radius: var(--rounded-md);
+  flex-direction: row-reverse;
+}
+
 /* The BRP check has not run, or did not cover every candidate. */
 .restoration-tag-pending {
   --restoration-tag-bg: var(--base-white);

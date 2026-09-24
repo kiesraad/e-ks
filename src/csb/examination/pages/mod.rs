@@ -5,8 +5,9 @@ use crate::AppRequestState;
 
 use super::paths::{
     CsbAddOmissionPath, CsbAllBrpFindingsPath, CsbAllRestorationsPath,
-    CsbAppellationCorrectionPath, CsbBrpCheckPath, CsbCandidateBrpCheckPath, CsbCandidateListPath,
-    CsbCandidatePath, CsbDeleteOmissionPath, CsbExaminationOverviewPath, CsbFinishExaminationPath,
+    CsbAppellationCorrectionPath, CsbBrpCheckPath, CsbCandidateBrpCheckPath,
+    CsbCandidateBrpFindingHandledPath, CsbCandidateListPath, CsbCandidatePath,
+    CsbDeleteOmissionPath, CsbExaminationOverviewPath, CsbFinishExaminationPath,
     CsbGeneralInformationPath, CsbI1DocxDownloadPath, CsbI1DownloadPath, CsbI4DocxDownloadPath,
     CsbI4DownloadPath, CsbOmissionLetterDocxDownloadPath, CsbOmissionLetterDownloadPath,
     CsbOmissionLetterPath, CsbOmissionLettersDownloadPath, CsbOmissionOverviewPath,
@@ -53,6 +54,7 @@ pub fn router<S: AppRequestState>() -> Router<S> {
         .typed_get(candidate_list::overview)
         .typed_get(candidate::overview)
         .typed_post(candidate::check_against_brp::<S>)
+        .typed_post(candidate::set_brp_finding_handled)
         .typed_get(omission::add_omission)
         .typed_post(omission::add_omission_submit)
         .typed_get(omission::overview)

@@ -7,7 +7,7 @@ use crate::{
     projection::WithCorrections,
     store::StoreRegistry,
     structs::{
-        brp::{BrpFinding, BrpStatus, BrpValue},
+        brp::{BrpFinding, BrpFindingKind, BrpStatus, BrpValue},
         candidate_lists::{CandidateList, CandidateListId},
         common::{Address, PreviousElectionResults},
         csb::{Omission, OmissionCategory, OmissionType, RegisteredPoliticalGroup},
@@ -275,18 +275,23 @@ async fn fixture_brp_check(store: &CsbStore) -> Result<(), AppError> {
     let findings_at = |position: usize| -> Vec<BrpFinding> {
         match position {
             0 => vec![
-                BrpFinding::Mismatch {
+                BrpFindingKind::Mismatch {
                     brp_value: BrpValue::PlaceOfResidence("Utrecht".parse().expect("locality")),
-                },
-                BrpFinding::Mismatch {
+                }
+                .into(),
+                BrpFindingKind::Mismatch {
                     brp_value: BrpValue::Initials("A.B.C.".parse().expect("initials")),
-                },
+                }
+                .into(),
             ],
-            1 => vec![BrpFinding::BsnUnknown],
-            2 => vec![BrpFinding::Deceased {
-                date_of_death: NaiveDate::from_ymd_opt(2025, 11, 3),
-            }],
-            3 => vec![BrpFinding::NotDutch],
+            1 => vec![BrpFindingKind::BsnUnknown.into()],
+            2 => vec![
+                BrpFindingKind::Deceased {
+                    date_of_death: NaiveDate::from_ymd_opt(2025, 11, 3),
+                }
+                .into(),
+            ],
+            3 => vec![BrpFindingKind::NotDutch.into()],
             _ => Vec::new(),
         }
     };

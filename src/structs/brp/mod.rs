@@ -6,6 +6,6 @@ mod status;
 
 pub use client::{BRP_BSN_BATCH_SIZE, BrpClient};
 pub use field::BrpField;
-pub use finding::{BrpCheckedField, BrpFinding, BrpLastName, BrpValue};
+pub use finding::{BrpCheckedField, BrpFinding, BrpFindingKind, BrpLastName, BrpValue};
 pub use person::BrpPerson;
 pub use status::BrpStatus;

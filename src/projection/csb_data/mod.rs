@@ -17,7 +17,7 @@ use crate::{
     ElectoralDistrict, PgEvent, PgStoreData, Scope,
     store::{StoreData, StoreEvent},
     structs::{
-        brp::{BrpFinding, BrpStatus},
+        brp::{BrpFinding, BrpFindingKind, BrpStatus},
         common::{Appellation, UtcDateTime},
         csb::{
             Correction, Omission, OmissionCategory, OmissionDecision, OmissionId, OmissionPart,
@@ -98,15 +98,15 @@ impl StoreData for CsbStoreData {
                 part,
                 status,
             } => self.set_omission_part_status(omission_id, part, status, event_id, event_time),
-            CsbAction::UpdateCorrection(correction) => {
-                if let Correction::Person(person_id, _) = &correction {
-                    self.forget_brp_check(*person_id);
-                }
-                self.apply_correction(correction)
-            }
+            CsbAction::UpdateCorrection(correction) => self.apply_correction(correction),
             CsbAction::BrpPersonChecked { person, findings } => {
                 self.brp_findings.insert(person, findings);
             }
+            CsbAction::SetBrpFindingHandled {
+                person,
+                finding,
+                handled,
+            } => self.set_brp_finding_handled(person, &finding, handled),
             CsbAction::SetBrpStatus(value) => self.brp_validation_status = value,
         }
 
@@ -134,6 +134,27 @@ impl CsbStoreData {
         self.imported_data = snapshot;
         self.paper_corrected_data = self.imported_data.clone();
         self.paper_corrected_data.apply(import);
+    }
+
+    /// Flag every finding of this candidate that is `finding`; a finding that
+    /// a re-check has since replaced is left alone.
+    fn set_brp_finding_handled(
+        &mut self,
+        person_id: PersonId,
+        finding: &BrpFindingKind,
+        handled: bool,
+    ) {
+        // `get_mut`, not `entry`: an unchecked candidate must not turn into a
+        // checked one with nothing found.
+        let Some(recorded) = self.brp_findings.get_mut(&person_id) else {
+            return;
+        };
+        for recorded in recorded
+            .iter_mut()
+            .filter(|recorded| recorded.kind == *finding)
+        {
+            recorded.handled = handled;
+        }
     }
 
     /// Forget what the BRP said about this candidate. Their data changed, so
@@ -276,7 +297,8 @@ impl CsbStoreData {
     }
 
     /// Record a CSB correction. Correcting a value back to the one already in
-    /// the paper-corrected projection undoes the correction instead.
+    /// the paper-corrected projection undoes the correction instead. A
+    /// corrected candidate is no longer checked against the BRP.
     fn apply_correction(&mut self, correction: Correction) {
         match correction {
             Correction::Appellation(appellation) => {
@@ -290,6 +312,7 @@ impl CsbStoreData {
                     };
             }
             Correction::Person(person_id, correction) => {
+                self.forget_brp_check(person_id);
                 self.apply_person_correction(person_id, correction)
             }
         }
@@ -767,7 +790,7 @@ mod brp_reset_tests {
     use super::*;
     use crate::{
         structs::{
-            brp::BrpFinding,
+            brp::BrpFindingKind,
             csb::{Correction, PersonCorrection},
         },
         test_utils::sample_person,
@@ -780,7 +803,7 @@ mod brp_reset_tests {
         store
             .update(CsbAction::BrpPersonChecked {
                 person: person.id,
-                findings: vec![BrpFinding::NotDutch],
+                findings: vec![BrpFindingKind::NotDutch.into()],
             })
             .await
             .unwrap();
@@ -899,5 +922,71 @@ mod brp_reset_tests {
 
         assert!(!store.is_brp_checked(person_id));
         assert_eq!(store.get_brp_status(), BrpStatus::NotStarted);
+    }
+
+    #[tokio::test]
+    async fn marking_a_finding_handled_flags_that_finding_only() {
+        let person = sample_person(crate::structs::persons::PersonId::new());
+        let person_id = person.id;
+        let store = crate::CsbStore::new_for_test();
+        store.add_person(person);
+        store
+            .update(CsbAction::BrpPersonChecked {
+                person: person_id,
+                findings: vec![
+                    BrpFindingKind::NotDutch.into(),
+                    BrpFindingKind::BsnUnknown.into(),
+                ],
+            })
+            .await
+            .unwrap();
+
+        store
+            .update(CsbAction::SetBrpFindingHandled {
+                person: person_id,
+                finding: BrpFindingKind::BsnUnknown,
+                handled: true,
+            })
+            .await
+            .unwrap();
+
+        let handled: Vec<bool> = store
+            .get_brp_findings_for_person(person_id)
+            .iter()
+            .map(|finding| finding.handled)
+            .collect();
+        assert_eq!(handled, vec![false, true]);
+
+        store
+            .update(CsbAction::SetBrpFindingHandled {
+                person: person_id,
+                finding: BrpFindingKind::BsnUnknown,
+                handled: false,
+            })
+            .await
+            .unwrap();
+        assert!(
+            store
+                .get_brp_findings_for_person(person_id)
+                .iter()
+                .all(|finding| !finding.handled)
+        );
+    }
+
+    #[tokio::test]
+    async fn marking_a_finding_of_an_unchecked_candidate_does_not_check_them() {
+        let store = crate::CsbStore::new_for_test();
+        let person_id = crate::structs::persons::PersonId::new();
+
+        store
+            .update(CsbAction::SetBrpFindingHandled {
+                person: person_id,
+                finding: BrpFindingKind::NotDutch,
+                handled: true,
+            })
+            .await
+            .unwrap();
+
+        assert!(!store.is_brp_checked(person_id));
     }
 }

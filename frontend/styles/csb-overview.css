@@ -416,6 +416,24 @@
   }
 }
 
+.brp-findings-table {
+  thead th:nth-child(3) {
+    width: 14rem;
+  }
+
+  td.actions {
+    text-align: right;
+
+    form {
+      display: inline-block;
+    }
+  }
+
+  tr.brp-finding-handled td:first-child {
+    color: var(--gray-500);
+  }
+}
+
 .restoration_count {
   display: inline-flex;
   position: relative;

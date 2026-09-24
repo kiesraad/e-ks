@@ -194,7 +194,7 @@ mod tests {
     async fn the_brp_value_is_offered_while_correcting_the_field_it_belongs_to() {
         use crate::{
             CsbAction,
-            structs::brp::{BrpFinding, BrpValue},
+            structs::brp::{BrpFindingKind, BrpValue},
         };
 
         let store = crate::CsbStore::new_for_test();
@@ -205,9 +205,12 @@ mod tests {
         store
             .update(CsbAction::BrpPersonChecked {
                 person: person_id,
-                findings: vec![BrpFinding::Mismatch {
-                    brp_value: BrpValue::PlaceOfResidence("Amsterdam".parse().unwrap()),
-                }],
+                findings: vec![
+                    BrpFindingKind::Mismatch {
+                        brp_value: BrpValue::PlaceOfResidence("Amsterdam".parse().unwrap()),
+                    }
+                    .into(),
+                ],
             })
             .await
             .unwrap();

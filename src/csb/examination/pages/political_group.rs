@@ -158,7 +158,7 @@ mod tests {
         AppState,
         csb::import::claim_sweep_for_test,
         structs::{
-            brp::{BrpFinding, BrpStatus},
+            brp::{BrpFindingKind, BrpStatus},
             candidate_lists::CandidateListId,
             csb::{Omission, OmissionCategory},
             persons::PersonId,
@@ -218,7 +218,7 @@ mod tests {
         store
             .update(CsbAction::BrpPersonChecked {
                 person: person_id,
-                findings: vec![BrpFinding::NotDutch],
+                findings: vec![BrpFindingKind::NotDutch.into()],
             })
             .await
             .unwrap();
@@ -247,7 +247,10 @@ mod tests {
             (person_id, Vec::new()),
             (
                 bystander_id,
-                vec![BrpFinding::NotDutch, BrpFinding::NotDutch],
+                vec![
+                    BrpFindingKind::NotDutch.into(),
+                    BrpFindingKind::NotDutch.into(),
+                ],
             ),
         ] {
             store
