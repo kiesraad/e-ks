@@ -8,13 +8,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     ElectionConfig, ElectoralDistrict,
-    form::ValidationError,
+    form::{ValidationError, validate_length, validate_multi_line_teletex_chars},
     id_newtype,
     structs::{
         candidate_lists::CandidateListId,
         common::{UtcDateTime, constrained_strings},
         persons::PersonId,
     },
+    transparent_string,
 };
 
 // constants to use for `as_str` and `from_str` implementations of `OmissionType`
@@ -29,9 +30,28 @@ id_newtype!(pub struct OmissionId);
 constrained_strings! {
     /// Short omission title shown in the pill/badge layout.
     pub struct OmissionTitle(max = 100, multiline = false);
+}
+
+transparent_string! {
     /// Free omission text: the model I 1 description or the omission letter
-    /// help text.
-    pub struct OmissionText(max = 2000, multiline = true);
+    /// help text. Rejects unfilled preset placeholders.
+    pub struct OmissionText(String);
+}
+
+impl FromStr for OmissionText {
+    type Err = ValidationError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        let normalized = value.replace("\r\n", "\n");
+        let trimmed_value = validate_length(&normalized, 1, 2000)?;
+        validate_multi_line_teletex_chars(&trimmed_value)?;
+
+        if trimmed_value.contains(['{', '}']) {
+            Err(Self::Err::ContainsPlaceholder)
+        } else {
+            Ok(Self(trimmed_value))
+        }
+    }
 }
 
 /// The kind of item an omission is added to, carried as a path parameter so a

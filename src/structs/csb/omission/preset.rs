@@ -62,7 +62,7 @@ impl super::OmissionType {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::structs::csb::omission::OmissionType;
+    use crate::{form::ValidationError, structs::csb::omission::OmissionType};
 
     #[test]
     fn presets_are_loaded_from_json_per_type() {
@@ -154,15 +154,24 @@ pub mod tests {
                     .title
                     .parse::<OmissionTitle>()
                     .unwrap_or_else(|e| panic!("preset title {:?}: {e:?}", preset.title));
-                preset
-                    .description
-                    .parse::<OmissionText>()
-                    .unwrap_or_else(|e| panic!("preset description {:?}: {e:?}", preset.title));
+
+                let omission_text = preset.description.parse::<OmissionText>();
+                if preset.description.contains(['{', '}']) {
+                    assert!(matches!(
+                        omission_text,
+                        Err(ValidationError::ContainsPlaceholder)
+                    ))
+                } else {
+                    assert!(omission_text.is_ok())
+                }
+
                 if !preset.help_text.is_empty() {
                     preset
                         .help_text
                         .parse::<OmissionText>()
-                        .unwrap_or_else(|e| panic!("preset help text {:?}: {e:?}", preset.title));
+                        .unwrap_or_else(|e| {
+                            panic!("preset help text {:?}: {e:?}", preset.help_text)
+                        });
                 }
             }
         }

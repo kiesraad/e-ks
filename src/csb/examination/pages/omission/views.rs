@@ -3,7 +3,7 @@ use axum_extra::routing::TypedPath;
 
 use crate::{
     AppError, Context, CsbStream, ElectoralDistrict, Overlay,
-    csb::examination::{OmissionForm, pages::CsbDeleteOmissionPath},
+    csb::examination::OmissionForm,
     filters,
     form::FormData,
     projection::WithCorrections,
@@ -66,10 +66,7 @@ pub(super) struct OmissionView {
 
 impl OmissionView {
     fn remove_url(&self, omission_target: &OmissionTarget) -> impl TypedPath {
-        CsbDeleteOmissionPath {
-            stream_id: omission_target.stream_id,
-            omission_id: self.omission.id,
-        }
+        omission_target.delete_url(self.omission.id)
     }
 }
 

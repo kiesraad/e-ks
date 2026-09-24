@@ -7,7 +7,7 @@ use axum::{
 use crate::{
     AppError, AppRequestState, Context,
     CsbAction::{self},
-    CsbContext, CsbStore, HtmlTemplate, Overlay, QueryParamState,
+    CsbContext, CsbStore, ElectoralDistrict, HtmlTemplate, Overlay, QueryParamState,
     csb::{
         examination::{
             extractors::CsbPoliticalGroup,
@@ -81,6 +81,17 @@ pub(in crate::csb) async fn render(
             is_paper_added: !from_original_import,
         });
     }
+
+    // Sort lists by minimal district region number
+    candidate_lists.sort_by_key(|csb_list| {
+        csb_list
+            .list
+            .electoral_districts
+            .iter()
+            .map(ElectoralDistrict::region_number)
+            .min()
+            .unwrap_or_default()
+    });
 
     // Over the candidates rather than over everyone the sweep touched: the
     // snapshot also holds people who stand on no list at all.

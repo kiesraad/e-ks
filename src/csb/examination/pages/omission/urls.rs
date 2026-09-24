@@ -4,11 +4,11 @@ use crate::{
     StreamId,
     csb::examination::{
         extractors::CsbPoliticalGroup,
-        pages::{CsbAddOmissionPath, CsbOmissionOverviewPath},
+        pages::{CsbAddOmissionPath, CsbDeleteOmissionPath, CsbOmissionOverviewPath},
     },
     structs::{
         candidate_lists::CandidateListId,
-        csb::{OmissionCategory, OmissionType},
+        csb::{OmissionCategory, OmissionId, OmissionType},
         persons::PersonId,
     },
 };
@@ -79,24 +79,52 @@ impl OmissionTarget {
             self.list,
         )
     }
+
+    /// The URL of the remove action for an omission listed on this overview,
+    /// carrying the candidate list the overview is for
+    pub(super) fn delete_url(&self, omission_id: OmissionId) -> impl TypedPath {
+        let list = match self.omission_type {
+            OmissionType::CandidateList => Some(CandidateListId::from(self.reference)),
+            _ => self.list,
+        };
+        with_context(
+            CsbDeleteOmissionPath {
+                stream_id: self.stream_id,
+                omission_id,
+            },
+            list,
+        )
+    }
 }
 
 /// The overview URL to return to after removing an omission, derived from its
 /// category so the redirect lands on the overview the omission was listed on.
-pub(super) fn overview_url_for(category: &OmissionCategory, stream_id: StreamId) -> impl TypedPath {
+/// An omission can apply to several candidate lists, so the list the overview
+/// was opened for is passed along; otherwise the first list is used.
+pub(super) fn overview_url_for(
+    category: &OmissionCategory,
+    stream_id: StreamId,
+    list: Option<CandidateListId>,
+) -> impl TypedPath {
+    let pick_list = |lists: &[CandidateListId]| {
+        list.filter(|list| lists.contains(list))
+            .or_else(|| lists.first().copied())
+    };
     let target = match category {
         OmissionCategory::Candidate { person, lists } => OmissionTarget {
             stream_id,
             omission_type: OmissionType::Candidate,
             reference: (*person).into(),
-            list: lists.first().copied(),
+            list: pick_list(lists),
         },
-        OmissionCategory::CandidateList(lists) if !lists.is_empty() => OmissionTarget {
-            stream_id,
-            omission_type: OmissionType::CandidateList,
-            reference: lists[0].into(),
-            list: None,
-        },
+        OmissionCategory::CandidateList(lists) if let Some(list) = pick_list(lists) => {
+            OmissionTarget {
+                stream_id,
+                omission_type: OmissionType::CandidateList,
+                reference: list.into(),
+                list: None,
+            }
+        }
         OmissionCategory::DeclarationsOfSupport(_) => OmissionTarget {
             stream_id,
             omission_type: OmissionType::DeclarationsOfSupport,

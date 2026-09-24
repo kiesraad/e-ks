@@ -8,13 +8,6 @@ function setValue(
   }
 }
 
-function updatePlaceholderWarning(
-  description: HTMLTextAreaElement,
-  warning: HTMLElement,
-) {
-  warning.classList.toggle("hidden", !description.value.includes("{"));
-}
-
 // Only recoverable omissions reach the omission letter, so the letter note
 // is read-only while the omission is marked irreparable.
 function syncHelpText(
@@ -40,21 +33,15 @@ export default function omissionPreset() {
   const recoverable = document.querySelector<HTMLInputElement>(
     "[data-omission-recoverable]",
   );
-  const warning = document.querySelector<HTMLElement>(
-    "[data-omission-placeholder-warning]",
+  const noLetterWarning = document.querySelector<HTMLElement>(
+    "[data-omission-no-letter-warning]",
   );
 
-  if (!description || !warning) {
-    return;
-  }
-
-  description.addEventListener("input", () =>
-    updatePlaceholderWarning(description, warning),
-  );
-
-  recoverable?.addEventListener("change", () =>
-    syncHelpText(helpText, recoverable),
-  );
+  // Only warn on a manual uncheck, not when a preset is irreparable.
+  recoverable?.addEventListener("change", () => {
+    syncHelpText(helpText, recoverable);
+    noLetterWarning?.classList.toggle("hidden", recoverable.checked);
+  });
   syncHelpText(helpText, recoverable);
 
   document
@@ -62,15 +49,14 @@ export default function omissionPreset() {
     .forEach((button) => {
       button.addEventListener("click", () => {
         setValue(title, button.dataset.title);
-
+        noLetterWarning?.classList.add("hidden");
         setValue(description, button.dataset.description);
-        updatePlaceholderWarning(description, warning);
         setValue(helpText, button.dataset.helpText);
         if (recoverable) {
           recoverable.checked = button.dataset.recoverable !== "false";
           syncHelpText(helpText, recoverable);
         }
-        description.focus();
+        description?.focus();
       });
     });
 }

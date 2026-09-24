@@ -101,6 +101,7 @@
     &.error,
     &:has(.error:not(.hidden)) {
       input:not(.date-separate input):not([type="checkbox"]),
+      textarea,
       .date-separate {
         border-color: var(--color-error-darker);
         background-image: url("../icons/error.svg");
