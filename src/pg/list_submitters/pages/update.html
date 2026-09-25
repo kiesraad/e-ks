@@ -1,5 +1,8 @@
 {% extends "pg/common/components/overlay.html" %}
 {% set close_action = ListSubmitter::view_path() %}
+{% block overlay_attributes %}
+  {% if is_new %}data-create{% endif %}
+{% endblock %}
 {% block overlay_title %}{{ "political_group.edit_list_submitter"|trans }}{% endblock %}
 {% block overlay_steps %}<div class="steps-nav"></div>{% endblock %}
 {% block overlay_form %}

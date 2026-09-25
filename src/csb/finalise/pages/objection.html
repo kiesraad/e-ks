@@ -1,4 +1,7 @@
 {% extends "csb/components/overlay.html" %}
+{% block overlay_attributes %}
+  {% if objection.is_none() %}data-create{% endif %}
+{% endblock %}
 {% block overlay_title %}
   {% if objection.is_some() %}
     {{ "csb.objection.form.update_title"|trans }}
