@@ -7,10 +7,9 @@
     <meta name="keywords" content="{{ "common.keywords"|trans }}" />
     <title>{{ "common.title"|trans }}</title>
     <link rel="icon" href="/static/favicon.svg" />
-    <link rel="stylesheet"
-          href="/static/{{ filters::cache_buster() }}-index.css" />
+    <link rel="stylesheet" href="{{ filters::asset_path("/index.css") }}" />
     {% if Context::livereload_enabled() %}<script src="/livereload/poll.js"></script>{% endif %}
-    <script src="/static/{{ filters::cache_buster() }}-index.js" defer></script>
+    <script src="{{ filters::asset_path("/index.js") }}" defer></script>
     {% block head_extra %}{% endblock %}
   </head>
   <body class="{% block body_class %}{% endblock %}">

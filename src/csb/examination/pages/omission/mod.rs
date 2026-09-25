@@ -316,13 +316,14 @@ pub async fn delete_omission(
     path: CsbDeleteOmissionPath,
     store: CsbStore,
     Query(query): Query<QueryParamState>,
+    Query(list_query): Query<OmissionListQuery>,
 ) -> Result<Response, AppError> {
     let CsbDeleteOmissionPath {
         stream_id,
         omission_id,
     } = path;
     let omission = store.get_omission(omission_id)?;
-    let overview = overview_url_for(&omission.category, stream_id);
+    let overview = overview_url_for(&omission.category, stream_id, list_query.list);
     omission.delete(&store).await?;
     Ok(Redirect::to(
         &overview
@@ -366,6 +367,16 @@ mod tests {
     /// renders on separate lines.
     fn normalized(body: &str) -> String {
         body.split_whitespace().collect::<Vec<_>>().join(" ")
+    }
+
+    /// The rendered district checkbox up to its value attribute, so a test can
+    /// append what should follow (e.g. ` disabled`).
+    fn district_checkbox(district: ElectoralDistrict) -> String {
+        format!(
+            r#"id="omission_district_{}" value="{}""#,
+            district.code(),
+            district.serde_name()
+        )
     }
 
     #[tokio::test]
@@ -427,6 +438,12 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
+        assert_eq!(
+            // One for: logout, language selection and create list
+            body.matches(r#"input type="hidden" name="csrf_token""#)
+                .count(),
+            3,
+        );
         assert!(body.contains("name=\"csrf_token\""));
         assert!(body.contains("name=\"title\""));
         assert!(body.contains("name=\"description\""));
@@ -494,9 +511,12 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let body = normalized(&response_body_string(response).await);
         // The corrected districts are selectable, the replaced district is disabled
-        assert!(body.contains(r#"data-district-nl="Groningen" />"#));
-        assert!(body.contains(r#"data-district-nl="Fryslân" />"#));
-        assert!(body.contains(r#"data-district-nl="Utrecht" disabled />"#));
+        assert!(body.contains(&district_checkbox(ElectoralDistrict::Groningen)));
+        assert!(body.contains(&district_checkbox(ElectoralDistrict::Fryslan)));
+        assert!(body.contains(&format!(
+            "{} disabled",
+            district_checkbox(ElectoralDistrict::Utrecht)
+        )));
     }
 
     #[tokio::test]
@@ -530,14 +550,14 @@ mod tests {
 
         // With only one district the selector is hidden
         let body = render(store.clone()).await;
-        assert!(!body.contains("data-district-nl"));
+        assert!(!body.contains("omission_district_"));
         // A second list in Drenthe shows the selector
         let mut list2 = sample_candidate_list(CandidateListId::new());
         list2.electoral_districts = BTreeSet::from([crate::ElectoralDistrict::Drenthe]);
         store.set_paper_corrected_candidate_list(list2);
         let body = render(store.clone()).await;
-        assert!(body.contains(r#"data-district-nl="Utrecht" />"#));
-        assert!(body.contains(r#"data-district-nl="Drenthe" />"#));
+        assert!(body.contains(&district_checkbox(ElectoralDistrict::Utrecht)));
+        assert!(body.contains(&district_checkbox(ElectoralDistrict::Drenthe)));
     }
 
     #[tokio::test]
@@ -763,6 +783,7 @@ mod tests {
             },
             store.clone(),
             Query(QueryParamState::default()),
+            Query(OmissionListQuery::default()),
         )
         .await
         .unwrap()
@@ -786,6 +807,72 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn delete_omission_returns_to_the_list_the_overview_was_opened_for() {
+        let store = CsbStore::new_for_test();
+        let stream_id = store.stream_id;
+        let first_list = CandidateListId::new();
+        let second_list = CandidateListId::new();
+        store.add_candidate_list(sample_candidate_list(first_list));
+        store.add_candidate_list(sample_candidate_list(second_list));
+
+        let omission = Omission::new(
+            OmissionCategory::CandidateList(vec![first_list, second_list]),
+            "Waarborgsom ontbreekt".parse().unwrap(),
+            "De waarborgsom ontbreekt.".parse().unwrap(),
+            None,
+        );
+        omission.create(&store).await.unwrap();
+
+        // The remove button on the second list's overview carries that list
+        let response = overview(
+            CsbOmissionOverviewPath {
+                stream_id,
+                omission_type: OmissionType::CandidateList,
+                reference: second_list.into(),
+            },
+            CsbContext::new_test(),
+            store.clone(),
+            Query(QueryParamState::default()),
+            Query(OmissionListQuery::default()),
+        )
+        .await
+        .unwrap()
+        .into_response();
+        let body = response_body_string(response).await;
+        assert!(body.contains(&format!(
+            // Askama escapes the `&` that `with_query_params` emits.
+            "/csb/examination/{stream_id}/delete-omission/{}?&#38;list={second_list}",
+            omission.id
+        )));
+
+        let response = delete_omission(
+            CsbDeleteOmissionPath {
+                stream_id,
+                omission_id: omission.id,
+            },
+            store.clone(),
+            Query(QueryParamState::default()),
+            Query(OmissionListQuery {
+                list: Some(second_list),
+            }),
+        )
+        .await
+        .unwrap()
+        .into_response();
+
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        let location = response
+            .headers()
+            .get("Location")
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert!(location.contains(&format!(
+            "/csb/examination/{stream_id}/omission/candidate-list/{second_list}/overview"
+        )));
+    }
+
+    #[tokio::test]
     async fn delete_omission_preserves_the_redirect_to() {
         let store = CsbStore::new_for_test();
         let stream_id = store.stream_id;
@@ -806,6 +893,7 @@ mod tests {
             },
             store.clone(),
             Query(QueryParamState::redirect_to("/back/here".to_string())),
+            Query(OmissionListQuery::default()),
         )
         .await
         .unwrap()
@@ -1007,6 +1095,51 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         assert!(store.get_political_group_omissions().is_empty());
+    }
+
+    #[tokio::test]
+    async fn declarations_dialog_fills_district_tokens_for_a_single_district() {
+        let store = CsbStore::new_for_test();
+        let stream_id = store.stream_id;
+        let list_id = CandidateListId::new();
+        let mut list = sample_candidate_list(list_id);
+        list.electoral_districts = BTreeSet::from([ElectoralDistrict::Utrecht]);
+        store.add_candidate_list(list);
+
+        let render = |store| async move {
+            let response = add_omission(
+                CsbAddOmissionPath {
+                    stream_id,
+                    omission_type: OmissionType::DeclarationsOfSupport,
+                    reference: stream_id.into(),
+                },
+                CsbContext::new_test(),
+                store,
+                Query(QueryParamState::default()),
+                Query(OmissionListQuery::default()),
+            )
+            .await
+            .unwrap()
+            .into_response();
+            normalized(&response_body_string(response).await)
+        };
+
+        // The selector is hidden, so the presets name the only district
+        let body = render(store.clone()).await;
+        assert!(body.contains("Dit betreft de kieskring Utrecht."));
+        assert!(body.contains("Dit betreft de kieskring(en) Utrecht."));
+        assert!(!body.contains("{district"));
+
+        // With a second district the tokens are left for the dialog to fill
+        // from the district checkboxes, which carry the Dutch names
+        let mut list2 = sample_candidate_list(CandidateListId::new());
+        list2.electoral_districts = BTreeSet::from([ElectoralDistrict::Drenthe]);
+        store.add_candidate_list(list2);
+        let body = render(store.clone()).await;
+        assert!(body.contains("Dit betreft de kieskring {district}."));
+        assert!(body.contains("Dit betreft de kieskring(en) {districts}."));
+        assert!(body.contains(r#"data-district-nl="Utrecht""#));
+        assert!(body.contains(r#"data-district-nl="Drenthe""#));
     }
 
     #[tokio::test]

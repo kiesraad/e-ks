@@ -5,15 +5,16 @@ actions:
   add_new: Nieuw
   back_to_list: Terug
   delete_list: Kandidatenlijst verwijderen
-  edit: Aanpassen
   export_csv: Download CSV bestand
   export_csv_template: Download CSV sjabloon
+  import: Importeren
   import_csv: Upload CSV bestand
   import_export: Import en export kandidatenlijst
   select_all_candidate_lists: Selecteer alle kandidatenlijsten
   select_all_districts: Selecteer alle kieskringen
 add_all: Alle kandidaten toevoegen
 add_candidate: Kandidaat toevoegen
+add_list_note: "Bij de {} is het mogelijk om in verschillende kieskringen met verschillende kandidatenlijsten mee te doen. Let op, de kieskringen moeten per lijst uniek zijn."
 all_candidates: Adresboek
 all_candidates_note: Kandidaten die u heeft aangemaakt vindt u hier terug
 candidate:
@@ -24,7 +25,8 @@ candidate_list_description:
   add_candidate_list: Maak kandidatenlijst(en) aan
 districts:
   all: Alle
-  duplicate_hint: Een of meerdere kieskringen komen op meerdere kandidatenlijsten voor
+  duplicate_warning: U heeft kieskring(en) in meerdere kandidatenlijsten geselecteerd
+  select_hint: Kies hier voor welke gebieden je deze lijst inlevert
 edit_position: Volgorde op de lijst
 errors:
   candidate_set_changed: Bij het herordenen kan alleen de volgorde van de huidige kandidaten veranderen.
@@ -32,6 +34,9 @@ errors:
 fields:
   electoral_districts: Kieskringen
   position: Positie
+finalise_nav:
+  action: Ga naar afronden
+  question: Zijn alle kandidaten en kandidatenlijst(en) toegevoegd?
 form:
   copy_candidates_from_previous: Kopieer kandidaten van de laatst aangemaakte lijst
   copy_candidates_from_previous_legend: Kopieer kandidaten
@@ -39,7 +44,7 @@ form:
     title: Kandidatenlijst aanmaken
   delete_warning_text: Weet u zeker dat u deze kandidatenlijst wilt verwijderen?
   update:
-    title: Kandidatenlijst aanpassen
+    title: Kieskringen beheren
 import_errors:
   csv:
     deserialize: "een van de waarden in deze rij heeft niet het juiste formaat. {}"
@@ -63,11 +68,13 @@ import_errors:
   too_many_errors: "Het bestand bevat te veel fouten. Alleen de eerste {} fouten worden hier getoond; herstel deze en probeer het opnieuw."
   upload_failed: Het bestand kon niet worden geüpload. Probeer het opnieuw.
 import_export:
+  export_intro: Wil je deze lijst downloaden naar een CSV-bestand om vervolgens verder te werken in Excel?
   export_title: Exporteren
   import_failed: Importeren niet gelukt
   import_instructions: "<strong>Kopregels</strong><br> Gebruik de correcte kolomnamen. Download het export-CSV-bestand en gebruik dit als sjabloon.<br><br> <strong>Volgorde</strong><br> De volgorde van personen in het CSV-bestand bepaalt de volgorde op de kandidatenlijst.<br><br> <strong>Verplichte velden</strong><br> Minimaal de volgende velden moeten ingevuld zijn:<ul> <li>Voorletters</li> <li>Achternaam</li> </ul> <strong>Geboortedatum</strong><br> Gebruik het formaat <code>dd-mm-jjjj</code> (bijvoorbeeld: 31-12-1990).<br><br> <strong>Geslacht</strong><br> Alleen de volgende waarden worden geaccepteerd:<ul> <li><code>female</code> | <code>vrouw</code> | <code>f</code> | <code>v</code></li> <li><code>male</code> | <code>man</code> | <code>m</code></li> </ul> <strong>Adresgegevens</strong><br> Er zijn twee typen adressen:<ul> <li>Vul het <strong>correspondentie\u00ADadres</strong> in als de persoon in Nederland woont.</li> <li>Woont de persoon niet in Nederland, vul dan de gegevens van de <strong>gemachtigde</strong> in.</li> </ul> <strong>Postcode</strong><br> Gebruik het formaat <code>1234AB</code>"
   import_instructions_header: CSV-import instructies kandidatenlijst
   import_instructions_intro: "Gebruik een CSV-bestand om kandidaten naar deze lijst te importeren. Het bestand moet aan de volgende eisen voldoen:"
+  import_intro: "Upload je eigen kandidatenlijst, bekijk hieronder waar het bestand aan moet voldoen"
   import_title: Importeren
   overwrite_title: Let op!
 import_warning: Deze lijst bevat al kandidaten. Het importeren van kandidaten zal de huidige kandidaten in deze lijst overschrijven. Weet u zeker dat u door wilt gaan?

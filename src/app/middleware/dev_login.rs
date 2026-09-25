@@ -238,9 +238,8 @@ mod tests {
     use secrecy::SecretString;
 
     use crate::{
-        AppState, CsbAction, CsbMainAction, CsbMainEvent, CsbUser, ElectionConfig, Locale, PgEvent,
-        PgStore, Scope, Session, StreamId, router, store::StoreEvent,
-        test_utils::response_body_string,
+        AppState, CsbMainAction, CsbMainEvent, CsbUser, ElectionConfig, Locale, PgEvent, PgStore,
+        Scope, Session, StreamId, router, store::StoreEvent, test_utils::response_body_string,
     };
 
     const TEST_ID_CODE: &str = "999999990";
@@ -553,8 +552,15 @@ mod tests {
             .await
             .expect("csb stores");
 
-        assert_eq!(csb_stores.len(), 1);
-        let csb_store = &csb_stores[0];
+        // Several groups are imported; the demo group carries the omissions.
+        assert!(csb_stores.len() > 1);
+        let csb_store = csb_stores
+            .iter()
+            .find(|store| {
+                store.get_appellation(crate::projection::WithCorrections::None)
+                    == "Beweging Losse Eindjes"
+            })
+            .expect("the fixture group with omissions");
 
         let events = csb_store.data.read().events.clone();
         // The import comes first, followed by the fixture omissions.
@@ -563,14 +569,14 @@ mod tests {
         assert!(
             omissions
                 .iter()
-                .all(|event| matches!(event.payload.action, CsbAction::CreateOmission(_)))
+                .all(|event| matches!(event.payload.action, crate::CsbAction::CreateOmission(_)))
         );
 
         let event = event.clone();
         let StoreEvent {
             payload:
                 crate::CsbEvent {
-                    action: CsbAction::Import { hash, snapshot, .. },
+                    action: crate::CsbAction::Import { hash, snapshot, .. },
                     ..
                 },
             ..

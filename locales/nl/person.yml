@@ -31,12 +31,13 @@ form:
   delete_warning_text: Weet je zeker dat je deze kandidaat wilt verwijderen?
 hints:
   country: "Voor een kandidaat die geen Nederlands correspondentie\u00ADadres heeft, is een gemachtigde nodig."
-  country_code: "Een lijst met landen en bijhorende landcodes vindt u <a href={}>hier</a>."
+  country_code: "Een lijst met landen en bijhorende landcodes <a href={}>vindt u hier</a>."
   first_name: Alleen invullen als dit op de kandidatenlijst moet worden weergegeven.
   gender: Alleen invullen als dit op de kandidatenlijst moet worden weergegeven.
   optional: optioneel
 list:
   empty: Geen kandidaten gevonden.
+  subtitle: Hier worden alle toegevoegde kandidaten opgeslagen.
 no_bsn_confirm: Ik bevestig dat deze persoon geen BSN heeft.
 not_found: "Persoon {} niet gevonden."
 not_found_in_candidate_list: Kandidaat niet gevonden in kandidatenlijst.

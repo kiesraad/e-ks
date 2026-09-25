@@ -78,7 +78,7 @@
         <div class="restoration-strip">
           <ul class="restoration-tags">
             <li>
-              <span class="restoration-tag restoration-tag-pending">{{ reason }}</span>
+              <span class="restoration-tag {% if brp.running %}restoration-tag-running{% else %}restoration-tag-pending{% endif %}">{{ reason }}</span>
             </li>
           </ul>
         </div>

@@ -5,6 +5,7 @@
 use super::{
     Pdf,
     eml::eml210::eml210,
+    fonts,
     h1::H1,
     h3::H3,
     h4::H4,
@@ -13,6 +14,7 @@ use super::{
         DetailedCandidate, ElectoralDistricts, ModelData, NameAuthorisation, Person,
         ordered_candidates,
     },
+    render_blocking,
 };
 use crate::{
     AppError, Context, ElectionConfig, PgStore,
@@ -30,6 +32,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use eks_utils::slugify_teletex;
+use textris_pdf::build::Bundle;
 use tokio::io::duplex;
 use tokio_util::io::ReaderStream;
 use tracing::error;
@@ -341,22 +344,7 @@ impl DocumentData {
             Self::add_model(writer, &self.zip_path(h4.filename()), h4).await?;
         }
 
-        for candidate in self.detailed_candidates.iter() {
-            let h9 = H9 {
-                common: self.model_data.clone(),
-                electoral_districts: self.electoral_districts.clone(),
-                detailed_candidate: candidate.clone(),
-            };
-            let path = self.zip_path(format!(
-                "h9-{}/{}",
-                match self.model_data.locale {
-                    ModelLocale::Nl => "instemmingsverklaringen",
-                    ModelLocale::Fry => "ynstimmingsferklearrings",
-                },
-                h9.filename()
-            ));
-            Self::add_model(writer, &path, h9).await?;
-        }
+        self.write_h9s(writer).await?;
 
         writer
             .add_file(
@@ -364,6 +352,46 @@ impl DocumentData {
                 &self.nomination,
             )
             .await?;
+
+        Ok(())
+    }
+
+    async fn write_h9s(
+        &self,
+        writer: &mut ZipResponseWriter<tokio::io::DuplexStream>,
+    ) -> Result<(), AppError> {
+        let (h9_folder, h9_bundle_title) = match self.model_data.locale {
+            ModelLocale::Nl => (
+                "h9-instemmingsverklaringen",
+                "Model H 9 - Instemmingsverklaringen",
+            ),
+            ModelLocale::Fry => (
+                "h9-ynstimmingsferklearrings",
+                "Model H 9 - Ynstimmingsferklearrings",
+            ),
+        };
+
+        let mut h9_bundle = Bundle::new();
+        h9_bundle.title(h9_bundle_title);
+
+        for candidate in self.detailed_candidates.iter() {
+            let h9 = H9 {
+                common: self.model_data.clone(),
+                electoral_districts: self.electoral_districts.clone(),
+                detailed_candidate: candidate.clone(),
+            };
+            let path = self.zip_path(format!("{h9_folder}/{}", h9.filename()));
+            let document = h9.document()?;
+            h9_bundle.push(&document);
+            let bytes = render_blocking(move || document.render(fonts())).await?;
+            writer.add_file(&path, &bytes).await?;
+        }
+
+        if !h9_bundle.documents().is_empty() {
+            let path = self.zip_path(format!("{h9_folder}.pdf"));
+            let bytes = render_blocking(move || h9_bundle.render(fonts())).await?;
+            writer.add_file(&path, &bytes).await?;
+        }
 
         Ok(())
     }

@@ -47,9 +47,9 @@
             <div class="checkbox {% if !available_districts.contains(&d) %}disabled{% endif %}">
               <input type="checkbox"
                      name="electoral_districts"
+                     data-district-nl="{{ d.title() }}"
                      id="omission_district_{{ d.code() }}"
                      value="{{ d.serde_name() }}"
-                     data-district-nl="{{ d.title() }}"
                      {% if form.data.electoral_districts.contains(&d) %}checked{% endif %}
                      {% if !available_districts.contains(&d) %}disabled{% endif %} />
               <label for="omission_district_{{ d.code() }}">{{ d|district_name }}</label>
@@ -103,7 +103,6 @@
                     rows="5"
                     data-omission-description>{{ form.data.description }}</textarea>
           {% for error in form|error("description") %}<span class="error">{{ error }}</span>{% endfor %}
-          <span class="warning hidden" data-omission-placeholder-warning>{{ "csb.omission.form.placeholder_warning"|trans }}</span>
         </p>
       </div>
       <div class="form-row">
@@ -129,6 +128,7 @@
                    {% if form.data.recoverable %}checked{% endif %} />
             <label for="recoverable">{{ "csb.omission.form.recoverable_label"|trans }}</label>
           </div>
+          <span class="warning hidden" data-omission-no-letter-warning>{{ "csb.omission.form.no_omission_letter_hint"|trans }}</span>
           <span class="hint">{{ "csb.omission.form.recoverable_hint"|trans }}</span>
         </div>
       </div>

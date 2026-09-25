@@ -45,8 +45,8 @@ pub async fn index(
 
         (problems.len() + general_infos.len(), severity_class)
     };
-    let mut list_problems =
-        AllProblems::find_list_problems(&CandidateListSummary::list(&store), &store);
+    let candidate_lists = CandidateListSummary::list(&store);
+    let mut list_problems = AllProblems::find_list_problems(&candidate_lists, &store);
 
     // Don't show NoCandidateList problem on the home page, only on the finalise page
     list_problems
@@ -55,7 +55,11 @@ pub async fn index(
 
     let (problematic_lists, general_list_problems, problematic_lists_severity) =
         if list_problems.is_empty() {
-            (0, 0, "")
+            let all_lists_usable = !candidate_lists.is_empty()
+                && candidate_lists.iter().all(|list| list.is_usable(&store));
+            let severity_class = if all_lists_usable { "success" } else { "" };
+
+            (0, 0, severity_class)
         } else {
             let list_count = list_problems.per_list.len();
             let general_count = list_problems.general.len();
@@ -82,14 +86,32 @@ pub async fn index(
 mod tests {
     use super::*;
 
+    use std::collections::BTreeSet;
+
     use axum_extra::routing::TypedPath;
 
     use crate::{
-        ElectionConfig, QueryParamState,
+        AppError, ElectionConfig, ElectoralDistrict, QueryParamState,
         core::AnyLocale,
-        structs::{list_designation::ListDesignation, political_groups::PoliticalGroup},
-        test_utils::{response_body_string, sample_political_group},
+        structs::{
+            candidate_lists::CandidateListId, list_designation::ListDesignation, persons::PersonId,
+            political_groups::PoliticalGroup,
+        },
+        test_utils::{
+            response_body_string, sample_candidate_list, sample_person, sample_political_group,
+        },
     };
+
+    async fn render_index(store: PgStore) -> String {
+        let response = index(PgIndexPath, Context::new_test_from_store(&store), store)
+            .await
+            .into_response();
+        response_body_string(response).await
+    }
+
+    fn candidate_list_badge(severity: &str) -> String {
+        format!("badge badge-candidates-list {severity}")
+    }
 
     #[tokio::test]
     async fn index_renders_html() {
@@ -149,5 +171,85 @@ mod tests {
 
         assert!(!body.contains(&general_information_card_link(true)));
         assert!(body.contains(&general_information_card_link(false)));
+    }
+
+    #[tokio::test]
+    async fn candidate_list_card_is_success_with_one_candidate() -> Result<(), AppError> {
+        let store = PgStore::new_for_test();
+        let person = sample_person(PersonId::new());
+        person.create(&store).await?;
+
+        let mut list = sample_candidate_list(CandidateListId::new());
+        list.candidates = vec![person.id];
+        list.create(&store).await?;
+
+        let body = render_index(store).await;
+        assert!(body.contains(&candidate_list_badge("success")));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn candidate_list_card_is_not_success_without_candidate_lists() {
+        let store = PgStore::new_for_test();
+
+        let body = render_index(store).await;
+        assert!(body.contains(&candidate_list_badge("")));
+    }
+
+    #[tokio::test]
+    async fn candidate_list_card_is_not_success_without_candidates() -> Result<(), AppError> {
+        let store = PgStore::new_for_test();
+        sample_candidate_list(CandidateListId::new())
+            .create(&store)
+            .await?;
+
+        let body = render_index(store).await;
+        assert!(!body.contains(&candidate_list_badge("success")));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn candidate_list_card_is_warning_when_another_list_has_a_candidate_error()
+    -> Result<(), AppError> {
+        let store = PgStore::new_for_test();
+        let person = sample_person(PersonId::new());
+        person.create(&store).await?;
+
+        let mut list = sample_candidate_list(CandidateListId::new());
+        list.candidates = vec![person.id];
+        list.create(&store).await?;
+
+        let mut other_person = sample_person(PersonId::new());
+        other_person.personal_data.date_of_birth = None;
+        other_person.create(&store).await?;
+
+        let mut other_list = sample_candidate_list(CandidateListId::new());
+        other_list.candidates = vec![other_person.id];
+        other_list.electoral_districts = BTreeSet::from([ElectoralDistrict::Groningen]);
+        other_list.create(&store).await?;
+
+        let body = render_index(store).await;
+        assert!(body.contains(&candidate_list_badge("warning")));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn candidate_list_card_is_warning_with_candidate_error() -> Result<(), AppError> {
+        let store = PgStore::new_for_test();
+        let mut person = sample_person(PersonId::new());
+        person.personal_data.date_of_birth = None;
+        person.create(&store).await?;
+
+        let mut list = sample_candidate_list(CandidateListId::new());
+        list.candidates = vec![person.id];
+        list.create(&store).await?;
+
+        let body = render_index(store).await;
+        assert!(body.contains(&candidate_list_badge("warning")));
+
+        Ok(())
     }
 }

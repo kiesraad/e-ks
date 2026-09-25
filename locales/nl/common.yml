@@ -64,13 +64,13 @@ select_election:
 step: "Stap {}"
 steps: Stappen
 switch_election:
+  domain: Kiesgebied
   election: Verkiezing
   existing: Verkiezingen
   label: Verkiezing wisselen
   province: Provincie
-  region: Regio
   resume: Hervatten
-  select_region: kies een regio
+  select_domain: kies een kiesgebied
   submit: Verkiezing wisselen
   water_council: Waterschap
 title: Kiesraad - Kandidaatstelling

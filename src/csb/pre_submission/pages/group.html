@@ -37,7 +37,7 @@
           </div>
         {% endif %}
       </div>
-      <div class="mb-lg">{{ restorations::brp_strip(group.brp, brp_incomplete.as_deref() , all_problems ) }}</div>
+      <div class="mb-lg">{{ restorations::brp_strip(group.brp, brp_incomplete.as_deref() , all_problems, running=brp_running ) }}</div>
       {% if !(all_findings.candidates.is_empty() && all_problems.is_all_good()) %}
         {% if !all_problems.general.flatten().is_empty() %}
           <h4 class="mt-md">{{ "common.general_information"|trans }}</h4>

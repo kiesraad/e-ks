@@ -8,8 +8,8 @@ function setValue(
   }
 }
 
-// Return Dutch names of the currently checked district checkboxes
-function selectedDistrictNames(): string[] {
+// The Dutch names of the checked district checkboxes, listed as "A, B en C".
+function selectedDistrictNames(): string | null {
   const names: string[] = [];
   document
     .querySelectorAll<HTMLInputElement>(
@@ -20,14 +20,25 @@ function selectedDistrictNames(): string[] {
         names.push(input.dataset.districtNl);
       }
     });
-  return names;
+  if (names.length === 0) {
+    return null;
+  }
+  if (names.length === 1) {
+    return names[0];
+  }
+  return `${names.slice(0, -1).join(", ")} en ${names.at(-1)}`;
 }
 
-function updatePlaceholderWarning(
-  description: HTMLTextAreaElement,
-  warning: HTMLElement,
-) {
-  warning.classList.toggle("hidden", !description.value.includes("{"));
+// Replace the district tokens in a text with the selected district names.
+// Without a selection the tokens stay, so the server rejects the submit.
+function fillDistricts(text: string): string {
+  const districts = selectedDistrictNames();
+  if (districts === null) {
+    return text;
+  }
+  return text
+    .replaceAll("{district}", districts)
+    .replaceAll("{districts}", districts);
 }
 
 // Only recoverable omissions reach the omission letter, so the letter note
@@ -55,21 +66,30 @@ export default function omissionPreset() {
   const recoverable = document.querySelector<HTMLInputElement>(
     "[data-omission-recoverable]",
   );
-  const warning = document.querySelector<HTMLElement>(
-    "[data-omission-placeholder-warning]",
+  const noLetterWarning = document.querySelector<HTMLElement>(
+    "[data-omission-no-letter-warning]",
   );
 
-  if (!description || !warning) {
-    return;
-  }
+  // Fill district tokens left behind when a preset was clicked before the
+  // districts were selected. Listening on the section catches the bubbled
+  // change of the individual checkboxes and of their "select all" checkbox,
+  // after the latter has updated the individual ones.
+  document
+    .querySelector('input[name="electoral_districts"]')
+    ?.closest(".omission-form-section")
+    ?.addEventListener("change", () => {
+      for (const field of [description, helpText]) {
+        if (field) {
+          field.value = fillDistricts(field.value);
+        }
+      }
+    });
 
-  description.addEventListener("input", () =>
-    updatePlaceholderWarning(description, warning),
-  );
-
-  recoverable?.addEventListener("change", () =>
-    syncHelpText(helpText, recoverable),
-  );
+  // Only warn on a manual uncheck, not when a preset is irreparable.
+  recoverable?.addEventListener("change", () => {
+    syncHelpText(helpText, recoverable);
+    noLetterWarning?.classList.toggle("hidden", recoverable.checked);
+  });
   syncHelpText(helpText, recoverable);
 
   document
@@ -77,28 +97,14 @@ export default function omissionPreset() {
     .forEach((button) => {
       button.addEventListener("click", () => {
         setValue(title, button.dataset.title);
-
-        const districts = selectedDistrictNames();
-        let desc = button.dataset.description ?? "";
-        let help = button.dataset.helpText ?? "";
-        if (districts.length === 1) {
-          desc = desc.replace("{district}", districts[0]);
-          help = help.replace("{district}", districts[0]);
-        } else if (districts.length > 1) {
-          const last = districts.at(-1);
-          const rest = districts.slice(0, -1);
-          desc = desc.replace("{districts}", `${rest.join(", ")} en ${last}`);
-          help = help.replace("{districts}", `${rest.join(", ")} en ${last}`);
-        }
-
-        setValue(description, desc);
-        updatePlaceholderWarning(description, warning);
-        setValue(helpText, help);
+        noLetterWarning?.classList.add("hidden");
+        setValue(description, fillDistricts(button.dataset.description ?? ""));
+        setValue(helpText, fillDistricts(button.dataset.helpText ?? ""));
         if (recoverable) {
           recoverable.checked = button.dataset.recoverable !== "false";
           syncHelpText(helpText, recoverable);
         }
-        description.focus();
+        description?.focus();
       });
     });
 }

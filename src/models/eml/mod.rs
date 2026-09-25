@@ -4,8 +4,9 @@ pub(crate) mod eml210;
 use chrono::Datelike;
 use eks_utils::slugify_teletex;
 use eml_nl::{
+    common::ElectionDomain,
     documents::ElectionIdentifierBuilder,
-    utils::{ElectionCategory, ElectionId, ElectionSubcategory},
+    utils::{ElectionCategory, ElectionDomainId, ElectionId, ElectionSubcategory},
 };
 
 use crate::{
@@ -72,23 +73,38 @@ impl TryFrom<ElectionConfig> for ElectionIdentifierBuilder {
         let category = ElectionCategory::from(value.election_type());
         let year = value.election_date().year();
 
-        let id = if let Some(region) = value.region_title() {
+        let id = if let Some(domain) = value.domain_title() {
             format!(
                 "{}{}_{}",
                 category.to_eml_value(),
                 year,
-                slugify_teletex(region, false)
+                slugify_teletex(domain, false)
             )
         } else {
             format!("{}{}", category.to_eml_value(), year)
         };
 
-        Ok(ElectionIdentifierBuilder::new()
+        let mut election_id = ElectionIdentifierBuilder::new()
             .id(ElectionId::new(id)?)
             .name(value.full_formal_title(ModelLocale::Nl))
             .category(category)
             .subcategory(&value)
             .election_date(value.election_date())
-            .nomination_date(value.nomination_day_date()))
+            .nomination_date(value.nomination_day_date());
+
+        if let Some(domain_title) = value.domain_title() {
+            // PS elections don't include the domain id for some reason
+            let domain_id = if category == ElectionCategory::PS {
+                None
+            } else {
+                let domain_number = value
+                    .domain_number()
+                    .expect("domain_number is set alongside domain_title");
+                Some(ElectionDomainId::new(domain_number.to_string())?)
+            };
+            election_id = election_id.domain(ElectionDomain::new(domain_id, domain_title));
+        }
+
+        Ok(election_id)
     }
 }

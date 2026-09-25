@@ -29,7 +29,10 @@ use crate::{
 
 use super::{CsbCreateEmptyPath, CsbImportPath};
 
+#[cfg(not(test))]
 const BRP_COURTESY_TIMEOUT: Duration = Duration::from_secs(1);
+#[cfg(test)]
+const BRP_COURTESY_TIMEOUT: Duration = Duration::from_millis(20);
 
 #[derive(Template)]
 #[template(path = "csb/import/pages/import.html")]
@@ -149,8 +152,8 @@ pub async fn import_submit<S: AppRequestState>(
 
 fn election_label(election: ElectionConfig, locale: Locale) -> String {
     let title = election.title(locale.into());
-    match election.region_title() {
-        Some(region) => format!("{title} - {region}"),
+    match election.domain_title() {
+        Some(domain) => format!("{title} - {domain}"),
         None => title.to_string(),
     }
 }

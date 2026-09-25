@@ -17,8 +17,8 @@
   "declarations-of-support": [
     {
       "title": "Voor één kieskring ontbreken ondersteuningsverklaringen",
-      "description": "Bij de lijst zijn niet voldoende geldige verklaringen van ondersteuning ingeleverd voor de kieskring {district}.",
-      "help_text": "Dit verzuim is te herstellen door alsnog voldoende (ten minste 1) ondertekende ondersteuningsverklaringen (model H 4) in te leveren.",
+      "description": "Bij de lijst zijn niet voldoende geldige verklaringen van ondersteuning ingeleverd voor de genoemde kieskring.",
+      "help_text": "Dit betreft de kieskring {district}. Dit verzuim is te herstellen door alsnog voldoende (ten minste 1) ondertekende ondersteuningsverklaringen (model H 4) in te leveren.",
       "recoverable": true
     },
     {

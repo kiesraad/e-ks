@@ -9,10 +9,10 @@ appellation_any: Appellation
 appellation_combined: Combined appellation
 authorised_agent: Authorised agent
 authorised_agent_data: (Deputy) authorised agent data
-authorised_agent_info: "Add the statutory name and authorised representative. An authorised representative or deputy representative for the party's appellation is registered with the central electoral committee. This person grants the person submitting the list permission to put the appellation on the candidate list. This is done using form H 3-1 or H 3-2."
+authorised_agent_info: "Add the statutory name and authorised representative. The statutory name is registered in the notarial deed and with the Chamber of Commerce. An authorised representative or deputy representative for the party's appellation is registered with the central electoral committee. This person grants the list submitter permission to put the appellation on the candidate list. This is done using form H 3-1 or H 3-2."
 basic_information_political_group: Information political group
 blank_list_warning: You are using a blank list. Any changes made here will have no effect.
-delete_name_authorisation_warning_text: Are you sure you want to delete this statutory name and authorised agent? This action cannot be undone.
+delete_name_authorisation_warning_text: Are you sure you want to delete this? This action cannot be undone.
 delete_substitute_submitter_warning_text: Are you sure you want to delete this substitute submitter? This action cannot be undone.
 edit_legal_name: Edit statutory name and authorised agent
 edit_list_submitter: Edit list submitter
@@ -23,7 +23,7 @@ legal_name_data_combined: Statutory names
 list_submitter: List submitter
 list_submitter_address_info: This address will be used to send the notice of omissions.
 list_submitter_data: List submitter data
-list_submitter_info: "The central electoral committee verifies the documents that get submitted on nomination day. In case of omissions, you will receive a written notice. This notice will also mention the deadline to rectify the omissions. The list submitter is the only person authorised to submit the candidate list."
+list_submitter_info: "The list submitter is the only person authorised to submit the candidate list. The central electoral committee verifies the documents that get submitted on nomination day. If any documents are missing or errors have been made, you will receive written notification of these omissions. This notice will also mention the deadline to rectify the omissions."
 list_type: List type
 names_size_hint_add_name: Add the statutory name of the party.
 names_size_hint_combination: Combinations must consist of at least two statutory names.
@@ -38,7 +38,7 @@ substitute_submitters_data: Substitute submitters data
 substitute_submitters_info: The list submitter and the substitute submitters are the only people authorised to remedy omissions at the central electoral committee. We advise you to appoint at least one substitute submitter.
 type:
   appellation_combined_hint: "A combined appellation consists of several registered appellations, separated by a “-” or “/”. It is permitted to abbreviate appellations. The combined appellation consists of no more than 35 characters, excluding punctuation marks, hyphens, parentheses, and spaces. It is not permitted to add letters or other characters that are not part of the appellations."
-  appellation_hint: The name that is registered with the central electoral committee. This name will be displayed on the ballot paper.
+  appellation_hint: The name of the political group that is registered with the central electoral committee. This name will be displayed above the list on the ballot paper.
   blank_name: Blank list
   blank_name_hint: There is no appellation.
   legal_name_hint: The name registered in the notarial deed and with the Chamber of Commerce.

@@ -90,7 +90,14 @@ impl AllProblems {
         let candidate_lists = CandidateListSummary::list(store);
         let (general, general_info) = Self::find_general_problems(store);
         let (candidates, candidates_info) = Self::find_candidate_problems(store, &candidate_lists);
-        let lists = Self::find_list_problems(&candidate_lists, store);
+        let mut lists = Self::find_list_problems(&candidate_lists, store);
+
+        // candidate problems are already listed per candidate
+        for list in &mut lists.per_list {
+            list.problems
+                .retain(|p| !matches!(p, PotentialProblems::CandidatesWithProblems { .. }));
+        }
+        lists.per_list.retain(|list| !list.problems.is_empty());
 
         let mut all_problems = Self {
             general,
@@ -668,6 +675,33 @@ mod tests {
             }
             .models_downloadable()
         );
+    }
+
+    #[tokio::test]
+    async fn candidate_problems_propagate_to_list_but_not_on_finalise() -> Result<(), AppError> {
+        let store = PgStore::new_for_test();
+        let mut person = sample_person(PersonId::new());
+        person.personal_data.date_of_birth = None;
+        person.create(&store).await?;
+
+        let mut list = sample_candidate_list(CandidateListId::new());
+        list.candidates = vec![person.id];
+        list.create(&store).await?;
+
+        let summaries = CandidateListSummary::list(&store);
+        let list_problems = AllProblems::find_list_problems(&summaries, &store);
+        assert_eq!(list_problems.per_list.len(), 1);
+        assert_eq!(
+            list_problems.per_list[0].problems,
+            vec![PotentialProblems::CandidatesWithProblems { count: 1 }]
+        );
+        assert_eq!(list_problems.highest_severity(), Some(Severity::Warn));
+
+        let all = AllProblems::find_all(&store)?;
+        assert!(all.lists.per_list.is_empty());
+        assert_eq!(all.candidates.len(), 1);
+
+        Ok(())
     }
 
     #[tokio::test]

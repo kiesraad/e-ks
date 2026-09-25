@@ -142,6 +142,52 @@
   gap: 0;
 }
 
+/* The download call to action and its button(s) share one row */
+.download-card {
+  --card-padding: var(--space-6);
+  align-items: center;
+  flex-direction: row;
+  gap: var(--space-8);
+  justify-content: space-between;
+
+  p {
+    margin: 0;
+  }
+
+  .download-card-title {
+    color: var(--text-color-header);
+    font-weight: var(--font-weight-bold);
+  }
+
+  .step-downloads {
+    display: flex;
+    gap: var(--space-6);
+  }
+
+  &.disabled,
+  &.warning {
+    color: var(--gray-400);
+
+    .download-card-title {
+      color: var(--gray-400);
+    }
+  }
+
+  &.disabled {
+    .button {
+      border-color: var(--gray-100);
+    }
+  }
+
+  &.warning {
+    .button {
+      border-color: var(--gray-500);
+      background-color: var(--gray-500);
+      color: var(--gray-800);
+    }
+  }
+}
+
 .step-download {
   display: flex;
   flex-direction: column;

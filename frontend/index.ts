@@ -1,7 +1,8 @@
 import bsnInput from "./scripts/form-inputs/bsn-input";
 import countryCodeInput from "./scripts/form-inputs/country-input";
 import dateInput from "./scripts/form-inputs/date-input";
-import electionRegion from "./scripts/form-inputs/election-region";
+import duplicateDistricts from "./scripts/form-inputs/duplicate-districts";
+import electionDomain from "./scripts/form-inputs/election-domain";
 import listDesignation from "./scripts/form-inputs/list-designation";
 import setupFileImport from "./scripts/form-inputs/file-import";
 import hashInput from "./scripts/form-inputs/hash-input";
@@ -14,6 +15,7 @@ import setupSelectAllCheckbox from "./scripts/form-inputs/select-all-checkbox";
 import staleErrors from "./scripts/form-inputs/stale-errors";
 import setupBfcacheReload from "./scripts/generic-ui/bfcache-reload";
 import setupModal from "./scripts/generic-ui/modal";
+import setupHeaderShadow from "./scripts/generic-ui/header-shadow";
 import setupHintPopover from "./scripts/generic-ui/hint-popover";
 import setupKeepScroll from "./scripts/generic-ui/keep-scroll";
 import setupOverlay from "./scripts/generic-ui/overlay";
@@ -23,6 +25,7 @@ import setupStepNav from "./scripts/generic-ui/step-nav";
 import setupStickyNav from "./scripts/generic-ui/sticky-nav";
 import highlightActiveLinks from "./scripts/highlights-alerts/active-link";
 import alertSuccess from "./scripts/highlights-alerts/alert-success";
+import setupDownloadWarning from "./scripts/highlights-alerts/download-warning";
 import highlightRow from "./scripts/highlights-alerts/highlight-row";
 import setupClickCard from "./scripts/generic-ui/click-card";
 import setupClickRow from "./scripts/table-interaction/click-row";
@@ -40,6 +43,7 @@ setupClickCard();
 // highlights and alerts
 highlightActiveLinks();
 alertSuccess();
+setupDownloadWarning();
 highlightRow();
 
 // form inputs
@@ -53,13 +57,15 @@ addressLookup();
 localitySuggestions();
 setupPositionPreview();
 setupSelectAllCheckbox();
-electionRegion();
+electionDomain();
 listDesignation();
 omissionPreset();
+duplicateDistricts();
 staleErrors(); // last: snapshots the values the other initialisers normalised
 
 // generic UI
 setupBfcacheReload();
+setupHeaderShadow();
 setupStickyNav();
 setupModal();
 setupHintPopover();
