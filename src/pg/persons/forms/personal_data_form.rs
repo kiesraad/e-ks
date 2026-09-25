@@ -136,16 +136,9 @@ impl PersonalDataForm {
             return errors;
         }
 
-        if let Ok(last_name) = LastName::from_str(&self.name.last_name) {
-            let initials = if self.name.initials.is_empty() {
-                None
-            } else {
-                match Initials::from_str(&self.name.initials) {
-                    Ok(initials) => Some(initials),
-                    // Reported by the outer validation, like the prefix.
-                    Err(_) => return Vec::new(),
-                }
-            };
+        if let Ok(last_name) = LastName::from_str(&self.name.last_name)
+            && let Ok(initials) = Initials::from_str(&self.name.initials)
+        {
             let last_name_prefix = if self.name.last_name_prefix.is_empty() {
                 None
             } else {
@@ -158,7 +151,7 @@ impl PersonalDataForm {
             };
 
             let has_duplicate_name = existing.iter().any(|p| {
-                p.name.initials == initials
+                p.name.initials.as_ref() == Some(&initials)
                     && p.name.last_name_prefix == last_name_prefix
                     && p.name.last_name == last_name
             });
@@ -186,7 +179,7 @@ mod tests {
         OptionAsStrExt,
         form::ValidationError,
         structs::{
-            common::{DutchAddress, PotentialProblems, Problematic, Severity, UtcDateTime},
+            common::{DutchAddress, UtcDateTime},
             persons::PersonId,
         },
         test_utils::{self, display_opt, parse_country_code, sample_person_with},
@@ -289,21 +282,24 @@ mod tests {
         assert!(updated.updated_at >= current.updated_at);
     }
 
-    /// The BRP allows a person without first names, so a form without
-    /// initials is valid; the missing initials are a warning on the person.
+    /// The BRP allows a person without first names and thus without initials,
+    /// but a political group has to hand in initials for every person.
     #[test]
-    fn personal_data_form_accepts_empty_initials() {
+    fn personal_data_form_rejects_empty_initials() {
         let current = current_person();
         let mut form = valid_update_form();
         form.name.initials = "  ".to_string();
 
-        let updated = form.validate_update(&current).unwrap();
+        let Err(data) = form.validate_update(&current) else {
+            panic!("expected validation errors");
+        };
 
-        assert_eq!(updated.name.initials, None);
-        let problems = updated.name.get_problems(Severity::Error);
         assert_eq!(
-            problems.potential_problems,
-            vec![PotentialProblems::NoInitials(Severity::Warn)]
+            data.errors(),
+            vec![(
+                "name.initials".to_string(),
+                ValidationError::ValueShouldNotBeEmpty
+            )]
         );
     }
 

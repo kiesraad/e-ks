@@ -15,7 +15,7 @@ pub struct MinimalNameForm {
     pub last_name: String,
     #[validate(parse = "LastNamePrefix", optional)]
     pub last_name_prefix: String,
-    #[validate(parse = "Initials", optional)]
+    #[validate(parse = "Initials", required)]
     pub initials: String,
 }
 
@@ -50,7 +50,7 @@ pub struct FullNameForm {
     pub last_name: String,
     #[validate(parse = "LastNamePrefix", optional)]
     pub last_name_prefix: String,
-    #[validate(parse = "Initials", optional)]
+    #[validate(parse = "Initials", required)]
     pub initials: String,
 }
 

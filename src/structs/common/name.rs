@@ -73,9 +73,6 @@ impl PartialOrd for FullName {
 }
 
 impl Problematic<Severity> for FullName {
-    /// `severity` is what a missing last name gets. Missing initials are never
-    /// more than a warning: the BRP allows a person without first names, so a
-    /// name without initials can be handed in as it is.
     fn get_problems(&self, severity: Severity) -> Problems {
         let mut potential_problems = Vec::new();
         let mut info_problems = Vec::new();
@@ -88,8 +85,7 @@ impl Problematic<Severity> for FullName {
             }
         } else {
             if self.initials.is_none() {
-                potential_problems
-                    .push(PotentialProblems::NoInitials(severity.min(Severity::Warn)));
+                potential_problems.push(PotentialProblems::NoInitials(severity));
             }
             if self.last_name.is_empty() {
                 potential_problems.push(PotentialProblems::NoLastName(severity));
@@ -144,13 +140,13 @@ mod tests {
     }
 
     #[test]
-    fn missing_initials_are_at_most_a_warning() {
+    fn missing_initials_get_the_given_severity() {
         let problems = name(None, None).get_problems(Severity::Error);
         assert_eq!(
             problems.potential_problems,
-            vec![PotentialProblems::NoInitials(Severity::Warn)]
+            vec![PotentialProblems::NoInitials(Severity::Error)]
         );
-        assert_eq!(problems.highest_severity(), Some(Severity::Warn));
+        assert_eq!(problems.highest_severity(), Some(Severity::Error));
 
         let problems = name(None, None).get_problems(Severity::Info);
         assert_eq!(problems.info_problems, vec![InfoProblems::NoInitials]);
