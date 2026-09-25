@@ -19,7 +19,7 @@
 {% endblock %}
 {% block content %}
   <div class="examination-panels">
-    {% if !group.brp.is_not_checked() %}
+    {% if group.brp.is_checked() || group.brp.is_incomplete() %}
       <div class="examination-panel">
         <div class="examination-panel-header">
           <div>

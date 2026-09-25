@@ -214,7 +214,7 @@ impl BrpCheckState {
         } else if self.is_incomplete() {
             badges.push(BrpBadge::Incomplete);
         }
-        if !self.is_not_checked() {
+        if self.is_checked() || self.is_incomplete() {
             badges.push(if self.errors() == 0 {
                 BrpBadge::Correct
             } else if self.is_all_handled() {

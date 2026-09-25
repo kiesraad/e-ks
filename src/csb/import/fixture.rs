@@ -190,7 +190,8 @@ async fn import_examination_fixture<S: AppRequestState>(
 }
 
 /// Import the [`PRE_SUBMISSION_GROUP`]'s package for the pre-submission check,
-/// with the BRP check already done and some candidates found wanting.
+/// with the BRP check already done and some candidates having BRP
+/// discrepancies.
 async fn import_pre_submission_fixture<S: AppRequestState>(
     state: &S,
     election: ElectionConfig,

@@ -1,6 +1,6 @@
 //! The overview the central voting bureau hands a political group after the
-//! pre-submission check (*voorinlevering*): every candidate the check against
-//! the BRP found wanting, or whose details the application itself flagged,
+//! pre-submission check (*voorinlevering*): every candidate with BRP
+//! discrepancies, or whose details the application itself flagged,
 //! with the details that were checked and what was found, so the group can
 //! fix them before nomination day. Not a numbered official model, but rendered
 //! in the same house style; Dutch-only, with the text in the
@@ -31,7 +31,7 @@ pub struct BrpOverview {
     pub complete: bool,
     /// The candidates the BRP check agreed with on every field.
     pub candidates_without_brp_errors: usize,
-    /// The candidates the BRP check found wanting.
+    /// The candidates with BRP discrepancies.
     pub candidates_with_brp_errors: usize,
     /// All BRP findings together.
     pub brp_error_count: usize,

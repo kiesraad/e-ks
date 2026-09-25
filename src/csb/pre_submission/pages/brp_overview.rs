@@ -1,5 +1,5 @@
 //! The overview of one pre-submitted package, as PDF and Word download: the
-//! candidates the BRP check found wanting or the application flagged, with
+//! candidates with BRP discrepancies or flagged by the application, with
 //! their details and what was found.
 
 use axum::response::Response;
@@ -78,7 +78,7 @@ pub(super) fn brp_overview_model(store: &CsbStream) -> BrpOverview {
         appellation: store.get_appellation(WithCorrections::All),
         election_code: election.filename_slug(),
         date: chrono::Utc::now().date_naive(),
-        complete: !state.is_not_checked() && !state.is_incomplete(),
+        complete: state.is_checked(),
         candidates_without_brp_errors,
         candidates_with_brp_errors,
         brp_error_count,
@@ -150,9 +150,9 @@ mod tests {
         test_utils::{sample_candidate_list, sample_person_with_last_name, sample_political_group},
     };
 
-    /// The sample group with three candidates: the first found wanting by the
-    /// BRP on two fields, the second agreeing with it, the third not checked
-    /// and without a BSN.
+    /// The sample group with three candidates: the first with BRP
+    /// discrepancies on two fields, the second matching the BRP, the third
+    /// not checked and without a BSN.
     async fn store_with_candidates() -> PreSubmissionStore {
         let store = CsbStore::new_for_test();
         store.set_political_group(sample_political_group());

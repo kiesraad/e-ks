@@ -54,7 +54,6 @@ impl CsbStream {
                 if seen.insert(*person_id)
                     && let Some(person) = self.get_person(*person_id, WithCorrections::All)
                 {
-
                     candidates.push(ListedCandidate {
                         list_id: list.id,
                         position: index + 1,
