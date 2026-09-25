@@ -3,10 +3,10 @@ action:
   examine: Onderzoeken
   finish: Afronden
 added: Toegevoegd
-all_brp_findings:
-  explanation: "Alle verschillen die de controle tegen de BRP heeft gevonden, per kandidaat."
-  none: De controle tegen de BRP heeft geen fouten gevonden.
-  title: Alle BRP fouten
+all_findings:
+  explanation: Alle verschillen die de controle tegen de BRP heeft gevonden (per kandidaat) en andere potentiële problemen.
+  none: De controle heeft geen fouten gevonden.
+  title: Alle fouten
 all_restorations:
   corrections_explanation: Alle aangemaakte ambtshalve correcties vindt u hier.
   corrections_title: Overzicht gecorrigeerde acties
@@ -120,13 +120,14 @@ group:
   delete_note: "Het is altijd mogelijk om een politieke groepering te herimporteren maar aangemaakte papieren- en ambtshalve correcties, en verzuimen zullen verloren gaan!"
   deleted_label: verwijderd
   discovered_errors: Ontdekte fouten
-  discovered_errors_note: Hier vindt u alle BRP fouten verzameld terug
+  discovered_errors_note: Hier vindt u alle fouten verzameld terug
   examine_all: Naar alle fouten
   examine_general: Basisgegevens controleren
   examine_list: Kandidatenlijst controleren
   finished: Onderzoek afgerond
   instruction_group: Controleer de gegevens van de politieke groepering
   instruction_submitter: Controleer de gegevens van de lijstinleveraar(s)
+  problems_present: Problemen
   toggle: Onderzoek afronden of heropenen
   unfinished: Onderzoek afronden
 hearing:

@@ -187,7 +187,7 @@
     <a class="restoration-strip-link" href="{{ overview_url }}">{{ "csb.omission.overview.title"|trans }}</a>
   </div>
 {% endmacro omission_strip %}
-{% macro brp_strip(brp, incomplete_reason, running=false) %}
+{% macro brp_strip(brp, incomplete_reason, problems, running=false) %}
   <div class="restoration-strip {% if brp.has_errors() %}restoration-strip-error{% endif %}">
     <ul class="restoration-tags">
       {% if running %}
@@ -214,11 +214,14 @@
           {% endif %}
         </li>
       {% endif %}
+      {% if !problems.is_all_good() %}
+        <span class="restoration-tag restoration-tag-{{ problems.highest_severity_class() }}">{{ "csb.group.problems_present"|trans }}</span>
+      {% endif %}
     </ul>
   </div>
   {% if let Some(reason) = incomplete_reason %}<p class="restoration-strip-note">{{ reason }}</p>{% endif %}
 {% endmacro brp_strip %}
-{% macro brp_group(label, url, messages) %}
+{% macro brp_group(label, url, messages, problems) %}
   <h3 class="examination-panel-group">{{ label }}</h3>
   <div class="restoration-strip restoration-strip-error">
     <ul class="restoration-tags">
@@ -231,6 +234,23 @@
           {% endif %}
         </li>
       {% endfor %}
+      {% for problem in problems %}
+        <li>
+          {% if let Some(url) = url %}
+            <a class="restoration-tag restoration-tag-{{ problem.severity().class() }}"
+               href="{{ url }}">{{ problem.translate(locale) }}</a>
+          {% else %}
+            <span class="restoration-tag restoration-tag-{{ problem.severity().class() }}">{{ problem.translate(locale) }}</span>
+          {% endif %}
+        </li>
+      {% endfor %}
     </ul>
   </div>
 {% endmacro brp_group %}
+{% macro problems(problems) %}
+  <div class="problem-row">
+    {% for problem in problems %}
+      <span class="restoration-tag restoration-tag-{{ problem.severity().class() }}">{{ problem.translate(locale) }}</span>
+    {% endfor %}
+  </div>
+{% endmacro problems %}

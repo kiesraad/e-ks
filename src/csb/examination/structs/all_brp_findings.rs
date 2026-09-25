@@ -24,6 +24,15 @@ pub struct CandidateFindings {
     pub messages: Vec<String>,
 }
 
+impl AllBrpFindings {
+    pub fn messages_for_person(&self, person: &Person) -> Vec<String> {
+        self.candidates
+            .iter()
+            .find(|findings| &findings.person == person)
+            .map_or(Vec::new(), |findings| findings.messages.clone())
+    }
+}
+
 impl CsbStream {
     /// The findings of every candidate that has any, in the order the candidate
     /// lists put them forward. A candidate standing on more than one list is

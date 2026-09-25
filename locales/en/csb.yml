@@ -3,10 +3,10 @@ action:
   examine: Examine
   finish: Finish
 added: Added
-all_brp_findings:
-  explanation: "Every difference the check against the BRP found, per candidate."
+all_findings:
+  explanation: Every difference the check against the BRP found (per candidate) and other potential problems.
   none: The check against the BRP found no errors.
-  title: All BRP errors
+  title: All errors
 all_restorations:
   corrections_explanation: All created corrections are displayed here.
   corrections_title: Corrections overview
@@ -120,13 +120,14 @@ group:
   delete_note: "It is always possible to re-import a political group but any created (paper) corrections, and omissions will be lost!"
   deleted_label: deleted
   discovered_errors: Errors found
-  discovered_errors_note: All BRP errors are collectively listed here
+  discovered_errors_note: All errors are collectively listed here
   examine_all: To all errors
   examine_general: Examine general information
   examine_list: Examine candidate list
   finished: Examination finished
   instruction_group: Examine information about the political group
   instruction_submitter: Examine information about the list submitter(s)
+  problems_present: Problems
   toggle: Finish or reopen examination
   unfinished: Finish examination
 hearing:

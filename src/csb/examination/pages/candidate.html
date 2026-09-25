@@ -66,6 +66,10 @@
     <div class="examination-panel-header">
       <div>
         <h2>{{ "csb.candidate.personal_details"|trans }}</h2>
+        {% if political_group.mode.is_examination() && !problems.is_empty() %}
+          <div class="mt-sm"></div>
+          {{ restorations::problems(problems) }}
+        {% endif %}
       </div>
     </div>
     {% let examining = political_group.mode.is_examination() %}

@@ -40,7 +40,7 @@
                href="{{ political_group.all_brp_findings_path() }}">{{ "csb.group.examine_all"|trans }}</a>
           </div>
         </div>
-        {{ restorations::brp_strip(brp, brp_incomplete.as_deref() , running=brp_running) }}
+        {{ restorations::brp_strip(brp, brp_incomplete.as_deref() , all_problems, running=brp_running) }}
       </div>
       <form method="post"
             class="examination-panel"
@@ -123,8 +123,15 @@
               <li>{{ "csb.group.instruction_group"|trans }}</li>
               <li>{{ "csb.group.instruction_submitter"|trans }}</li>
             </ul>
-            {% if political_group_status.has_changes() %}
-              <div class="restoration-strip">{{ omission_badge(political_group_status) }}</div>
+            {% if political_group_status.has_changes() || (political_group.mode.is_examination() && !all_problems.general.is_all_good()) %}
+              <div class="restoration-strip {% if political_group.mode.is_examination() && all_problems.general.has_severity_or_higher(crate::structs::common::Severity::Error) %}restoration-strip-error{% endif %}">
+                <ul class="restoration-tags">
+                  {% if political_group.mode.is_examination() && !all_problems.general.is_all_good() %}
+                    <span class="restoration-tag restoration-tag-{{ all_problems.general.highest_severity_class() }}">{{ "csb.group.problems_present"|trans }}</span>
+                  {% endif %}
+                </ul>
+                {{ omission_badge(political_group_status) }}
+              </div>
             {% endif %}
           </div>
           <a class="card-footer"
@@ -168,7 +175,7 @@
               {% let show_brp = political_group.mode.is_examination() && !candidate_list.brp.is_correct() %}
               {% let is_scrapped = political_group.mode.is_recovery() && candidate_list.is_scrapped %}
               {% if show_brp || is_scrapped || candidate_list.restoration_status.has_changes() %}
-                <div class="restoration-strip {% if political_group.mode.is_examination() && candidate_list.brp.has_errors() %}restoration-strip-error{% endif %}">
+                <div class="restoration-strip {% if political_group.mode.is_examination() && (candidate_list.brp.has_errors() || all_problems.has_severity_or_higher_for_list_and_candidates(candidate_list.list.id, crate::structs::common::Severity::Error)) %} restoration-strip-error {% endif %}">
                   {% if show_brp || is_scrapped %}
                     <ul class="restoration-tags">
                       {% if show_brp %}
@@ -185,6 +192,11 @@
                             <span class="restoration-tag restoration-tag-pending">{{ "csb.brp.incomplete"|trans }}</span>
                           </li>
                         {% endif %}
+                        {% if political_group.mode.is_examination() && let Some(severity) = all_problems.max_severity_for_list_and_candidates(candidate_list.list.id) %}
+                          <li>
+                            <span class="restoration-tag restoration-tag-{{ severity.class() }}">{{ "csb.group.problems_present"|trans }}</span>
+                          </li>
+                        {% endif %}
                       {% endif %}
                       {% if is_scrapped %}
                         <li>
@@ -193,9 +205,7 @@
                       {% endif %}
                     </ul>
                   {% endif %}
-                  {% if !candidate_list.is_scrapped %}
-                    {{ omission_badge(candidate_list.restoration_status) }}
-                  {% endif %}
+                  {% if !candidate_list.is_scrapped %}{{ omission_badge(candidate_list.restoration_status) }}{% endif %}
                 </div>
               {% endif %}
             </div>

@@ -24,6 +24,7 @@ use crate::{
     redirect_success,
     structs::{
         candidate_lists::CandidateListId,
+        common::PotentialProblems,
         csb::{CsbPhase, Omission},
         persons::{Person, PersonId},
     },
@@ -44,6 +45,7 @@ struct CsbCandidateTemplate {
     recovery_position: Option<usize>,
     scrapped_districts: Vec<ElectoralDistrict>,
     all_districts_scrapped: bool,
+    problems: Vec<PotentialProblems>,
 }
 
 /// What the candidate page shows about the BRP check.
@@ -89,6 +91,7 @@ pub async fn overview(
 
 /// The candidate detail page, shared between the examination and the recovery
 /// ("Herstelde lijsten") phase.
+#[allow(clippy::too_many_lines)] // The length does not contribute much to the function complexity
 pub(in crate::csb) async fn render(
     list_id: CandidateListId,
     person_id: PersonId,
@@ -132,6 +135,13 @@ pub(in crate::csb) async fn render(
     let is_scrapped = scrapped.is_candidate_scrapped(list_id, person_id);
     let scrapped_districts = scrapped.list_districts(list_id).to_vec();
     let all_districts_scrapped = scrapped.all_list_districts_scrapped(list_id);
+    let problems = store
+        .get_all_problems(context.election)?
+        .candidates
+        .iter()
+        .find(|c| c.entity.id == person_id)
+        .map(|c| c.problems.clone())
+        .unwrap_or_default();
 
     Ok(HtmlTemplate(
         CsbCandidateTemplate {
@@ -147,6 +157,7 @@ pub(in crate::csb) async fn render(
             recovery_position: store.get_recovery_position(list_id, person_id),
             scrapped_districts,
             all_districts_scrapped,
+            problems,
         },
         context,
     )
@@ -705,5 +716,37 @@ mod tests {
         .await;
 
         assert!(matches!(result, Err(AppError::GenericNotFound)));
+    }
+
+    #[tokio::test]
+    async fn candidate_problem_shows_up() {
+        let store = CsbStore::new_for_test();
+        let stream_id = store.stream_id;
+        let list_id = CandidateListId::new();
+        let person_id = PersonId::new();
+
+        let mut person = sample_person(person_id);
+        person.personal_data.bsn = None;
+
+        let mut list = sample_candidate_list(list_id);
+        list.candidates.push(person_id);
+
+        store.add_person(person);
+        store.add_candidate_list(list);
+
+        let response = overview(
+            CsbCandidatePath {
+                stream_id,
+                list_id,
+                person_id,
+            },
+            CsbContext::new_test(),
+            store,
+        )
+        .await
+        .expect("candidate page response");
+        let body = response_body_string(response).await;
+
+        assert!(body.contains(">BSN</span>"));
     }
 }

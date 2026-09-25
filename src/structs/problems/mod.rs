@@ -1,3 +1,6 @@
+//! Validation problems reported on the finalise page and on the CSB examination pages
+mod problems_sort;
+
 use axum_extra::routing::TypedPath as _;
 
 use crate::{
@@ -5,12 +8,12 @@ use crate::{
     common::PgIndexPath,
     finalise::FinalisePath,
     structs::{
-        candidate_lists::{CandidateList, CandidateListSummary},
+        candidate_lists::{CandidateList, CandidateListId, CandidateListSummary},
         common::{HasSeverity, InfoProblems, PotentialProblems, Problematic, Severity},
         list_designation::ListDesignation,
-        list_submitters::ListSubmitter,
+        list_submitters::{ListSubmitter, ListSubmitterId},
         name_authorisations::NameAuthorisation,
-        persons::Person,
+        persons::{Person, PersonId},
         political_groups::PoliticalGroup,
     },
 };
@@ -329,6 +332,47 @@ impl AllProblems {
             .flatten_problems()
             .any(|ii| ii.severity() == Severity::Error)
     }
+
+    pub fn get_problems_for_person(&self, person: &Person) -> Vec<&PotentialProblems> {
+        self.candidates
+            .iter()
+            .find(|c| &c.entity == person)
+            .map_or(Vec::new(), |c| c.problems.iter().collect())
+    }
+
+    /// Determines the max severity of problems of this list and the candidates on this list
+    pub fn max_severity_for_list_and_candidates(
+        &self,
+        list_id: &CandidateListId,
+    ) -> Option<Severity> {
+        if let Some(list_problems) = self.lists.per_list.iter().find(|l| &l.entity.id == list_id) {
+            let highest_list = list_problems
+                .problems
+                .iter()
+                .map(PotentialProblems::severity)
+                .max();
+            let highest_candidate = self
+                .candidates
+                .iter()
+                .filter(|c| list_problems.entity.candidates.contains(&c.entity.id))
+                .flat_map(|c| c.problems.iter().map(PotentialProblems::severity))
+                .max();
+            highest_list.max(highest_candidate)
+        } else {
+            None
+        }
+    }
+
+    /// Tests if a list or its candidates have an equal or higher severity than provided
+    pub fn has_severity_or_higher_for_list_and_candidates(
+        &self,
+        list_id: &CandidateListId,
+        severity: Severity,
+    ) -> bool {
+        self.max_severity_for_list_and_candidates(list_id)
+            .map(|s| s >= severity)
+            .unwrap_or(false)
+    }
 }
 
 impl HasSeverity for AllProblems {
@@ -363,8 +407,31 @@ impl GeneralProblems {
         if let Some(submitter_problems) = &self.list_submitter {
             result.extend(&submitter_problems.problems);
         }
-
         result
+    }
+
+    pub fn get_general_name_authorisation_problems_combined(&self) -> Vec<PotentialProblems> {
+        self.general
+            .iter()
+            .chain(self.name_authorisations.iter().flat_map(|na| &na.problems))
+            .cloned()
+            .collect()
+    }
+
+    pub fn get_substitute_submitter_problems(
+        &self,
+        submitter_id: ListSubmitterId,
+    ) -> Option<Vec<PotentialProblems>> {
+        self.substitute_submitters
+            .iter()
+            .find(|ss| ss.entity.id == submitter_id)
+            .map(|ss| ss.problems.clone())
+    }
+}
+
+impl HasSeverity for GeneralProblems {
+    fn highest_severity(&self) -> Option<Severity> {
+        self.flatten().iter().map(|p| p.severity()).max()
     }
 }
 
@@ -389,6 +456,18 @@ impl<T: Problematic<()>> EntityProblems<T> {
 }
 
 pub type PersonProblems = EntityProblems<Person>;
+
+impl PersonProblems {
+    pub fn get_highest_severity_for_person(
+        problems: &[Self],
+        person_id: PersonId,
+    ) -> Option<Severity> {
+        problems
+            .iter()
+            .find(|pss| pss.entity.id == person_id)
+            .and_then(|ps| ps.problems.iter().map(PotentialProblems::severity).max())
+    }
+}
 
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq, Clone))]

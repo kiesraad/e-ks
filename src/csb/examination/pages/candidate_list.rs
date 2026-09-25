@@ -11,7 +11,9 @@ use crate::{
     projection::WithCorrections,
     structs::{
         candidate_lists::{CandidateList, CandidateListId},
+        common::PotentialProblems,
         csb::{CsbPhase, Omission},
+        problems::PersonProblems,
     },
 };
 
@@ -26,6 +28,8 @@ struct CsbCandidateListTemplate {
     is_scrapped: bool,
     scrapped_districts: Vec<ElectoralDistrict>,
     all_districts_scrapped: bool,
+    list_problems: Vec<PotentialProblems>,
+    candidate_problems: Vec<PersonProblems>,
 }
 
 pub async fn overview(
@@ -76,6 +80,16 @@ pub(in crate::csb) async fn render(
     let scrapped_districts = scrapped.list_districts(list_id).to_vec();
     let all_districts_scrapped = scrapped.all_list_districts_scrapped(list_id);
 
+    let all_problems = store.get_all_problems(context.election)?;
+    let list_problems = all_problems
+        .lists
+        .per_list
+        .iter()
+        .find(|l| l.entity.id == list_id)
+        .map(|l| l.problems.clone())
+        .unwrap_or_default();
+    let candidate_problems = all_problems.candidates;
+
     Ok(HtmlTemplate(
         CsbCandidateListTemplate {
             political_group,
@@ -86,6 +100,8 @@ pub(in crate::csb) async fn render(
             is_scrapped,
             scrapped_districts,
             all_districts_scrapped,
+            list_problems,
+            candidate_problems,
         },
         context,
     )
@@ -99,7 +115,7 @@ mod tests {
     use axum::http::StatusCode;
 
     use crate::{
-        structs::{csb::OmissionCategory, persons::PersonId},
+        structs::{common::UtcDateTime, csb::OmissionCategory, persons::PersonId},
         test_utils::{response_body_string, sample_candidate_list, sample_person},
     };
 
@@ -281,8 +297,6 @@ mod tests {
 
     #[tokio::test]
     async fn examination_candidate_list_never_renders_scrapped() {
-        use crate::csb::examination::pages::candidate_list::render;
-
         let store = CsbStore::new_for_test();
 
         let person = sample_person(PersonId::new());
@@ -320,5 +334,60 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
         assert!(!body.contains("Scrapped"));
+    }
+
+    #[tokio::test]
+    async fn list_problem_shows_up_on_examination_overview() {
+        let store = CsbStore::new_for_test();
+        let list_id = CandidateListId::new();
+
+        store.add_candidate_list(CandidateList {
+            id: list_id,
+            electoral_districts: BTreeSet::from([ElectoralDistrict::Flevoland]),
+            candidates: Vec::new(),
+            created_at: UtcDateTime::now(),
+        });
+
+        let response = render(
+            list_id,
+            CsbContext::new_test(),
+            store,
+            CsbPhase::Examination,
+        )
+        .await
+        .unwrap()
+        .into_response();
+        let body = response_body_string(response).await;
+
+        assert!(body.contains(">No candidates</span>"));
+    }
+
+    #[tokio::test]
+    async fn candidate_problem_shows_up_on_examination_overview() {
+        let store = CsbStore::new_for_test();
+        let list_id = CandidateListId::new();
+        let person_id = PersonId::new();
+
+        let mut person = sample_person(person_id);
+        person.personal_data.bsn = None;
+
+        let mut list = sample_candidate_list(list_id);
+        list.candidates.push(person_id);
+
+        store.add_person(person);
+        store.add_candidate_list(list);
+
+        let response = render(
+            list_id,
+            CsbContext::new_test(),
+            store,
+            CsbPhase::Examination,
+        )
+        .await
+        .unwrap()
+        .into_response();
+        let body = response_body_string(response).await;
+
+        assert!(body.contains(">Problems</span>"));
     }
 }
