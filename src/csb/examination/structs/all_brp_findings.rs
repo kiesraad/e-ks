@@ -29,7 +29,7 @@ impl AllBrpFindings {
         self.candidates
             .iter()
             .find(|findings| &findings.person == person)
-            .map_or_default(|findings| findings.messages.clone())
+            .map_or(Vec::new(), |findings| findings.messages.clone())
     }
 }
 

@@ -337,7 +337,7 @@ impl AllProblems {
         self.candidates
             .iter()
             .find(|c| &c.entity == person)
-            .map_or_default(|c| c.problems.iter().collect())
+            .map_or(Vec::new(), |c| c.problems.iter().collect())
     }
 
     /// Determines the max severity of problems of this list and the candidates on this list
