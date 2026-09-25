@@ -103,13 +103,18 @@
                           data-keep-scroll
                           action="{{ political_group.candidate_brp_finding_handled_path(list_id, candidate.id, row.index) }}">
                       {{ macros::csrf_field() }}
-                      {% if row.handled %}
-                        <input type="hidden" name="handled" value="false">
-                        <button type="submit" class="button secondary xs">{{ "csb.brp.handled.undo"|trans }}</button>
-                      {% else %}
-                        <input type="hidden" name="handled" value="true">
-                        <button type="submit" class="button secondary xs">{{ "csb.brp.handled.mark"|trans }}</button>
-                      {% endif %}
+                      <button type="submit"
+                              name="handled"
+                              value="true"
+                              class="button xs {% if row.handled %}selected{% else %}secondary{% endif %}">
+                        {{ "csb.brp.handled.done"|trans }}
+                      </button>
+                      <button type="submit"
+                              name="handled"
+                              value="false"
+                              class="button xs {% if !row.handled %}primary-destructive selected{% else %}secondary{% endif %}">
+                        {{ "csb.brp.handled.not_done"|trans }}
+                      </button>
                     </form>
                   </td>
                 </tr>

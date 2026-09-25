@@ -21,8 +21,9 @@ pub enum BrpCheckState {
     Incomplete { errors: usize },
     /// All checked, and the BRP agreed on everything.
     Correct,
-    /// All checked, with this many findings.
-    Errors { errors: usize },
+    /// All checked, with this many findings, of which `handled` were marked
+    /// as dealt with by the committee.
+    Errors { errors: usize, handled: usize },
 }
 
 impl BrpCheckState {
@@ -33,7 +34,7 @@ impl BrpCheckState {
         candidates: impl IntoIterator<Item = PersonId>,
     ) -> Self {
         let mut seen = HashSet::new();
-        let (mut total, mut checked, mut errors) = (0, 0, 0);
+        let (mut total, mut checked, mut errors, mut handled) = (0, 0, 0, 0);
 
         for person_id in candidates {
             if !seen.insert(person_id) {
@@ -43,6 +44,7 @@ impl BrpCheckState {
             if let Some(found) = findings.get(&person_id) {
                 checked += 1;
                 errors += found.len();
+                handled += found.iter().filter(|finding| finding.handled).count();
             }
         }
 
@@ -52,7 +54,7 @@ impl BrpCheckState {
             (_, 0) => Self::NotChecked,
             (total, checked) if checked < total => Self::Incomplete { errors },
             _ if errors == 0 => Self::Correct,
-            _ => Self::Errors { errors },
+            _ => Self::Errors { errors, handled },
         }
     }
 
@@ -61,9 +63,13 @@ impl BrpCheckState {
             return Self::NotChecked;
         }
 
-        match store.get_brp_findings_for_person(person_id).len() {
+        let findings = store.get_brp_findings_for_person(person_id);
+        match findings.len() {
             0 => Self::Correct,
-            errors => Self::Errors { errors },
+            errors => Self::Errors {
+                errors,
+                handled: findings.iter().filter(|finding| finding.handled).count(),
+            },
         }
     }
 
@@ -86,13 +92,19 @@ impl BrpCheckState {
 
     pub fn errors(&self) -> usize {
         match self {
-            Self::Incomplete { errors } | Self::Errors { errors } => *errors,
+            Self::Incomplete { errors } | Self::Errors { errors, .. } => *errors,
             Self::NotChecked | Self::Correct => 0,
         }
     }
 
     pub fn has_errors(&self) -> bool {
         self.errors() > 0
+    }
+
+    /// Whether the check found something and the committee marked every
+    /// finding as handled.
+    pub fn is_all_handled(&self) -> bool {
+        matches!(self, Self::Errors { errors, handled } if handled == errors)
     }
 
     pub fn is_not_checked(&self) -> bool {
@@ -151,7 +163,39 @@ mod tests {
 
         let state = BrpCheckState::for_candidates(&findings(&[(a, 3)]), [a, a, a]);
 
-        assert_eq!(state, BrpCheckState::Errors { errors: 3 });
+        assert_eq!(
+            state,
+            BrpCheckState::Errors {
+                errors: 3,
+                handled: 0
+            }
+        );
+    }
+
+    #[test]
+    fn only_a_scope_whose_every_finding_is_handled_is_all_handled() {
+        let a = PersonId::new();
+        let mut all = findings(&[(a, 2)]);
+        for finding in all.get_mut(&a).unwrap() {
+            finding.handled = true;
+        }
+
+        let state = BrpCheckState::for_candidates(&all, [a]);
+        assert_eq!(
+            state,
+            BrpCheckState::Errors {
+                errors: 2,
+                handled: 2
+            }
+        );
+        assert!(state.is_all_handled());
+
+        all.get_mut(&a).unwrap()[0].handled = false;
+        let state = BrpCheckState::for_candidates(&all, [a]);
+        assert!(!state.is_all_handled());
+
+        assert!(!BrpCheckState::Correct.is_all_handled());
+        assert!(!BrpCheckState::NotChecked.is_all_handled());
     }
 
     #[test]

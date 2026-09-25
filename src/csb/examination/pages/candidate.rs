@@ -866,7 +866,8 @@ mod tests {
         let body = examination_body(store, list_id, person_id).await;
         assert!(body.contains("1 of 2 handled"), "{body}");
         assert!(body.contains("restoration-tag-handled"));
-        assert!(body.contains(r#"name="handled" value="false""#));
+        // The handled finding shows its "done" button as the selected state.
+        assert!(body.contains("button xs selected"), "{body}");
     }
 
     #[tokio::test]

@@ -83,7 +83,10 @@ mod tests {
     #[tokio::test]
     async fn the_brp_column_follows_the_group_rather_than_always_reading_correct() {
         let groups = CsbPoliticalGroups(vec![CsbPoliticalGroup {
-            brp: BrpCheckState::Errors { errors: 2 },
+            brp: BrpCheckState::Errors {
+                errors: 2,
+                handled: 0,
+            },
             ..group(false)
         }]);
 

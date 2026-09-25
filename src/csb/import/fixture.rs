@@ -659,7 +659,10 @@ mod tests {
         assert!(matches!(store.get_brp_status(), BrpStatus::Finished));
         assert_eq!(
             BrpCheckState::for_political_group(store),
-            BrpCheckState::Errors { errors: 5 }
+            BrpCheckState::Errors {
+                errors: 5,
+                handled: 0
+            }
         );
         let first_list = fixture_lists(store).remove(0);
         let findings = store.get_brp_findings();

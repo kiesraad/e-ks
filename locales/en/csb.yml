@@ -46,13 +46,14 @@ brp:
     residence_without_address: "This candidate has no residential address in the BRP (a correspondence address, for instance), so the BRP holds no place of residence."
     unparsable: "The BRP value for {} could not be interpreted, so it was not compared: {}"
   handled:
+    badge: Handled
     candidate: Candidate
     count: "{} of {} handled"
+    done: Handled
     explanation: "Mark a BRP error as handled once it turns out not to be a problem, or once an omission was added for it."
     finding: Error
-    mark: Mark as handled
+    not_done: Not handled
     title: BRP errors
-    undo: Undo
   incomplete: Check not finished
   not_checked: Not checked
   refresh: Refresh this page

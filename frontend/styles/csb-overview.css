@@ -418,14 +418,16 @@
 
 .brp-findings-table {
   thead th:nth-child(3) {
-    width: 14rem;
+    width: 19rem;
   }
 
   td.actions {
     text-align: right;
 
+    /* The handled control reads like the omission status buttons. */
     form {
-      display: inline-block;
+      display: inline-flex;
+      gap: var(--space-2);
     }
   }
 

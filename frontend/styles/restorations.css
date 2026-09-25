@@ -212,13 +212,16 @@
   --restoration-tag-icon: url("../icons/checkmarkSmall.svg");
 }
 
-/* A BRP finding the committee dealt with: no problem, or an omission added. */
+/* A BRP finding the committee dealt with: no problem, or an omission added.
+   Settled, so it carries no icon. */
 .restoration-tag-handled {
   --restoration-tag-bg: var(--base-white);
   --restoration-tag-color: var(--gray-500);
-  --restoration-tag-icon: url("../icons/checkmarkSmall.svg");
   border-radius: var(--rounded-md);
-  flex-direction: row-reverse;
+
+  &::before {
+    content: none;
+  }
 }
 
 /* The BRP check has not run, or did not cover every candidate. */
@@ -261,7 +264,16 @@
   }
 }
 
-/* The link to the overview of everything registered for this item. */
+/* The link to the overview of everything registered for this item. It is
+   stretched over the whole strip, so the strip itself is the click target. */
+.restoration-strip:has(.restoration-strip-link) {
+  position: relative;
+
+  &:hover .restoration-strip-link {
+    text-decoration: underline;
+  }
+}
+
 .restoration-strip-link {
   align-items: center;
   color: var(--gray-800);
@@ -271,6 +283,12 @@
   margin-inline-start: auto;
   text-decoration: none;
   white-space: nowrap;
+
+  &::before {
+    content: "";
+    inset: 0;
+    position: absolute;
+  }
 
   &::after {
     background-color: currentColor;
