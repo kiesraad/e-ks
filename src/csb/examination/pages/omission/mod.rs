@@ -1098,6 +1098,51 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn declarations_dialog_fills_district_tokens_for_a_single_district() {
+        let store = CsbStore::new_for_test();
+        let stream_id = store.stream_id;
+        let list_id = CandidateListId::new();
+        let mut list = sample_candidate_list(list_id);
+        list.electoral_districts = BTreeSet::from([ElectoralDistrict::Utrecht]);
+        store.add_candidate_list(list);
+
+        let render = |store| async move {
+            let response = add_omission(
+                CsbAddOmissionPath {
+                    stream_id,
+                    omission_type: OmissionType::DeclarationsOfSupport,
+                    reference: stream_id.into(),
+                },
+                CsbContext::new_test(),
+                store,
+                Query(QueryParamState::default()),
+                Query(OmissionListQuery::default()),
+            )
+            .await
+            .unwrap()
+            .into_response();
+            normalized(&response_body_string(response).await)
+        };
+
+        // The selector is hidden, so the presets name the only district
+        let body = render(store.clone()).await;
+        assert!(body.contains("Dit betreft de kieskring Utrecht."));
+        assert!(body.contains("Dit betreft de kieskring(en) Utrecht."));
+        assert!(!body.contains("{district"));
+
+        // With a second district the tokens are left for the dialog to fill
+        // from the district checkboxes, which carry the Dutch names
+        let mut list2 = sample_candidate_list(CandidateListId::new());
+        list2.electoral_districts = BTreeSet::from([ElectoralDistrict::Drenthe]);
+        store.add_candidate_list(list2);
+        let body = render(store.clone()).await;
+        assert!(body.contains("Dit betreft de kieskring {district}."));
+        assert!(body.contains("Dit betreft de kieskring(en) {districts}."));
+        assert!(body.contains(r#"data-district-nl="Utrecht""#));
+        assert!(body.contains(r#"data-district-nl="Drenthe""#));
+    }
+
+    #[tokio::test]
     async fn candidate_dialog_interpolates_candidate_placeholders() {
         use crate::test_utils::{sample_candidate_list, sample_person};
 
