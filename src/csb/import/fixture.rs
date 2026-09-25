@@ -265,7 +265,7 @@ async fn import_fixture_group<S: AppRequestState>(
 
 /// The outcome of a BRP check over the whole package, recorded rather than
 /// looked up so the fixture needs no BRP to be reachable: the first four
-/// candidates on the first list are found wanting, one of them on two fields,
+/// candidates on the first list have discrepancies, one of them on two fields,
 /// and the BRP agrees with everyone else.
 async fn fixture_brp_check(store: &CsbStore) -> Result<(), AppError> {
     let flagged: Vec<PersonId> = fixture_lists(store)

@@ -397,10 +397,7 @@ fn parse_brp_name(name: &BrpName) -> Option<BrpLastName> {
             .map(str::to_string)
     };
     let last_name = non_empty(&name.last_name)?.parse().ok()?;
-    let last_name_prefix = match non_empty(&name.last_name_prefix) {
-        Some(prefix) => Some(prefix.parse().ok()?),
-        None => None,
-    };
+    let last_name_prefix = non_empty(&name.last_name_prefix).and_then(|prefix| prefix.parse().ok());
     Some(BrpLastName {
         last_name_prefix,
         last_name,
