@@ -7,7 +7,7 @@ use axum::{
 use crate::{
     AppError, AppRequestState, Context, CsbContext, HtmlTemplate,
     csb::{
-        examination::structs::{AllBrpFindings, brp_incomplete_reason},
+        examination::structs::{AllBrpFindings, BrpBadge, brp_incomplete_reason},
         import::{brp_sweep_running, do_brp_verification},
         pre_submission::{
             extractors::{PreSubmissionGroup, PreSubmissionStore},
@@ -25,6 +25,8 @@ struct PreSubmissionGroupTemplate {
     brp_running: bool,
     /// Why the list may be incomplete, when the check did not finish.
     brp_incomplete: Option<String>,
+    /// The badges of the BRP strip, derived from the state and `brp_running`.
+    brp_badges: Vec<BrpBadge>,
     all_findings: AllBrpFindings,
 }
 
@@ -47,6 +49,7 @@ pub async fn group(
                 locale,
             ),
             all_findings: store.get_unlinked_brp_findings(locale),
+            brp_badges: group.brp.strip_badges(brp_running),
             group,
             brp_running,
         },
@@ -76,7 +79,7 @@ mod tests {
     use crate::{
         AppState, CsbAction, CsbStore,
         structs::{
-            brp::{BrpFinding, BrpStatus, BrpValue},
+            brp::{BrpFinding, BrpFindingKind, BrpStatus, BrpValue},
             candidate_lists::CandidateListId,
             persons::PersonId,
         },
@@ -135,6 +138,8 @@ mod tests {
         assert!(body.contains("Not checked"));
         assert!(body.contains(&format!("/csb/pre-submission/{stream_id}/brp-check")));
         assert!(body.contains("Check against the BRP"));
+        // Nothing to download before the check ran.
+        assert!(!body.contains("brp-overzicht"));
     }
 
     #[tokio::test]
@@ -144,10 +149,11 @@ mod tests {
             &store,
             person_id,
             vec![
-                BrpFinding::NotDutch,
-                BrpFinding::Mismatch {
+                BrpFindingKind::NotDutch.into(),
+                BrpFindingKind::Mismatch {
                     brp_value: BrpValue::PlaceOfResidence("Amsterdam".parse().unwrap()),
-                },
+                }
+                .into(),
             ],
         )
         .await;
@@ -163,6 +169,15 @@ mod tests {
         assert!(!body.contains("/csb/examination"));
         // The check is done, so there is nothing left to start.
         assert!(!body.contains(&format!("/csb/pre-submission/{stream_id}/brp-check")));
+        // The overview is offered as Word and PDF.
+        assert!(body.contains(&format!(
+            "href=\"/csb/pre-submission/{stream_id}/brp-overzicht.docx\""
+        )));
+        assert!(body.contains(&format!(
+            "href=\"/csb/pre-submission/{stream_id}/brp-overzicht.pdf\""
+        )));
+        assert!(body.contains("Download Word"));
+        assert!(body.contains("Download PDF"));
     }
 
     #[tokio::test]

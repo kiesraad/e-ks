@@ -14,6 +14,8 @@ use syn::{Data, DeriveInput, Fields, LitStr, Type, parse_macro_input};
 /// - `#[validate(target = "Type")]` on the struct.
 /// - `#[validate(parse = "Type")]` to parse via `Type::from_str`.
 /// - `#[validate(optional)]` to treat empty strings as `None` (requires `parse`).
+/// - `#[validate(required)]` to reject empty strings while parsing into an
+///   `Option` target field (requires `parse`).
 /// - `#[validate(not_empty)]` to reject empty values via `is_empty`.
 /// - `#[validate(ignore)]` to skip validation and mapping for a field.
 /// - `#[validate(flatten)]` to validate a nested form and prefix its errors with `field.child`.
@@ -29,6 +31,7 @@ pub fn derive_validate(input: TokenStream) -> TokenStream {
 #[derive(Default)]
 struct FieldOptions {
     optional: bool,
+    required: bool,
     ignore: bool,
     parse_ty: Option<Type>,
     flatten: bool,
@@ -215,6 +218,8 @@ fn parse_field_options(field: &syn::Field) -> syn::Result<FieldOptions> {
         attr.parse_nested_meta(|meta| {
             if meta.path.is_ident("optional") {
                 opts.optional = true;
+            } else if meta.path.is_ident("required") {
+                opts.required = true;
             } else if meta.path.is_ident("not_empty") {
                 opts.not_empty = true;
             } else if meta.path.is_ident("ignore") {
@@ -238,8 +243,10 @@ fn parse_field_options(field: &syn::Field) -> syn::Result<FieldOptions> {
 
 fn check_field_option_conflicts(field: &syn::Field, opts: &FieldOptions) -> syn::Result<()> {
     let error = |message| Err(syn::Error::new_spanned(field, message));
-    let other_count =
-        opts.optional as u8 + opts.not_empty as u8 + u8::from(opts.parse_ty.is_some());
+    let other_count = opts.optional as u8
+        + opts.required as u8
+        + opts.not_empty as u8
+        + u8::from(opts.parse_ty.is_some());
 
     if opts.ignore && (opts.flatten || other_count > 0) {
         return error("ignore cannot be combined with other validate options");
@@ -247,11 +254,14 @@ fn check_field_option_conflicts(field: &syn::Field, opts: &FieldOptions) -> syn:
     if opts.flatten && other_count > 0 {
         return error("flatten cannot be combined with other validate options");
     }
-    if opts.not_empty && (opts.optional || opts.parse_ty.is_some()) {
-        return error("not_empty cannot be combined with parse or optional");
+    if opts.not_empty && (opts.optional || opts.required || opts.parse_ty.is_some()) {
+        return error("not_empty cannot be combined with parse, optional or required");
     }
-    if opts.optional && opts.parse_ty.is_none() {
-        return error("optional requires parse");
+    if opts.optional && opts.required {
+        return error("optional cannot be combined with required");
+    }
+    if (opts.optional || opts.required) && opts.parse_ty.is_none() {
+        return error("optional and required require parse");
     }
 
     Ok(())
@@ -274,7 +284,7 @@ fn build_field_validation(
     }
 
     if let Some(ty) = &opts.parse_ty {
-        return build_parse_validation(ident, field_name, ty, opts.optional);
+        return build_parse_validation(ident, field_name, ty, opts.optional, opts.required);
     }
 
     // Pass-through: fields without a validator are cloned as-is.
@@ -327,11 +337,14 @@ fn build_flatten_validation(
 
 /// Build validation for `#[validate(parse = "...")]` fields, parsing the
 /// trimmed input via `FromStr` (e.g. `first_name: String` into `FirstName`).
+/// With `optional` or `required` the target field is an `Option`; `required`
+/// still rejects empty input.
 fn build_parse_validation(
     ident: &syn::Ident,
     field_name: &str,
     ty: &Type,
     optional: bool,
+    required: bool,
 ) -> FieldValidation {
     let if_empty = if optional {
         quote!(Some(None))
@@ -345,7 +358,7 @@ fn build_parse_validation(
         )
     };
 
-    let res = if optional {
+    let res = if optional || required {
         quote!(Some(Some(value)))
     } else {
         quote!(Some(value))

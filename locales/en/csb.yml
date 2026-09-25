@@ -36,6 +36,7 @@ brp:
     deceased: "The BRP records this candidate as deceased on {}."
     deceased_date_unknown: "The BRP records this candidate as deceased, without a full date of death."
     excluded_from_suffrage: The BRP records this candidate as excluded from the right to vote.
+    last_name_not_allowed: "According to the BRP, the last name may be: {}"
     mismatch: "{} differs from the BRP, which holds: {}"
     missing_in_brp: "The BRP holds no {} for this candidate."
     not_dutch: The BRP records no Dutch nationality for this candidate.
@@ -44,6 +45,15 @@ brp:
     residence_unknown: "This candidate's residence is unknown in the BRP."
     residence_without_address: "This candidate has no residential address in the BRP (a correspondence address, for instance), so the BRP holds no place of residence."
     unparsable: "The BRP value for {} could not be interpreted, so it was not compared: {}"
+  handled:
+    badge: Handled
+    candidate: Candidate
+    count: "{} of {} handled"
+    done: Handled
+    explanation: "Mark a BRP error as handled once it turns out not to be a problem, or once an omission was added for it."
+    finding: Error
+    not_done: Not handled
+    title: BRP errors
   incomplete: Check not finished
   not_checked: Not checked
   refresh: Refresh this page
@@ -241,6 +251,7 @@ paper_corrections:
   stop: Back to examination
   title: Paper corrections
 pre_submission:
+  download_title: Overview for the political group
   explanation: "Check the candidate lists political groups hand in ahead of nomination day against the BRP, so they can correct errors before the official submission."
   group_explanation: "Every difference the check against the BRP found, per candidate. Report them to the political group, so they can be corrected before nomination day."
   none: No political groups have been imported for the pre-submission yet.

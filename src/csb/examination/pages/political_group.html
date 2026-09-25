@@ -21,27 +21,6 @@
   {% endif %}
   <div class="examination-panels {% if political_group.mode.is_examination() && political_group.is_examination_finished %}disabled{% endif %}">
     {% if political_group.mode.is_examination() %}
-      <div class="examination-panel">
-        <div class="examination-panel-header">
-          <div>
-            <h2 class="h3">{{ "csb.group.discovered_errors"|trans }}</h2>
-            <p>{{ "csb.group.discovered_errors_note"|trans }}</p>
-          </div>
-          <div class="examination-panel-actions">
-            {% if brp_running %}
-              <a class="button secondary" href="{{ political_group.group_path() }}">{{ "csb.brp.refresh"|trans }}</a>
-            {% else if brp_incomplete.is_some() %}
-              <form method="post" action="{{ political_group.start_brp_check_path() }}">
-                {{ macros::csrf_field() }}
-                <button type="submit" class="button secondary">{{ "csb.brp.start_check"|trans }}</button>
-              </form>
-            {% endif %}
-            <a class="button secondary icon-chevron-end"
-               href="{{ political_group.all_brp_findings_path() }}">{{ "csb.group.examine_all"|trans }}</a>
-          </div>
-        </div>
-        {{ restorations::brp_strip(brp, brp_incomplete.as_deref() , running=brp_running) }}
-      </div>
       <form method="post"
             class="examination-panel"
             action="{{ political_group.start_paper_corrections_path() }}">
@@ -65,6 +44,27 @@
           {% endif %}
         </div>
       </form>
+      <div class="examination-panel">
+        <div class="examination-panel-header">
+          <div>
+            <h2 class="h3">{{ "csb.group.discovered_errors"|trans }}</h2>
+            <p>{{ "csb.group.discovered_errors_note"|trans }}</p>
+          </div>
+          <div class="examination-panel-actions">
+            {% if brp_running %}
+              <a class="button secondary" href="{{ political_group.group_path() }}">{{ "csb.brp.refresh"|trans }}</a>
+            {% else if brp_incomplete.is_some() %}
+              <form method="post" action="{{ political_group.start_brp_check_path() }}">
+                {{ macros::csrf_field() }}
+                <button type="submit" class="button secondary">{{ "csb.brp.start_check"|trans }}</button>
+              </form>
+            {% endif %}
+            <a class="button secondary icon-chevron-end"
+               href="{{ political_group.all_brp_findings_path() }}">{{ "csb.group.examine_all"|trans }}</a>
+          </div>
+        </div>
+        {{ restorations::brp_strip(brp, brp_badges, brp_incomplete.as_deref() ) }}
+      </div>
     {% endif %}
     <div class="examination-panel">
       <div class="examination-panel-header">
@@ -168,23 +168,14 @@
               {% let show_brp = political_group.mode.is_examination() && !candidate_list.brp.is_correct() %}
               {% let is_scrapped = political_group.mode.is_recovery() && candidate_list.is_scrapped %}
               {% if show_brp || is_scrapped || candidate_list.restoration_status.has_changes() %}
-                <div class="restoration-strip {% if political_group.mode.is_examination() && candidate_list.brp.has_errors() %}restoration-strip-error{% endif %}">
+                <div class="restoration-strip {% if political_group.mode.is_examination() && candidate_list.brp.has_unhandled_errors() %}restoration-strip-error{% endif %}">
                   {% if show_brp || is_scrapped %}
                     <ul class="restoration-tags">
                       {% if show_brp %}
-                        {% if candidate_list.brp.has_errors() %}
-                          <li>
-                            <span class="restoration-tag restoration-tag-error">{{ "csb.brp.errors"|trans }}</span>
-                          </li>
-                        {% else if candidate_list.brp.is_not_checked() %}
-                          <li>
-                            <span class="restoration-tag restoration-tag-pending">{{ "csb.brp.not_checked"|trans }}</span>
-                          </li>
-                        {% else if candidate_list.brp.is_incomplete() %}
-                          <li>
-                            <span class="restoration-tag restoration-tag-pending">{{ "csb.brp.incomplete"|trans }}</span>
-                          </li>
-                        {% endif %}
+                        {% let badge = candidate_list.brp.badge(false) %}
+                        <li>
+                          <span class="restoration-tag restoration-tag-{{ badge.css() }}">{{ badge.label_key() |trans }}</span>
+                        </li>
                       {% endif %}
                       {% if is_scrapped %}
                         <li>

@@ -151,7 +151,7 @@ impl PersonalDataForm {
             };
 
             let has_duplicate_name = existing.iter().any(|p| {
-                p.name.initials == initials
+                p.name.initials.as_ref() == Some(&initials)
                     && p.name.last_name_prefix == last_name_prefix
                     && p.name.last_name == last_name
             });
@@ -243,7 +243,7 @@ mod tests {
             display_opt(&updated.name.first_name).as_deref(),
             Some("Evert")
         );
-        assert_eq!(updated.name.initials.to_string(), "E.D.");
+        assert_eq!(updated.name.initials.clone().to_string_or_default(), "E.D.");
         assert_eq!(
             updated
                 .personal_data
@@ -280,6 +280,27 @@ mod tests {
             Some("Spoorstraat")
         );
         assert!(updated.updated_at >= current.updated_at);
+    }
+
+    /// The BRP allows a person without first names and thus without initials,
+    /// but a political group has to hand in initials for every person.
+    #[test]
+    fn personal_data_form_rejects_empty_initials() {
+        let current = current_person();
+        let mut form = valid_update_form();
+        form.name.initials = "  ".to_string();
+
+        let Err(data) = form.validate_update(&current) else {
+            panic!("expected validation errors");
+        };
+
+        assert_eq!(
+            data.errors(),
+            vec![(
+                "name.initials".to_string(),
+                ValidationError::ValueShouldNotBeEmpty
+            )]
+        );
     }
 
     #[test]

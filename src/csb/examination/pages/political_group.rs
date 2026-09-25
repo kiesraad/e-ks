@@ -12,7 +12,9 @@ use crate::{
         examination::{
             extractors::CsbPoliticalGroup,
             pages::{CsbBrpCheckPath, CsbPoliticalGroupPath, CsbPoliticalGroupToggleFinishPath},
-            structs::{BrpCheckState, CsbCandidateList, RestorationStatus, brp_incomplete_reason},
+            structs::{
+                BrpBadge, BrpCheckState, CsbCandidateList, RestorationStatus, brp_incomplete_reason,
+            },
         },
         import::{brp_sweep_running, do_brp_verification},
     },
@@ -30,6 +32,8 @@ struct CsbPoliticalGroupTemplate {
     /// Why the BRP data on this page may be incomplete, when the check did not
     /// finish. `Some` is also what makes the start button worth offering.
     brp_incomplete: Option<String>,
+    /// The badges of the BRP strip, derived from `brp` and `brp_running`.
+    brp_badges: Vec<BrpBadge>,
     candidate_lists: Vec<CsbCandidateList>,
     political_group_status: RestorationStatus,
     declarations_of_support_omissions: Vec<Omission>,
@@ -109,6 +113,7 @@ pub(in crate::csb) async fn render(
     Ok(HtmlTemplate(
         CsbPoliticalGroupTemplate {
             political_group,
+            brp_badges: brp.strip_badges(brp_running),
             brp,
             brp_running,
             brp_incomplete,
@@ -158,7 +163,7 @@ mod tests {
         AppState,
         csb::import::claim_sweep_for_test,
         structs::{
-            brp::{BrpFinding, BrpStatus},
+            brp::{BrpFindingKind, BrpStatus},
             candidate_lists::CandidateListId,
             csb::{Omission, OmissionCategory},
             persons::PersonId,
@@ -218,7 +223,7 @@ mod tests {
         store
             .update(CsbAction::BrpPersonChecked {
                 person: person_id,
-                findings: vec![BrpFinding::NotDutch],
+                findings: vec![BrpFindingKind::NotDutch.into()],
             })
             .await
             .unwrap();
@@ -236,6 +241,44 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn findings_that_are_all_handled_show_the_handled_badge() {
+        let (store, person_id) = store_with_a_candidate();
+        store
+            .update(CsbAction::BrpPersonChecked {
+                person: person_id,
+                findings: vec![BrpFindingKind::NotDutch.into()],
+            })
+            .await
+            .unwrap();
+        store
+            .update(CsbAction::SetBrpStatus(BrpStatus::Finished))
+            .await
+            .unwrap();
+        let handled = r#"restoration-tag restoration-tag-handled">Handled<"#;
+
+        let body = examination_body(store.clone()).await;
+        assert!(body.contains("1 BRP error"), "{body}");
+        assert!(body.contains("restoration-strip-error"));
+        assert!(!body.contains(handled));
+
+        store
+            .update(CsbAction::SetBrpFindingHandled {
+                person: person_id,
+                finding: BrpFindingKind::NotDutch,
+                handled: true,
+            })
+            .await
+            .unwrap();
+
+        // Both the group strip and the list tile turn grey.
+        let body = examination_body(store).await;
+        assert_eq!(body.matches(handled).count(), 2, "{body}");
+        assert!(!body.contains("1 BRP error"));
+        assert!(!body.contains("restoration-strip-error"));
+        assert!(!body.contains("restoration-tag-error"));
+    }
+
+    #[tokio::test]
     async fn findings_for_someone_who_is_not_a_candidate_are_not_counted() {
         let (store, person_id) = store_with_a_candidate();
         // The sweep covers every person in the imported snapshot, which holds
@@ -247,7 +290,10 @@ mod tests {
             (person_id, Vec::new()),
             (
                 bystander_id,
-                vec![BrpFinding::NotDutch, BrpFinding::NotDutch],
+                vec![
+                    BrpFindingKind::NotDutch.into(),
+                    BrpFindingKind::NotDutch.into(),
+                ],
             ),
         ] {
             store

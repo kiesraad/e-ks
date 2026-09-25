@@ -194,7 +194,7 @@ mod tests {
     async fn the_brp_value_is_offered_while_correcting_the_field_it_belongs_to() {
         use crate::{
             CsbAction,
-            structs::brp::{BrpFinding, BrpValue},
+            structs::brp::{BrpFindingKind, BrpValue},
         };
 
         let store = crate::CsbStore::new_for_test();
@@ -205,9 +205,12 @@ mod tests {
         store
             .update(CsbAction::BrpPersonChecked {
                 person: person_id,
-                findings: vec![BrpFinding::Mismatch {
-                    brp_value: BrpValue::PlaceOfResidence("Amsterdam".parse().unwrap()),
-                }],
+                findings: vec![
+                    BrpFindingKind::Mismatch {
+                        brp_value: BrpValue::PlaceOfResidence("Amsterdam".parse().unwrap()),
+                    }
+                    .into(),
+                ],
             })
             .await
             .unwrap();
@@ -403,7 +406,10 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
         let corrected = store.get_person(person_id, WithCorrections::All).unwrap();
-        assert_eq!(corrected.name.initials.to_string(), "X.Y.Z.");
+        assert_eq!(
+            corrected.name.initials.as_ref().map(ToString::to_string),
+            Some("X.Y.Z.".to_string())
+        );
     }
 
     #[tokio::test]
@@ -426,7 +432,8 @@ mod tests {
             Query(QueryParamState::default()),
             Query(OmissionListQuery::default()),
             Form(CorrectionForm {
-                value: String::new(),
+                // The BRP allows initials this application rejects.
+                value: "T4".to_string(),
             }),
         )
         .await

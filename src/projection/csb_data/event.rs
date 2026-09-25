@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     CsbUser, Event, HasCsbUser, PgEvent, PgStoreData, StreamId,
     structs::{
-        brp::{BrpFinding, BrpStatus},
+        brp::{BrpFinding, BrpFindingKind, BrpStatus},
         csb::{Correction, Omission, OmissionId, OmissionPart, OmissionStatus},
         persons::PersonId,
     },
@@ -109,6 +109,13 @@ pub enum CsbAction {
         person: PersonId,
         findings: Vec<BrpFinding>,
     },
+    /// Record whether the committee dealt with one of a candidate's findings.
+    /// The finding is named in full, so the log says what was handled.
+    SetBrpFindingHandled {
+        person: PersonId,
+        finding: BrpFindingKind,
+        handled: bool,
+    },
     SetBrpStatus(BrpStatus),
 }
 
@@ -126,7 +133,9 @@ impl CsbAction {
             | CsbAction::SetOmissionStatus { .. }
             | CsbAction::SetOmissionPartStatus { .. } => "omission",
             CsbAction::UpdateCorrection(_) => "correction",
-            CsbAction::BrpPersonChecked { .. } | CsbAction::SetBrpStatus(_) => "brp_validation",
+            CsbAction::BrpPersonChecked { .. }
+            | CsbAction::SetBrpFindingHandled { .. }
+            | CsbAction::SetBrpStatus(_) => "brp_validation",
         }
     }
 
@@ -144,6 +153,7 @@ impl CsbAction {
             CsbAction::SetOmissionPartStatus { .. } => "set_omission_part_status",
             CsbAction::UpdateCorrection(_) => "update_correction",
             CsbAction::BrpPersonChecked { .. } => "brp_person_checked",
+            CsbAction::SetBrpFindingHandled { .. } => "set_brp_finding_handled",
             CsbAction::SetBrpStatus(_) => "brp_validation",
         }
     }
@@ -169,6 +179,9 @@ impl CsbAction {
             }
             CsbAction::BrpPersonChecked { .. } => {
                 trans!("audit_log.event.brp_validation", locale)
+            }
+            CsbAction::SetBrpFindingHandled { .. } => {
+                trans!("audit_log.event.set_brp_finding_handled", locale)
             }
             CsbAction::SetBrpStatus(_) => {
                 trans!("audit_log.event.set_brp_validation_state", locale)
@@ -211,6 +224,11 @@ impl CsbAction {
             }
             CsbAction::UpdateCorrection(_) => String::new(),
             CsbAction::BrpPersonChecked { person, .. } => person.to_string(),
+            CsbAction::SetBrpFindingHandled {
+                person,
+                finding,
+                handled,
+            } => format!("{person}: {finding:?} handled={handled}"),
             CsbAction::SetBrpStatus(value) => value.to_string(),
         }
     }

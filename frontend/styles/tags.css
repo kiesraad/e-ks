@@ -50,6 +50,11 @@
   mask-image: url("../icons/info.svg");
 }
 
+/* Handled findings are settled and carry no icon at all. */
+.tag.link a.handled::after {
+  content: none;
+}
+
 .tag a {
   border-radius: var(--rounded-md);
   border: 1px solid var(--tag-border-color, var(--gray-50));
@@ -96,7 +101,16 @@
     --tag-color: var(--gray-500);
   }
 
-  &:hover:not(.unclickable) {
+  /* Every BRP finding was marked as handled: settled, so shown in grey. */
+  &:is(.handled),
+  &:has(.handled) {
+    --tag-border-color: var(--gray-200);
+    --tag-color: var(--gray-500);
+  }
+
+  /* In a clickable table row the whole row is the click target and lights
+     up on hover, so the tag itself does not. */
+  &:hover:not(.unclickable, tr.clickable *) {
     --tag-border-color: var(--gray-200);
     background-color: var(--gray-50);
 

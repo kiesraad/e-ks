@@ -21,7 +21,7 @@ fn name(initials: &str, prefix: Option<&str>, last_name: &str) -> FullName {
         first_name: None,
         last_name: last_name.parse().expect("last name"),
         last_name_prefix: prefix.map(|p| p.parse().expect("last name prefix")),
-        initials: initials.parse().expect("initials"),
+        initials: Some(initials.parse().expect("initials")),
     }
 }
 

@@ -355,7 +355,7 @@ mod tests {
                 first_name: Some("Anne".parse().unwrap()),
                 last_name: LastName::from_str("Dijk").unwrap(),
                 last_name_prefix: None,
-                initials: Initials::from_str("A.B.").unwrap(),
+                initials: Some(Initials::from_str("A.B.").unwrap()),
             },
             address: DutchAddress {
                 street_name: Some(StreetName::from_str("street name").unwrap()),

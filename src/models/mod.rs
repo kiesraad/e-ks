@@ -2,8 +2,8 @@
 //! [`textris_pdf`].
 //!
 //! Each model lives in its own file (`h1`, `h3`, `h4`, `h9`, `i1`, `i4`, plus
-//! the omission letter in `omission_letter`); H 3 covers both the H 3-1 and
-//! H 3-2 variants. The document text is authored as askama
+//! the omission letter in `omission_letter` and the pre-submission overview in
+//! `brp_overview`); H 3 covers both the H 3-1 and H 3-2 variants. The document text is authored as askama
 //! Markdown templates in `templates/` (one per locale and variant), written in
 //! the textris-pdf Markdown dialect and wired up by [`mod@markdown`].
 //! [`layout`] holds the shared page set-up, and [`inputs`] the shared input
@@ -15,6 +15,7 @@
 //! the rendered models plus the [`mod@eml::eml210`] nomination export as a ZIP
 //! download.
 
+pub mod brp_overview;
 pub(crate) mod documents;
 pub(crate) mod eml;
 pub mod examples;
@@ -33,9 +34,17 @@ pub mod omission_letter;
 pub use examples::{Example, examples};
 pub use fonts::fonts;
 
+use axum::{
+    http::HeaderValue,
+    response::{IntoResponse, Response},
+};
 use textris_pdf::{build::Textris, render::RenderError};
 
-use crate::AppError;
+use crate::{AppError, utils::no_cache_headers};
+
+pub const PDF_CONTENT_TYPE: &str = "application/pdf";
+pub const DOCX_CONTENT_TYPE: &str =
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
 /// A document that renders to a PDF: it can build a [`Textris`] document and
 /// knows its download file name.
@@ -75,6 +84,26 @@ pub trait Pdf: Sized {
             .map_err(|_| AppError::InternalServerError)?
             .map_err(AppError::DocxError)
     }
+
+    /// The rendered PDF as a download response under [`Self::filename`].
+    #[allow(async_fn_in_trait)]
+    async fn pdf_response(&self) -> Result<Response, AppError> {
+        let headers = no_cache_headers::generate_attachment_headers(
+            &self.filename(),
+            HeaderValue::from_static(PDF_CONTENT_TYPE),
+        )?;
+        Ok((headers, self.generate_bytes().await?).into_response())
+    }
+
+    /// The Word export as a download response under [`Self::docx_filename`].
+    #[allow(async_fn_in_trait)]
+    async fn docx_response(&self) -> Result<Response, AppError> {
+        let headers = no_cache_headers::generate_attachment_headers(
+            &self.docx_filename(),
+            HeaderValue::from_static(DOCX_CONTENT_TYPE),
+        )?;
+        Ok((headers, self.generate_docx_bytes().await?).into_response())
+    }
 }
 
 /// Run a PDF render on a blocking thread
@@ -110,9 +139,10 @@ mod tests {
             .expect("render model")
     }
 
-    /// Every example input renders to a valid PDF. This drives all eight
-    /// document builders (`h1`, `h3-1`, `h3-2`, `h4`, `h9`, `i1`, `i4` and the
-    /// omission letter) together with the shared layout code, end to end.
+    /// Every example input renders to a valid PDF. This drives all nine
+    /// document builders (`h1`, `h3-1`, `h3-2`, `h4`, `h9`, `i1`, `i4`, the
+    /// omission letter and the pre-submission overview) together with the
+    /// shared layout code, end to end.
     #[test]
     fn renders_every_example_input() {
         let mut rendered = 0;
@@ -121,7 +151,7 @@ mod tests {
             assert_pdf(&example.render().expect("render example"), name);
             rendered += 1;
         }
-        assert_eq!(rendered, 21, "expected to render every example input");
+        assert_eq!(rendered, 23, "expected to render every example input");
     }
 
     /// Every example input also exports as a Word document, which exercises the
@@ -236,5 +266,14 @@ mod tests {
         let mut blank = omission_letter_example_1();
         blank.appellation = String::new();
         assert_eq!(blank.filename(), "verzuimbrief-ek27.pdf");
+
+        assert_eq!(
+            brp_overview_example_1().filename(),
+            "brp-overzicht-kiesraad-demo-ek27.pdf"
+        );
+        assert_eq!(
+            brp_overview_example_1().docx_filename(),
+            "brp-overzicht-kiesraad-demo-ek27.docx"
+        );
     }
 }

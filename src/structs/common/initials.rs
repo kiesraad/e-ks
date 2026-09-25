@@ -16,14 +16,18 @@
 //! - Initials that are not followed by a dot are separated by whitespace,
 //!   which is normalized to a single space.
 //! - Superfluous whitespace is removed.
-//! - At most 20 initials, punctuation and whitespace do not count.
+//! - At most 100 initials, punctuation and whitespace do not count.
 use crate::{
     form::{ValidationError, is_teletex_char},
     transparent_string,
 };
 
-/// The BRP allows 40 characters, which fits 20 initials followed by a dot
-const MAX_INITIALS: usize = 20;
+/// The Logisch Ontwerp BRP (element NM.01) and the Haal Centraal API spec
+/// document initials as at most 40 characters, but the BRP does hand out
+/// longer values. The hard bound follows from the first names they derive
+/// from (element 02.10, at most 200 characters): 100 single-letter names
+/// separated by spaces yield 100 initials.
+const MAX_INITIALS: usize = 100;
 
 transparent_string! {
     pub struct Initials(String);
@@ -160,13 +164,20 @@ mod tests {
     }
 
     #[test]
+    fn accepts_initials_longer_than_the_documented_brp_maximum() {
+        // Handed out by the BRP despite its documented maximum of 40 characters
+        let value = "L.D.C.E.2.A.S.M.j.I.d.M.d.l.M.R.J.G.a D.R.S.L.E.L.d.A.";
+        assert_eq!(parse(value), Ok(value.to_string()));
+    }
+
+    #[test]
     fn counts_initials_instead_of_characters_for_the_maximum() {
-        let twenty = "A.".repeat(20);
-        assert_eq!(parse(&twenty), Ok(twenty.clone()));
+        let hundred = "A.".repeat(100);
+        assert_eq!(parse(&hundred), Ok(hundred.clone()));
 
         assert_eq!(
-            parse(&"A.".repeat(21)),
-            Err(ValidationError::TooManyInitials(21, 20))
+            parse(&"A.".repeat(101)),
+            Err(ValidationError::TooManyInitials(101, 100))
         );
     }
 }

@@ -136,14 +136,14 @@ mod tests {
         );
 
         b.name.last_name_prefix = None;
-        a.name.initials = parse_initials("A.A.");
-        b.name.initials = parse_initials("B.B.");
+        a.name.initials = Some(parse_initials("A.A."));
+        b.name.initials = Some(parse_initials("B.B."));
         assert_eq!(
             compare_persons(&a, &b, &PersonSort::LastName),
             Ordering::Less
         );
 
-        b.name.initials = parse_initials("A.A.");
+        b.name.initials = Some(parse_initials("A.A."));
         assert_eq!(
             compare_persons(&a, &b, &PersonSort::LastName),
             Ordering::Less
@@ -185,8 +185,8 @@ mod tests {
         let mut a = person_with_id(1);
         let mut b = person_with_id(2);
 
-        a.name.initials = parse_initials("A.A.");
-        b.name.initials = parse_initials("B.B.");
+        a.name.initials = Some(parse_initials("A.A."));
+        b.name.initials = Some(parse_initials("B.B."));
         a.name.last_name = parse_last_name("Zulu");
         b.name.last_name = parse_last_name("Alpha");
         assert_eq!(
@@ -194,7 +194,7 @@ mod tests {
             Ordering::Less
         );
 
-        b.name.initials = parse_initials("A.A.");
+        b.name.initials = Some(parse_initials("A.A."));
         a.name.last_name = parse_last_name("Alpha");
         b.name.last_name = parse_last_name("Zulu");
         assert_eq!(
