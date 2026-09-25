@@ -4,7 +4,8 @@
 {% block overlay %}
   <div class="overlay-backdrop">
     <form method="post"
-          class="overlay {% block overlay_class %}{% endblock %} {% if "overlay_active"|value_true %}no-animation{% else %}animation{% endif %}">
+          class="overlay {% block overlay_class %}{% endblock %} {% if "overlay_active"|value_true %}no-animation{% else %}animation{% endif %}"
+          {% block overlay_attributes %}{% endblock %}>
       {{ macros::csrf_field() }}
       <header>
         <h2>

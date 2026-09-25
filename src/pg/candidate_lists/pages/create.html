@@ -1,5 +1,6 @@
 {% extends "pg/common/components/overlay.html" %}
 {% set close_action = CandidateList::list_path() %}
+{% block overlay_attributes %}data-create{% endblock %}
 {% block overlay_title %}{{ "candidate_list.form.create.title"|trans }}{% endblock %}
 {% block overlay_steps %}
   {% include "pg/candidate_lists/components/create_steps.html" %}

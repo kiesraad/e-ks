@@ -1,4 +1,7 @@
 {% extends "csb/components/overlay.html" %}
+{% block overlay_attributes %}
+  {% if group.is_none() %}data-create{% endif %}
+{% endblock %}
 {% block overlay_title %}
   {% if group.is_some() %}
     {{ "csb.registered_political_groups.edit"|trans }}

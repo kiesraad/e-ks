@@ -1,5 +1,6 @@
 {% extends "pg/common/components/overlay.html" %}
 {% set close_action = Person::list_path() %}
+{% block overlay_attributes %}data-create{% endblock %}
 {% block overlay_title %}{{ "person.form.create.title"|trans }}{% endblock %}
 {% block overlay_steps %}
   <div class="steps-nav">

@@ -18,6 +18,7 @@ struct ListSubmitterUpdateTemplate {
     form: FormData<ListSubmitterForm>,
     should_warn: bool,
     address_unknown: bool,
+    is_new: bool,
     overlay: Overlay,
 }
 
@@ -28,13 +29,14 @@ pub async fn update_list_submitter(
     Query(query): Query<QueryParamState>,
 ) -> Result<Response, AppError> {
     let list_submitter = store.get_list_submitter();
-    let should_warn = !list_submitter.is_empty();
+    let is_new = list_submitter.is_empty();
     let address_unknown = list_submitter.address.is_unknown();
     Ok(HtmlTemplate(
         ListSubmitterUpdateTemplate {
             form: FormData::new_with_data(list_submitter.into()),
-            should_warn,
+            should_warn: !is_new,
             address_unknown,
+            is_new,
             overlay: Overlay::new(&query),
         },
         context,
@@ -56,6 +58,7 @@ pub async fn update_list_submitter_submit(
                 form: *form_data,
                 should_warn: true,
                 address_unknown: list_submitter.address.is_unknown(),
+                is_new: list_submitter.is_empty(),
                 overlay: Overlay::new(&query),
             },
             context,
