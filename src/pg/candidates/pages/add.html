@@ -1,4 +1,5 @@
 {% extends "pg/common/components/overlay.html" %}
+{% block overlay_attributes %}data-create{% endblock %}
 {% block overlay_title %}{{ "candidate_list.add_candidate"|trans }}{% endblock %}
 {% block overlay_content %}
   <div class="form overlay-content">

@@ -1,5 +1,6 @@
 {% extends "pg/common/components/overlay.html" %}
 {% set close_action = NameAuthorisation::list_path() %}
+{% block overlay_attributes %}data-create{% endblock %}
 {% block overlay_title %}{{ "political_group.add_legal_name"|trans }}{% endblock %}
 {% block overlay_steps %}
   {% include "pg/name_authorisations/components/create_steps.html" %}
