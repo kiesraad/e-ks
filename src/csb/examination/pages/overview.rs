@@ -105,6 +105,30 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_group_whose_errors_are_all_handled_shows_the_handled_badge() {
+        let groups = CsbPoliticalGroups(vec![CsbPoliticalGroup {
+            brp: BrpCheckState::Errors {
+                errors: 2,
+                handled: 2,
+            },
+            ..group(false)
+        }]);
+
+        let response = overview(
+            CsbExaminationOverviewPath {},
+            CsbContext::new_test(),
+            groups,
+        )
+        .await
+        .unwrap()
+        .into_response();
+
+        let body = response_body_string(response).await;
+        assert!(body.contains(r#"class="handled""#), "{body}");
+        assert!(!body.contains(">Errors<"));
+    }
+
+    #[tokio::test]
     async fn a_check_that_did_not_finish_is_not_reported_as_a_verdict() {
         let groups = CsbPoliticalGroups(vec![CsbPoliticalGroup {
             brp: BrpCheckState::Incomplete { errors: 2 },

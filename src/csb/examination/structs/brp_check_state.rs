@@ -26,6 +26,81 @@ pub enum BrpCheckState {
     Errors { errors: usize, handled: usize },
 }
 
+/// The badge a [`BrpCheckState`] is shown as, decided in one place so the
+/// overview badges, the strips and the list tiles cannot rank the states
+/// differently. A new state means a variant here and a style per stylesheet,
+/// not another cascade in every template.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BrpBadge {
+    /// A sweep is under way right now.
+    Running,
+    NotChecked,
+    Incomplete,
+    Correct,
+    /// Findings, every one of them marked handled.
+    Handled,
+    Errors {
+        errors: usize,
+    },
+}
+
+impl BrpBadge {
+    /// The modifier the stylesheets key the badge's look on: `tags.css`
+    /// styles `.tag.link a.<modifier>`, `restorations.css` styles
+    /// `.restoration-tag-<modifier>`.
+    pub fn css(&self) -> &'static str {
+        match self {
+            Self::Running => "running",
+            Self::NotChecked => "pending",
+            Self::Incomplete => "warning",
+            Self::Correct => "ok",
+            Self::Handled => "handled",
+            Self::Errors { .. } => "error",
+        }
+    }
+
+    /// The compact one-word label, translated by the template.
+    ///
+    /// Keys, for the locale pruner: trans!("csb.brp.checking", _),
+    /// trans!("csb.brp.not_checked", _), trans!("csb.brp.incomplete", _),
+    /// trans!("csb.brp.correct", _), trans!("csb.brp.handled.badge", _),
+    /// trans!("csb.brp.errors", _)
+    pub fn label_key(&self) -> &'static str {
+        match self {
+            Self::Running => "csb.brp.checking",
+            Self::NotChecked => "csb.brp.not_checked",
+            Self::Incomplete => "csb.brp.incomplete",
+            Self::Correct => "csb.brp.correct",
+            Self::Handled => "csb.brp.handled.badge",
+            Self::Errors { .. } => "csb.brp.errors",
+        }
+    }
+
+    /// The label of the wide strips, which spells the verdict out with
+    /// [`Self::strip_label_count`] filled in.
+    ///
+    /// Keys, for the locale pruner: trans!("csb.group.brp_errors.none", _),
+    /// trans!("csb.group.brp_errors.singular", _),
+    /// trans!("csb.group.brp_errors.plural", _)
+    pub fn strip_label_key(&self) -> &'static str {
+        match self {
+            Self::Correct => "csb.group.brp_errors.none",
+            Self::Errors { errors: 1 } => "csb.group.brp_errors.singular",
+            Self::Errors { .. } => "csb.group.brp_errors.plural",
+            _ => self.label_key(),
+        }
+    }
+
+    /// What fills the `{}` of [`Self::strip_label_key`]; empty for the keys
+    /// without one.
+    pub fn strip_label_count(&self) -> String {
+        match self {
+            Self::Errors { errors } => errors.to_string(),
+            _ => String::new(),
+        }
+    }
+}
+
 impl BrpCheckState {
     /// The state for `candidates`. A candidate standing on more than one list
     /// is counted once.
@@ -105,6 +180,52 @@ impl BrpCheckState {
     /// finding as handled.
     pub fn is_all_handled(&self) -> bool {
         matches!(self, Self::Errors { errors, handled } if handled == errors)
+    }
+
+    /// Whether unhandled errors are on the table, which is what turns a
+    /// strip red.
+    pub fn has_unhandled_errors(&self) -> bool {
+        self.has_errors() && !self.is_all_handled()
+    }
+
+    /// The one badge that sums this state up. `running` wins: a live sweep
+    /// is reported before whatever it has found so far.
+    pub fn badge(&self, running: bool) -> BrpBadge {
+        if running {
+            return BrpBadge::Running;
+        }
+        match self {
+            Self::NotChecked => BrpBadge::NotChecked,
+            Self::Incomplete { .. } => BrpBadge::Incomplete,
+            Self::Correct => BrpBadge::Correct,
+            Self::Errors { .. } if self.is_all_handled() => BrpBadge::Handled,
+            Self::Errors { errors, .. } => BrpBadge::Errors { errors: *errors },
+        }
+    }
+
+    /// The badges of a full-width strip: how far the check got, then the
+    /// verdict over what it has seen so far.
+    pub fn strip_badges(&self, running: bool) -> Vec<BrpBadge> {
+        let mut badges = Vec::new();
+        if running {
+            badges.push(BrpBadge::Running);
+        } else if self.is_not_checked() {
+            badges.push(BrpBadge::NotChecked);
+        } else if self.is_incomplete() {
+            badges.push(BrpBadge::Incomplete);
+        }
+        if !self.is_not_checked() {
+            badges.push(if self.errors() == 0 {
+                BrpBadge::Correct
+            } else if self.is_all_handled() {
+                BrpBadge::Handled
+            } else {
+                BrpBadge::Errors {
+                    errors: self.errors(),
+                }
+            });
+        }
+        badges
     }
 
     pub fn is_not_checked(&self) -> bool {
@@ -196,6 +317,62 @@ mod tests {
 
         assert!(!BrpCheckState::Correct.is_all_handled());
         assert!(!BrpCheckState::NotChecked.is_all_handled());
+    }
+
+    #[test]
+    fn every_state_maps_onto_one_badge() {
+        assert_eq!(BrpCheckState::NotChecked.badge(false), BrpBadge::NotChecked);
+        assert_eq!(BrpCheckState::NotChecked.badge(true), BrpBadge::Running);
+        assert_eq!(
+            BrpCheckState::Incomplete { errors: 1 }.badge(false),
+            BrpBadge::Incomplete
+        );
+        assert_eq!(BrpCheckState::Correct.badge(false), BrpBadge::Correct);
+        assert_eq!(
+            BrpCheckState::Errors {
+                errors: 2,
+                handled: 1
+            }
+            .badge(false),
+            BrpBadge::Errors { errors: 2 }
+        );
+        assert_eq!(
+            BrpCheckState::Errors {
+                errors: 2,
+                handled: 2
+            }
+            .badge(false),
+            BrpBadge::Handled
+        );
+    }
+
+    #[test]
+    fn a_strip_reports_the_progress_and_the_verdict_separately() {
+        assert_eq!(
+            BrpCheckState::NotChecked.strip_badges(false),
+            vec![BrpBadge::NotChecked]
+        );
+        // An unchecked group under a live sweep has no verdict to report yet.
+        assert_eq!(
+            BrpCheckState::NotChecked.strip_badges(true),
+            vec![BrpBadge::Running]
+        );
+        assert_eq!(
+            BrpCheckState::Incomplete { errors: 2 }.strip_badges(false),
+            vec![BrpBadge::Incomplete, BrpBadge::Errors { errors: 2 }]
+        );
+        assert_eq!(
+            BrpCheckState::Correct.strip_badges(false),
+            vec![BrpBadge::Correct]
+        );
+        assert_eq!(
+            BrpCheckState::Errors {
+                errors: 2,
+                handled: 2
+            }
+            .strip_badges(false),
+            vec![BrpBadge::Handled]
+        );
     }
 
     #[test]

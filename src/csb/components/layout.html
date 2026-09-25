@@ -29,28 +29,15 @@
   {% endif %}
 {% endmacro omission_badge %}
 {% macro brp_badge(brp, url) %}
+  {% let badge = brp.badge(false) %}
   <ul class="tags-list">
-    {% if brp.is_not_checked() %}
-      <li class="tag link">
-        <a class="pending unclickable">{{ "csb.brp.not_checked"|trans }}</a>
-      </li>
-    {% else if brp.is_incomplete() %}
-      <li class="tag link">
-        <a class="warning" href="{{ url }}">{{ "csb.brp.incomplete"|trans }}</a>
-      </li>
-    {% else if brp.is_all_handled() %}
-      <li class="tag link">
-        <a class="handled" href="{{ url }}">{{ "csb.brp.handled.badge"|trans }}</a>
-      </li>
-    {% else if brp.has_errors() %}
-      <li class="tag link">
-        <a class="error" href="{{ url }}">{{ "csb.brp.errors"|trans }}</a>
-      </li>
-    {% else %}
-      <li class="tag link width-md">
-        <a class="ok" href="{{ url }}">{{ "csb.brp.correct"|trans }}</a>
-      </li>
-    {% endif %}
+    <li class="tag link{% if brp.is_correct() %} width-md{% endif %}">
+      {% if brp.is_not_checked() %}
+        <a class="{{ badge.css() }} unclickable">{{ badge.label_key() |trans }}</a>
+      {% else %}
+        <a class="{{ badge.css() }}" href="{{ url }}">{{ badge.label_key() |trans }}</a>
+      {% endif %}
+    </li>
   </ul>
 {% endmacro brp_badge %}
 {% block body %}

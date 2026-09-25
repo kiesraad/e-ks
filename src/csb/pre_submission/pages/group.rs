@@ -7,7 +7,7 @@ use axum::{
 use crate::{
     AppError, AppRequestState, Context, CsbContext, HtmlTemplate,
     csb::{
-        examination::structs::{AllBrpFindings, brp_incomplete_reason},
+        examination::structs::{AllBrpFindings, BrpBadge, brp_incomplete_reason},
         import::{brp_sweep_running, do_brp_verification},
         pre_submission::{
             extractors::{PreSubmissionGroup, PreSubmissionStore},
@@ -25,6 +25,8 @@ struct PreSubmissionGroupTemplate {
     brp_running: bool,
     /// Why the list may be incomplete, when the check did not finish.
     brp_incomplete: Option<String>,
+    /// The badges of the BRP strip, derived from the state and `brp_running`.
+    brp_badges: Vec<BrpBadge>,
     all_findings: AllBrpFindings,
 }
 
@@ -47,6 +49,7 @@ pub async fn group(
                 locale,
             ),
             all_findings: store.get_unlinked_brp_findings(locale),
+            brp_badges: group.brp.strip_badges(brp_running),
             group,
             brp_running,
         },

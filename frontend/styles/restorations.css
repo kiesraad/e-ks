@@ -224,8 +224,10 @@
   }
 }
 
-/* The BRP check has not run, or did not cover every candidate. */
-.restoration-tag-pending {
+/* The BRP check has not run ("pending"), or did not cover every candidate
+   ("warning"): quiet grey either way in a strip. */
+.restoration-tag-pending,
+.restoration-tag-warning {
   --restoration-tag-bg: var(--base-white);
   --restoration-tag-color: var(--gray-500);
   --restoration-tag-icon: url("../icons/info.svg");

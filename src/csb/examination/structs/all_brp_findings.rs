@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use crate::{
     CsbStream, Locale,
-    csb::examination::extractors::CsbPoliticalGroup,
+    csb::examination::{extractors::CsbPoliticalGroup, structs::BrpFindingTag},
     projection::WithCorrections,
     structs::{
         candidate_lists::CandidateListId,
@@ -23,7 +23,13 @@ pub struct CandidateFindings {
     /// about; `None` in the pre-submission check, which has no such page.
     pub path: Option<String>,
     /// The findings, already translated.
-    pub messages: Vec<String>,
+    pub findings: Vec<BrpFindingTag>,
+}
+
+impl CandidateFindings {
+    pub fn is_all_handled(&self) -> bool {
+        self.findings.iter().all(|finding| finding.handled)
+    }
 }
 
 /// A candidate as the lists put them forward: on `list_id` at `position`.
@@ -88,20 +94,20 @@ impl CsbStream {
             .listed_candidates()
             .into_iter()
             .filter_map(|candidate| {
-                let messages: Vec<String> = findings
+                let tags: Vec<BrpFindingTag> = findings
                     .get(&candidate.person.id)
                     .into_iter()
                     .flatten()
-                    .map(|finding| finding.message(locale))
+                    .map(|finding| BrpFindingTag::new(finding, locale))
                     .collect();
-                if messages.is_empty() {
+                if tags.is_empty() {
                     return None;
                 }
                 Some(CandidateFindings {
                     path: path_for(&candidate.list_id, &candidate.person.id),
                     position: candidate.position,
                     person: candidate.person,
-                    messages,
+                    findings: tags,
                 })
             })
             .collect();

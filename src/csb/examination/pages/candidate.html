@@ -85,7 +85,7 @@
             </thead>
             <tbody>
               {% for row in brp.rows %}
-                <tr {% if row.handled %}class="brp-finding-handled"{% endif %}>
+                <tr {% if row.tag.handled %}class="brp-finding-handled"{% endif %}>
                   <td>
                     {% if row.value.is_empty() %}
                       {{ row.label }}
@@ -95,7 +95,7 @@
                   </td>
                   <td>
                     <ul class="restoration-tags">
-                      <li class="restoration-tag {% if row.handled %}restoration-tag-handled{% else %}restoration-tag-error{% endif %}">{{ row.message }}</li>
+                      <li class="restoration-tag restoration-tag-{{ row.tag.css() }}">{{ row.tag.message }}</li>
                     </ul>
                   </td>
                   <td class="actions">
@@ -106,13 +106,13 @@
                       <button type="submit"
                               name="handled"
                               value="true"
-                              class="button xs {% if row.handled %}selected{% else %}secondary{% endif %}">
+                              class="button xs {% if row.tag.handled %}selected{% else %}secondary{% endif %}">
                         {{ "csb.brp.handled.done"|trans }}
                       </button>
                       <button type="submit"
                               name="handled"
                               value="false"
-                              class="button xs {% if !row.handled %}primary-destructive selected{% else %}secondary{% endif %}">
+                              class="button xs {% if !row.tag.handled %}primary-destructive selected{% else %}secondary{% endif %}">
                         {{ "csb.brp.handled.not_done"|trans }}
                       </button>
                     </form>

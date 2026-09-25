@@ -12,6 +12,20 @@ pub struct BrpFindingTag {
     pub handled: bool,
 }
 
+impl BrpFindingTag {
+    pub fn new(finding: &BrpFinding, locale: Locale) -> Self {
+        Self {
+            message: finding.message(locale),
+            handled: finding.handled,
+        }
+    }
+
+    /// The `restoration-tag-<modifier>` the tag is styled as.
+    pub fn css(&self) -> &'static str {
+        if self.handled { "handled" } else { "error" }
+    }
+}
+
 /// The BRP findings for one candidate, grouped and translated the way the
 /// candidate detail table is laid out.
 #[derive(Debug, Default)]
@@ -32,10 +46,7 @@ impl CandidateBrpFindings {
         let mut grouped = Self::default();
 
         for finding in findings {
-            let message = BrpFindingTag {
-                message: finding.message(locale),
-                handled: finding.handled,
-            };
+            let message = BrpFindingTag::new(finding, locale);
             let target = match finding.field() {
                 Some(BrpCheckedField::Bsn) => &mut grouped.bsn,
                 Some(BrpCheckedField::Initials) => &mut grouped.initials,

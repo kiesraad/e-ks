@@ -17,8 +17,8 @@ use crate::{
                 CsbCandidateBrpCheckPath, CsbCandidateBrpFindingHandledPath, CsbCandidatePath,
             },
             structs::{
-                BrpCheckState, CandidateBrpFindings, PaperCorrected, PaperCorrectedPersonDetails,
-                brp_incomplete_reason,
+                BrpCheckState, BrpFindingTag, CandidateBrpFindings, PaperCorrected,
+                PaperCorrectedPersonDetails, brp_incomplete_reason,
             },
         },
         import::brp_sweep_running,
@@ -79,8 +79,7 @@ struct BrpFindingRow {
     /// The candidate's value of the field; empty for a finding about the
     /// candidate as a whole.
     value: String,
-    message: String,
-    handled: bool,
+    tag: BrpFindingTag,
 }
 
 impl BrpFindingRow {
@@ -94,8 +93,7 @@ impl BrpFindingRow {
             index,
             label,
             value,
-            message: finding.message(locale),
-            handled: finding.handled,
+            tag: BrpFindingTag::new(finding, locale),
         }
     }
 }
@@ -125,7 +123,7 @@ impl CandidateBrp {
     }
 
     fn handled_count(&self) -> usize {
-        self.rows.iter().filter(|row| row.handled).count()
+        self.rows.iter().filter(|row| row.tag.handled).count()
     }
 }
 
