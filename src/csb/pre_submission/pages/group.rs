@@ -257,7 +257,7 @@ mod tests {
         let body = render(store).await;
 
         assert!(body.contains("General Information</h4>"));
-        assert!(body.contains(&format!(">Appellation</span>")));
+        assert!(body.contains(">Appellation</span>"));
     }
 
     #[tokio::test]
@@ -283,7 +283,7 @@ mod tests {
 
         assert!(body.contains("General Information</h4>"));
         assert!(body.contains("Nagelhout II, A. (List submitter)</h3>"));
-        assert!(body.contains(&format!(">Address</span>")));
+        assert!(body.contains(">Address</span>"));
     }
 
     #[tokio::test]
@@ -309,7 +309,7 @@ mod tests {
 
         assert!(body.contains("General Information</h4>"));
         assert!(body.contains("Nagelhout III, A. (Substitute submitter)</h3>"));
-        assert!(body.contains(&format!(">Address</span>")));
+        assert!(body.contains(">Address</span>"));
     }
 
     #[tokio::test]
@@ -328,7 +328,7 @@ mod tests {
 
         assert!(body.contains("Candidate lists</h4>"));
         assert!(body.contains("Flevoland</h3>"));
-        assert!(body.contains(&format!(">No candidates</span>")));
+        assert!(body.contains(">No candidates</span>"));
     }
 
     #[tokio::test]
@@ -353,6 +353,6 @@ mod tests {
 
         assert!(body.contains("Candidates</h4>"));
         assert!(body.contains("Nagelhout IV, A.</h3>"));
-        assert!(body.contains(&format!(">BSN</span>")));
+        assert!(body.contains(">BSN</span>"));
     }
 }

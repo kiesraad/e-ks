@@ -14,7 +14,7 @@
   {% endif %}
 {% endblock %}
 {% block page_sub_title %}
-  {% if !list_problems.is_empty() %}
+  {% if political_group.mode.is_examination() && !list_problems.is_empty() %}
     <div class="mt-sm"></div>
     {{ restorations::problems(list_problems) }}
   {% endif %}

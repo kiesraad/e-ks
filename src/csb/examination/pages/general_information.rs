@@ -72,12 +72,15 @@ mod tests {
     use axum::http::StatusCode;
 
     use crate::{
-        CsbAction,
+        CsbAction, PgEvent,
         structs::{
+            common::{Address, PreviousElectionResults},
             csb::{OmissionCategory, sample_omission},
             list_designation::ListDesignation,
+            list_submitters::ListSubmitterId,
+            political_groups::PoliticalGroup,
         },
-        test_utils::{response_body_string, sample_political_group},
+        test_utils::{response_body_string, sample_list_submitter, sample_political_group},
     };
 
     #[tokio::test]
@@ -373,5 +376,98 @@ mod tests {
         let body = response_body_string(response).await;
 
         assert!(body.contains("Omissions appellation</h2>"));
+    }
+
+    #[tokio::test]
+    async fn general_problem_shows_up() {
+        let store = CsbStore::new_for_test();
+        store.set_political_group(PoliticalGroup {
+            appellation: None,
+            list_designation: Some(ListDesignation::Standalone),
+            previous_election_results: Some(PreviousElectionResults::ZeroSeats),
+        });
+
+        let response = overview(
+            CsbGeneralInformationPath {
+                stream_id: store.stream_id,
+            },
+            CsbContext::new_test(),
+            store,
+        )
+        .await
+        .unwrap()
+        .into_response();
+        let body = response_body_string(response).await;
+
+        assert!(body.contains(">Appellation</span>"));
+    }
+
+    #[tokio::test]
+    async fn list_submitter_problem_shows_up() {
+        let store = CsbStore::new_for_test();
+        let mut list_submitter = sample_list_submitter(ListSubmitterId::new());
+        list_submitter.name.initials = "A.".parse().expect("parse initials");
+        list_submitter.name.last_name = "Nagelhout II".parse().expect("parse last name");
+        if let Address::Dutch(ref mut address) = list_submitter.address {
+            address.locality = None
+        } else {
+            panic!("expected Dutch Address")
+        }
+
+        store
+            .update(CsbAction::PaperCorrectedUpdate(Box::new(
+                PgEvent::UpdateListSubmitter(list_submitter),
+            )))
+            .await
+            .expect("Update list submitter");
+
+        let response = overview(
+            CsbGeneralInformationPath {
+                stream_id: store.stream_id,
+            },
+            CsbContext::new_test(),
+            store,
+        )
+        .await
+        .unwrap()
+        .into_response();
+        let body = response_body_string(response).await;
+
+        assert!(body.contains(">Address</span>"));
+    }
+
+    #[tokio::test]
+    async fn substitute_submitter_problem_shows_up() {
+        let store = CsbStore::new_for_test();
+
+        let mut list_submitter = sample_list_submitter(ListSubmitterId::new());
+        list_submitter.name.initials = "A.".parse().expect("parse initials");
+        list_submitter.name.last_name = "Nagelhout III".parse().expect("parse last name");
+        if let Address::Dutch(ref mut address) = list_submitter.address {
+            address.locality = None
+        } else {
+            panic!("expected Dutch Address")
+        }
+
+        store
+            .update(CsbAction::PaperCorrectedUpdate(Box::new(
+                PgEvent::CreateSubstituteSubmitter(list_submitter),
+            )))
+            .await
+            .expect("Create substitute submitter");
+
+        let response = overview(
+            CsbGeneralInformationPath {
+                stream_id: store.stream_id,
+            },
+            CsbContext::new_test(),
+            store,
+        )
+        .await
+        .unwrap()
+        .into_response();
+        let body = response_body_string(response).await;
+
+        assert!(body.contains(">Address</span>"));
     }
 }

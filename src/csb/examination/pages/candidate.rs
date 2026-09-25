@@ -717,4 +717,36 @@ mod tests {
 
         assert!(matches!(result, Err(AppError::GenericNotFound)));
     }
+
+    #[tokio::test]
+    async fn candidate_problem_shows_up() {
+        let store = CsbStore::new_for_test();
+        let stream_id = store.stream_id;
+        let list_id = CandidateListId::new();
+        let person_id = PersonId::new();
+
+        let mut person = sample_person(person_id);
+        person.personal_data.bsn = None;
+
+        let mut list = sample_candidate_list(list_id);
+        list.candidates.push(person_id);
+
+        store.add_person(person);
+        store.add_candidate_list(list);
+
+        let response = overview(
+            CsbCandidatePath {
+                stream_id,
+                list_id,
+                person_id,
+            },
+            CsbContext::new_test(),
+            store,
+        )
+        .await
+        .expect("candidate page response");
+        let body = response_body_string(response).await;
+
+        assert!(body.contains(">BSN</span>"));
+    }
 }

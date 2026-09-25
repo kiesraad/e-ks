@@ -93,9 +93,17 @@ mod tests {
     use axum::http::StatusCode;
 
     use crate::{
-        CsbAction, ElectoralDistrict, PgEvent, structs::{
-            brp::{BrpFinding, BrpStatus, BrpValue}, candidate_lists::{CandidateList, CandidateListId}, common::{Address, PreviousElectionResults, UtcDateTime}, list_designation::ListDesignation, list_submitters::ListSubmitterId, persons::PersonId, political_groups::PoliticalGroup,
-        }, test_utils::{
+        CsbAction, ElectoralDistrict, PgEvent,
+        structs::{
+            brp::{BrpFinding, BrpStatus, BrpValue},
+            candidate_lists::{CandidateList, CandidateListId},
+            common::{Address, PreviousElectionResults, UtcDateTime},
+            list_designation::ListDesignation,
+            list_submitters::ListSubmitterId,
+            persons::PersonId,
+            political_groups::PoliticalGroup,
+        },
+        test_utils::{
             response_body_string, sample_candidate_list, sample_list_submitter, sample_person,
             sample_person_with_last_name,
         },
@@ -311,10 +319,10 @@ mod tests {
         person.name.initials = "A.".parse().expect("parse initials");
         person.name.last_name = "Nagelhout IV".parse().expect("parse last name");
         person.personal_data.bsn = None;
-        
+
         let mut list = sample_candidate_list(list_id);
         list.candidates.push(person_id);
-        
+
         store.add_person(person);
         store.add_candidate_list(list);
 

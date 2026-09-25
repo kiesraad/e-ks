@@ -123,10 +123,10 @@
               <li>{{ "csb.group.instruction_group"|trans }}</li>
               <li>{{ "csb.group.instruction_submitter"|trans }}</li>
             </ul>
-            {% if political_group_status.has_changes() %}
+            {% if political_group_status.has_changes() || (political_group.mode.is_examination() && !all_problems.general.is_all_good()) %}
               <div class="restoration-strip {% if political_group.mode.is_examination() && all_problems.general.has_severity_or_higher(crate::structs::common::Severity::Error) %}restoration-strip-error{% endif %}">
                 <ul class="restoration-tags">
-                  {% if !all_problems.general.is_all_good() %}
+                  {% if political_group.mode.is_examination() && !all_problems.general.is_all_good() %}
                     <span class="restoration-tag restoration-tag-{{ all_problems.general.highest_severity_class() }}">{{ "csb.group.problems_present"|trans }}</span>
                   {% endif %}
                 </ul>
@@ -192,7 +192,7 @@
                             <span class="restoration-tag restoration-tag-pending">{{ "csb.brp.incomplete"|trans }}</span>
                           </li>
                         {% endif %}
-                        {% if let Some(severity) = all_problems.max_severity_for_list_and_candidates(candidate_list.list.id) %}
+                        {% if political_group.mode.is_examination() && let Some(severity) = all_problems.max_severity_for_list_and_candidates(candidate_list.list.id) %}
                           <li>
                             <span class="restoration-tag restoration-tag-{{ severity.class() }}">{{ "csb.group.problems_present"|trans }}</span>
                           </li>

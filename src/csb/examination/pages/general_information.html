@@ -51,7 +51,7 @@
     {% endif %}
     <h2>{{ "csb.general.group_info"|trans }}</h2>
     {% set combined_problems = general_problems.get_general_name_authorisation_problems_combined() %}
-    {% if !combined_problems.is_empty() %}
+    {% if political_group.mode.is_examination() && !combined_problems.is_empty() %}
       {{ restorations::problems(combined_problems) }}
     {% endif %}
     <table class="detail-table">
@@ -114,7 +114,7 @@
       {% endfor %}
     {% endif %}
     <h2>{{ "political_group.list_submitter_data"|trans }}</h2>
-    {% if let Some(ls) = general_problems.list_submitter && !ls.problems.is_empty() %}
+    {% if political_group.mode.is_examination() && let Some(ls) = general_problems.list_submitter && !ls.problems.is_empty() %}
       {{ restorations::problems(ls.problems.clone() ) }}
     {% endif %}
     {% if let Some(submitter) = list_submitter %}
@@ -128,7 +128,7 @@
     {% else %}
       {% for submitter in substitute_submitters %}
         <h3 class="mt-md">{{ submitter.heading }}</h3>
-        {% if let Some(id) = submitter.id && let Some(problems) = general_problems.get_substitute_submitter_problems(**id) %}
+        {% if political_group.mode.is_examination() && let Some(id) = submitter.id && let Some(problems) = general_problems.get_substitute_submitter_problems(**id) %}
           {{ restorations::problems(problems) }}
         {% endif %}
         {{ submitter_tables(submitter) }}

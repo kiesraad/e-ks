@@ -115,7 +115,7 @@ mod tests {
     use axum::http::StatusCode;
 
     use crate::{
-        structs::{csb::OmissionCategory, persons::PersonId},
+        structs::{common::UtcDateTime, csb::OmissionCategory, persons::PersonId},
         test_utils::{response_body_string, sample_candidate_list, sample_person},
     };
 
@@ -297,8 +297,6 @@ mod tests {
 
     #[tokio::test]
     async fn examination_candidate_list_never_renders_scrapped() {
-        use crate::csb::examination::pages::candidate_list::render;
-
         let store = CsbStore::new_for_test();
 
         let person = sample_person(PersonId::new());
@@ -336,5 +334,60 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
         assert!(!body.contains("Scrapped"));
+    }
+
+    #[tokio::test]
+    async fn list_problem_shows_up_on_examination_overview() {
+        let store = CsbStore::new_for_test();
+        let list_id = CandidateListId::new();
+
+        store.add_candidate_list(CandidateList {
+            id: list_id,
+            electoral_districts: BTreeSet::from([ElectoralDistrict::Flevoland]),
+            candidates: Vec::new(),
+            created_at: UtcDateTime::now(),
+        });
+
+        let response = render(
+            list_id,
+            CsbContext::new_test(),
+            store,
+            CsbPhase::Examination,
+        )
+        .await
+        .unwrap()
+        .into_response();
+        let body = response_body_string(response).await;
+
+        assert!(body.contains(">No candidates</span>"));
+    }
+
+    #[tokio::test]
+    async fn candidate_problem_shows_up_on_examination_overview() {
+        let store = CsbStore::new_for_test();
+        let list_id = CandidateListId::new();
+        let person_id = PersonId::new();
+
+        let mut person = sample_person(person_id);
+        person.personal_data.bsn = None;
+
+        let mut list = sample_candidate_list(list_id);
+        list.candidates.push(person_id);
+
+        store.add_person(person);
+        store.add_candidate_list(list);
+
+        let response = render(
+            list_id,
+            CsbContext::new_test(),
+            store,
+            CsbPhase::Examination,
+        )
+        .await
+        .unwrap()
+        .into_response();
+        let body = response_body_string(response).await;
+
+        assert!(body.contains(">Problems</span>"));
     }
 }
