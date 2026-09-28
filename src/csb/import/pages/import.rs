@@ -456,7 +456,7 @@ mod tests {
         CsbAction::Delete,
         CsbContext, ElectionConfig, PgEvent, Province,
         brp_stub::{BrpStub, matching_record},
-        structs::brp::{BrpFinding, BrpValue},
+        structs::brp::{BrpFindingKind, BrpValue},
         test_utils::{response_body_string, sample_person_from_brp},
         utils::format_hash,
     };
@@ -490,7 +490,7 @@ mod tests {
         let current = store
             .get_person(person.id, WithCorrections::All)
             .expect("person");
-        assert!(record_brp_result(&store, &current, vec![BrpFinding::NotDutch]).await?);
+        assert!(record_brp_result(&store, &current, vec![BrpFindingKind::NotDutch.into()]).await?);
         assert!(store.is_brp_checked(person.id));
 
         Ok(())
@@ -798,9 +798,12 @@ mod tests {
 
         assert_eq!(
             csb_store.get_brp_findings_for_person(person_id),
-            vec![BrpFinding::Mismatch {
-                brp_value: BrpValue::PlaceOfResidence("Amsterdam".parse().unwrap()),
-            }]
+            vec![
+                BrpFindingKind::Mismatch {
+                    brp_value: BrpValue::PlaceOfResidence("Amsterdam".parse().unwrap()),
+                }
+                .into()
+            ]
         );
         // A BRP difference is for the committee to weigh, not a verzuim.
         assert!(csb_store.data.read().omissions.is_empty());

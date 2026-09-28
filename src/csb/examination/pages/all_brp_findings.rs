@@ -7,7 +7,7 @@ use crate::{
         examination::{
             extractors::CsbPoliticalGroup,
             pages::CsbAllBrpFindingsPath,
-            structs::{AllBrpFindings, BrpCheckState, brp_incomplete_reason},
+            structs::{AllBrpFindings, BrpBadge, BrpCheckState, brp_incomplete_reason},
         },
         import::brp_sweep_running,
     },
@@ -23,6 +23,8 @@ struct CsbAllBrpFindingsTemplate {
     brp_running: bool,
     /// Why the list below may be incomplete, when the check did not finish.
     brp_incomplete: Option<String>,
+    /// The badges of the BRP strip, derived from `brp` and `brp_running`.
+    brp_badges: Vec<BrpBadge>,
     all_findings: AllBrpFindings,
 }
 
@@ -45,6 +47,7 @@ pub async fn all_brp_findings(
                 brp_running,
                 context.session.locale,
             ),
+            brp_badges: brp.strip_badges(brp_running),
             brp,
             brp_running,
             political_group,
@@ -63,7 +66,7 @@ mod tests {
     use crate::{
         CsbAction,
         structs::{
-            brp::{BrpFinding, BrpStatus, BrpValue},
+            brp::{BrpFindingKind, BrpStatus, BrpValue},
             candidate_lists::CandidateListId,
             persons::PersonId,
         },
@@ -107,10 +110,11 @@ mod tests {
             .update(CsbAction::BrpPersonChecked {
                 person: first,
                 findings: vec![
-                    BrpFinding::NotDutch,
-                    BrpFinding::Mismatch {
+                    BrpFindingKind::NotDutch.into(),
+                    BrpFindingKind::Mismatch {
                         brp_value: BrpValue::PlaceOfResidence("Amsterdam".parse().unwrap()),
-                    },
+                    }
+                    .into(),
                 ],
             })
             .await
@@ -137,6 +141,46 @@ mod tests {
         assert!(body.contains("Amsterdam"));
         // Every finding links to the candidate it is about.
         assert!(body.contains(&format!("/csb/examination/{stream_id}/list/")));
+    }
+
+    #[tokio::test]
+    async fn handled_findings_are_shown_as_handled() {
+        let person = PersonId::new();
+        let store = store_with_candidates(&[person]);
+        let kinds = [BrpFindingKind::NotDutch, BrpFindingKind::BsnUnknown];
+        store
+            .update(CsbAction::BrpPersonChecked {
+                person,
+                findings: kinds.iter().cloned().map(Into::into).collect(),
+            })
+            .await
+            .unwrap();
+        store
+            .update(CsbAction::SetBrpStatus(BrpStatus::Finished))
+            .await
+            .unwrap();
+        let mark_handled = async |finding: BrpFindingKind| {
+            store
+                .update(CsbAction::SetBrpFindingHandled {
+                    person,
+                    finding,
+                    handled: true,
+                })
+                .await
+                .unwrap();
+        };
+
+        mark_handled(kinds[0].clone()).await;
+        let body = render(store.clone()).await;
+        assert_eq!(body.matches("restoration-tag-handled").count(), 1, "{body}");
+        assert!(body.contains("restoration-strip-error"));
+
+        mark_handled(kinds[1].clone()).await;
+        let body = render(store.clone()).await;
+        // Both findings, and the summary strip above them.
+        assert_eq!(body.matches("restoration-tag-handled").count(), 3, "{body}");
+        assert!(!body.contains("restoration-tag-error"));
+        assert!(!body.contains("restoration-strip-error"));
     }
 
     #[tokio::test]

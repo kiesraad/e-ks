@@ -164,6 +164,20 @@ pub struct CsbCandidateBrpCheckPath {
     pub person_id: PersonId,
 }
 
+/// One of a candidate's BRP findings, by its position among them as the
+/// candidate page lists them.
+#[derive(TypedPath, Deserialize)]
+#[typed_path(
+    "/csb/examination/{stream_id}/list/{list_id}/candidate/{person_id}/brp-finding/{index}/handled",
+    rejection(AppError)
+)]
+pub struct CsbCandidateBrpFindingHandledPath {
+    pub stream_id: StreamId,
+    pub list_id: CandidateListId,
+    pub person_id: PersonId,
+    pub index: usize,
+}
+
 #[derive(TypedPath, Deserialize)]
 #[typed_path(
     "/csb/examination/{stream_id}/omission/{omission_type}/{reference}",
@@ -457,6 +471,22 @@ impl CsbPoliticalGroup {
             stream_id: self.stream_id,
             list_id: *list,
             person_id: *person,
+        }
+    }
+
+    /// Path that records whether one of a candidate's BRP findings was dealt
+    /// with.
+    pub fn candidate_brp_finding_handled_path(
+        &self,
+        list: &CandidateListId,
+        person: &PersonId,
+        index: &usize,
+    ) -> impl TypedPath {
+        CsbCandidateBrpFindingHandledPath {
+            stream_id: self.stream_id,
+            list_id: *list,
+            person_id: *person,
+            index: *index,
         }
     }
 

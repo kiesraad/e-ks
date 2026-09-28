@@ -42,11 +42,12 @@ impl PoliticalGroup {
     pub fn csb_appellation(&self, first_candidate_name: Option<&FullName>) -> String {
         if self.list_designation == Some(ListDesignation::Blank) {
             return match first_candidate_name {
-                Some(name) => format!(
-                    "Blanco ({}, {})",
-                    name.last_name_with_prefix(),
-                    name.initials
-                ),
+                Some(name) => match &name.initials {
+                    Some(initials) => {
+                        format!("Blanco ({}, {initials})", name.last_name_with_prefix())
+                    }
+                    None => format!("Blanco ({})", name.last_name_with_prefix()),
+                },
                 None => "Blanco".to_string(),
             };
         }
@@ -174,7 +175,7 @@ mod tests {
             first_name: None,
             last_name: LastName::from_str("Nagelhout").unwrap(),
             last_name_prefix: None,
-            initials: Initials::from_str("A.B.").unwrap(),
+            initials: Some(Initials::from_str("A.B.").unwrap()),
         };
         let cases = [
             (None, "Test Partij", "Test Partij", "???", "???"),

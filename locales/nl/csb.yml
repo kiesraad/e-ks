@@ -36,6 +36,7 @@ brp:
     deceased: "Volgens de BRP is deze kandidaat overleden op {}."
     deceased_date_unknown: "Volgens de BRP is deze kandidaat overleden, zonder volledige datum van overlijden."
     excluded_from_suffrage: Volgens de BRP is deze kandidaat uitgesloten van het kiesrecht.
+    last_name_not_allowed: "De achternaam mag volgens de BRP zijn: {}"
     mismatch: "{} wijkt af van de BRP, waarin staat: {}"
     missing_in_brp: "De BRP bevat geen {} voor deze kandidaat."
     not_dutch: Volgens de BRP heeft deze kandidaat niet de Nederlandse nationaliteit.
@@ -44,6 +45,15 @@ brp:
     residence_unknown: De verblijfplaats van deze kandidaat is onbekend in de BRP.
     residence_without_address: "Deze kandidaat heeft geen woonadres in de BRP (bijvoorbeeld een briefadres), waardoor de BRP geen woonplaats bevat."
     unparsable: "De waarde uit de BRP voor {} is niet te interpreteren en is daarom niet vergeleken: {}"
+  handled:
+    badge: Afgehandeld
+    candidate: Kandidaat
+    count: "{} van {} afgehandeld"
+    done: Afgehandeld
+    explanation: "Markeer een BRP-fout als afgehandeld wanneer die geen probleem blijkt te zijn, of wanneer er een verzuim voor is toegevoegd."
+    finding: Fout
+    not_done: Niet afgehandeld
+    title: BRP-fouten
   incomplete: Controle niet afgerond
   not_checked: Niet gecontroleerd
   refresh: Pagina verversen
@@ -241,6 +251,7 @@ paper_corrections:
   stop: Terug naar onderzoek
   title: Papieren correcties
 pre_submission:
+  download_title: Overzicht voor de politieke groepering
   explanation: "Controleer de kandidatenlijsten die politieke groeperingen vóór de dag van kandidaatstelling aanleveren tegen de BRP, zodat zij fouten vóór de officiële inlevering kunnen herstellen."
   group_explanation: "Alle verschillen die de controle tegen de BRP heeft gevonden, per kandidaat. Geef ze door aan de politieke groepering, zodat ze vóór de dag van kandidaatstelling hersteld kunnen worden."
   none: Er zijn nog geen politieke groeperingen geïmporteerd voor de voorinlevering.

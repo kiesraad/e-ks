@@ -90,22 +90,30 @@ impl Person {
     /// - H. (Hubertus)
     /// - H.
     pub fn initials_as_printed_on_list(&self, locale: AnyLocale) -> String {
-        let mut initials = self.name.initials_with_first_name();
-        if let Some(gender) = &self.personal_data.gender {
-            initials.push_str(&format!(" ({})", gender.abbreviation(locale)));
+        let mut parts = Vec::new();
+        let initials = self.name.initials_with_first_name();
+        if !initials.is_empty() {
+            parts.push(initials);
         }
-        initials
+        if let Some(gender) = &self.personal_data.gender {
+            parts.push(format!("({})", gender.abbreviation(locale)));
+        }
+        parts.join(" ")
     }
 
     /// Returns the full name as printed on the candidate list.
     ///
-    /// **Example:** van Dijk, A.B. (Anne) (v)
+    /// **Example:** van Dijk, A.B. (Anne) (v); without initials, first name
+    /// and gender just "van Dijk".
     pub fn name_as_printed_on_list(&self, locale: AnyLocale) -> String {
-        format!(
-            "{}, {}",
-            self.name.last_name_with_prefix(),
-            self.initials_as_printed_on_list(locale)
-        )
+        let last_name = self.name.last_name_with_prefix();
+        let rest = self.initials_as_printed_on_list(locale);
+        match (&self.name.initials, rest.is_empty()) {
+            (_, true) => last_name,
+            // The comma sets the initials apart from the last name.
+            (Some(_), false) => format!("{last_name}, {rest}"),
+            (None, false) => format!("{last_name} {rest}"),
+        }
     }
 
     pub fn lives_in_nl(&self) -> bool {
@@ -174,6 +182,21 @@ mod tests {
             sample_person_with_last_name,
         },
     };
+
+    #[test]
+    fn a_person_without_initials_is_printed_without_them() {
+        let mut person = sample_person(PersonId::new());
+        person.name.initials = None;
+        person.name.first_name = None;
+        person.personal_data.gender = Some(Gender::Female);
+
+        assert_eq!(person.initials_as_printed_on_list(AnyLocale::Nl), "(v)");
+        assert_eq!(person.name_as_printed_on_list(AnyLocale::Nl), "Jansen (v)");
+
+        person.personal_data.gender = None;
+        assert_eq!(person.initials_as_printed_on_list(AnyLocale::Nl), "");
+        assert_eq!(person.name_as_printed_on_list(AnyLocale::Nl), "Jansen");
+    }
 
     #[tokio::test]
     async fn create_and_get_person() -> Result<(), AppError> {
@@ -354,7 +377,7 @@ mod tests {
                 first_name: Some("Anne".parse().expect("first name")),
                 last_name: "Dijk".parse().expect("last name"),
                 last_name_prefix: None,
-                initials: "A.B.".parse().expect("initials"),
+                initials: Some("A.B.".parse().expect("initials")),
             },
             address: complete_address(),
         }

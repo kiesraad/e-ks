@@ -53,9 +53,13 @@ fn parse_person_correction(
     value: &str,
 ) -> Result<PersonCorrection, ValidationError> {
     match field {
-        CandidateCorrectionField::Initials => {
-            value.parse::<Initials>().map(PersonCorrection::Initials)
-        }
+        // Left empty, the correction clears the initials.
+        CandidateCorrectionField::Initials => match value.trim() {
+            "" => Ok(PersonCorrection::Initials(None)),
+            value => value
+                .parse::<Initials>()
+                .map(|initials| PersonCorrection::Initials(Some(initials))),
+        },
         // Empty clears the prefix rather than failing to parse.
         CandidateCorrectionField::LastNamePrefix => match value.trim() {
             "" => Ok(PersonCorrection::LastNamePrefix(None)),

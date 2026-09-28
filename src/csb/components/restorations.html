@@ -187,47 +187,29 @@
     <a class="restoration-strip-link" href="{{ overview_url }}">{{ "csb.omission.overview.title"|trans }}</a>
   </div>
 {% endmacro omission_strip %}
-{% macro brp_strip(brp, incomplete_reason, running=false) %}
-  <div class="restoration-strip {% if brp.has_errors() %}restoration-strip-error{% endif %}">
+{% macro brp_strip(brp, badges, incomplete_reason) %}
+  <div class="restoration-strip {% if brp.has_unhandled_errors() %}restoration-strip-error{% endif %}">
     <ul class="restoration-tags">
-      {% if running %}
+      {% for badge in badges %}
         <li>
-          <span class="restoration-tag restoration-tag-running">{{ "csb.brp.checking"|trans }}</span>
+          <span class="restoration-tag restoration-tag-{{ badge.css() }}">{{ badge.strip_label_key() |trans(&badge.strip_label_count() ) }}</span>
         </li>
-      {% else if brp.is_not_checked() %}
-        <li>
-          <span class="restoration-tag restoration-tag-pending">{{ "csb.brp.not_checked"|trans }}</span>
-        </li>
-      {% else if brp.is_incomplete() %}
-        <li>
-          <span class="restoration-tag restoration-tag-pending">{{ "csb.brp.incomplete"|trans }}</span>
-        </li>
-      {% endif %}
-      {% if !brp.is_not_checked() %}
-        <li>
-          {% if brp.errors() == 0 %}
-            <span class="restoration-tag restoration-tag-ok">{{ "csb.group.brp_errors.none"|trans }}</span>
-          {% else if brp.errors() == 1 %}
-            <span class="restoration-tag restoration-tag-error">{{ "csb.group.brp_errors.singular"|trans }}</span>
-          {% else %}
-            <span class="restoration-tag restoration-tag-error">{{ "csb.group.brp_errors.plural"|trans(&brp.errors().to_string() ) }}</span>
-          {% endif %}
-        </li>
-      {% endif %}
+      {% endfor %}
     </ul>
   </div>
   {% if let Some(reason) = incomplete_reason %}<p class="restoration-strip-note">{{ reason }}</p>{% endif %}
 {% endmacro brp_strip %}
-{% macro brp_group(label, url, messages) %}
-  <h3 class="examination-panel-group">{{ label }}</h3>
-  <div class="restoration-strip restoration-strip-error">
+{% macro brp_group(candidate) %}
+  <h3 class="examination-panel-group">{{ candidate.person.name.display() }}</h3>
+  <div class="restoration-strip {% if !candidate.is_all_handled() %}restoration-strip-error{% endif %}">
     <ul class="restoration-tags">
-      {% for message in messages %}
+      {% for finding in candidate.findings %}
         <li>
-          {% if let Some(url) = url %}
-            <a class="restoration-tag restoration-tag-error" href="{{ url }}">{{ message }}</a>
+          {% if let Some(url) = candidate.path %}
+            <a class="restoration-tag {% if finding.handled %}restoration-tag-handled{% else %}restoration-tag-error{% endif %}"
+               href="{{ url }}">{{ finding.message }}</a>
           {% else %}
-            <span class="restoration-tag restoration-tag-error">{{ message }}</span>
+            <span class="restoration-tag restoration-tag-{{ finding.css() }}">{{ finding.message }}</span>
           {% endif %}
         </li>
       {% endfor %}

@@ -1,4 +1,4 @@
-use axum::{extract::State, http::HeaderValue, response::IntoResponse};
+use axum::{extract::State, response::Response};
 
 use crate::{
     AppError, AppRequestState, CsbMainStore,
@@ -9,12 +9,7 @@ use crate::{
     },
     models::{Pdf, i1::I1, i4::PublicSession},
     structs::csb::HearingModel,
-    utils::no_cache_headers,
 };
-
-const PDF_CONTENT_TYPE: &str = "application/pdf";
-const DOCX_CONTENT_TYPE: &str =
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
 /// Collect the store data the I 1 model needs.
 async fn i1_model<S: AppRequestState>(main_store: CsbMainStore, state: &S) -> Result<I1, AppError> {
@@ -44,17 +39,8 @@ pub async fn gen_i1<S: AppRequestState>(
     _: CsbI1DownloadPath,
     main_store: CsbMainStore,
     State(state): State<S>,
-) -> Result<impl IntoResponse, AppError> {
-    let model = i1_model(main_store, &state).await?;
-    let filename = model.filename();
-    let bytes = model.generate_bytes().await?;
-
-    let headers = no_cache_headers::generate_attachment_headers(
-        &filename,
-        HeaderValue::from_static(PDF_CONTENT_TYPE),
-    )?;
-
-    Ok((headers, bytes).into_response())
+) -> Result<Response, AppError> {
+    i1_model(main_store, &state).await?.pdf_response().await
 }
 
 /// The same I 1 as [`gen_i1`], exported as a Word document.
@@ -62,22 +48,14 @@ pub async fn gen_i1_docx<S: AppRequestState>(
     _: CsbI1DocxDownloadPath,
     main_store: CsbMainStore,
     State(state): State<S>,
-) -> Result<impl IntoResponse, AppError> {
-    let model = i1_model(main_store, &state).await?;
-    let filename = model.docx_filename();
-    let bytes = model.generate_docx_bytes().await?;
-
-    let headers = no_cache_headers::generate_attachment_headers(
-        &filename,
-        HeaderValue::from_static(DOCX_CONTENT_TYPE),
-    )?;
-
-    Ok((headers, bytes).into_response())
+) -> Result<Response, AppError> {
+    i1_model(main_store, &state).await?.docx_response().await
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::DOCX_CONTENT_TYPE;
     use axum::{
         body::to_bytes,
         http::{StatusCode, header},

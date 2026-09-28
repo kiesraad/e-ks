@@ -416,6 +416,26 @@
   }
 }
 
+.brp-findings-table {
+  thead th:nth-child(3) {
+    width: 19rem;
+  }
+
+  td.actions {
+    text-align: right;
+
+    /* The handled control reads like the omission status buttons. */
+    form {
+      display: inline-flex;
+      gap: var(--space-2);
+    }
+  }
+
+  tr.brp-finding-handled td:first-child {
+    color: var(--gray-500);
+  }
+}
+
 .restoration_count {
   display: inline-flex;
   position: relative;

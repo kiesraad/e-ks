@@ -5,16 +5,20 @@ use axum::{
 };
 use std::collections::BTreeSet;
 
+use serde::Deserialize;
+
 use crate::{
-    AppError, AppRequestState, Context, CsbAction, CsbContext, CsbStore, ElectoralDistrict,
+    AppError, AppRequestState, Context, CsbAction, CsbContext, CsbStore, ElectoralDistrict, Form,
     HtmlTemplate,
     csb::{
         examination::{
             extractors::CsbPoliticalGroup,
-            pages::{CsbCandidateBrpCheckPath, CsbCandidatePath},
+            pages::{
+                CsbCandidateBrpCheckPath, CsbCandidateBrpFindingHandledPath, CsbCandidatePath,
+            },
             structs::{
-                BrpCheckState, CandidateBrpFindings, PaperCorrected, PaperCorrectedPersonDetails,
-                brp_incomplete_reason,
+                BrpCheckState, BrpFindingTag, CandidateBrpFindings, PaperCorrected,
+                PaperCorrectedPersonDetails, brp_incomplete_reason,
             },
         },
         import::brp_sweep_running,
@@ -23,10 +27,12 @@ use crate::{
     projection::WithCorrections,
     redirect_success,
     structs::{
+        brp::BrpFinding,
         candidate_lists::CandidateListId,
         csb::{CsbPhase, Omission},
         persons::{Person, PersonId},
     },
+    trans,
 };
 
 #[derive(Template)]
@@ -50,6 +56,9 @@ struct CsbCandidateTemplate {
 struct CandidateBrp {
     /// What the BRP check found, per row of the details table.
     findings: CandidateBrpFindings,
+    /// The same findings one under the other, for the panel that marks them
+    /// handled.
+    rows: Vec<BrpFindingRow>,
     /// Whether this candidate has been checked at all, which is what decides
     /// whether a re-check is offered.
     state: BrpCheckState,
@@ -60,20 +69,61 @@ struct CandidateBrp {
     incomplete: Option<String>,
 }
 
+/// One finding as the "BRP-fouten" panel lists it: the details row it is
+/// about, the finding, and whether it was dealt with.
+struct BrpFindingRow {
+    /// Position among the candidate's findings, which the handled control
+    /// posts back.
+    index: usize,
+    label: String,
+    /// The candidate's value of the field; empty for a finding about the
+    /// candidate as a whole.
+    value: String,
+    tag: BrpFindingTag,
+}
+
+impl BrpFindingRow {
+    fn new(index: usize, finding: &BrpFinding, person: &Person, locale: crate::Locale) -> Self {
+        let (label, value) = match finding.field() {
+            Some(field) => (field.label(locale), field.value_of(person, locale)),
+            None => (trans!("csb.brp.handled.candidate", locale), String::new()),
+        };
+
+        Self {
+            index,
+            label,
+            value,
+            tag: BrpFindingTag::new(finding, locale),
+        }
+    }
+}
+
 impl CandidateBrp {
     fn for_candidate(store: &CsbStore, person_id: PersonId, locale: crate::Locale) -> Self {
         let state = BrpCheckState::for_candidate(store, person_id);
         let running = brp_sweep_running(store.stream_id);
+        let findings = store.get_brp_findings_for_person(person_id);
+        // The corrected data is what the BRP was compared against.
+        let rows = match store.get_person(person_id, WithCorrections::All) {
+            Some(person) => findings
+                .iter()
+                .enumerate()
+                .map(|(index, finding)| BrpFindingRow::new(index, finding, &person, locale))
+                .collect(),
+            None => Vec::new(),
+        };
 
         Self {
-            findings: CandidateBrpFindings::new(
-                &store.get_brp_findings_for_person(person_id),
-                locale,
-            ),
+            findings: CandidateBrpFindings::new(&findings, locale),
+            rows,
             incomplete: brp_incomplete_reason(&store.get_brp_status(), &state, running, locale),
             state,
             running,
         }
+    }
+
+    fn handled_count(&self) -> usize {
+        self.rows.iter().filter(|row| row.tag.handled).count()
     }
 }
 
@@ -184,6 +234,40 @@ pub async fn check_against_brp<S: AppRequestState>(
     }))
 }
 
+#[derive(Deserialize)]
+pub struct BrpFindingHandledForm {
+    handled: bool,
+}
+
+/// Record whether one of the candidate's BRP findings was dealt with: it turned
+/// out not to be a problem, or an omission was added for it. The finding is
+/// named by its position on the page, and recorded in full.
+pub async fn set_brp_finding_handled(
+    path: CsbCandidateBrpFindingHandledPath,
+    store: CsbStore,
+    Form(form): Form<BrpFindingHandledForm>,
+) -> Result<Response, AppError> {
+    let finding = store
+        .get_brp_findings_for_person(path.person_id)
+        .into_iter()
+        .nth(path.index)
+        .ok_or(AppError::GenericNotFound)?;
+
+    store
+        .update(CsbAction::SetBrpFindingHandled {
+            person: path.person_id,
+            finding: finding.kind,
+            handled: form.handled,
+        })
+        .await?;
+
+    Ok(redirect_success(CsbCandidatePath {
+        stream_id: path.stream_id,
+        list_id: path.list_id,
+        person_id: path.person_id,
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -193,7 +277,7 @@ mod tests {
     use crate::{
         csb::import::claim_sweep_for_test,
         structs::{
-            brp::{BrpFinding, BrpStatus},
+            brp::{BrpFindingKind, BrpStatus},
             csb::OmissionCategory,
             persons::PersonId,
         },
@@ -281,11 +365,14 @@ mod tests {
         assert!(store.is_brp_checked(person_id));
         assert_eq!(
             store.get_brp_findings_for_person(person_id),
-            vec![crate::structs::brp::BrpFinding::Mismatch {
-                brp_value: crate::structs::brp::BrpValue::PlaceOfResidence(
-                    "Utrecht".parse().unwrap()
-                ),
-            }]
+            vec![
+                crate::structs::brp::BrpFindingKind::Mismatch {
+                    brp_value: crate::structs::brp::BrpValue::PlaceOfResidence(
+                        "Utrecht".parse().unwrap()
+                    ),
+                }
+                .into()
+            ]
         );
     }
 
@@ -329,7 +416,7 @@ mod tests {
         store
             .update(CsbAction::BrpPersonChecked {
                 person: person_id,
-                findings: vec![BrpFinding::NotDutch],
+                findings: vec![BrpFindingKind::NotDutch.into()],
             })
             .await
             .unwrap();
@@ -382,7 +469,7 @@ mod tests {
         store
             .update(CsbAction::BrpPersonChecked {
                 person: person_id,
-                findings: vec![BrpFinding::NotDutch],
+                findings: vec![BrpFindingKind::NotDutch.into()],
             })
             .await
             .unwrap();
@@ -701,6 +788,100 @@ mod tests {
             },
             CsbContext::new_test(),
             store,
+        )
+        .await;
+
+        assert!(matches!(result, Err(AppError::GenericNotFound)));
+    }
+
+    /// The store of [`store_with_candidate`], with the candidate checked and two
+    /// findings recorded.
+    async fn store_with_findings() -> (CsbStore, CandidateListId, PersonId) {
+        let (store, list_id, person_id) = store_with_candidate();
+        store
+            .update(CsbAction::BrpPersonChecked {
+                person: person_id,
+                findings: vec![
+                    BrpFindingKind::NotDutch.into(),
+                    BrpFindingKind::BsnUnknown.into(),
+                ],
+            })
+            .await
+            .unwrap();
+        store
+            .update(CsbAction::SetBrpStatus(BrpStatus::Finished))
+            .await
+            .unwrap();
+        (store, list_id, person_id)
+    }
+
+    #[tokio::test]
+    async fn the_findings_panel_offers_to_mark_each_finding_handled() {
+        let (store, list_id, person_id) = store_with_findings().await;
+        let stream_id = store.stream_id;
+
+        let body = examination_body(store, list_id, person_id).await;
+
+        for index in 0..2 {
+            assert!(body.contains(&format!(
+                "/csb/examination/{stream_id}/list/{list_id}/candidate/{person_id}/brp-finding/{index}/handled"
+            )));
+        }
+        assert!(body.contains("0 of 2 handled"), "{body}");
+        assert!(!body.contains("restoration-tag-handled"));
+    }
+
+    #[tokio::test]
+    async fn marking_a_finding_handled_records_it_and_returns_to_the_candidate() {
+        let (store, list_id, person_id) = store_with_findings().await;
+        let stream_id = store.stream_id;
+
+        let response = set_brp_finding_handled(
+            CsbCandidateBrpFindingHandledPath {
+                stream_id,
+                list_id,
+                person_id,
+                index: 1,
+            },
+            store.clone(),
+            Form(BrpFindingHandledForm { handled: true }),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        let location = response.headers()["Location"].to_str().unwrap();
+        assert!(
+            location.contains(&format!(
+                "/csb/examination/{stream_id}/list/{list_id}/candidate/{person_id}"
+            )),
+            "{location}"
+        );
+        let findings = store.get_brp_findings_for_person(person_id);
+        assert!(!findings[0].handled);
+        assert!(findings[1].handled);
+
+        let body = examination_body(store, list_id, person_id).await;
+        assert!(body.contains("1 of 2 handled"), "{body}");
+        assert!(body.contains("restoration-tag-handled"));
+        // The handled finding shows its "done" button as the selected state.
+        assert!(body.contains("button xs selected"), "{body}");
+    }
+
+    #[tokio::test]
+    async fn a_finding_that_is_no_longer_there_is_not_found() {
+        let (store, list_id, person_id) = store_with_findings().await;
+        let stream_id = store.stream_id;
+
+        let result = set_brp_finding_handled(
+            CsbCandidateBrpFindingHandledPath {
+                stream_id,
+                list_id,
+                person_id,
+                index: 2,
+            },
+            store,
+            Form(BrpFindingHandledForm { handled: true }),
         )
         .await;
 
