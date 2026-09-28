@@ -24,3 +24,6 @@ pub(crate) const BRP_PERSONS_ENDPOINT: &str = "haalcentraal/api/brp/personen";
 
 /// Default request timeout (in seconds) for BRP lookups.
 pub(crate) const BRP_TIMEOUT: u64 = 30;
+
+/// Default idle time (in minutes) before a cached store projection is evicted.
+pub(crate) const STORE_CACHE_IDLE_MINUTES: u64 = 24 * 60;
