@@ -92,9 +92,7 @@ mod fixtures;
 // else is re-exported `pub(crate)` so the flat `crate::X` import style keeps
 // working internally without growing the external interface.
 #[cfg(feature = "acme")]
-pub use acme::{
-    bootstrap_certificate, create_acme_account, parse_acme_account_credentials, run_acme_renewer,
-};
+pub use acme::{create_acme_account, parse_acme_account_credentials, start_acme_renewal};
 pub use app::AppState;
 pub use auth::session_store::run_session_sweeper;
 pub use core::{Config, logging, server};

@@ -84,11 +84,17 @@ async fn run(
     // a committee session correcting paper documents uses the political-group
     // routes too, and its host-scoped session cookie never reaches the other
     // listener. Both routers get clones of the one `AppState`, so the stores,
-    // sessions and caches behind it are shared, not duplicated.
+    // sessions and caches behind it are shared, not duplicated. Only its config
+    // differs: without `eks_key`, so the `x-eks-key` gate is off there.
     let csb = csb_listener.map(|listener| {
+        let mut csb_state = state.clone();
+        csb_state.config = Box::leak(Box::new(Config {
+            eks_key: None,
+            ..state.config.clone()
+        }));
         (
             listener,
-            router::create(state.clone()).with_state(state.clone()),
+            router::create(csb_state.clone()).with_state(csb_state),
         )
     });
 
@@ -106,20 +112,20 @@ async fn run(
     if let (Some(tls), Some(acme)) = (state.config.tls.as_ref(), state.config.acme.as_ref()) {
         // Fail fast on malformed account credentials.
         let _ = eks::parse_acme_account_credentials(acme)?;
-        eks::bootstrap_certificate(acme, tls).await?;
-        let rustls_config = server::build_rustls_config(tls).await?;
-        tokio::spawn(eks::run_acme_renewer(
-            acme,
-            tls,
-            rustls_config.clone(),
-            state.acme_store.clone(),
-        ));
-        // Both listeners present the certificate ordered for `ACME_DOMAIN`, so
-        // a separate CSB domain needs its TLS terminated upstream.
+        let rustls_config =
+            eks::start_acme_renewal(acme.clone(), tls.clone(), state.acme_store.clone()).await?;
         let primary = server::serve_tls(router, listener, rustls_config.clone());
         return match csb {
             Some((csb_listener, csb_router)) => {
-                let csb = server::serve_tls(csb_router, csb_listener, rustls_config);
+                // `CSB_DOMAIN` gets a certificate of its own; without it the
+                // CSB listener presents the one ordered for `ACME_DOMAIN`.
+                let csb_rustls_config = match state.config.csb_acme() {
+                    Some((acme, tls)) => {
+                        eks::start_acme_renewal(acme, tls, state.acme_store.clone()).await?
+                    }
+                    None => rustls_config,
+                };
+                let csb = server::serve_tls(csb_router, csb_listener, csb_rustls_config);
                 tokio::try_join!(primary, csb).map(|_| ())
             }
             None => primary.await,
@@ -275,6 +281,32 @@ mod tests {
         // CSB listener is known to the main one.
         let (status, _) = fetch_with_cookie(&format!("http://{addr}/"), &cookie).await;
         assert_eq!(status, StatusCode::SEE_OTHER);
+
+        server.abort();
+    }
+
+    /// The `x-eks-key` gate guards the main listener only.
+    #[cfg_attr(not(feature = "net-tests"), ignore = "requires network")]
+    #[tokio::test]
+    async fn csb_listener_skips_the_eks_key_gate() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let csb_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let csb_addr = csb_listener.local_addr().unwrap();
+
+        let mut config = Config::from_env().expect("config");
+        config.eks_key = Some(secrecy::SecretString::from("s3cret"));
+        config.csb_bind_address = Some(csb_addr);
+
+        let server =
+            tokio::spawn(async move { run(listener, Some(csb_listener), config).await.unwrap() });
+        wait_until_ready(&format!("http://{csb_addr}/lb-health")).await;
+
+        let (status, _) = fetch_with_cookie(&format!("http://{csb_addr}/robots.txt"), "").await;
+        assert_eq!(status, StatusCode::OK);
+
+        let (status, _) = fetch_with_cookie(&format!("http://{addr}/robots.txt"), "").await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
 
         server.abort();
     }

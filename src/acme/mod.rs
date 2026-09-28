@@ -15,8 +15,28 @@ mod bootstrap;
 mod challenge;
 mod renewer;
 
+use axum_server::tls_rustls::RustlsConfig;
+
+use crate::{AcmeConfig, AppError, TlsConfig, server};
+
 pub use account::{create_acme_account, parse_acme_account_credentials};
 pub(crate) use acme_store::AcmeStore;
-pub use bootstrap::bootstrap_certificate;
 pub(crate) use challenge::acme_challenge_router;
-pub use renewer::run_acme_renewer;
+
+/// Bootstraps the certificate and spawns its renewer; returns the TLS config
+/// to serve it with, which the renewer hot-reloads.
+pub async fn start_acme_renewal(
+    acme: AcmeConfig,
+    tls: TlsConfig,
+    store: AcmeStore,
+) -> Result<RustlsConfig, AppError> {
+    bootstrap::bootstrap_certificate(&acme, &tls).await?;
+    let rustls_config = server::build_rustls_config(&tls).await?;
+    tokio::spawn(renewer::run_acme_renewer(
+        acme,
+        tls,
+        rustls_config.clone(),
+        store,
+    ));
+    Ok(rustls_config)
+}
