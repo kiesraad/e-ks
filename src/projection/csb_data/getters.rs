@@ -11,7 +11,7 @@ use crate::{
     structs::{
         brp::{BrpFinding, BrpStatus},
         candidate_lists::{CandidateList, CandidateListId},
-        csb::{Omission, OmissionCategory, OmissionId, RecoveryProgress},
+        csb::{Omission, OmissionCategory, OmissionId, OmissionTitle, RecoveryProgress},
         list_designation::ListDesignation,
         list_submitters::ListSubmitter,
         name_authorisations::NameAuthorisation,
@@ -210,7 +210,7 @@ impl CsbStream {
             .cloned()
             .collect();
 
-        omissions.sort_by_key(|omission| self.district_order(omission));
+        omissions.sort_by_key(|omission| self.title_order(omission));
         omissions
     }
 
@@ -258,7 +258,7 @@ impl CsbStream {
             .cloned()
             .collect();
 
-        omissions.sort_by_key(|omission| self.district_order(omission));
+        omissions.sort_by_key(|omission| self.title_order(omission));
         Ok(omissions)
     }
 
@@ -307,21 +307,21 @@ impl CsbStream {
             .cloned()
             .collect();
 
-        omissions.sort_by_key(|omission| self.district_order(omission));
+        omissions.sort_by_key(|omission| self.title_order(omission));
         omissions
     }
 
-    /// Sort key putting omissions in the election's district order, so the
+    /// Sort key putting omissions in the title order, then district, so the
     /// parts of a split stay together and in place.
-    pub(crate) fn district_order(&self, omission: &Omission) -> (usize, OmissionId) {
+    pub(crate) fn title_order(&self, omission: &Omission) -> (OmissionTitle, usize) {
         let order = self.election.electoral_districts();
-        let first = self
+        let first_district = self
             .omission_districts(omission)
             .first()
             .and_then(|district| order.iter().position(|d| d == district))
             .unwrap_or(usize::MAX);
 
-        (first, omission.id)
+        (omission.title.to_owned(), first_district)
     }
 
     /// The districts an omission touches, directly or through its lists.
