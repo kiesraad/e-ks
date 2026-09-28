@@ -48,7 +48,7 @@ impl PaperCorrectedPersonDetails {
             |f: fn(&Person) -> String| field(f).with_csb_correction(csb_corrected.map(f));
 
         Self {
-            initials: csb_field(|p| p.name.initials.to_string()),
+            initials: csb_field(|p| opt_display(&p.name.initials)),
             first_name: field(|p| opt_display(&p.name.first_name)),
             last_name_prefix: csb_field(|p| opt_display(&p.name.last_name_prefix)),
             last_name: csb_field(|p| p.name.last_name.to_string()),

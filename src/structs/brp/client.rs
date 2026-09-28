@@ -5,7 +5,10 @@ use reqwest::Client;
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
 
-use super::{BrpCheckedField, BrpField, BrpFinding, BrpPerson, BrpValue, person::BrpResidence};
+use super::{
+    BrpCheckedField, BrpField, BrpFinding, BrpFindingKind, BrpLastName, BrpPerson, BrpValue,
+    person::{BrpName, BrpResidence},
+};
 use crate::{
     AppError,
     structs::{
@@ -29,6 +32,9 @@ pub const CANDIDATE_FIELDS: &[BrpField] = &[
     BrpField::DateOfDeath,
     BrpField::Nationality,
     BrpField::SuffrageExclusion,
+    // The names a candidate may stand under besides their own.
+    BrpField::PartnerLastNamePrefix,
+    BrpField::PartnerLastName,
 ];
 
 /// The `geslacht` code the BRP uses when the gender is unknown.
@@ -117,7 +123,7 @@ impl BrpClient {
     ///
     /// An `Err` means the BRP could not be consulted at all, so the caller has
     /// to stop rather than treat the batch as clean. Anything wrong with an
-    /// individual candidate is a [`BrpFinding`], not an error.
+    /// individual candidate is a [`BrpFindingKind`], not an error.
     pub async fn verify_batch(
         &self,
         persons: &[Person],
@@ -162,10 +168,13 @@ impl BrpClient {
                 // unchecked, so their other details are searched on.
                 [] => self.findings_without_a_bsn_match(person).await?,
                 [brp_person] => findings_for(person, brp_person),
-                _ => vec![BrpFinding::BsnNotUnique],
+                _ => vec![BrpFindingKind::BsnNotUnique],
             };
 
-            results.push((person.id, findings));
+            results.push((
+                person.id,
+                findings.into_iter().map(BrpFinding::from).collect(),
+            ));
         }
 
         Ok(results)
@@ -177,11 +186,11 @@ impl BrpClient {
     async fn findings_without_a_bsn_match(
         &self,
         person: &Person,
-    ) -> Result<Vec<BrpFinding>, AppError> {
+    ) -> Result<Vec<BrpFindingKind>, AppError> {
         let reason = match person.personal_data.bsn {
-            Some(BsnOrNoneConfirmed::Bsn(_)) => BrpFinding::BsnUnknown,
-            Some(BsnOrNoneConfirmed::NoneConfirmed) => BrpFinding::BsnNoneConfirmed,
-            None => BrpFinding::BsnMissing,
+            Some(BsnOrNoneConfirmed::Bsn(_)) => BrpFindingKind::BsnUnknown,
+            Some(BsnOrNoneConfirmed::NoneConfirmed) => BrpFindingKind::BsnNoneConfirmed,
+            None => BrpFindingKind::BsnMissing,
         };
         let mut findings = vec![reason];
 
@@ -192,12 +201,12 @@ impl BrpClient {
         match found.as_slice() {
             [] => {}
             [bsn] => {
-                findings.push(BrpFinding::BsnMatchedByPersonalDetails { bsn: bsn.clone() });
+                findings.push(BrpFindingKind::BsnMatchedByPersonalDetails { bsn: bsn.clone() });
                 if let Some(brp_person) = self.get_person_by_bsn(bsn).await? {
                     findings.extend(findings_for(person, &brp_person));
                 }
             }
-            _ => findings.push(BrpFinding::PersonalDetailsNotUnique),
+            _ => findings.push(BrpFindingKind::PersonalDetailsNotUnique),
         }
 
         Ok(findings)
@@ -293,11 +302,10 @@ fn bsn_of(person: &Person) -> Option<&Bsn> {
 }
 
 /// Everything the BRP says about one candidate that the committee should see.
-fn findings_for(person: &Person, brp_person: &BrpPerson) -> Vec<BrpFinding> {
+fn findings_for(person: &Person, brp_person: &BrpPerson) -> Vec<BrpFindingKind> {
     let mut findings = Vec::new();
 
-    findings.extend(last_name_prefix_finding(person, brp_person));
-    findings.extend(last_name_finding(person, brp_person));
+    findings.extend(name_findings(person, brp_person));
     findings.extend(initials_finding(person, brp_person));
     findings.extend(gender_finding(person, brp_person));
     findings.extend(date_of_birth_finding(person, brp_person));
@@ -317,18 +325,18 @@ fn compare<T>(
     ours: Option<&T>,
     theirs: Option<&str>,
     into_value: impl FnOnce(T) -> BrpValue,
-) -> Option<BrpFinding>
+) -> Option<BrpFindingKind>
 where
     T: FromStr + PartialEq,
 {
     // A field the BRP left out is as unverified as one it returned empty.
     let raw = theirs.map(str::trim).unwrap_or_default();
     if raw.is_empty() {
-        return Some(BrpFinding::MissingInBrp { field });
+        return Some(BrpFindingKind::MissingInBrp { field });
     }
 
     let Ok(parsed) = raw.parse::<T>() else {
-        return Some(BrpFinding::Unparsable {
+        return Some(BrpFindingKind::Unparsable {
             field,
             brp_value: raw.to_string(),
         });
@@ -336,13 +344,94 @@ where
 
     match ours {
         Some(ours) if *ours == parsed => None,
-        _ => Some(BrpFinding::Mismatch {
+        _ => Some(BrpFindingKind::Mismatch {
             brp_value: into_value(parsed),
         }),
     }
 }
 
-fn last_name_finding(person: &Person, brp_person: &BrpPerson) -> Option<BrpFinding> {
+/// The candidate's prefix and last name, checked together against every name
+/// the BRP allows them to stand under. The Kieswet lets a candidate be listed
+/// under their own last name, the last name of a (former) spouse or registered
+/// partner, or both joined by a hyphen in either order, as article 1:9 BW
+/// allows. Without partners in the BRP, the prefix and the last name are
+/// reported apart, so the committee sees which of the two differs; with
+/// partners, a name that fits none of the allowed ones is reported once, with
+/// every name that would fit.
+fn name_findings(person: &Person, brp_person: &BrpPerson) -> Vec<BrpFindingKind> {
+    let separate = || {
+        last_name_prefix_finding(person, brp_person)
+            .into_iter()
+            .chain(last_name_finding(person, brp_person))
+            .collect()
+    };
+
+    // An own name the BRP lacks or that cannot be read is reported field by
+    // field, as before.
+    let Some(own) = brp_person.name.as_ref().and_then(parse_brp_name) else {
+        return separate();
+    };
+    let allowed = allowed_names(&own, brp_person);
+
+    let ours = BrpLastName {
+        last_name_prefix: person.name.last_name_prefix.clone(),
+        last_name: person.name.last_name.clone(),
+    };
+    if allowed.contains(&ours) {
+        return Vec::new();
+    }
+    if allowed.len() == 1 {
+        return separate();
+    }
+    vec![BrpFindingKind::LastNameNotAllowed { allowed }]
+}
+
+/// A BRP name as a typed last name with prefix; `None` when the last name is
+/// absent or either part is no value this application accepts.
+fn parse_brp_name(name: &BrpName) -> Option<BrpLastName> {
+    let non_empty = |value: &Option<String>| {
+        value
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
+    };
+    let last_name = non_empty(&name.last_name)?.parse().ok()?;
+    let last_name_prefix = non_empty(&name.last_name_prefix).and_then(|prefix| prefix.parse().ok());
+    Some(BrpLastName {
+        last_name_prefix,
+        last_name,
+    })
+}
+
+/// Every name the candidate may stand under: their own first, then per
+/// partner in BRP order the partner's name and the two hyphenated either way.
+/// Partners without a readable name are skipped, as are duplicates.
+fn allowed_names(own: &BrpLastName, brp_person: &BrpPerson) -> Vec<BrpLastName> {
+    let mut allowed = vec![own.clone()];
+    let partners = brp_person
+        .partners
+        .iter()
+        .filter_map(|partner| partner.name.as_ref())
+        .filter_map(parse_brp_name);
+
+    for partner in partners {
+        let variants = [
+            Some(partner.clone()),
+            own.hyphenated_with(&partner),
+            partner.hyphenated_with(own),
+        ];
+        for name in variants.into_iter().flatten() {
+            if !allowed.contains(&name) {
+                allowed.push(name);
+            }
+        }
+    }
+
+    allowed
+}
+
+fn last_name_finding(person: &Person, brp_person: &BrpPerson) -> Option<BrpFindingKind> {
     compare(
         BrpCheckedField::LastName,
         Some(&person.name.last_name),
@@ -356,7 +445,7 @@ fn last_name_finding(person: &Person, brp_person: &BrpPerson) -> Option<BrpFindi
 
 /// Unlike every other field, an absent `voorvoegsel` is a value rather than a
 /// gap: only a candidate who has one is told the BRP holds none.
-fn last_name_prefix_finding(person: &Person, brp_person: &BrpPerson) -> Option<BrpFinding> {
+fn last_name_prefix_finding(person: &Person, brp_person: &BrpPerson) -> Option<BrpFindingKind> {
     let field = BrpCheckedField::LastNamePrefix;
     let ours = person.name.last_name_prefix.as_ref();
 
@@ -368,64 +457,73 @@ fn last_name_prefix_finding(person: &Person, brp_person: &BrpPerson) -> Option<B
         .filter(|prefix| !prefix.is_empty());
 
     let Some(theirs) = theirs else {
-        return ours.map(|_| BrpFinding::MissingInBrp { field });
+        return ours.map(|_| BrpFindingKind::MissingInBrp { field });
     };
 
     // Uncomparable is not the same as differing.
     let Ok(brp_prefix) = theirs.parse::<LastNamePrefix>() else {
-        return Some(BrpFinding::Unparsable {
+        return Some(BrpFindingKind::Unparsable {
             field,
             brp_value: theirs.to_string(),
         });
     };
 
-    (ours != Some(&brp_prefix)).then_some(BrpFinding::Mismatch {
+    (ours != Some(&brp_prefix)).then_some(BrpFindingKind::Mismatch {
         brp_value: BrpValue::LastNamePrefix(brp_prefix),
     })
 }
 
-fn initials_finding(person: &Person, brp_person: &BrpPerson) -> Option<BrpFinding> {
-    compare(
-        BrpCheckedField::Initials,
-        Some(&person.name.initials),
-        brp_person
-            .name
-            .as_ref()
-            .and_then(|name| name.initials.as_deref()),
-        BrpValue::Initials,
-    )
+/// Like the prefix, absent initials are a value rather than a gap: the BRP
+/// holds none for a person without first names, so only a candidate who has
+/// initials is told the BRP holds none.
+fn initials_finding(person: &Person, brp_person: &BrpPerson) -> Option<BrpFindingKind> {
+    let field = BrpCheckedField::Initials;
+    let ours = person.name.initials.as_ref();
+
+    let theirs = brp_person
+        .name
+        .as_ref()
+        .and_then(|name| name.initials.as_deref())
+        .map(str::trim)
+        .filter(|initials| !initials.is_empty());
+
+    let Some(theirs) = theirs else {
+        return ours.map(|_| BrpFindingKind::MissingInBrp { field });
+    };
+
+    compare(field, ours, Some(theirs), BrpValue::Initials)
 }
 
 /// Only compared when the candidate supplied a gender, since that is also when
 /// it is printed on the list.
-fn gender_finding(person: &Person, brp_person: &BrpPerson) -> Option<BrpFinding> {
+fn gender_finding(person: &Person, brp_person: &BrpPerson) -> Option<BrpFindingKind> {
     let ours = person.personal_data.gender.as_ref()?;
     let field = BrpCheckedField::Gender;
 
     // "O" is the BRP's own "unknown", not a value we failed to parse.
     match brp_person.gender_code() {
         Some(code) if code.eq_ignore_ascii_case(GENDER_UNKNOWN_CODE) => {
-            Some(BrpFinding::MissingInBrp { field })
+            Some(BrpFindingKind::MissingInBrp { field })
         }
         code => compare(field, Some(ours), code, BrpValue::Gender),
     }
 }
 
-fn date_of_birth_finding(person: &Person, brp_person: &BrpPerson) -> Option<BrpFinding> {
+fn date_of_birth_finding(person: &Person, brp_person: &BrpPerson) -> Option<BrpFindingKind> {
     let field = BrpCheckedField::DateOfBirth;
     // A partial date (a year without a month, say) comes back without a
     // `datum`, so there is nothing to compare.
     let Some(raw) = brp_person.date_of_birth() else {
-        return Some(BrpFinding::MissingInBrp { field });
+        return Some(BrpFindingKind::MissingInBrp { field });
     };
 
     match parse_brp_date(raw) {
-        None => Some(BrpFinding::Unparsable {
+        None => Some(BrpFindingKind::Unparsable {
             field,
             brp_value: raw.to_string(),
         }),
         Some(date) if person.personal_data.date_of_birth == Some(DateOfBirth::from(date)) => None,
-        Some(date) => Some(BrpFinding::Mismatch {
+        Some(date) => Some(BrpFindingKind::Mismatch {
             brp_value: BrpValue::DateOfBirth(date),
         }),
     }
@@ -434,7 +532,7 @@ fn date_of_birth_finding(person: &Person, brp_person: &BrpPerson) -> Option<BrpF
 /// The `woonplaats` is the one address element printed on the candidate list.
 /// Each residence shape that carries no `woonplaats` gets its own finding, so
 /// "lives abroad" is never reported as "residence unknown".
-fn place_of_residence_finding(person: &Person, brp_person: &BrpPerson) -> Option<BrpFinding> {
+fn place_of_residence_finding(person: &Person, brp_person: &BrpPerson) -> Option<BrpFindingKind> {
     let field = BrpCheckedField::PlaceOfResidence;
 
     match &brp_person.residence {
@@ -446,10 +544,10 @@ fn place_of_residence_finding(person: &Person, brp_person: &BrpPerson) -> Option
                 .and_then(|address| address.place_of_residence.as_deref()),
             BrpValue::PlaceOfResidence,
         ),
-        Some(BrpResidence::Abroad) => Some(BrpFinding::ResidenceAbroad),
-        Some(BrpResidence::Location) => Some(BrpFinding::ResidenceWithoutAddress),
+        Some(BrpResidence::Abroad) => Some(BrpFindingKind::ResidenceAbroad),
+        Some(BrpResidence::Location) => Some(BrpFindingKind::ResidenceWithoutAddress),
         Some(BrpResidence::Unknown | BrpResidence::Other) | None => {
-            Some(BrpFinding::ResidenceUnknown)
+            Some(BrpFindingKind::ResidenceUnknown)
         }
     }
 }
@@ -458,21 +556,21 @@ fn place_of_residence_finding(person: &Person, brp_person: &BrpPerson) -> Option
 /// the Grondwet requires a living Dutch national who is not excluded from the
 /// right to vote. The age requirement is checked against the candidate's own
 /// data, not here.
-fn eligibility_findings(brp_person: &BrpPerson) -> Vec<BrpFinding> {
+fn eligibility_findings(brp_person: &BrpPerson) -> Vec<BrpFindingKind> {
     let mut findings = Vec::new();
 
     if brp_person.is_deceased() {
-        findings.push(BrpFinding::Deceased {
+        findings.push(BrpFindingKind::Deceased {
             date_of_death: brp_person.date_of_death().and_then(parse_brp_date),
         });
     }
 
     if !brp_person.is_dutch() {
-        findings.push(BrpFinding::NotDutch);
+        findings.push(BrpFindingKind::NotDutch);
     }
 
     if brp_person.is_excluded_from_suffrage() {
-        findings.push(BrpFinding::ExcludedFromSuffrage);
+        findings.push(BrpFindingKind::ExcludedFromSuffrage);
     }
 
     findings
@@ -535,11 +633,11 @@ mod tests {
     use crate::{
         brp_stub::{BrpStub, matching_record},
         constants,
-        structs::{brp::BrpFinding, persons::PersonId},
+        structs::{brp::BrpFindingKind, persons::PersonId},
         test_utils::{sample_person, sample_person_from_brp},
     };
 
-    async fn findings_for_record(person: &Person, record: Value) -> Vec<BrpFinding> {
+    async fn findings_for_record(person: &Person, record: Value) -> Vec<BrpFindingKind> {
         let stub = BrpStub::serving(vec![record]).await;
         let results = stub
             .client
@@ -549,7 +647,14 @@ mod tests {
 
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].0, person.id);
-        results[0].1.clone()
+        kinds_of(&results[0].1)
+    }
+
+    fn kinds_of(findings: &[BrpFinding]) -> Vec<BrpFindingKind> {
+        findings
+            .iter()
+            .map(|finding| finding.kind.clone())
+            .collect()
     }
 
     /// `count` distinct burgerservicenummers that pass the eleven-proof.
@@ -611,8 +716,138 @@ mod tests {
 
         assert_eq!(
             findings,
-            vec![BrpFinding::Mismatch {
+            vec![BrpFindingKind::Mismatch {
                 brp_value: BrpValue::LastName("Bruijn".parse().unwrap()),
+            }]
+        );
+    }
+
+    /// The BRP record with a partner named `last_name`, prefixed when given.
+    fn record_with_partner(bsn: &str, prefix: Option<&str>, last_name: &str) -> Value {
+        let mut record = matching_record(bsn);
+        let mut name = json!({ "geslachtsnaam": last_name });
+        if let Some(prefix) = prefix {
+            name["voorvoegsel"] = json!(prefix);
+        }
+        record["partners"] = json!([{ "naam": name }]);
+        record
+    }
+
+    /// The candidate listed under `prefix` and `last_name`.
+    fn candidate_named(prefix: Option<&str>, last_name: &str) -> (Person, String) {
+        let (mut person, bsn) = candidate();
+        person.name.last_name_prefix = prefix.map(|prefix| prefix.parse().unwrap());
+        person.name.last_name = last_name.parse().unwrap();
+        (person, bsn)
+    }
+
+    #[tokio::test]
+    async fn a_partners_name_is_allowed_as_last_name() {
+        let (person, bsn) = candidate_named(None, "Jansen");
+
+        let findings =
+            findings_for_record(&person, record_with_partner(&bsn, None, "Jansen")).await;
+
+        assert!(
+            findings.is_empty(),
+            "expected no findings, got {findings:?}"
+        );
+    }
+
+    /// The BRP lists former partners too; article 1:9 BW keeps their name
+    /// available, so no filtering on the dissolution.
+    #[tokio::test]
+    async fn a_former_partners_name_is_allowed_as_well() {
+        let (person, bsn) = candidate_named(None, "Jansen");
+        let mut record = record_with_partner(&bsn, None, "Jansen");
+        record["partners"][0]["ontbindingHuwelijkPartnerschap"] =
+            json!({ "datum": { "datum": "2015-06-01" } });
+
+        let findings = findings_for_record(&person, record).await;
+
+        assert!(
+            findings.is_empty(),
+            "expected no findings, got {findings:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_own_name_hyphenated_with_the_partners_is_allowed() {
+        let (person, bsn) = candidate_named(Some("de"), "Bruin-Jansen");
+
+        let findings =
+            findings_for_record(&person, record_with_partner(&bsn, None, "Jansen")).await;
+
+        assert!(
+            findings.is_empty(),
+            "expected no findings, got {findings:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_partners_name_hyphenated_with_the_own_takes_the_partners_prefix() {
+        let (person, bsn) = candidate_named(Some("van der"), "Groot-de Bruin");
+
+        let findings =
+            findings_for_record(&person, record_with_partner(&bsn, Some("van der"), "Groot")).await;
+
+        assert!(
+            findings.is_empty(),
+            "expected no findings, got {findings:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_name_fitting_no_allowed_name_lists_every_allowed_name() {
+        let (person, bsn) = candidate_named(Some("de"), "Bruijn");
+        let name = |prefix: Option<&str>, last_name: &str| BrpLastName {
+            last_name_prefix: prefix.map(|prefix| prefix.parse().unwrap()),
+            last_name: last_name.parse().unwrap(),
+        };
+
+        let findings =
+            findings_for_record(&person, record_with_partner(&bsn, None, "Jansen")).await;
+
+        assert_eq!(
+            findings,
+            vec![BrpFindingKind::LastNameNotAllowed {
+                allowed: vec![
+                    name(Some("de"), "Bruin"),
+                    name(None, "Jansen"),
+                    name(Some("de"), "Bruin-Jansen"),
+                    name(None, "Jansen-de Bruin"),
+                ],
+            }]
+        );
+    }
+
+    #[tokio::test]
+    async fn with_partners_a_wrong_prefix_is_reported_with_the_allowed_names() {
+        let (person, bsn) = candidate_named(Some("van der"), "Bruin");
+
+        let findings =
+            findings_for_record(&person, record_with_partner(&bsn, None, "Jansen")).await;
+
+        assert_eq!(findings.len(), 1, "{findings:?}");
+        assert!(matches!(
+            &findings[0],
+            BrpFindingKind::LastNameNotAllowed { allowed } if allowed.len() == 4
+        ));
+    }
+
+    #[tokio::test]
+    async fn a_partner_without_a_readable_name_adds_no_allowed_names() {
+        let (person, bsn) = candidate_named(Some("de"), "Bruijn");
+        let mut record = matching_record(&bsn);
+        record["partners"] = json!([{ "naam": { "geslachtsnaam": "" } }, {}]);
+
+        let findings = findings_for_record(&person, record).await;
+
+        // Nothing to list besides the own name, so the plain difference.
+        assert_eq!(
+            findings,
+            vec![BrpFindingKind::Mismatch {
+                brp_value: BrpValue::LastName("Bruin".parse().unwrap()),
             }]
         );
     }
@@ -627,7 +862,7 @@ mod tests {
 
         assert_eq!(
             findings,
-            vec![BrpFinding::Mismatch {
+            vec![BrpFindingKind::Mismatch {
                 brp_value: BrpValue::LastNamePrefix("van der".parse().unwrap()),
             }]
         );
@@ -643,7 +878,7 @@ mod tests {
 
         assert_eq!(
             findings,
-            vec![BrpFinding::MissingInBrp {
+            vec![BrpFindingKind::MissingInBrp {
                 field: BrpCheckedField::LastNamePrefix,
             }]
         );
@@ -674,8 +909,38 @@ mod tests {
 
         assert_eq!(
             findings,
-            vec![BrpFinding::Mismatch {
+            vec![BrpFindingKind::Mismatch {
                 brp_value: BrpValue::PlaceOfResidence("Amsterdam".parse().unwrap()),
+            }]
+        );
+    }
+
+    #[tokio::test]
+    async fn a_candidate_without_initials_matches_a_brp_record_without_them() {
+        let (mut person, bsn) = candidate();
+        person.name.initials = None;
+        let mut record = matching_record(&bsn);
+        record["naam"]["voorletters"] = json!("");
+
+        let findings = findings_for_record(&person, record).await;
+
+        assert!(
+            findings.is_empty(),
+            "expected no findings, got {findings:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_candidate_without_initials_is_told_which_the_brp_holds() {
+        let (mut person, bsn) = candidate();
+        person.name.initials = None;
+
+        let findings = findings_for_record(&person, matching_record(&bsn)).await;
+
+        assert_eq!(
+            findings,
+            vec![BrpFindingKind::Mismatch {
+                brp_value: BrpValue::Initials("T.".parse().unwrap()),
             }]
         );
     }
@@ -692,7 +957,7 @@ mod tests {
 
         assert_eq!(
             findings,
-            vec![BrpFinding::Unparsable {
+            vec![BrpFindingKind::Unparsable {
                 field: BrpCheckedField::Initials,
                 brp_value: "T4".to_string(),
             }]
@@ -709,7 +974,7 @@ mod tests {
 
         assert_eq!(
             findings,
-            vec![BrpFinding::Unparsable {
+            vec![BrpFindingKind::Unparsable {
                 field: BrpCheckedField::DateOfBirth,
                 brp_value: "11-12-1990".to_string(),
             }]
@@ -726,7 +991,7 @@ mod tests {
 
         assert_eq!(
             findings,
-            vec![BrpFinding::MissingInBrp {
+            vec![BrpFindingKind::MissingInBrp {
                 field: BrpCheckedField::Gender
             }]
         );
@@ -743,7 +1008,7 @@ mod tests {
 
         assert_eq!(
             findings,
-            vec![BrpFinding::MissingInBrp {
+            vec![BrpFindingKind::MissingInBrp {
                 field: BrpCheckedField::Initials
             }]
         );
@@ -775,8 +1040,8 @@ mod tests {
         assert_eq!(
             findings,
             vec![
-                BrpFinding::BsnUnknown,
-                BrpFinding::BsnMatchedByPersonalDetails {
+                BrpFindingKind::BsnUnknown,
+                BrpFindingKind::BsnMatchedByPersonalDetails {
                     bsn: "999992806".parse().unwrap()
                 },
             ],
@@ -792,7 +1057,7 @@ mod tests {
 
         let findings = findings_for_record(&person, matching_record("999992806")).await;
 
-        assert_eq!(findings, vec![BrpFinding::BsnUnknown]);
+        assert_eq!(findings, vec![BrpFindingKind::BsnUnknown]);
     }
 
     #[tokio::test]
@@ -806,11 +1071,11 @@ mod tests {
         assert_eq!(
             findings,
             vec![
-                BrpFinding::BsnMissing,
-                BrpFinding::BsnMatchedByPersonalDetails {
+                BrpFindingKind::BsnMissing,
+                BrpFindingKind::BsnMatchedByPersonalDetails {
                     bsn: "999992806".parse().unwrap()
                 },
-                BrpFinding::Mismatch {
+                BrpFindingKind::Mismatch {
                     brp_value: BrpValue::PlaceOfResidence("Utrecht".parse().unwrap()),
                 },
             ]
@@ -836,8 +1101,11 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            results[0].1,
-            vec![BrpFinding::BsnMissing, BrpFinding::PersonalDetailsNotUnique]
+            kinds_of(&results[0].1),
+            vec![
+                BrpFindingKind::BsnMissing,
+                BrpFindingKind::PersonalDetailsNotUnique
+            ]
         );
     }
 
@@ -858,10 +1126,10 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            results[0].1,
+            kinds_of(&results[0].1),
             vec![
-                BrpFinding::BsnMissing,
-                BrpFinding::BsnMatchedByPersonalDetails {
+                BrpFindingKind::BsnMissing,
+                BrpFindingKind::BsnMatchedByPersonalDetails {
                     bsn: "999992806".parse().unwrap()
                 },
             ]
@@ -888,7 +1156,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(results[0].1, vec![BrpFinding::BsnMissing]);
+        assert_eq!(kinds_of(&results[0].1), vec![BrpFindingKind::BsnMissing]);
         assert_eq!(stub.query_count(), 0, "there was nothing to ask");
     }
 
@@ -903,7 +1171,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(results[0].1, vec![BrpFinding::BsnNotUnique]);
+        assert_eq!(kinds_of(&results[0].1), vec![BrpFindingKind::BsnNotUnique]);
     }
 
     #[tokio::test]
@@ -923,8 +1191,11 @@ mod tests {
         // Neither is in the BRP under any of their details, so the reason the
         // lookup failed is all there is to report.
         let findings: Vec<_> = results.into_iter().collect();
-        assert!(findings.contains(&(without.id, vec![BrpFinding::BsnMissing])));
-        assert!(findings.contains(&(none_confirmed.id, vec![BrpFinding::BsnNoneConfirmed])));
+        assert!(findings.contains(&(without.id, vec![BrpFindingKind::BsnMissing.into()])));
+        assert!(findings.contains(&(
+            none_confirmed.id,
+            vec![BrpFindingKind::BsnNoneConfirmed.into()]
+        )));
         assert_eq!(
             stub.queries_of_type("RaadpleegMetBurgerservicenummer")
                 .len(),
@@ -942,7 +1213,7 @@ mod tests {
         assert!(
             findings_for_record(&person, deceased)
                 .await
-                .contains(&BrpFinding::Deceased {
+                .contains(&BrpFindingKind::Deceased {
                     date_of_death: NaiveDate::from_ymd_opt(2026, 1, 31)
                 })
         );
@@ -952,7 +1223,7 @@ mod tests {
         assert!(
             findings_for_record(&person, not_dutch)
                 .await
-                .contains(&BrpFinding::NotDutch)
+                .contains(&BrpFindingKind::NotDutch)
         );
 
         let mut excluded = matching_record(&bsn);
@@ -960,7 +1231,7 @@ mod tests {
         assert!(
             findings_for_record(&person, excluded)
                 .await
-                .contains(&BrpFinding::ExcludedFromSuffrage)
+                .contains(&BrpFindingKind::ExcludedFromSuffrage)
         );
     }
 
@@ -975,7 +1246,7 @@ mod tests {
 
         assert_eq!(
             findings,
-            vec![BrpFinding::MissingInBrp {
+            vec![BrpFindingKind::MissingInBrp {
                 field: BrpCheckedField::DateOfBirth
             }]
         );
@@ -992,7 +1263,7 @@ mod tests {
 
         assert_eq!(
             findings,
-            vec![BrpFinding::Deceased {
+            vec![BrpFindingKind::Deceased {
                 date_of_death: None
             }]
         );
@@ -1003,10 +1274,10 @@ mod tests {
         let (person, bsn) = candidate();
 
         for (residence_type, expected) in [
-            ("VerblijfplaatsBuitenland", BrpFinding::ResidenceAbroad),
-            ("Locatie", BrpFinding::ResidenceWithoutAddress),
-            ("VerblijfplaatsOnbekend", BrpFinding::ResidenceUnknown),
-            ("SomethingNew", BrpFinding::ResidenceUnknown),
+            ("VerblijfplaatsBuitenland", BrpFindingKind::ResidenceAbroad),
+            ("Locatie", BrpFindingKind::ResidenceWithoutAddress),
+            ("VerblijfplaatsOnbekend", BrpFindingKind::ResidenceUnknown),
+            ("SomethingNew", BrpFindingKind::ResidenceUnknown),
         ] {
             let mut record = matching_record(&bsn);
             record["verblijfplaats"] = json!({ "type": residence_type });
@@ -1044,7 +1315,11 @@ mod tests {
         );
         // None of them is in the stub's list.
         assert_eq!(results.len(), BRP_BSN_BATCH_SIZE);
-        assert!(results.iter().all(|(_, f)| f == &[BrpFinding::BsnUnknown]));
+        assert!(
+            results
+                .iter()
+                .all(|(_, f)| kinds_of(f) == [BrpFindingKind::BsnUnknown])
+        );
     }
 
     #[tokio::test]

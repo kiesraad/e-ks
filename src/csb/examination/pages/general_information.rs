@@ -406,7 +406,7 @@ mod tests {
     async fn list_submitter_problem_shows_up() {
         let store = CsbStore::new_for_test();
         let mut list_submitter = sample_list_submitter(ListSubmitterId::new());
-        list_submitter.name.initials = "A.".parse().expect("parse initials");
+        list_submitter.name.initials = Some("A.".parse().expect("parse initials"));
         list_submitter.name.last_name = "Nagelhout II".parse().expect("parse last name");
         if let Address::Dutch(ref mut address) = list_submitter.address {
             address.locality = None
@@ -441,7 +441,7 @@ mod tests {
         let store = CsbStore::new_for_test();
 
         let mut list_submitter = sample_list_submitter(ListSubmitterId::new());
-        list_submitter.name.initials = "A.".parse().expect("parse initials");
+        list_submitter.name.initials = Some("A.".parse().expect("parse initials"));
         list_submitter.name.last_name = "Nagelhout III".parse().expect("parse last name");
         if let Address::Dutch(ref mut address) = list_submitter.address {
             address.locality = None

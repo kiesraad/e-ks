@@ -24,3 +24,21 @@ pub struct CsbPreSubmissionGroupPath {
 pub struct CsbPreSubmissionBrpCheckPath {
     pub stream_id: StreamId,
 }
+
+#[derive(TypedPath, Deserialize)]
+#[typed_path(
+    "/csb/pre-submission/{stream_id}/brp-overzicht.pdf",
+    rejection(AppError)
+)]
+pub struct CsbPreSubmissionBrpOverviewPdfPath {
+    pub stream_id: StreamId,
+}
+
+#[derive(TypedPath, Deserialize)]
+#[typed_path(
+    "/csb/pre-submission/{stream_id}/brp-overzicht.docx",
+    rejection(AppError)
+)]
+pub struct CsbPreSubmissionBrpOverviewDocxPath {
+    pub stream_id: StreamId,
+}

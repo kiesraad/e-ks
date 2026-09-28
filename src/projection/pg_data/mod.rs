@@ -375,7 +375,7 @@ mod tests {
                 first_name: None,
                 last_name: "Bakker".parse::<LastName>().expect("last name"),
                 last_name_prefix: None,
-                initials: "C.D.".parse::<Initials>().expect("initials"),
+                initials: Some("C.D.".parse::<Initials>().expect("initials")),
             },
             address: DutchAddress {
                 locality: Some("Rotterdam".parse::<Locality>().expect("locality")),

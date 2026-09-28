@@ -258,7 +258,7 @@ mod tests {
         let person_id = PersonId::new();
         let before_person = sample_person(person_id);
         let mut after_person = before_person.clone();
-        after_person.name.initials = "X.Y.".parse().unwrap();
+        after_person.name.initials = Some("X.Y.".parse().unwrap());
 
         let mut before = empty_state();
         before.persons.insert(person_id, before_person.clone());

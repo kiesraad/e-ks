@@ -4,7 +4,10 @@ use crate::{
     AppError, AppRequestState, CsbStore, CsbStream, Session, StreamId,
     csb::{
         examination::structs::BrpCheckState,
-        pre_submission::paths::{CsbPreSubmissionBrpCheckPath, CsbPreSubmissionGroupPath},
+        pre_submission::paths::{
+            CsbPreSubmissionBrpCheckPath, CsbPreSubmissionBrpOverviewDocxPath,
+            CsbPreSubmissionBrpOverviewPdfPath, CsbPreSubmissionGroupPath,
+        },
     },
     projection::WithCorrections,
 };
@@ -33,6 +36,20 @@ impl PreSubmissionGroup {
 
     pub fn brp_check_path(&self) -> CsbPreSubmissionBrpCheckPath {
         CsbPreSubmissionBrpCheckPath {
+            stream_id: self.stream_id,
+        }
+    }
+
+    /// Download of the overview of what was found, as PDF.
+    pub fn brp_overview_pdf_path(&self) -> CsbPreSubmissionBrpOverviewPdfPath {
+        CsbPreSubmissionBrpOverviewPdfPath {
+            stream_id: self.stream_id,
+        }
+    }
+
+    /// Download of the overview of what was found, as Word document.
+    pub fn brp_overview_docx_path(&self) -> CsbPreSubmissionBrpOverviewDocxPath {
+        CsbPreSubmissionBrpOverviewDocxPath {
             stream_id: self.stream_id,
         }
     }

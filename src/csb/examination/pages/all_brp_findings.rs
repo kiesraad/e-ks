@@ -7,12 +7,12 @@ use crate::{
         examination::{
             extractors::CsbPoliticalGroup,
             pages::CsbAllBrpFindingsPath,
-            structs::{AllBrpFindings, BrpCheckState, brp_incomplete_reason},
+            structs::{BrpBadge, BrpCheckState, ProblematicCandidate, brp_incomplete_reason},
         },
         import::brp_sweep_running,
     },
     filters,
-    structs::{common::HasSeverity, persons::Person, problems::AllProblems},
+    structs::{common::HasSeverity, problems::AllProblems},
 };
 
 #[derive(Template)]
@@ -24,10 +24,10 @@ struct CsbAllBrpFindingsTemplate {
     brp_running: bool,
     /// Why the list below may be incomplete, when the check did not finish.
     brp_incomplete: Option<String>,
-    all_findings: AllBrpFindings,
+    /// The badges of the BRP strip, derived from `brp` and `brp_running`.
+    brp_badges: Vec<BrpBadge>,
     all_problems: AllProblems,
-    /// all candidates that have finding(s), problem(s), or both
-    candidates: Vec<(Person, Option<String>)>,
+    candidates: Vec<ProblematicCandidate>,
 }
 
 pub async fn all_brp_findings(
@@ -36,9 +36,14 @@ pub async fn all_brp_findings(
     store: CsbStore,
 ) -> Result<Response, AppError> {
     let political_group = CsbPoliticalGroup::new_from_csb_store(&store);
-    let all_findings = store.get_all_brp_findings(&political_group, context.session.locale);
     let all_problems = store.get_all_problems(context.election)?;
-    let candidates = problematic_candidates(&all_findings, &all_problems, &political_group, &store);
+    let candidates = store
+        .get_all_brp_findings(&political_group, context.session.locale)
+        .with_problems(&all_problems, |person| {
+            store
+                .get_first_list(person.id)
+                .map(|list| political_group.candidate_path(&list.id, &person.id))
+        });
 
     let brp = BrpCheckState::for_political_group(&store);
     let brp_running = brp_sweep_running(store.stream_id);
@@ -51,38 +56,16 @@ pub async fn all_brp_findings(
                 brp_running,
                 context.session.locale,
             ),
+            brp_badges: brp.strip_badges(brp_running),
             brp,
             brp_running,
             political_group,
-            all_findings,
             all_problems,
             candidates,
         },
         context,
     )
     .into_response())
-}
-
-fn problematic_candidates(
-    all_findings: &AllBrpFindings,
-    all_problems: &AllProblems,
-    political_group: &CsbPoliticalGroup,
-    store: &CsbStore,
-) -> Vec<(Person, Option<String>)> {
-    let mut candidates = all_findings
-        .candidates
-        .iter()
-        .map(|c| (c.person.clone(), c.path.to_owned()))
-        .collect::<Vec<_>>();
-    for person in all_problems.candidates.iter().map(|c| c.entity.clone()) {
-        if !candidates.iter().any(|(p, _)| *p == person) {
-            let path = store
-                .get_first_list(person.id)
-                .map(|l| political_group.candidate_path(&l.id, &person.id));
-            candidates.push((person, path));
-        }
-    }
-    candidates
 }
 
 #[cfg(test)]
@@ -95,7 +78,7 @@ mod tests {
     use crate::{
         CsbAction, ElectoralDistrict, PgEvent,
         structs::{
-            brp::{BrpFinding, BrpStatus, BrpValue},
+            brp::{BrpFindingKind, BrpStatus, BrpValue},
             candidate_lists::{CandidateList, CandidateListId},
             common::{Address, PreviousElectionResults, UtcDateTime},
             list_designation::ListDesignation,
@@ -146,10 +129,11 @@ mod tests {
             .update(CsbAction::BrpPersonChecked {
                 person: first,
                 findings: vec![
-                    BrpFinding::NotDutch,
-                    BrpFinding::Mismatch {
+                    BrpFindingKind::NotDutch.into(),
+                    BrpFindingKind::Mismatch {
                         brp_value: BrpValue::PlaceOfResidence("Amsterdam".parse().unwrap()),
-                    },
+                    }
+                    .into(),
                 ],
             })
             .await
@@ -176,6 +160,48 @@ mod tests {
         assert!(body.contains("Amsterdam"));
         // Every finding links to the candidate it is about.
         assert!(body.contains(&format!("/csb/examination/{stream_id}/list/")));
+    }
+
+    #[tokio::test]
+    async fn handled_findings_are_shown_as_handled() {
+        let person = PersonId::new();
+        let store = store_with_candidates(&[person]);
+        let kinds = [BrpFindingKind::NotDutch, BrpFindingKind::BsnUnknown];
+        store
+            .update(CsbAction::BrpPersonChecked {
+                person,
+                findings: kinds.iter().cloned().map(Into::into).collect(),
+            })
+            .await
+            .unwrap();
+        store
+            .update(CsbAction::SetBrpStatus(BrpStatus::Finished))
+            .await
+            .unwrap();
+        let mark_handled = async |finding: BrpFindingKind| {
+            store
+                .update(CsbAction::SetBrpFindingHandled {
+                    person,
+                    finding,
+                    handled: true,
+                })
+                .await
+                .unwrap();
+        };
+
+        // The general information of the sample group stays red throughout,
+        // over its problems.
+        mark_handled(kinds[0].clone()).await;
+        let body = render(store.clone()).await;
+        assert_eq!(body.matches("restoration-tag-handled").count(), 1, "{body}");
+        // The summary strip, the candidate and the general information.
+        assert_eq!(body.matches("restoration-strip-error").count(), 3, "{body}");
+
+        mark_handled(kinds[1].clone()).await;
+        let body = render(store.clone()).await;
+        // Both findings, and the summary strip above them.
+        assert_eq!(body.matches("restoration-tag-handled").count(), 3, "{body}");
+        assert_eq!(body.matches("restoration-strip-error").count(), 1, "{body}");
     }
 
     #[tokio::test]
@@ -232,7 +258,7 @@ mod tests {
         let store = store_with_candidates(&[PersonId::new()]);
         let stream_id = store.stream_id;
         let mut list_submitter = sample_list_submitter(ListSubmitterId::new());
-        list_submitter.name.initials = "A.".parse().expect("parse initials");
+        list_submitter.name.initials = Some("A.".parse().expect("parse initials"));
         list_submitter.name.last_name = "Nagelhout II".parse().expect("parse last name");
         if let Address::Dutch(ref mut address) = list_submitter.address {
             address.locality = None
@@ -261,7 +287,7 @@ mod tests {
         let store = store_with_candidates(&[PersonId::new()]);
         let stream_id = store.stream_id;
         let mut list_submitter = sample_list_submitter(ListSubmitterId::new());
-        list_submitter.name.initials = "A.".parse().expect("parse initials");
+        list_submitter.name.initials = Some("A.".parse().expect("parse initials"));
         list_submitter.name.last_name = "Nagelhout III".parse().expect("parse last name");
         if let Address::Dutch(ref mut address) = list_submitter.address {
             address.locality = None
@@ -316,7 +342,7 @@ mod tests {
 
         let mut person = sample_person(person_id);
         person.name.first_name = None;
-        person.name.initials = "A.".parse().expect("parse initials");
+        person.name.initials = Some("A.".parse().expect("parse initials"));
         person.name.last_name = "Nagelhout IV".parse().expect("parse last name");
         person.personal_data.bsn = None;
 

@@ -4,12 +4,12 @@ use axum::{
     response::{IntoResponse, Response},
 };
 
-use crate::structs::{common::HasSeverity, persons::Person};
+use crate::structs::common::HasSeverity;
 
 use crate::{
     AppError, AppRequestState, Context, CsbContext, HtmlTemplate,
     csb::{
-        examination::structs::{AllBrpFindings, brp_incomplete_reason},
+        examination::structs::{BrpBadge, ProblematicCandidate, brp_incomplete_reason},
         import::{brp_sweep_running, do_brp_verification},
         pre_submission::{
             extractors::{PreSubmissionGroup, PreSubmissionStore},
@@ -28,9 +28,10 @@ struct PreSubmissionGroupTemplate {
     brp_running: bool,
     /// Why the list may be incomplete, when the check did not finish.
     brp_incomplete: Option<String>,
-    all_findings: AllBrpFindings,
+    /// The badges of the BRP strip, derived from the state and `brp_running`.
+    brp_badges: Vec<BrpBadge>,
     all_problems: AllProblems,
-    candidates: Vec<Person>,
+    candidates: Vec<ProblematicCandidate>,
 }
 
 /// The BRP findings of one pre-submitted package, per candidate.
@@ -43,8 +44,10 @@ pub async fn group(
     let brp_running = brp_sweep_running(store.stream_id);
     let locale = context.session.locale;
 
-    let all_findings = store.get_unlinked_brp_findings(locale);
     let all_problems = store.get_all_problems(context.election)?;
+    let candidates = store
+        .get_unlinked_brp_findings(locale)
+        .with_problems(&all_problems, |_| None);
 
     Ok(HtmlTemplate(
         PreSubmissionGroupTemplate {
@@ -54,9 +57,9 @@ pub async fn group(
                 brp_running,
                 locale,
             ),
-            candidates: problematic_candidates(&all_findings, &all_problems),
-            all_findings,
+            brp_badges: group.brp.strip_badges(brp_running),
             all_problems,
+            candidates,
             group,
             brp_running,
         },
@@ -78,18 +81,6 @@ pub async fn start_brp_check<S: AppRequestState>(
     }))
 }
 
-fn problematic_candidates(
-    all_findings: &AllBrpFindings,
-    all_problems: &AllProblems,
-) -> Vec<Person> {
-    all_findings
-        .candidates
-        .iter()
-        .map(|c| c.person.clone())
-        .chain(all_problems.candidates.iter().map(|c| c.entity.clone()))
-        .collect()
-}
-
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;
@@ -100,7 +91,7 @@ mod tests {
     use crate::{
         AppState, CsbAction, CsbStore, ElectoralDistrict, PgEvent,
         structs::{
-            brp::{BrpFinding, BrpStatus, BrpValue},
+            brp::{BrpFinding, BrpFindingKind, BrpStatus, BrpValue},
             candidate_lists::{CandidateList, CandidateListId},
             common::{Address, PreviousElectionResults, UtcDateTime},
             list_designation::ListDesignation,
@@ -163,6 +154,8 @@ mod tests {
         assert!(body.contains("Not checked"));
         assert!(body.contains(&format!("/csb/pre-submission/{stream_id}/brp-check")));
         assert!(body.contains("Check against the BRP"));
+        // Nothing to download before the check ran.
+        assert!(!body.contains("brp-overzicht"));
     }
 
     #[tokio::test]
@@ -172,10 +165,11 @@ mod tests {
             &store,
             person_id,
             vec![
-                BrpFinding::NotDutch,
-                BrpFinding::Mismatch {
+                BrpFindingKind::NotDutch.into(),
+                BrpFindingKind::Mismatch {
                     brp_value: BrpValue::PlaceOfResidence("Amsterdam".parse().unwrap()),
-                },
+                }
+                .into(),
             ],
         )
         .await;
@@ -191,6 +185,15 @@ mod tests {
         assert!(!body.contains("/csb/examination"));
         // The check is done, so there is nothing left to start.
         assert!(!body.contains(&format!("/csb/pre-submission/{stream_id}/brp-check")));
+        // The overview is offered as Word and PDF.
+        assert!(body.contains(&format!(
+            "href=\"/csb/pre-submission/{stream_id}/brp-overzicht.docx\""
+        )));
+        assert!(body.contains(&format!(
+            "href=\"/csb/pre-submission/{stream_id}/brp-overzicht.pdf\""
+        )));
+        assert!(body.contains("Download Word"));
+        assert!(body.contains("Download PDF"));
     }
 
     #[tokio::test]
@@ -202,6 +205,29 @@ mod tests {
 
         assert!(body.contains("No BRP errors"), "{body}");
         assert!(body.contains("Problems</span>"));
+    }
+
+    #[tokio::test]
+    async fn a_candidate_with_findings_and_problems_is_listed_once() {
+        let store = PreSubmissionStore(CsbStore::new_for_test());
+        let mut person = sample_person_with_last_name(PersonId::new(), "Kandidaat");
+        person.personal_data.bsn = None;
+        let person_id = person.id;
+        let mut list = sample_candidate_list(CandidateListId::new());
+        list.candidates = vec![person_id];
+        store.add_person(person);
+        store.add_candidate_list(list);
+        finish_check(&store, person_id, vec![BrpFindingKind::NotDutch.into()]).await;
+
+        let body = render(store).await;
+
+        assert_eq!(
+            body.matches("Kandidaat, H.A.H.A.</h3>").count(),
+            1,
+            "{body}"
+        );
+        assert!(body.contains("no Dutch nationality"));
+        assert!(body.contains(">BSN</span>"));
     }
 
     #[tokio::test]
@@ -264,7 +290,7 @@ mod tests {
     async fn list_submitter_problem_shows_up() {
         let store = PreSubmissionStore(CsbStore::new_for_test());
         let mut list_submitter = sample_list_submitter(ListSubmitterId::new());
-        list_submitter.name.initials = "A.".parse().expect("parse initials");
+        list_submitter.name.initials = Some("A.".parse().expect("parse initials"));
         list_submitter.name.last_name = "Nagelhout II".parse().expect("parse last name");
         if let Address::Dutch(ref mut address) = list_submitter.address {
             address.locality = None
@@ -290,7 +316,7 @@ mod tests {
     async fn substitute_submitter_problem_shows_up() {
         let store = PreSubmissionStore(CsbStore::new_for_test());
         let mut list_submitter = sample_list_submitter(ListSubmitterId::new());
-        list_submitter.name.initials = "A.".parse().expect("parse initials");
+        list_submitter.name.initials = Some("A.".parse().expect("parse initials"));
         list_submitter.name.last_name = "Nagelhout III".parse().expect("parse last name");
         if let Address::Dutch(ref mut address) = list_submitter.address {
             address.locality = None
@@ -339,7 +365,7 @@ mod tests {
 
         let mut person = sample_person(person_id);
         person.name.first_name = None;
-        person.name.initials = "A.".parse().expect("parse initials");
+        person.name.initials = Some("A.".parse().expect("parse initials"));
         person.name.last_name = "Nagelhout IV".parse().expect("parse last name");
         person.personal_data.bsn = None;
 

@@ -2,6 +2,7 @@
 //! `renders_every_example_input` round-trip test and the `pdf_diff`
 //! development tool.
 
+mod brp_overview;
 mod h1;
 mod h3;
 mod h4;
@@ -10,6 +11,7 @@ mod i1;
 mod i4;
 mod omission_letter;
 
+pub use brp_overview::{brp_overview_example_1, brp_overview_example_2};
 pub use h1::{h1_example_1, h1_example_2, h1_example_3};
 pub use h3::{
     h3_1_example_1, h3_1_example_2, h3_1_example_3, h3_2_example_1, h3_2_example_2, h3_2_example_3,
@@ -84,6 +86,8 @@ pub fn examples() -> Vec<Example> {
         example("model-i4-example-2", i4_example_2()),
         example("verzuimbrief-example-1", omission_letter_example_1()),
         example("verzuimbrief-example-2", omission_letter_example_2()),
+        example("brp-overzicht-example-1", brp_overview_example_1()),
+        example("brp-overzicht-example-2", brp_overview_example_2()),
     ]
 }
 
