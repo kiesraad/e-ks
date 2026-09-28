@@ -50,6 +50,14 @@ impl Overlay {
         ))
         .to_string()
     }
+
+    /// Returns true when this overlay redirects to the finalise page when closed
+    pub fn redirects_to_finalise(&self) -> bool {
+        dbg!(&self.redirect_to);
+        self.redirect_to
+            .as_ref()
+            .is_some_and(|redir| redir == "/finalise")
+    }
 }
 
 #[cfg(test)]
@@ -117,5 +125,16 @@ mod tests {
         let overlay = Overlay::new(&query);
 
         assert_eq!(overlay.close_url("/persons"), "/foo");
+    }
+
+    #[test]
+    fn redirect_to_finalise() {
+        let query: QueryParamState = QueryParamState::redirect_to("/finalise".into());
+        let overlay = Overlay::new(&query);
+        assert!(overlay.redirects_to_finalise());
+
+        let query: QueryParamState = QueryParamState::redirect_to("/some_other_path".into());
+        let overlay = Overlay::new(&query);
+        assert!(!overlay.redirects_to_finalise());
     }
 }

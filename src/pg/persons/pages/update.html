@@ -20,8 +20,13 @@
   </fieldset>
 {% endblock %}
 {% block overlay_actions %}
-  {% set submit_label = "action.next"|trans %}
-  {% include "pg/common/components/submit.html" %}
+  {% if overlay.redirects_to_finalise() %}
+    {% let submit_label = "action.save"|trans %}
+    {% include "pg/common/components/submit.html" %}
+  {% else %}
+    {% let submit_label = "action.next"|trans %}
+    {% include "pg/common/components/submit.html" %}
+  {% endif %}
 {% endblock %}
 {% block overlay_end %}
 {% endblock %}

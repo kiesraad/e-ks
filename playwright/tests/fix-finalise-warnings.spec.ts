@@ -61,13 +61,15 @@ test.describe("fix submit warnings", async () => {
     await page.goto("/finalise");
     await finalisePage.linkBSN.click();
     await createPersonPage.checkboxNoBSN.check();
-    await createPersonPage.buttonNext.click();
+    await expect(createPersonPage.buttonNext).not.toBeVisible();
+    await createPersonPage.buttonSave.click();
     await page.waitForURL("/finalise*");
     await expect(finalisePage.linkBSN).not.toBeVisible();
 
     await finalisePage.linkIncorrectDate.first().click();
     await createPersonPage.textfieldYearOfBirth.fill("1925");
-    await createPersonPage.buttonNext.click();
+    await expect(createPersonPage.buttonNext).not.toBeVisible();
+    await createPersonPage.buttonSave.click();
     // Waiting on the remaining warning rather than on the URL: it is back on
     // the finalise page, one warning fixed and one left, so the click below
     // resolves to a single link.
@@ -75,7 +77,8 @@ test.describe("fix submit warnings", async () => {
 
     await finalisePage.linkIncorrectDate.click();
     await createPersonPage.textfieldYearOfBirth.fill("1990");
-    await createPersonPage.buttonNext.click();
+    await expect(createPersonPage.buttonNext).not.toBeVisible();
+    await createPersonPage.buttonSave.click();
     await page.waitForURL("/finalise*");
     await expect(finalisePage.linkIncorrectDate).not.toBeVisible();
   });
