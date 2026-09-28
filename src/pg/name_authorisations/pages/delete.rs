@@ -30,7 +30,7 @@ pub async fn delete_name_authorisation_confirm(
     Ok(HtmlTemplate(
         DeleteNameAuthorisationTemplate {
             name_authorisation,
-            overlay: Overlay::new(&query),
+            overlay: Overlay::new_edit(&query),
         },
         context,
     ))

@@ -109,7 +109,7 @@ impl OmissionTarget {
         Ok(HtmlTemplate(
             CsbAddOmissionTemplate {
                 form,
-                overlay: Overlay::new(query),
+                overlay: Overlay::new_create(query),
                 close_action: return_path(self, &political_group),
                 presets: preset_views(self, store),
                 omission_target: self.to_owned(),
@@ -206,7 +206,7 @@ pub async fn overview(
 
     Ok(HtmlTemplate(
         CsbOmissionOverviewTemplate {
-            overlay: Overlay::new(&query),
+            overlay: Overlay::new_edit(&query),
             close_action: return_path(&omission_target, &political_group),
             omissions: omission_views(&omission_target, &store)?,
             title_suffix: omission_target.generate_title_suffix(&store, context.session.locale)?,
