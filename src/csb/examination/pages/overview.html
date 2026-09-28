@@ -8,9 +8,9 @@
     <div class="examination-side">
       <div class="card mb-md">
         <div class="card-header">
-          <div class="badge locked info"></div>
+          <div class="badge {% if all_examinations_finished %}unlocked{% else %}locked{% endif %} info"></div>
           <div>
-            <h4>{{ "csb.finish_examination"|trans }}</h4>
+            <h4>{{ "csb.finish_examination.title"|trans }}</h4>
           </div>
         </div>
         <div class="card-content">
@@ -18,17 +18,8 @@
             <li>{{ "csb.finish_instruction.create_model_i1"|trans }}</li>
             <li>{{ "csb.finish_instruction.create_defects"|trans }}</li>
           </ul>
-          <button class="button mt-md">{{ "csb.action.finish"|trans }}</button>
-          <a href="{{ CsbI1DownloadPath }}"
-             class="button secondary icon-download mt-md">Print I 1</a>
-          <a href="{{ CsbI4DownloadPath }}"
-             class="button secondary icon-download mt-md">Print I 4</a>
+          <a href="{{ CsbFinishExaminationPath }}" class="button mt-md">{{ "csb.action.finish"|trans }}</a>
         </div>
-      </div>
-      <h4>{{ "csb.progress"|trans }}</h4>
-      <div class="progress-bar mt-md">
-        <progress value="42", max="100"></progress>
-        <p class="percentage">42%</p>
       </div>
     </div>
     <div class="examination-main card card-plain">
@@ -53,10 +44,12 @@
               <tr class="clickable">
                 <td>{{ pg.csb_appellation() }}</td>
                 <td>
-                  <div class="status in-progress">{{ "csb.status.in_progress"|trans }}</div>
-                  {% if pg.omission_count > 0 %}
-                    <div class="status omission">{{ "csb.status.omission"|trans }}</div>
-                  {% endif %}
+                  <div class="status-list">
+                    <div class="status in-progress">{{ "csb.status.in_progress"|trans }}</div>
+                    {% if pg.omission_count > 0 %}
+                      <div class="status omission">{{ "csb.status.omission"|trans }}</div>
+                    {% endif %}
+                  </div>
                 </td>
                 <td>{{ brp_badge(pg.brp, pg.group_path() ) }}</td>
                 <td>
@@ -85,11 +78,14 @@
               <tr class="clickable">
                 <td>{{ pg.csb_appellation() }}</td>
                 <td>
-                  {% if pg.omission_count == 0 %}
-                    <div class="status approved">{{ "csb.status.approved"|trans }}</div>
-                  {% else %}
-                    <div class="status omission">{{ "csb.status.omission"|trans }}</div>
-                  {% endif %}
+                  <div class="status-list">
+                    <div class="status finished">{{ "csb.group.finished"|trans }}</div>
+                    {% if pg.omission_count == 0 %}
+                      <div class="status approved">{{ "csb.status.approved"|trans }}</div>
+                    {% else %}
+                      <div class="status omission">{{ "csb.status.omission"|trans }}</div>
+                    {% endif %}
+                  </div>
                 </td>
                 <td>{{ brp_badge(pg.brp, pg.group_path() ) }}</td>
                 <td>

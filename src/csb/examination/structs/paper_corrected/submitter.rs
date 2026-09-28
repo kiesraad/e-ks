@@ -23,7 +23,11 @@ impl PaperCorrectedSubmitter {
                 .map(|s| s.name.display())
                 .unwrap_or_default(),
             initials: PaperCorrected::from_field(imported, corrected, |s| {
-                s.name.initials.to_string()
+                s.name
+                    .initials
+                    .as_ref()
+                    .map(ToString::to_string)
+                    .unwrap_or_default()
             }),
             last_name: PaperCorrected::from_field(imported, corrected, |s| {
                 s.name.last_name_with_prefix()

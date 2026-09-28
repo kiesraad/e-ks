@@ -31,10 +31,12 @@ impl PotentialProblems {
     pub fn person_fix_path(&self, person: &Person) -> String {
         let finalise = FinalisePath {}.to_string();
         match self {
-            PotentialProblems::IncompleteAddress { .. } => person
-                .update_address_path()
-                .with_query_params(QueryParamState::redirect_to(finalise))
-                .to_string(),
+            PotentialProblems::IncompleteAddress { .. } | PotentialProblems::UnknownAddress => {
+                person
+                    .update_address_path()
+                    .with_query_params(QueryParamState::redirect_to(finalise))
+                    .to_string()
+            }
             PotentialProblems::NoRepresentative | PotentialProblems::RepresentativeProblem(_) => {
                 person
                     .update_representative_path()
@@ -85,7 +87,14 @@ impl AllProblems {
         let candidate_lists = CandidateListSummary::list(store);
         let (general, general_info) = Self::find_general_problems(store);
         let (candidates, candidates_info) = Self::find_candidate_problems(store, &candidate_lists);
-        let lists = Self::find_list_problems(&candidate_lists, store);
+        let mut lists = Self::find_list_problems(&candidate_lists, store);
+
+        // candidate problems are already listed per candidate
+        for list in &mut lists.per_list {
+            list.problems
+                .retain(|p| !matches!(p, PotentialProblems::CandidatesWithProblems { .. }));
+        }
+        lists.per_list.retain(|list| !list.problems.is_empty());
 
         let mut all_problems = Self {
             general,
@@ -492,14 +501,17 @@ mod tests {
     use crate::{
         AppError, ElectoralDistrict,
         structs::{
-            candidate_lists::CandidateListId, common::HasSeverity,
-            list_submitters::ListSubmitterId, name_authorisations::NameAuthorisationId,
+            candidate_lists::CandidateListId,
+            common::{EmptyAddressProblems, HasSeverity},
+            list_submitters::ListSubmitterId,
+            name_authorisations::NameAuthorisationId,
             persons::PersonId,
         },
         test_utils::{
             sample_candidate_list, sample_list_submitter, sample_name_authorisation, sample_person,
         },
     };
+    use std::collections::BTreeSet;
 
     use super::*;
 
@@ -584,6 +596,33 @@ mod tests {
             }
             .models_downloadable()
         );
+    }
+
+    #[tokio::test]
+    async fn candidate_problems_propagate_to_list_but_not_on_finalise() -> Result<(), AppError> {
+        let store = PgStore::new_for_test();
+        let mut person = sample_person(PersonId::new());
+        person.personal_data.date_of_birth = None;
+        person.create(&store).await?;
+
+        let mut list = sample_candidate_list(CandidateListId::new());
+        list.candidates = vec![person.id];
+        list.create(&store).await?;
+
+        let summaries = CandidateListSummary::list(&store);
+        let list_problems = AllProblems::find_list_problems(&summaries, &store);
+        assert_eq!(list_problems.per_list.len(), 1);
+        assert_eq!(
+            list_problems.per_list[0].problems,
+            vec![PotentialProblems::CandidatesWithProblems { count: 1 }]
+        );
+        assert_eq!(list_problems.highest_severity(), Some(Severity::Warn));
+
+        let all = AllProblems::find_all(&store)?;
+        assert!(all.lists.per_list.is_empty());
+        assert_eq!(all.candidates.len(), 1);
+
+        Ok(())
     }
 
     #[tokio::test]
@@ -699,7 +738,7 @@ mod tests {
         for _ in 0..10 {
             let mut list1 = sample_candidate_list(CandidateListId::new());
             list1.electoral_districts =
-                vec![ElectoralDistrict::Utrecht, ElectoralDistrict::Groningen];
+                BTreeSet::from([ElectoralDistrict::Utrecht, ElectoralDistrict::Groningen]);
             list1.create(&store).await?;
         }
 
@@ -787,5 +826,38 @@ mod tests {
             )],
         };
         assert_eq!(problems.highest_severity(), Some(Severity::Warn));
+    }
+
+    #[test]
+    fn person_fix_path_points_at_the_form_that_holds_the_field() {
+        let person = sample_person(PersonId::new());
+
+        // Both address problems are fixed on the correspondence address form.
+        for problem in [
+            PotentialProblems::UnknownAddress,
+            PotentialProblems::IncompleteAddress {
+                severity: Severity::Warn,
+                problems: vec![EmptyAddressProblems::PostalCode],
+            },
+        ] {
+            assert!(
+                problem
+                    .person_fix_path(&person)
+                    .starts_with(&person.update_address_path().to_string()),
+                "{problem:?} should link to the address form"
+            );
+        }
+
+        assert!(
+            PotentialProblems::RepresentativeProblem(Box::new(PotentialProblems::UnknownAddress))
+                .person_fix_path(&person)
+                .starts_with(&person.update_representative_path().to_string())
+        );
+
+        assert!(
+            PotentialProblems::NoBsn
+                .person_fix_path(&person)
+                .starts_with(&person.update_path().to_string())
+        );
     }
 }

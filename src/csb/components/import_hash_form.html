@@ -1,0 +1,34 @@
+{# The form that imports a political group's package by the chain hash printed
+   on its documents. Set `import_action` (the path the form posts to) before
+   including this; the template struct carries `hash`, `error` and `warning`,
+   and the including template imports the shared `macros`. #}
+<form action="{{ import_action }}" method="post" class="form">
+  {{ macros::csrf_field() }}
+  <fieldset>
+    {% if let Some(msg) = warning %}
+      <div class="alert alert-warning mb-md">{{ msg }}</div>
+    {% endif %}
+    <div class="form-field form-field-lg {% if error.is_some() %}error{% endif %}">
+      <label for="hash">{{ "csb.form.hash"|trans }}</label>
+      <input id="hash"
+             type="text"
+             name="hash"
+             value="{{ hash }}"
+             required
+             autocomplete="off"
+             minlength="8"
+             class="font-number uppercase"
+             data-hash-input
+             data-invalid-hash-message="{{ "csb.import.error.invalid_hash"|trans }}" />
+      {% if let Some(msg) = error %}<span class="error">{{ msg }}</span>{% endif %}
+    </div>
+    <div class="form-actions">
+      {% if warning.is_some() %}
+        <input type="hidden" name="confirmed_hash" value="{{ hash }}" />
+        <button type="submit" class="button lg" name="action" value="save">{{ "csb.form.import_anyway"|trans }}</button>
+      {% else %}
+        <button type="submit" class="button lg" name="action" value="save">{{ "csb.form.import"|trans }}</button>
+      {% endif %}
+    </div>
+  </fieldset>
+</form>

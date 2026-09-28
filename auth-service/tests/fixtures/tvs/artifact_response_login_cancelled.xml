@@ -1,0 +1,51 @@
+<?xml version="1.0"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+    <soapenv:Body>
+        <samlp:ArtifactResponse xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
+                                xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
+                                ID="_59b182656afd4daa86d5b2544bae0fd0"
+                                InResponseTo="_e54e3e5f77cdafeb8509f0b5fba934592b5489eb845abd10d106c9a224784e297bdf1f3b1b6f174fa6"
+                                IssueInstant="2023-03-28T14:09:24Z" Version="2.0">
+            <saml:Issuer>urn:nl-eid-gdi:1.0:RD:00000004000000149000:entities:9002</saml:Issuer>
+            <dsig:Signature xmlns:dsig="http://www.w3.org/2000/09/xmldsig#" Id="Id-0001680012564038-ffffffffdf11d9a6-1">
+                <dsig:SignedInfo>
+                    <dsig:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
+                    <dsig:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>
+                    <dsig:Reference URI="#_59b182656afd4daa86d5b2544bae0fd0">
+                        <dsig:Transforms>
+                            <dsig:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/>
+                            <dsig:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
+                        </dsig:Transforms>
+                        <dsig:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+                        <dsig:DigestValue>WpYhDISE5a+GNPHXtVfyzxLF5dttX4t0VnakDnrWhJ4=</dsig:DigestValue>
+                    </dsig:Reference>
+                </dsig:SignedInfo>
+                <dsig:SignatureValue>ZSRVyhzvIfAF76cRq9iFzRMLoWa6g7ImUfYiuLlu0An8IBPn9IztXxLJFNBQk40Z
+                    6CQo30NQEP6SPRRhi9RU0tBGc8WJ3h1Z6Th/RqbVp19w1o5HNM85enRbxlAPfS3n
+                    YrJdQpSksAPuPHodmzPRr9ZZ/U9Q6WyaQ1wb+UhxahucKeHla/Kk7sbHz0ctgQQr
+                    XsK3zLgBPw5dytSrdU/40ycSgg8x7msKcRemPrj9oKVoiTduAY9TJNOeRG25Erhi
+                    Aseq3zVmVnlZbKbvQAdCe+Bvg4kLl5c3ZjTfwK8HnlO1ibnCQAsY1r5FWR0A1pyl
+                    jCgdDKNli0cfznA0ef/kaA==
+                </dsig:SignatureValue>
+                <dsig:KeyInfo Id="Id-0001680012564038-ffffffffdf11d9a6-2">
+                    <dsig:KeyName>08c229fce24eb6a3abf303dc630971aff9b0f029</dsig:KeyName>
+                </dsig:KeyInfo>
+            </dsig:Signature>
+            <samlp:Status>
+                <samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
+            </samlp:Status>
+            <samlp:Response ID="_1c9c287f07674b159d9ed32d09c09ca0"
+                            InResponseTo="_92b23b5368e11cc2a0bb297eae52ed9c6ca3b65f7165a65492f4a7405270a766bbb08151a11ee9fbf5"
+                            IssueInstant="2023-03-28T14:09:24Z" Destination="https://endpoint.example/acs"
+                            Version="2.0">
+                <saml:Issuer>urn:nl-eid-gdi:1.0:RD:00000004000000149000:entities:9002</saml:Issuer>
+                <samlp:Status>
+                    <samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Responder">
+                        <samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:AuthnFailed"/>
+                    </samlp:StatusCode>
+                    <samlp:StatusMessage>Authentication cancelled</samlp:StatusMessage>
+                </samlp:Status>
+            </samlp:Response>
+        </samlp:ArtifactResponse>
+    </soapenv:Body>
+</soapenv:Envelope>

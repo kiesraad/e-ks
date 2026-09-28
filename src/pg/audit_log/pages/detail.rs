@@ -6,7 +6,7 @@ use askama::Template;
 use axum::response::IntoResponse;
 
 use crate::{
-    AppError, Context, HtmlTemplate, Overlay, PgStore,
+    AppError, Context, EventHashPrefix, HtmlTemplate, Overlay, PgStore,
     audit_log::{
         AuditLogDetail, AuditLogPath,
         paths::{AuditLogDetailPath, AuditLogDownloadDocumentsPath},
@@ -48,16 +48,20 @@ pub async fn audit_log_detail(
         .ok_or(AppError::GenericNotFound)?
         .hash;
 
+    let event_hash = EventHashPrefix::of(&hash);
+
     Ok(HtmlTemplate(
         AuditLogDetailTemplate {
             detail,
             download_path_nl: AuditLogDownloadDocumentsPath {
                 event_id,
+                event_hash,
                 locale: ModelLocale::Nl,
             }
             .to_string(),
             download_path_fry: AuditLogDownloadDocumentsPath {
                 event_id,
+                event_hash,
                 locale: ModelLocale::Fry,
             }
             .to_string(),
@@ -71,13 +75,22 @@ pub async fn audit_log_detail(
 }
 
 pub async fn audit_log_gen_documents(
-    path @ AuditLogDownloadDocumentsPath { event_id, locale }: AuditLogDownloadDocumentsPath,
+    path @ AuditLogDownloadDocumentsPath {
+        event_id,
+        event_hash,
+        locale,
+    }: AuditLogDownloadDocumentsPath,
     context: Context,
     store: PgStore,
 ) -> Result<impl IntoResponse, AppError> {
     // Downloading documents is not part of paper corrections.
     if store.paper_corrections_stream_id().is_some() {
         return Err(AppError::Unauthorised);
+    }
+
+    // the link must come from this stream, not from an off-site page
+    if !store.event_hash_matches(event_id, event_hash) {
+        return Err(AppError::GenericNotFound);
     }
 
     let temp_store = create_temp_store(&store, event_id);
@@ -87,6 +100,7 @@ pub async fn audit_log_gen_documents(
             "Documents cannot be downloaded for this version",
         ));
     }
+    store.check_download_limit()?;
 
     let (bundles, filename) = DocumentData::from_store_and_context(&temp_store, &context, locale)?;
 
@@ -121,6 +135,25 @@ mod tests {
         test_utils::{response_body_string, sample_person},
     };
     use axum::{http::StatusCode, response::IntoResponse};
+
+    /// The path the audit-log detail page renders for `event_id`.
+    fn audit_download_path(
+        store: &PgStore,
+        event_id: usize,
+        locale: ModelLocale,
+    ) -> AuditLogDownloadDocumentsPath {
+        let hash = store
+            .get_events()
+            .iter()
+            .find(|e| e.event_id == event_id)
+            .expect("event in stream")
+            .hash;
+        AuditLogDownloadDocumentsPath {
+            event_id,
+            event_hash: EventHashPrefix::of(&hash),
+            locale,
+        }
+    }
 
     #[tokio::test]
     async fn renders_detail_for_create_event() -> Result<(), AppError> {
@@ -238,16 +271,58 @@ mod tests {
         Ok(())
     }
 
+    /// The link names one event, so the hash must be that event's: a hash
+    /// lifted from a neighbouring event does not open the download, and
+    /// neither does a foreign or placeholder one.
+    #[tokio::test]
+    async fn audit_log_gen_documents_refuses_a_hash_that_is_not_the_events_own()
+    -> Result<(), AppError> {
+        use crate::test_utils::setup_documents_test_state;
+
+        let (store, _, context) =
+            setup_documents_test_state(1, 1, true, true, crate::ElectionConfig::EK27).await?;
+        crate::test_utils::sample_political_group()
+            .create(&store)
+            .await?;
+        let event_id = store.current_event_id();
+
+        for event_hash in [
+            audit_download_path(&store, event_id - 1, ModelLocale::Nl).event_hash,
+            EventHashPrefix::of(&[0xEE; 32]),
+            EventHashPrefix::of(&crate::store::GENESIS_HASH),
+        ] {
+            let result = audit_log_gen_documents(
+                AuditLogDownloadDocumentsPath {
+                    event_id,
+                    event_hash,
+                    locale: ModelLocale::Nl,
+                },
+                context.clone(),
+                store.clone(),
+            )
+            .await;
+
+            assert!(matches!(result, Err(AppError::GenericNotFound)));
+        }
+
+        assert!(
+            !store
+                .get_events()
+                .iter()
+                .any(|e| matches!(e.payload, crate::PgEvent::DownloadFile { .. })),
+            "a refused download is not recorded"
+        );
+
+        Ok(())
+    }
+
     #[tokio::test]
     async fn paper_corrections_mode_rejects_document_download() -> Result<(), AppError> {
         let store = paper_corrections_store().await?;
         let event_id = store.get_events().last().unwrap().event_id;
 
         let result = audit_log_gen_documents(
-            AuditLogDownloadDocumentsPath {
-                event_id,
-                locale: ModelLocale::Nl,
-            },
+            audit_download_path(&store, event_id, ModelLocale::Nl),
             Context::new_test_from_store(&store),
             store,
         )
@@ -354,10 +429,7 @@ mod tests {
         let current_event_id = store.current_event_id();
 
         let response_4_candidates = audit_log_gen_documents(
-            AuditLogDownloadDocumentsPath {
-                locale: ModelLocale::Nl,
-                event_id: current_event_id - 1,
-            },
+            audit_download_path(&store, current_event_id - 1, ModelLocale::Nl),
             context.clone(),
             store.clone(),
         )
@@ -365,10 +437,7 @@ mod tests {
         .into_response();
 
         let response_5_candidates = audit_log_gen_documents(
-            AuditLogDownloadDocumentsPath {
-                locale: ModelLocale::Nl,
-                event_id: current_event_id - 2,
-            },
+            audit_download_path(&store, current_event_id - 2, ModelLocale::Nl),
             context,
             store.clone(),
         )

@@ -1,7 +1,6 @@
 detail:
   field: Veld
   fields:
-    address_type: Adrestype
     appellation: Geregistreerde aanduiding
     bsn: Burgerservicenummer (BSN)
     candidates: Kandidaten
@@ -17,9 +16,11 @@ detail:
     house_number: Huisnummer
     house_number_addition: Huisnummer toevoeging
     initials: Voorletters
+    known_in_bag: Bekend in de BAG
     last_name: Achternaam
     last_name_prefix: Voorvoegsel
     legal_name: Volledige statutaire naam
+    list_designation: Type lijstaanduiding
     list_id: Lijst-ID
     locality: Woonplaats
     long_list_allowed: Lange lijst toegestaan
@@ -27,31 +28,42 @@ detail:
     place_of_residence: Woonplaats
     political_group_id: Politieke groepering-ID
     postal_code: Postcode
+    previous_election_results: Uitslag vorige verkiezing
+    representative: Gemachtigde van kandidaat
     state_or_province: Staat / provincie
+    stream_id: Stream-ID
     street_name: Straatnaam
     updated_persons: Bijgewerkte kandidaten
   new_value: Nieuwe waarde
   no_changes: Geen veldwijzigingen vastgelegd voor deze gebeurtenis.
   old_value: Oude waarde
   subject_link: Subjectpagina
+  values:
+    bool_false: Nee
+    bool_true: Ja
+    bsn_none_confirmed: "Bevestigd: geen burgerservicenummer"
 documents:
   download: Documenten downloaden
   no_download: In deze versie was het downloaden van documenten niet mogelijk.
 empty: Er zijn nog geen gebeurtenissen vastgelegd die voldoen aan de filter criteria.
 event:
   add_candidate_to_list: Kandidaat aan lijst toegevoegd
+  add_objection: Bezwaar toegevoegd
   brp_validation: Kandidaat gevalideerd tegen de BRP
   create_candidate_list: Kandidatenlijst aangemaakt
   create_empty: Lege politieke groepering aangemaakt
   create_name_authorisation: Statutaire naam en gemachtigde aangemaakt
   create_omission: Verzuim aangemaakt
   create_person: Persoon aangemaakt
+  create_registered_political_group: Politieke groepering geregistreerd
   create_substitute_submitter: Vervanger herstel verzuim aangemaakt
   delete: Politieke groepering verwijderd
   delete_candidate_list: Kandidatenlijst verwijderd
   delete_name_authorisation: Statutaire naam en gemachtigde verwijderd
+  delete_objection: Bezwaar verwijderd
   delete_omission: Verzuim verwijderd
   delete_person: Persoon verwijderd
+  delete_registered_political_group: Geregistreerde politieke groepering verwijderd
   delete_substitute_submitter: Vervanger herstel verzuim verwijderd
   developer_login: Ontwikkelaar ingelogd
   download_file: Bestand gedownload
@@ -64,19 +76,25 @@ event:
   logout: Uitgelogd
   paper_correction: Papieren correcties
   remove_candidate_from_list: Kandidaat van lijst verwijderd
+  set_brp_finding_handled: BRP-fout afgehandeld gezet
   set_brp_validation_state: BRP validatie status gezet
   set_finished: Afgerond gezet
+  set_omission_part_status: Verzuimstatus per kieskring of lijst vastgelegd
   set_omission_status: Verzuimstatus vastgelegd
   update_candidate_list_districts: Kieskringen van lijst bijgewerkt
   update_candidate_list_order: Volgorde van kandidatenlijst bijgewerkt
   update_correction: Correctie bijgewerkt
+  update_hearing_details: Zitting details bijgewerkt
+  update_list_order: Lijstvolgorde bijgewerkt
   update_list_submitter: Lijstinleveraar bijgewerkt
   update_name_authorisation: Statutaire naam en gemachtigde bijgewerkt
+  update_objection: Bezwaar bijgewerkt
   update_omission: Verzuim bijgewerkt
   update_person: Persoon bijgewerkt
   update_person_address: Adres van persoon bijgewerkt
   update_person_representative: Gemachtigde van persoon bijgewerkt
   update_political_group: Politieke groepering bijgewerkt
+  update_registered_political_group: Geregistreerde politieke groepering bijgewerkt
   update_substitute_submitter: Vervanger herstel verzuim bijgewerkt
 fields:
   details: Details
@@ -96,15 +114,19 @@ filter:
     import: Import
     list_submitter: Lijstinleveraar
     name_authorisation: Statutaire naam en gemachtigde
+    numbering: Nummering
+    objection: Bezwaar
     omission: Verzuim
     paper_correction: Papieren correcties
     person: Persoon
     political_group: Politieke groepering
+    registered_political_group: Geregistreerde politieke groeperingen
     set_finished: Afgerond
     substitute_submitter: Vervanger herstel verzuim
     system: Systeem
   csb_main_stream: Main CSB stream
   event_type: Type gebeurtenis
+  pre_submission_stream: "{} (voorinlevering)"
   reset: Wissen
   search: Zoeken
   search_placeholder: "Zoek op naam, ID..."

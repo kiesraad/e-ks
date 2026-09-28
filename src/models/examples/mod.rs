@@ -2,13 +2,16 @@
 //! `renders_every_example_input` round-trip test and the `pdf_diff`
 //! development tool.
 
+mod brp_overview;
 mod h1;
 mod h3;
 mod h4;
 mod h9;
 mod i1;
 mod i4;
+mod omission_letter;
 
+pub use brp_overview::{brp_overview_example_1, brp_overview_example_2};
 pub use h1::{h1_example_1, h1_example_2, h1_example_3};
 pub use h3::{
     h3_1_example_1, h3_1_example_2, h3_1_example_3, h3_2_example_1, h3_2_example_2, h3_2_example_3,
@@ -17,6 +20,7 @@ pub use h4::{h4_example_1, h4_example_2, h4_example_3};
 pub use h9::{h9_example_1, h9_example_2, h9_example_3};
 pub use i1::{i1_example_1, i1_example_2};
 pub use i4::{i4_example_1, i4_example_2};
+pub use omission_letter::{omission_letter_example_1, omission_letter_example_2};
 
 use textris_pdf::build::Textris;
 
@@ -42,6 +46,11 @@ impl Example {
     /// Render this example to accessible PDF bytes.
     pub fn render(self) -> Result<Vec<u8>, AppError> {
         Ok(self.document.render(super::fonts())?)
+    }
+
+    /// Export this example as Word (`.docx`) bytes.
+    pub fn to_docx(&self) -> Result<Vec<u8>, AppError> {
+        self.document.to_docx().map_err(AppError::DocxError)
     }
 }
 
@@ -75,6 +84,10 @@ pub fn examples() -> Vec<Example> {
         example("model-i1-example-2", i1_example_2()),
         example("model-i4-example-1", i4_example_1()),
         example("model-i4-example-2", i4_example_2()),
+        example("verzuimbrief-example-1", omission_letter_example_1()),
+        example("verzuimbrief-example-2", omission_letter_example_2()),
+        example("brp-overzicht-example-1", brp_overview_example_1()),
+        example("brp-overzicht-example-2", brp_overview_example_2()),
     ]
 }
 

@@ -99,8 +99,9 @@
     }
 
     &.error,
-    &:has(.error) {
+    &:has(.error:not(.hidden)) {
       input:not(.date-separate input):not([type="checkbox"]),
+      textarea,
       .date-separate {
         border-color: var(--color-error-darker);
         background-image: url("../icons/error.svg");
@@ -183,7 +184,7 @@
 
   span.hint,
   details.hint,
-  span.error,
+  span.error:not(.hidden),
   span.warning:not(.hidden) {
     display: inline-block;
     font-size: var(--font-size-md);
@@ -201,6 +202,19 @@
     color: var(--gray-500);
     text-wrap: balance;
     display: block;
+
+    a {
+      color: var(--link-default);
+      text-decoration: underline;
+
+      &:hover {
+        color: var(--link-hover);
+      }
+
+      &:active {
+        color: var(--link-active);
+      }
+    }
   }
 
   span.suggestion {
@@ -277,7 +291,7 @@
     transform: rotate(90deg);
   }
 
-  span.error {
+  span.error:not(.hidden) {
     color: var(--color-error-darker);
     font-weight: normal;
     margin-top: 0.5rem;
@@ -357,11 +371,22 @@
   box-shadow: 0 0 0 3px var(--shadow-color-focus);
 }
 
+.form input[type="text"]:disabled {
+  background-color: var(--bg-gray-darker);
+  font-weight: var(--font-weight-bold);
+}
+
 .form input[type="number"] {
   appearance: textfield;
 }
 
 .form input:disabled {
+  cursor: not-allowed;
+}
+
+.form textarea[readonly] {
+  background-color: var(--bg-gray-darker);
+  color: var(--gray-500);
   cursor: not-allowed;
 }
 

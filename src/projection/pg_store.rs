@@ -1,6 +1,11 @@
 //! [`PgStore`]: the store handle used by the app feature handlers, including
 //! the CSB paper-corrections write target.
 
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
+
 use chrono::Utc;
 use tracing::warn;
 
@@ -26,6 +31,11 @@ pub struct PgStore {
     target: WriteTarget,
     /// Limits enforced on writes; `None` disables them (paper corrections).
     limits: Option<RateLimits>,
+    /// The last event this handle has seen on its own stream. A write is
+    /// refused when the stream moved past it, so a request never persists a
+    /// decision made on a snapshot another request has since changed.
+    /// Shared by the clones handed to one request's extractors.
+    seen_event_id: Arc<AtomicUsize>,
 }
 
 #[derive(Clone)]
@@ -50,10 +60,12 @@ impl std::ops::Deref for PgStore {
 impl PgStore {
     /// Wrap a store that persists app events on its own stream.
     pub fn own(store: Store<PgStoreData>) -> Self {
+        let seen_event_id = store.data.read().last_event_id();
         Self {
             projection: store,
             target: WriteTarget::Own,
             limits: Some(RateLimits::default()),
+            seen_event_id: Arc::new(AtomicUsize::new(seen_event_id)),
         }
     }
 
@@ -79,6 +91,8 @@ impl PgStore {
             target: WriteTarget::PaperCorrections { store: csb_store },
             // Recording what was handed in on paper must not be cut off.
             limits: None,
+            // Unused: writes go to the CSB stream.
+            seen_event_id: Arc::new(AtomicUsize::new(0)),
         }
     }
 
@@ -88,11 +102,16 @@ impl PgStore {
     }
 
     /// Persist an event on the write target and apply it to the projection.
+    /// On the own stream the write is refused with [`AppError::Conflict`] when
+    /// another request appended since this handle last saw the stream.
     pub async fn update(&self, event: PgEvent) -> Result<(), AppError> {
         match &self.target {
             WriteTarget::Own => {
+                let expected = self.seen_event_id.load(Ordering::Acquire);
                 self.check_rate_limits(&event)?;
-                self.projection.update(event).await
+                self.projection.update_if_unchanged(event, expected).await?;
+                self.seen_event_id.store(expected + 1, Ordering::Release);
+                Ok(())
             }
             WriteTarget::PaperCorrections { store: csb_store } => {
                 csb_store
@@ -109,12 +128,20 @@ impl PgStore {
     }
 
     /// Refuse the write when one of the configured [`RateLimits`] is reached,
-    /// counted from the stream's own event log. Best-effort under concurrent
-    /// writes: the projection can briefly lag, so a limit may overshoot by the
-    /// number of in-flight requests.
+    /// counted from the stream's own event log.
     ///
     /// Every event counts, session events (login/logout) included.
     fn check_rate_limits(&self, event: &PgEvent) -> Result<(), AppError> {
+        self.check_limits(matches!(event, PgEvent::DownloadFile { .. }))
+    }
+
+    /// The limits a `DownloadFile` event would be held to, for checking before
+    /// the documents are generated.
+    pub fn check_download_limit(&self) -> Result<(), AppError> {
+        self.check_limits(true)
+    }
+
+    fn check_limits(&self, is_download: bool) -> Result<(), AppError> {
         let Some(RateLimits {
             downloads,
             events: event_limit,
@@ -151,7 +178,7 @@ impl PgStore {
             ));
         }
 
-        if matches!(event, PgEvent::DownloadFile { .. }) {
+        if is_download {
             let count = in_window(&downloads)
                 .iter()
                 .filter(|event| matches!(event.payload, PgEvent::DownloadFile { .. }))
@@ -269,9 +296,37 @@ mod tests {
         structs::{candidate_lists::CandidateListId, persons::PersonId},
     };
 
+    /// Two requests validate against the same snapshot; only the first may
+    /// write, the second sees the stream has moved.
+    #[tokio::test]
+    async fn a_write_on_a_changed_stream_is_refused() -> Result<(), AppError> {
+        use crate::test_utils::sample_person;
+
+        let first = PgStore::new_for_test();
+        let second = PgStore::own(first.projection.clone());
+
+        sample_person(PersonId::new()).create(&first).await?;
+
+        let err = sample_person(PersonId::new())
+            .create(&second)
+            .await
+            .unwrap_err();
+        assert!(matches!(err, AppError::Conflict));
+        assert_eq!(first.get_persons().len(), 1);
+
+        // the handle that wrote keeps writing, a fresh handle sees the new state
+        sample_person(PersonId::new()).create(&first).await?;
+        sample_person(PersonId::new())
+            .create(&PgStore::own(first.projection.clone()))
+            .await?;
+        assert_eq!(first.get_persons().len(), 3);
+
+        Ok(())
+    }
+
     /// A store holding `count` events that all happened `age` ago.
     fn store_with_events(limits: RateLimits, count: usize, age: TimeDelta) -> PgStore {
-        let store = PgStore::new_for_test().with_limits(limits);
+        let store = PgStore::new_for_test();
         let created_at = Utc::now() - age;
 
         for event_id in 1..=count {
@@ -284,7 +339,8 @@ mod tests {
             ));
         }
 
-        store
+        // a handle that has seen the seeded events
+        PgStore::own(store.projection).with_limits(limits)
     }
 
     fn download_event() -> PgEvent {

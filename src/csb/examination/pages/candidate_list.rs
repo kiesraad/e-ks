@@ -1,5 +1,6 @@
 use askama::Template;
 use axum::response::{IntoResponse, Response};
+use std::collections::BTreeSet;
 
 use crate::{
     AnyLocale, AppError, Context, CsbContext, CsbStore, ElectoralDistrict, HtmlTemplate,
@@ -7,6 +8,7 @@ use crate::{
         extractors::CsbPoliticalGroup, pages::CsbCandidateListPath, structs::CsbCandidate,
     },
     filters,
+    projection::WithCorrections,
     structs::{
         candidate_lists::{CandidateList, CandidateListId},
         csb::{CsbPhase, Omission},
@@ -18,7 +20,7 @@ use crate::{
 struct CsbCandidateListTemplate {
     political_group: CsbPoliticalGroup,
     list_id: CandidateListId,
-    electoral_districts: Vec<ElectoralDistrict>,
+    electoral_districts: BTreeSet<ElectoralDistrict>,
     candidates: Vec<CsbCandidate>,
     omissions: Vec<Omission>,
     is_scrapped: bool,
@@ -43,11 +45,11 @@ pub(in crate::csb) async fn render(
     mode: CsbPhase,
 ) -> Result<Response, AppError> {
     let political_group = CsbPoliticalGroup::new_from_csb_store(&store).with_mode(mode);
-    let corrected_list = store.get_candidate_list(list_id, crate::projection::WithCorrections::All);
+    let corrected_list = store.get_candidate_list(list_id, WithCorrections::All);
     // For paper-added lists there is no imported side; use an empty-candidate
     // placeholder so all candidates render as paper-corrected additions.
     let imported_list = store
-        .get_candidate_list(list_id, crate::projection::WithCorrections::None)
+        .get_candidate_list(list_id, WithCorrections::None)
         .or_else(|| {
             corrected_list.as_ref().map(|corrected| CandidateList {
                 candidates: Vec::new(),
@@ -69,9 +71,10 @@ pub(in crate::csb) async fn render(
         .map(|corrected| corrected.electoral_districts)
         .unwrap_or(imported_list.electoral_districts);
 
-    let scrapped_districts = store.get_candidate_list_scrapped_districts(list_id);
-    let all_districts_scrapped =
-        !electoral_districts.is_empty() && scrapped_districts.len() == electoral_districts.len();
+    let scrapped = &political_group.scrapped;
+    let is_scrapped = scrapped.is_list_scrapped(list_id);
+    let scrapped_districts = scrapped.list_districts(list_id).to_vec();
+    let all_districts_scrapped = scrapped.all_list_districts_scrapped(list_id);
 
     Ok(HtmlTemplate(
         CsbCandidateListTemplate {
@@ -80,7 +83,7 @@ pub(in crate::csb) async fn render(
             electoral_districts,
             candidates,
             omissions,
-            is_scrapped: store.is_candidate_list_scrapped(list_id)?,
+            is_scrapped,
             scrapped_districts,
             all_districts_scrapped,
         },
@@ -215,7 +218,7 @@ mod tests {
         let list_id = CandidateListId::new();
         store.add_candidate_list(sample_candidate_list(list_id));
         let mut corrected = sample_candidate_list(list_id);
-        corrected.electoral_districts = vec![ElectoralDistrict::Groningen];
+        corrected.electoral_districts = BTreeSet::from([ElectoralDistrict::Groningen]);
         store.set_paper_corrected_candidate_list(corrected);
 
         let response = overview(
@@ -253,7 +256,7 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
-        // The candidates still render, but the BRP check is examination-only.
+        // Candidates still render; the BRP check is examination-only.
         assert!(body.contains("Jansen"));
         assert!(!body.contains("BRP"));
     }

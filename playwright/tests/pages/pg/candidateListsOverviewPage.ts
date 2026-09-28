@@ -18,6 +18,7 @@ export class CandidateListsOverviewPage {
     });
     this.linkFinalize = this.page.getByRole("link", {
       name: "Afronden",
+      exact: true,
     });
   }
 

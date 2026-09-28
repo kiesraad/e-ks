@@ -87,7 +87,9 @@ impl PersonRecord {
             last_name_prefix: prefix
                 .map(|prefix| Self::parse_value::<LastNamePrefix>(prefix, "last name prefix"))
                 .transpose()?,
-            initials: Self::parse_value::<Initials>(initials, "initials")?,
+            initials: (!initials.is_empty())
+                .then(|| Self::parse_value::<Initials>(initials, "initials"))
+                .transpose()?,
         })
     }
 
@@ -177,7 +179,8 @@ mod tests {
     /// Four out of five candidates are expected to match the mock exactly; the
     /// rest carry a mistake, together covering every [`BrpFinding`] the check
     /// can produce -- except `BsnNotUnique`, which the mock cannot serve
-    /// because it keys its records on the burgerservicenummer.
+    /// because it keys its records on the burgerservicenummer, and
+    /// `LastNameNotAllowed`, which needs a partner in the mock's record.
     ///
     /// Run with `docker compose up -d personen-mock` and
     /// `cargo test -- --ignored brp`.

@@ -1,9 +1,18 @@
 use axum::{extract::FromRequestParts, http::request::Parts};
 
+use std::collections::{BTreeSet, HashMap};
+
 use crate::{
-    AppError, AppRequestState, CsbStream, StreamId,
+    AppError, AppRequestState, CsbStream, ElectoralDistrict, Session, StreamId,
     csb::examination::structs::BrpCheckState,
-    structs::{common::FullName, csb::CsbPhase, political_groups::PoliticalGroup},
+    projection::{Scrapped, WithCorrections},
+    structs::{
+        candidate_lists::CandidateListId,
+        common::{Appellation, FullName},
+        csb::{CsbPhase, RecoveryProgress},
+        list_designation::ListDesignation,
+        political_groups::PoliticalGroup,
+    },
 };
 
 pub struct CsbPoliticalGroup {
@@ -15,17 +24,26 @@ pub struct CsbPoliticalGroup {
     pub mode: CsbPhase,
     pub is_examination_finished: bool,
     pub is_deleted: bool,
+    /// What the unresolved omissions scrap; only rendered in
+    /// [`CsbPhase::Recovery`].
+    pub scrapped: Scrapped,
     pub restoration_count: usize,
     pub omission_count: usize,
-    pub pending_omission_count: usize,
-    pub actionable_omission_count: usize,
+    /// How far the group is through the recovery phase; only meaningful in
+    /// [`CsbPhase::Recovery`].
+    pub recovery: RecoveryProgress,
     pub first_candidate_name: Option<FullName>,
+    pub first_non_scrapped_candidate_name: Option<FullName>,
+    /// The electoral districts of each candidate list, which is how the
+    /// shared templates name a list (see [`Self::candidate_list_districts`]).
+    pub candidate_list_districts: HashMap<CandidateListId, BTreeSet<ElectoralDistrict>>,
 }
 
 impl CsbPoliticalGroup {
     pub fn new_from_csb_store(store: &CsbStream) -> Self {
+        let scrapped = store.get_scrapped();
         Self {
-            political_group: store.get_political_group(crate::projection::WithCorrections::All),
+            political_group: store.get_political_group(WithCorrections::All),
             stream_id: store.stream_id,
             brp: BrpCheckState::for_political_group(store),
             mode: CsbPhase::Examination,
@@ -33,10 +51,16 @@ impl CsbPoliticalGroup {
             is_deleted: store.is_deleted(),
             restoration_count: store.get_restoration_count(),
             omission_count: store.get_omission_count(),
-            pending_omission_count: store.get_pending_omission_count(),
-            actionable_omission_count: store.get_actionable_omission_count(),
-            first_candidate_name: store
-                .get_first_candidate_name(crate::projection::WithCorrections::All),
+            recovery: store.get_recovery_progress(),
+            first_candidate_name: store.get_first_candidate_name(WithCorrections::All, None),
+            first_non_scrapped_candidate_name: store
+                .get_first_candidate_name(WithCorrections::All, Some(&scrapped)),
+            scrapped,
+            candidate_list_districts: store
+                .get_candidate_lists(WithCorrections::All)
+                .into_iter()
+                .map(|list| (list.id, list.electoral_districts))
+                .collect(),
         }
     }
 
@@ -45,28 +69,129 @@ impl CsbPoliticalGroup {
         self
     }
 
-    /// The number of omissions already assessed in the recovery phase.
-    pub fn decided_omission_count(&self) -> usize {
-        self.actionable_omission_count - self.pending_omission_count
+    /// Whether the group's candidate lists have to be told apart at all.
+    pub fn has_multiple_candidate_lists(&self) -> bool {
+        self.candidate_list_districts.len() > 1
     }
 
+    /// The districts of one candidate list, empty when the list is unknown.
+    pub fn candidate_list_districts(
+        &self,
+        list_id: &CandidateListId,
+    ) -> impl Iterator<Item = &ElectoralDistrict> {
+        self.candidate_list_districts
+            .get(list_id)
+            .into_iter()
+            .flatten()
+    }
+
+    /// The name shown for the group. Once its appellation is scrapped, the
+    /// recovery phase names it as the blank list it continues as.
     pub fn csb_appellation(&self) -> String {
+        match self.mode {
+            CsbPhase::Examination => self
+                .political_group
+                .csb_appellation(self.first_candidate_name.as_ref()),
+            CsbPhase::Recovery => self.numbering_appellation(),
+        }
+    }
+
+    /// The name the group's lists are numbered under, honouring scrapping:
+    /// the appellation, or the blank list the group continues as once its
+    /// appellation is scrapped, named after its first non-scrapped candidate.
+    pub fn numbering_appellation(&self) -> String {
+        if self.is_appellation_scrapped() {
+            return self.blank_appellation();
+        }
         self.political_group
-            .csb_appellation(self.first_candidate_name.as_ref())
+            .csb_appellation(self.first_non_scrapped_candidate_name.as_ref())
+    }
+
+    /// The group named as a blank list, e.g. `Blanco (Nagelhout, H.)`.
+    fn blank_appellation(&self) -> String {
+        PoliticalGroup {
+            list_designation: Some(ListDesignation::Blank),
+            ..self.political_group.clone()
+        }
+        .csb_appellation(self.first_non_scrapped_candidate_name.as_ref())
+    }
+
+    /// The registered appellation to match the group on: none for a blank
+    /// list or once the appellation is scrapped.
+    pub fn registered_appellation(&self) -> Option<&Appellation> {
+        if self.is_appellation_scrapped()
+            || self.political_group.list_designation == Some(ListDesignation::Blank)
+        {
+            return None;
+        }
+        self.political_group.appellation.as_ref()
+    }
+
+    /// The districts in which the group still has a valid list.
+    pub fn valid_districts(&self) -> Vec<ElectoralDistrict> {
+        let mut districts = Vec::new();
+        for (list, list_districts) in &self.candidate_list_districts {
+            if self.scrapped.is_list_scrapped(*list) {
+                continue;
+            }
+            for district in list_districts {
+                if !self.scrapped.is_district_scrapped(*district) && !districts.contains(district) {
+                    districts.push(*district);
+                }
+            }
+        }
+        districts
+    }
+
+    pub fn is_appellation_scrapped(&self) -> bool {
+        self.scrapped.is_appellation_scrapped()
     }
 }
 
-/// Extracts all imported political groups visible to the CSB scope.
+#[cfg(test)]
+impl CsbPoliticalGroup {
+    /// An unexamined, undeleted group named `appellation` with one candidate
+    /// list in Groningen; override fields with struct update syntax.
+    pub fn sample(appellation: &str) -> Self {
+        Self {
+            political_group: PoliticalGroup {
+                appellation: Some(appellation.parse().unwrap()),
+                ..crate::test_utils::sample_political_group()
+            },
+            stream_id: StreamId::new(),
+            brp: BrpCheckState::NotChecked,
+            mode: CsbPhase::Examination,
+            is_examination_finished: false,
+            is_deleted: false,
+            scrapped: Default::default(),
+            restoration_count: 0,
+            omission_count: 0,
+            recovery: Default::default(),
+            first_candidate_name: None,
+            first_non_scrapped_candidate_name: None,
+            candidate_list_districts: HashMap::from([(
+                CandidateListId::new(),
+                BTreeSet::from([ElectoralDistrict::Groningen]),
+            )]),
+        }
+    }
+}
+
+/// Extracts the imported political groups of the election the session works
+/// on. Streams of the other elections stay out of the listing: they are
+/// examined under their own election's ruleset, in a session that picked it.
 pub struct CsbPoliticalGroups(pub Vec<CsbPoliticalGroup>);
 
 impl<S: AppRequestState> FromRequestParts<S> for CsbPoliticalGroups {
     type Rejection = AppError;
 
-    async fn from_request_parts(_parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let session = Session::from_request_parts(parts, state).await?;
+        let election = session.require_current_election()?;
         let registry = state.csb_store_registry();
 
         let mut political_groups = Vec::new();
-        for store in registry.stores_by_scope().await? {
+        for store in registry.stores_for_election(election).await? {
             political_groups.push(CsbPoliticalGroup::new_from_csb_store(&store));
         }
 
@@ -76,12 +201,14 @@ impl<S: AppRequestState> FromRequestParts<S> for CsbPoliticalGroups {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::{BTreeMap, BTreeSet};
+
     use super::*;
     use axum::{body::Body, http::Request};
 
     use crate::{
-        AppState, CsbAction, CsbUser, ElectionConfig, PgStoreData,
-        structs::list_designation::ListDesignation,
+        AppState, CsbAction, CsbStore, CsbUser, ElectionConfig, Locale, PgStoreData, Province,
+        structs::csb::{OmissionCategory, OmissionId, sample_omission},
     };
 
     /// Persist a CSB stream carrying a single import event in the (in-memory)
@@ -106,22 +233,30 @@ mod tests {
         stream_id
     }
 
-    fn empty_parts() -> axum::http::request::Parts {
-        Request::builder()
+    /// Request parts carrying a committee session on `election`, as the
+    /// session middleware injects them for a real request.
+    fn committee_parts(election: ElectionConfig) -> axum::http::request::Parts {
+        let mut parts = Request::builder()
             .uri("/csb/examination")
             .body(Body::empty())
             .unwrap()
             .into_parts()
-            .0
+            .0;
+        parts.extensions.insert(Session::for_committee(
+            CsbUser::new_test(),
+            election,
+            Locale::default(),
+        ));
+        parts
     }
 
     #[tokio::test]
-    async fn returns_every_csb_scoped_political_group() {
+    async fn returns_every_political_group_of_the_session_election() {
         let state = AppState::new_for_tests().await;
         let first = seed_csb_store(&state, ElectionConfig::EK27).await;
         let second = seed_csb_store(&state, ElectionConfig::EK27).await;
 
-        let mut parts = empty_parts();
+        let mut parts = committee_parts(ElectionConfig::EK27);
         let CsbPoliticalGroups(groups) = CsbPoliticalGroups::from_request_parts(&mut parts, &state)
             .await
             .unwrap();
@@ -133,10 +268,25 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn skips_political_groups_of_another_election() {
+        let state = AppState::new_for_tests().await;
+        let own = seed_csb_store(&state, ElectionConfig::EK27).await;
+        seed_csb_store(&state, ElectionConfig::PS27(Province::Groningen)).await;
+
+        let mut parts = committee_parts(ElectionConfig::EK27);
+        let CsbPoliticalGroups(groups) = CsbPoliticalGroups::from_request_parts(&mut parts, &state)
+            .await
+            .unwrap();
+
+        let stream_ids: Vec<_> = groups.iter().map(|g| g.stream_id).collect();
+        assert_eq!(stream_ids, vec![own]);
+    }
+
+    #[tokio::test]
     async fn returns_empty_when_nothing_imported() {
         let state = AppState::new_for_tests().await;
 
-        let mut parts = empty_parts();
+        let mut parts = committee_parts(ElectionConfig::EK27);
         let CsbPoliticalGroups(groups) = CsbPoliticalGroups::from_request_parts(&mut parts, &state)
             .await
             .unwrap();
@@ -146,25 +296,30 @@ mod tests {
 
     #[test]
     fn csb_appellation_returns_appellation_for_normal_list() {
-        let group = CsbPoliticalGroup {
-            political_group: PoliticalGroup {
-                appellation: Some("Kiesraad Demo".parse().unwrap()),
-                list_designation: Some(ListDesignation::Standalone),
-                ..Default::default()
-            },
-            stream_id: StreamId::new(),
-            brp: BrpCheckState::NotChecked,
-            mode: CsbPhase::Examination,
-            is_examination_finished: false,
-            is_deleted: false,
-            restoration_count: 0,
-            omission_count: 0,
-            pending_omission_count: 0,
-            actionable_omission_count: 0,
-            first_candidate_name: None,
-        };
+        let group = CsbPoliticalGroup::sample("Kiesraad Demo");
 
         assert_eq!(group.csb_appellation(), "Kiesraad Demo");
+    }
+
+    #[test]
+    fn csb_appellation_names_a_scrapped_appellation_as_blank_in_recovery_only() {
+        let store = CsbStore::new_for_test();
+        store.set_political_group(PoliticalGroup {
+            appellation: Some("Kiesraad Demo".parse().unwrap()),
+            list_designation: Some(ListDesignation::Standalone),
+            ..Default::default()
+        });
+        let mut omission = sample_omission(OmissionCategory::Appellation);
+        omission.recoverable = false;
+        store.data.write().omissions.insert(omission.id, omission);
+        store.data.write().refresh_scrapped();
+
+        let group = CsbPoliticalGroup::new_from_csb_store(&store);
+        assert_eq!(group.csb_appellation(), "Kiesraad Demo");
+        assert_eq!(
+            group.with_mode(CsbPhase::Recovery).csb_appellation(),
+            "Blanco"
+        );
     }
 
     #[test]
@@ -174,20 +329,12 @@ mod tests {
                 list_designation: Some(ListDesignation::Blank),
                 ..Default::default()
             },
-            stream_id: StreamId::new(),
-            brp: BrpCheckState::NotChecked,
-            mode: CsbPhase::Examination,
-            is_examination_finished: false,
-            is_deleted: false,
-            restoration_count: 0,
-            omission_count: 0,
-            pending_omission_count: 0,
-            actionable_omission_count: 0,
             first_candidate_name: Some(FullName {
                 last_name: "Jansen".parse().unwrap(),
-                initials: "A.B.".parse().unwrap(),
+                initials: Some("A.B.".parse().unwrap()),
                 ..Default::default()
             }),
+            ..CsbPoliticalGroup::sample("Kiesraad Demo")
         };
 
         assert_eq!(group.csb_appellation(), "Blanco (Jansen, A.B.)");
@@ -200,18 +347,42 @@ mod tests {
                 list_designation: Some(ListDesignation::Blank),
                 ..Default::default()
             },
-            stream_id: StreamId::new(),
-            brp: BrpCheckState::NotChecked,
-            mode: CsbPhase::Examination,
-            is_examination_finished: false,
-            is_deleted: false,
-            restoration_count: 0,
-            omission_count: 0,
-            pending_omission_count: 0,
-            actionable_omission_count: 0,
-            first_candidate_name: None,
+            ..CsbPoliticalGroup::sample("Kiesraad Demo")
         };
 
         assert_eq!(group.csb_appellation(), "Blanco");
+    }
+
+    #[test]
+    fn recovery_mode_appellation_honours_scrapping() {
+        let group = CsbPoliticalGroup {
+            political_group: PoliticalGroup {
+                // should convert to Blank because of appellation scrapping
+                list_designation: Some(ListDesignation::Standalone),
+                ..Default::default()
+            },
+            mode: CsbPhase::Recovery,
+            first_candidate_name: Some(FullName {
+                first_name: None,
+                last_name: "Scrapped".parse().unwrap(),
+                last_name_prefix: None,
+                initials: Some("S.".parse().unwrap()),
+            }),
+            // should be used as first candidate
+            first_non_scrapped_candidate_name: Some(FullName {
+                first_name: None,
+                last_name: "Present".parse().unwrap(),
+                last_name_prefix: None,
+                initials: Some("P.".parse().unwrap()),
+            }),
+            scrapped: Scrapped::new_for_test(
+                BTreeSet::from([OmissionId::new()]),
+                BTreeSet::new(),
+                BTreeMap::new(),
+            ),
+            ..CsbPoliticalGroup::sample("Kiesraad Demo")
+        };
+
+        assert_eq!("Blanco (Present, P.)", group.csb_appellation());
     }
 }

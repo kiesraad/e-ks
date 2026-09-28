@@ -17,7 +17,7 @@ use crate::{
     },
     structs::{
         candidate_lists::CandidateListId,
-        csb::{CsbPhase, OmissionId, OmissionType},
+        csb::{CsbPhase, HearingModel, OmissionId, OmissionType},
         persons::PersonId,
     },
 };
@@ -35,12 +35,32 @@ pub struct CsbExaminationOverviewPath;
 pub struct CsbI1DownloadPath;
 
 #[derive(TypedPath)]
+#[typed_path("/csb/examination/i1.docx", rejection(AppError))]
+pub struct CsbI1DocxDownloadPath;
+
+#[derive(TypedPath)]
 #[typed_path("/csb/examination/i4.pdf", rejection(AppError))]
 pub struct CsbI4DownloadPath;
+
+#[derive(TypedPath)]
+#[typed_path("/csb/examination/i4.docx", rejection(AppError))]
+pub struct CsbI4DocxDownloadPath;
 
 #[derive(TypedPath, Deserialize)]
 #[typed_path("/csb/examination/{stream_id}", rejection(AppError))]
 pub struct CsbPoliticalGroupPath {
+    pub stream_id: StreamId,
+}
+
+#[derive(TypedPath, Deserialize)]
+#[typed_path("/csb/examination/{stream_id}/verzuimbrief.pdf", rejection(AppError))]
+pub struct CsbOmissionLetterDownloadPath {
+    pub stream_id: StreamId,
+}
+
+#[derive(TypedPath, Deserialize)]
+#[typed_path("/csb/examination/{stream_id}/verzuimbrief.docx", rejection(AppError))]
+pub struct CsbOmissionLetterDocxDownloadPath {
     pub stream_id: StreamId,
 }
 
@@ -75,6 +95,29 @@ pub struct CsbPoliticalGroupDeletePath {
 )]
 pub struct CsbGeneralInformationPath {
     pub stream_id: StreamId,
+}
+
+#[derive(TypedPath, Deserialize)]
+#[typed_path("/csb/examination/finish", rejection(AppError))]
+pub struct CsbFinishExaminationPath;
+
+/// The omission letter page of one group: every omission going into the
+/// letter, read-only, with the letter's downloads.
+#[derive(TypedPath, Deserialize)]
+#[typed_path("/csb/examination/finish/{stream_id}", rejection(AppError))]
+pub struct CsbOmissionLetterPath {
+    pub stream_id: StreamId,
+}
+
+/// Every omission letter of the election, as PDF and Word, in one ZIP.
+#[derive(TypedPath)]
+#[typed_path("/csb/examination/finish/verzuimbrieven.zip", rejection(AppError))]
+pub struct CsbOmissionLettersDownloadPath;
+
+#[derive(TypedPath, Deserialize)]
+#[typed_path("/csb/examination/hearing-details/{model}", rejection(AppError))]
+pub struct CsbHearingDetailsPath {
+    pub model: HearingModel,
 }
 
 #[derive(TypedPath, Deserialize)]
@@ -119,6 +162,20 @@ pub struct CsbCandidateBrpCheckPath {
     pub stream_id: StreamId,
     pub list_id: CandidateListId,
     pub person_id: PersonId,
+}
+
+/// One of a candidate's BRP findings, by its position among them as the
+/// candidate page lists them.
+#[derive(TypedPath, Deserialize)]
+#[typed_path(
+    "/csb/examination/{stream_id}/list/{list_id}/candidate/{person_id}/brp-finding/{index}/handled",
+    rejection(AppError)
+)]
+pub struct CsbCandidateBrpFindingHandledPath {
+    pub stream_id: StreamId,
+    pub list_id: CandidateListId,
+    pub person_id: PersonId,
+    pub index: usize,
 }
 
 #[derive(TypedPath, Deserialize)]
@@ -224,6 +281,29 @@ impl CsbPoliticalGroup {
         }
     }
 
+    /// Path to this group's omission letter ("verzuimbrief") page, reached
+    /// from the finish-examination page once the examination is finished.
+    pub fn omission_letter_path(&self) -> impl TypedPath {
+        CsbOmissionLetterPath {
+            stream_id: self.stream_id,
+        }
+    }
+
+    /// Download of the omission letter as PDF. One letter per group, so both
+    /// phases link to the same URL.
+    pub fn omission_letter_pdf_path(&self) -> impl TypedPath {
+        CsbOmissionLetterDownloadPath {
+            stream_id: self.stream_id,
+        }
+    }
+
+    /// Download of the omission letter as Word document.
+    pub fn omission_letter_docx_path(&self) -> impl TypedPath {
+        CsbOmissionLetterDocxDownloadPath {
+            stream_id: self.stream_id,
+        }
+    }
+
     pub fn delete_path(&self) -> impl TypedPath {
         CsbPoliticalGroupDeletePath {
             stream_id: self.stream_id,
@@ -287,6 +367,25 @@ impl CsbPoliticalGroup {
         CsbOmissionOverviewPath {
             stream_id: self.stream_id,
             omission_type: OmissionType::PoliticalGroup,
+            reference: self.stream_id.into(),
+        }
+    }
+
+    /// Path to the dialog that adds a appellation (political group level) omission.
+    pub fn add_appellation_omission_path(&self) -> impl TypedPath {
+        CsbAddOmissionPath {
+            stream_id: self.stream_id,
+            omission_type: OmissionType::Appellation,
+            reference: self.stream_id.into(),
+        }
+    }
+
+    /// Path to the overview page listing the appellation (political group level)
+    /// omissions already added.
+    pub fn manage_appellation_omissions_path(&self) -> impl TypedPath {
+        CsbOmissionOverviewPath {
+            stream_id: self.stream_id,
+            omission_type: OmissionType::Appellation,
             reference: self.stream_id.into(),
         }
     }
@@ -372,6 +471,22 @@ impl CsbPoliticalGroup {
             stream_id: self.stream_id,
             list_id: *list,
             person_id: *person,
+        }
+    }
+
+    /// Path that records whether one of a candidate's BRP findings was dealt
+    /// with.
+    pub fn candidate_brp_finding_handled_path(
+        &self,
+        list: &CandidateListId,
+        person: &PersonId,
+        index: &usize,
+    ) -> impl TypedPath {
+        CsbCandidateBrpFindingHandledPath {
+            stream_id: self.stream_id,
+            list_id: *list,
+            person_id: *person,
+            index: *index,
         }
     }
 

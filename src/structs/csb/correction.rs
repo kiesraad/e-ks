@@ -14,7 +14,8 @@ use crate::{
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 pub enum PersonCorrection {
-    Initials(Initials),
+    /// `None` clears the initials, for a person the BRP holds none for.
+    Initials(Option<Initials>),
     /// `None` clears the prefix, which has to be correctable to absent.
     LastNamePrefix(Option<LastNamePrefix>),
     LastName(LastName),
@@ -96,11 +97,44 @@ impl PersonCorrection {
         }
     }
 
-    pub fn change(&self, locale: Locale) -> FieldChange {
+    /// The value this correction replaces, as `person` has it.
+    fn current_value(&self, person: &Person) -> String {
+        match self {
+            PersonCorrection::Initials(_) => person
+                .name
+                .initials
+                .as_ref()
+                .map(ToString::to_string)
+                .unwrap_or_default(),
+            PersonCorrection::LastNamePrefix(_) => person
+                .name
+                .last_name_prefix
+                .as_ref()
+                .map(ToString::to_string)
+                .unwrap_or_default(),
+            PersonCorrection::LastName(_) => person.name.last_name.to_string(),
+            PersonCorrection::DateOfBirth(_) => person
+                .personal_data
+                .date_of_birth
+                .as_ref()
+                .map(ToString::to_string)
+                .unwrap_or_default(),
+            PersonCorrection::PlaceOfResidence(_) => person
+                .personal_data
+                .place_of_residence
+                .as_ref()
+                .map(ToString::to_string)
+                .unwrap_or_default(),
+        }
+    }
+
+    /// The audit-log change from `before` (the person as corrected so far) to
+    /// this correction's value.
+    pub fn change(&self, before: Option<&Person>, locale: Locale) -> FieldChange {
         let (field, new_value) = match self {
             PersonCorrection::Initials(v) => (
                 trans!("audit_log.detail.fields.initials", locale),
-                v.to_string(),
+                v.as_ref().map(ToString::to_string).unwrap_or_default(),
             ),
             PersonCorrection::LastNamePrefix(v) => (
                 trans!("audit_log.detail.fields.last_name_prefix", locale),
@@ -121,7 +155,7 @@ impl PersonCorrection {
         };
         FieldChange::Regular {
             field,
-            old_value: String::new(),
+            old_value: before.map(|p| self.current_value(p)).unwrap_or_default(),
             new_value,
         }
     }
@@ -133,19 +167,6 @@ impl PersonCorrection {
             PersonCorrection::LastName(_) => PersonCorrectionKind::LastName,
             PersonCorrection::DateOfBirth(_) => PersonCorrectionKind::DateOfBirth,
             PersonCorrection::PlaceOfResidence(_) => PersonCorrectionKind::PlaceOfResidence,
-        }
-    }
-}
-
-impl Correction {
-    pub fn change(&self, locale: Locale) -> FieldChange {
-        match self {
-            Correction::Appellation(v) => FieldChange::Regular {
-                field: trans!("audit_log.detail.fields.appellation", locale),
-                old_value: String::new(),
-                new_value: v.to_string(),
-            },
-            Correction::Person(_, person_correction) => person_correction.change(locale),
         }
     }
 }

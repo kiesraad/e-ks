@@ -197,7 +197,7 @@
    rather than after it. */
 .restoration-tag-error,
 .restoration-tag-ok {
-  --restoration-tag-bg: transparent;
+  --restoration-tag-bg: var(--base-white);
   border-radius: var(--rounded-md);
   flex-direction: row-reverse;
 }
@@ -212,16 +212,70 @@
   --restoration-tag-icon: url("../icons/checkmarkSmall.svg");
 }
 
-/* The BRP check has not run, or did not cover every candidate. */
-.restoration-tag-pending {
-  --restoration-tag-bg: transparent;
+/* A BRP finding the committee dealt with: no problem, or an omission added.
+   Settled, so it carries no icon. */
+.restoration-tag-handled {
+  --restoration-tag-bg: var(--base-white);
+  --restoration-tag-color: var(--gray-500);
+  border-radius: var(--rounded-md);
+
+  &::before {
+    content: none;
+  }
+}
+
+/* The BRP check has not run ("pending"), or did not cover every candidate
+   ("warning"): quiet grey either way in a strip. */
+.restoration-tag-pending,
+.restoration-tag-warning {
+  --restoration-tag-bg: var(--base-white);
   --restoration-tag-color: var(--gray-500);
   --restoration-tag-icon: url("../icons/info.svg");
   border-radius: var(--rounded-md);
   flex-direction: row-reverse;
 }
 
-/* The link to the overview of everything registered for this item. */
+/* The sweep is under way: a turning ring in place of the tag's icon. */
+.restoration-tag-running {
+  --restoration-tag-bg: var(--base-white);
+  --restoration-tag-color: var(--gray-500);
+  border-radius: var(--rounded-md);
+
+  &::before {
+    animation: brp-spinner 0.8s linear infinite;
+    background-color: transparent;
+    border: 2px solid currentColor;
+    border-block-start-color: transparent;
+    border-radius: 50%;
+    height: var(--space-4);
+    mask-image: none;
+    width: var(--space-4);
+  }
+}
+
+@keyframes brp-spinner {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+/* Still turning, slowly enough not to distract. */
+@media (prefers-reduced-motion: reduce) {
+  .restoration-tag-running::before {
+    animation-duration: 3s;
+  }
+}
+
+/* The link to the overview of everything registered for this item. It is
+   stretched over the whole strip, so the strip itself is the click target. */
+.restoration-strip:has(.restoration-strip-link) {
+  position: relative;
+
+  &:hover .restoration-strip-link {
+    text-decoration: underline;
+  }
+}
+
 .restoration-strip-link {
   align-items: center;
   color: var(--gray-800);
@@ -231,6 +285,12 @@
   margin-inline-start: auto;
   text-decoration: none;
   white-space: nowrap;
+
+  &::before {
+    content: "";
+    inset: 0;
+    position: absolute;
+  }
 
   &::after {
     background-color: currentColor;
@@ -316,8 +376,53 @@
   }
 }
 
+/* Assessed part by part: the decisions stack under the omission. */
+.omission-status-row.highlighted {
+  background-color: var(--orange-100);
+}
+
+.omission-status-row-per-part {
+  align-items: stretch;
+  flex-direction: column;
+}
+
+.omission-part-table {
+  th,
+  td {
+    border-bottom: none;
+    height: auto;
+    padding: var(--space-1) var(--space-3);
+  }
+
+  th {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    line-height: var(--leading-sm);
+  }
+
+  td {
+    text-align: right;
+  }
+
+  tr:nth-child(even) {
+    background-color: var(--gray-50);
+  }
+
+  .omission-status-control {
+    margin-inline-start: auto;
+    width: 17rem;
+  }
+}
+
+/* Fixed width, so the text next to it does not reflow when the status changes */
 .omission-status-control {
   display: flex;
   flex-shrink: 0;
   gap: var(--space-2);
+  width: 21rem;
+
+  .button {
+    flex: 1 1 0;
+    width: auto;
+  }
 }

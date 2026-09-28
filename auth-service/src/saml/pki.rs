@@ -44,3 +44,22 @@ pub const RD_METADATA_INTERMEDIATES: &[&[u8]] = &[
     include_bytes!("../../staat_private_services_ca_g1.pem"),
     include_bytes!("../../pkioverheid_private_services_ca_2023.pem"),
 ];
+
+/// The `Subject.serialNumber` (OID 2.5.4.5) of a DER certificate, if present.
+/// PKIoverheid encodes the participant OIN there (eID §9.1), for signing
+/// certificates and TLS server certificates alike.
+pub(crate) fn subject_oin(leaf_der: &[u8]) -> Option<String> {
+    use x509_cert::der::Decode;
+    let cert = x509_cert::Certificate::from_der(leaf_der).ok()?;
+    // Build the OID from the same `const_oid` version that `x509_cert` exposes on
+    // `atv.oid`; a direct `const_oid` dep can resolve to a different major version.
+    let serial_number_oid = x509_cert::der::asn1::ObjectIdentifier::new_unwrap("2.5.4.5");
+    cert.tbs_certificate()
+        .subject()
+        .iter()
+        .find(|atv| atv.oid == serial_number_oid)
+        // The serialNumber value is a DER string (Printable/UTF8/IA5); its content
+        // bytes are the ASCII OIN regardless of the exact string type.
+        .and_then(|atv| std::str::from_utf8(atv.value.value()).ok())
+        .map(|s| s.trim().to_string())
+}

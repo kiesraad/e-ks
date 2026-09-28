@@ -7,8 +7,8 @@
 //! Validation rules (via `FromStr`):
 //! - Whitespace is trimmed; the value must be 1..=200 characters.
 //! - Only Teletex characters are allowed.
-//! - Known non-official names are replaced by their official counterpart
-//!   (see [`replace_locality_alias`]).
+//! - A misspelling is replaced by the official name (see
+//!   [`correct_locality_name`]); both names of a Frisian locality are kept.
 //! - The normalized name is looked up in the BAG to pick the variant.
 use std::ops::Deref;
 
@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     form::{ValidationError, validate_length, validate_teletex_chars},
-    utils::{bag, locality_aliases::replace_locality_alias},
+    utils::{bag, locality_aliases::correct_locality_name},
 };
 
 /// Localities (Kralendijk, Rincon) and municipalities (Bonaire, Saba, Sint
@@ -74,7 +74,8 @@ impl std::str::FromStr for PlaceOfResidence {
         let trimmed_value = validate_length(value, 1, 200)?;
         validate_teletex_chars(&trimmed_value)?;
 
-        let normalized = replace_locality_alias(&trimmed_value).unwrap_or(trimmed_value);
+        let normalized =
+            correct_locality_name(&trimmed_value).map_or(trimmed_value, str::to_string);
 
         if bag::locality_exists(&normalized, true, true) {
             Ok(PlaceOfResidence::Known(normalized))

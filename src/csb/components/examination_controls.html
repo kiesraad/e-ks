@@ -1,7 +1,3 @@
-{# The controls that act on the examination as a whole, in a row above the page
-   content: the switch that finishes or reopens it, and — where the page offers
-   it — the action that deletes the political group. Set `include_delete` before
-   including this. #}
 <div class="examination-controls">
   <div class="switch-group {% if political_group.is_examination_finished %}finished{% else %}unfinished{% endif %}">
     <p>

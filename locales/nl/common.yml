@@ -1,5 +1,12 @@
 candidates: Kandidaten
 continue_to_home: Verder naar het startscherm
+date_field:
+  date: Datum
+  day_placeholder: dd
+  month: Maand
+  month_placeholder: mm
+  year: Jaar
+  year_placeholder: jjjj
 description: Kandidaatstellen voor verkiezingen in Nederland
 development:
   login_as_csb: Login als CSB
@@ -40,6 +47,8 @@ rate_limit:
   events_message: Te veel wijzigingen in korte tijd. Wacht even voordat u het opnieuw probeert.
   title: Te veel verzoeken
 request_error:
+  conflict_message: "De gegevens zijn gewijzigd terwijl uw verzoek werd verwerkt, mogelijk in een ander tabblad. Ververs de pagina en probeer het opnieuw."
+  conflict_title: Gegevens gewijzigd
   csrf_message: "Het verzonden formulier kon niet worden gecontroleerd omdat het ongeldig of verlopen was. Ga terug, ververs de pagina en probeer het opnieuw."
   csrf_title: Formulier verlopen
   too_large_message: Het verzonden bestand is groter dan toegestaan.
@@ -55,13 +64,13 @@ select_election:
 step: "Stap {}"
 steps: Stappen
 switch_election:
+  domain: Kiesgebied
   election: Verkiezing
   existing: Verkiezingen
   label: Verkiezing wisselen
   province: Provincie
-  region: Regio
   resume: Hervatten
-  select_region: kies een regio
+  select_domain: kies een kiesgebied
   submit: Verkiezing wisselen
   water_council: Waterschap
 title: Kiesraad - Kandidaatstelling

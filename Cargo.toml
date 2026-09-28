@@ -54,6 +54,7 @@ regex = "1.12.3"
 # blessed.rs / dtolnay
 anyhow = "1.0.102"
 serde = { version = "1.0.228", features = ["derive"] }
+serde_bytes = "0.11.19"
 serde_json = "1.0.150"
 serde_urlencoded = "0.7"
 thiserror = "2"
@@ -70,18 +71,17 @@ url = "2.5.8"
 reqwest = { version = "0.13.4", default-features = false, features = ["json", "stream"] }
 
 # well maintained + many downloads
-askama = { version = "0.16.0", default-features = false, features = ["config", "derive", "std"] } # 38M downloads (Dirkjan Ochtman)
-async_zip = { version = "0.0.19", features = ["tokio", "deflate"] } # 5M downloads (Harry Majored)
-chrono-tz = "0.10.4" # 125M downloads (Dirkjan Ochtman)
-csv = "1.4.0" # 203M downloads (Andrew Gallant)
-phf = { version = "0.14.0", default-features = false } # 411M downloads (Steven Fackler)
+askama = { version = "0.16.0", default-features = false, features = ["config", "derive", "std"] } # 48M downloads (Dirkjan Ochtman)
+async_zip = { version = "0.0.19", features = ["tokio", "deflate"] } # 6M downloads (Harry Majored)
+chrono-tz = "0.10.4" # 154M downloads (Dirkjan Ochtman)
+csv = "1.4.0" # 245M downloads (Andrew Gallant)
+phf = { version = "0.14.0", default-features = false } # 539M downloads (Steven Fackler)
 phf_codegen = "0.14.0"
-aes-gcm = "0.11.0" # 118M downloads (RustCrypto)
-hkdf = "0.13.0" # 198M downloads (RustCrypto)
-postcard = { version = "1.1.3", default-features = false, features = ["alloc"] } # 42M downloads (James Munns)
-secrecy = "0.10.3" # 126M downloads (Tony Arcieri)
-urlencoding = "2.1.3" # 213M downloads (Kornel)
-zeroize = "1.9.0" # 359M downloads (RustCrypto)
+aes-gcm = "0.11.0" # 155M downloads (RustCrypto)
+ciborium = "0.2.2" # 236M downloads (Nathaniel McCallum)
+hkdf = "0.13.0" # 259M downloads (RustCrypto)
+secrecy = "0.10.3" # 161M downloads (Tony Arcieri)
+urlencoding = "2.1.3" # 264M downloads (Kornel)
 
 # development tooling
 dotenvy = "0.15.7"
@@ -89,8 +89,8 @@ saphyr = { version = "0.0.12", default-features = false }
 serde-saphyr = { version = "1.0.0", default-features = false, features = ["deserialize"] }
 
 # tweedegolf
-memory-serve = "2.1.0"
-textris-pdf = "0.10.1"
+memory-serve = "2.4.0"
+textris-pdf = { version = "0.11.0" , features = ["docx"] }
 bagatel = "0.8.3"
 
 # kiesraad
@@ -110,7 +110,7 @@ syn = "3.0"
 
 [package]
 name = "eks"
-version = "0.17.0"
+version = "0.18.0"
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
@@ -121,10 +121,10 @@ documentation = "https://kiesraad.github.io/e-KS/e_ks/"
 repository = "https://github.com/kiesraad/e-KS"
 
 [features]
-# Default development-oriented feature set.
-default = ["database", "migrations", "fixtures", "livereload", "dev-features", "db-tests", "net-tests", "tvs-mock"]
+default = []
+development = ["database", "migrations", "fixtures", "livereload", "dev-features", "db-tests", "net-tests", "tvs-mock"]
 # Production build feature set
-production = ["database", "memory-serve", "tls"]
+production = ["database", "memory-serve", "tls", "acme"]
 # Development-only defaults (relaxes some config requirements) + dev login endpoint
 dev-features = []
 # Talk to the online TVS mock service, never enable for a real deployment.
@@ -163,6 +163,7 @@ bagatel = { workspace = true }
 bytes = { workspace = true }
 chrono = { workspace = true, features = ["now"] }
 chrono-tz = { workspace = true }
+ciborium = { workspace = true }
 csv = { workspace = true }
 eml-nl = { workspace = true }
 eks-utils = { path = "tools/utils" }
@@ -173,7 +174,6 @@ instant-acme = { workspace = true, optional = true }
 memory-serve = { workspace = true, optional = true }
 parking_lot = { workspace = true }
 phf = { workspace = true }
-postcard = { workspace = true }
 rand = { workspace = true }
 rcgen = { workspace = true, optional = true }
 regex = { workspace = true }
@@ -181,6 +181,7 @@ reqwest = { workspace = true, features = ["form", "rustls"] }
 rustls = { workspace = true, optional = true }
 secrecy = { workspace = true }
 serde = { workspace = true }
+serde_bytes = { workspace = true }
 serde_json = { workspace = true }
 serde_urlencoded = { workspace = true }
 sha2 = { workspace = true }
@@ -198,7 +199,6 @@ urlencoding = { workspace = true }
 uuid = { workspace = true }
 validate = { path = "validate" }
 x509-parser = { workspace = true, optional = true }
-zeroize = { workspace = true }
 
 [build-dependencies]
 eks-districts-codegen = { path = "tools/districts-codegen" }
@@ -219,3 +219,7 @@ workspace = true
 # https://askama.readthedocs.io/en/stable/performance.html#slow-debug-recompilations
 [profile.dev.package.askama_derive]
 opt-level = 3
+
+# Optimize dependencies (not our own crates): much faster tests in debug builds
+[profile.dev.package."*"]
+opt-level = 2

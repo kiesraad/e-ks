@@ -11,7 +11,7 @@ use crate::{
 };
 
 use super::{
-    Store, StoreData, StoreEvent, StreamMeta, chain_hash,
+    Store, StoreData, StoreEvent, StreamMeta, chain_hash, encoding,
     filesystem::{self, replay_from_file},
     memory::{self, MemoryStore},
     store_handle::StoreBackend,
@@ -310,8 +310,20 @@ where
         election: ElectionConfig,
         master: &MasterKey,
     ) -> Result<Self, AppError> {
+        Self::new_for_stream_in_scope(persistence, stream_id, election, D::scope(), master).await
+    }
+
+    /// As [`Self::new_for_stream_with_persistence`], recording `scope` instead
+    /// of the projection's own.
+    pub async fn new_for_stream_in_scope(
+        persistence: StorePersistence,
+        stream_id: StreamId,
+        election: ElectionConfig,
+        scope: Scope,
+        master: &MasterKey,
+    ) -> Result<Self, AppError> {
         let backend = persistence
-            .into_backend_for_stream(stream_id, election, D::scope(), master)
+            .into_backend_for_stream(stream_id, election, scope, master)
             .await?;
 
         Ok(Store {
@@ -361,14 +373,29 @@ where
 
     /// Persist an event and apply it to the in-memory store.
     pub async fn update(&self, event: D::Event) -> Result<(), AppError> {
+        self.append(event, None).await
+    }
+
+    /// [`Self::update`], refused with [`AppError::Conflict`] when the stream
+    /// moved past `expected_last_event_id` since the caller read it.
+    pub async fn update_if_unchanged(
+        &self,
+        event: D::Event,
+        expected_last_event_id: usize,
+    ) -> Result<(), AppError> {
+        self.append(event, Some(expected_last_event_id)).await
+    }
+
+    async fn append(&self, event: D::Event, expected: Option<usize>) -> Result<(), AppError> {
         match &self.backend {
             #[cfg(feature = "database")]
             StoreBackend::Database { pool, cipher } => {
-                update_in_database(self, pool, cipher, event).await
+                update_in_database(self, pool, cipher, event, expected).await
             }
             StoreBackend::Local { dir, cipher } => {
                 let (last_id, replay) = replay_from_file(self, dir, cipher).await?;
                 replay.reject_append(self.stream_id)?;
+                super::check_expected_event_id(expected, last_id)?;
                 let next_id = last_id + 1;
                 let created_at = Utc::now();
                 let prev_hash = replay.chain_tip;
@@ -385,11 +412,12 @@ where
             }
             StoreBackend::Memory { store } => {
                 let mut data = self.data.write();
+                super::check_expected_event_id(expected, data.last_event_id())?;
                 let event_id = data.last_event_id() + 1;
                 let created_at = Utc::now();
                 let prev_hash = data.last_event_hash();
                 // Nothing is persisted, so the chain hash is over the plain encoding.
-                let body = postcard::to_allocvec(&event).map_err(|e| {
+                let body = encoding::encode(&event).map_err(|e| {
                     AppError::ServerError(std::io::Error::new(std::io::ErrorKind::InvalidData, e))
                 })?;
                 let hash = chain_hash(&prev_hash, event_id, created_at, &body);

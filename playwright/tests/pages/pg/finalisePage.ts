@@ -16,12 +16,10 @@ export class FinalisePage {
   readonly linkCandidateList: Locator;
 
   constructor(protected readonly page: Page) {
-    this.linkDownloadNl = this.page.getByRole("link", {
-      name: "Alles in één zip",
-    });
-    this.linkDownloadFry = this.page.getByRole("link", {
-      name: "Alles yn ien zip",
-    });
+    // Both zip links read "Download zip"; the locale in the href is what
+    // distinguishes them.
+    this.linkDownloadNl = this.page.locator('a[href$="/nl/documents.zip"]');
+    this.linkDownloadFry = this.page.locator('a[href$="/fry/documents.zip"]');
     this.linkRegisteredDesignation = this.page.getByRole("link", {
       name: "Geregistreerde aanduiding",
     });

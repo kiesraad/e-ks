@@ -398,6 +398,74 @@ mod tests {
         assert!(!address.get_problems(Severity::Info).is_all_good());
     }
 
+    /// Places the BAG names like the Dutch alias of a Frisian village.
+    #[test]
+    fn ambiguously_named_places_survive_a_bag_round_trip() {
+        for (postal_code, street_name, locality) in [
+            ("1794AA", "Mulderstraat", "Oosterend"),
+            ("5437AA", "Molenstraat", "Beers"),
+            ("5807AE", "Ooster Thienweg", "Oostrum"),
+            ("9152AA", "Poelewei", "Waaxens"),
+        ] {
+            let mut address = DutchAddress {
+                street_name: Some(StreetName::from_str(street_name).unwrap()),
+                house_number: Some(HouseNumber::from_str("1").unwrap()),
+                house_number_addition: None,
+                locality: Some(Locality::from_str(locality).unwrap()),
+                postal_code: Some(PostalCode::from_str(postal_code).unwrap()),
+                known_in_bag: None,
+            };
+
+            assert_eq!(
+                address
+                    .locality
+                    .as_ref()
+                    .map(ToString::to_string)
+                    .as_deref(),
+                Some(locality),
+                "{locality} is an official locality and must be kept as it is"
+            );
+
+            address.update_is_known_in_bag();
+            assert_eq!(
+                address.known_in_bag,
+                Some(true),
+                "{street_name} 1, {postal_code} {locality} should be found in the BAG"
+            );
+        }
+    }
+
+    #[test]
+    fn a_locality_in_either_language_is_found_in_the_bag() {
+        for locality in ["Berltsum", "Berlikum"] {
+            let mut address = DutchAddress {
+                street_name: Some(StreetName::from_str("Bûterhoeke").unwrap()),
+                house_number: Some(HouseNumber::from_str("1").unwrap()),
+                house_number_addition: None,
+                locality: Some(Locality::from_str(locality).unwrap()),
+                postal_code: Some(PostalCode::from_str("9041AA").unwrap()),
+                known_in_bag: None,
+            };
+
+            assert_eq!(
+                address
+                    .locality
+                    .as_ref()
+                    .map(ToString::to_string)
+                    .as_deref(),
+                Some(locality),
+                "{locality} is a name of the place and must be kept as it is"
+            );
+
+            address.update_is_known_in_bag();
+            assert_eq!(
+                address.known_in_bag,
+                Some(true),
+                "Bûterhoeke 1, 9041AA {locality} should be found in the BAG"
+            );
+        }
+    }
+
     #[test]
     fn is_empty_when_all_parts_absent_or_empty() {
         let address = DutchAddress {

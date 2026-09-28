@@ -1,7 +1,7 @@
 //! Envelope encryption for event payloads.
 //!
 //! Each stream gets a random 256-bit [`StreamKey`], generated when the stream
-//! is first created. Event payloads are postcard-serialized and encrypted with
+//! is first created. Event payloads are CBOR-serialized and encrypted with
 //! it using AES-256-GCM ([`EventCipher`]). The stream key is stored only in
 //! wrapped form: encrypted by the [`MasterKey`] (derived from the
 //! `MASTER_ENCRYPTION_KEY` secret) and persisted next to the stream. The wrap
@@ -12,16 +12,21 @@
 //! holds the master secret. The threat model is read access to the database or
 //! files without access to the server's memory.
 
+use std::sync::Arc;
+
 use aes_gcm::{
     Aes256Gcm, KeyInit,
     aead::{AeadInOut, Generate, Nonce},
 };
 use hkdf::Hkdf;
-use secrecy::{ExposeSecret, SecretBox, SecretString};
+use secrecy::{
+    ExposeSecret, SecretBox, SecretString,
+    zeroize::{Zeroize, Zeroizing},
+};
 use serde::{Serialize, de::DeserializeOwned};
 use sha2::Sha256;
-use zeroize::{Zeroize, Zeroizing};
 
+use super::encoding;
 use crate::{AppError, ElectionConfig, StreamId};
 
 /// Domain-separation salt, distinct from the BSN id-derivation salt.
@@ -31,12 +36,13 @@ const WRAP_AAD_PREFIX: &[u8] = b"stream-key:";
 
 const KEY_LEN: usize = 32;
 const NONCE_LEN: usize = 12;
+const TAG_LEN: usize = 16;
 
 /// Key-wrapping key derived from the master secret. Wraps and unwraps
 /// per-stream [`StreamKey`]s; never encrypts event payloads itself.
 #[derive(Clone)]
 pub struct MasterKey {
-    cipher: Aes256Gcm,
+    cipher: Arc<Aes256Gcm>,
 }
 
 impl MasterKey {
@@ -50,7 +56,9 @@ impl MasterKey {
         let cipher = Aes256Gcm::new_from_slice(kek.as_ref())
             .expect("32 bytes is a valid AES-256 key length");
 
-        Self { cipher }
+        Self {
+            cipher: Arc::new(cipher),
+        }
     }
 
     /// Encrypt `key` for storage next to its stream, binding
@@ -63,10 +71,11 @@ impl MasterKey {
     ) -> Result<WrappedKey, AppError> {
         let nonce = Nonce::<Aes256Gcm>::generate();
 
-        // encrypt_in_place overwrites the plaintext copy
-        let mut buf = key.0.expose_secret().to_vec();
+        // sized for the tag, so encrypt_in_place never reallocates and leaves plaintext behind
+        let mut buf = Zeroizing::new(Vec::with_capacity(KEY_LEN + TAG_LEN));
+        buf.extend_from_slice(key.0.expose_secret());
         self.cipher
-            .encrypt_in_place(&nonce, &wrap_aad(stream_id, election), &mut buf)
+            .encrypt_in_place(&nonce, &wrap_aad(stream_id, election), &mut *buf)
             .map_err(|e| AppError::ServerError(std::io::Error::other(e.to_string())))?;
 
         let mut out = Vec::with_capacity(NONCE_LEN + buf.len());
@@ -188,7 +197,7 @@ impl std::fmt::Debug for StreamKey {
 
 /// AES-256-GCM cipher for a single stream's event payloads.
 ///
-/// Encrypts and decrypts event payloads serialized with postcard.
+/// Encrypts and decrypts event payloads serialized as CBOR.
 /// Each ciphertext is prefixed with a random 12-byte nonce.
 ///
 /// Only persisting backends hold one (see `StoreBackend`); an in-memory store
@@ -199,19 +208,23 @@ pub struct EventCipher {
 }
 
 impl EventCipher {
-    /// Serialize `event` with postcard and encrypt, binding `aad` into the
+    /// Serialize `event` as CBOR and encrypt, binding `aad` into the
     /// authentication tag (see [`crate::store::event_aad`]).
     ///
     /// Returns `nonce || ciphertext || tag`.
     pub fn encrypt<E: Serialize>(&self, event: &E, aad: &[u8]) -> Result<Vec<u8>, AppError> {
         let nonce = Nonce::<Aes256Gcm>::generate();
 
-        let mut ciphertext = postcard::to_allocvec(event).map_err(|e| {
+        let invalid = |e: encoding::EncodingError| {
             AppError::ServerError(std::io::Error::new(std::io::ErrorKind::InvalidData, e))
-        })?;
+        };
+        // sized up front, so no reallocation leaves plaintext behind
+        let size = encoding::encoded_size(event).map_err(invalid)?;
+        let mut ciphertext = Zeroizing::new(Vec::with_capacity(size + TAG_LEN));
+        encoding::encode_into(event, &mut ciphertext).map_err(invalid)?;
 
         self.cipher
-            .encrypt_in_place(&nonce, aad, &mut ciphertext)
+            .encrypt_in_place(&nonce, aad, &mut *ciphertext)
             .map_err(|e| AppError::ServerError(std::io::Error::other(e.to_string())))?;
 
         let mut out = Vec::with_capacity(NONCE_LEN + ciphertext.len());
@@ -245,7 +258,7 @@ impl EventCipher {
             .decrypt_in_place(&nonce, aad, &mut data)
             .map_err(|e| EventDecryptError::Unreadable(format!("AES-GCM decrypt failed: {e}")))?;
 
-        let event = postcard::from_bytes(&data)
+        let event = encoding::decode(&data)
             .map_err(|e| EventDecryptError::IncompatiblePayload(e.to_string()));
         // wipe the plaintext copy
         data.zeroize();
@@ -262,7 +275,7 @@ impl EventCipher {
 pub enum EventDecryptError {
     /// Authentication or framing failed; the plaintext was never recovered.
     Unreadable(String),
-    /// Plaintext recovered, but postcard could not decode it into the event type.
+    /// Plaintext recovered, but it could not be decoded into the event type.
     IncompatiblePayload(String),
 }
 

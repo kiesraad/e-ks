@@ -52,11 +52,11 @@ where
     /// with the feature the embedded bundle is extracted as a fallback (works
     /// on a deployed host), both when the variable is unset and when it points
     /// somewhere that holds no bundle.
-    pub(super) fn certs_dir(&mut self) -> Result<PathBuf, AuthError> {
+    pub(super) async fn certs_dir(&mut self) -> Result<PathBuf, AuthError> {
         let configured = (self.lookup)("CERTS_DIR").ok().map(PathBuf::from);
 
         #[cfg(feature = "tvs-mock")]
-        return crate::tvs_mock::certs_dir(configured);
+        return crate::tvs_mock::certs_dir(configured).await;
 
         #[cfg(not(feature = "tvs-mock"))]
         return configured.ok_or_else(|| missing("CERTS_DIR"));

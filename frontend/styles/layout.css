@@ -7,7 +7,7 @@ body {
 body {
   display: flex;
   flex-direction: column;
-  min-width: 960px;
+  min-width: var(--page-min-width);
 }
 
 main {
@@ -66,4 +66,49 @@ footer {
 .columns > .column {
   flex: 1;
   margin: var(--space-md);
+}
+
+.footer-nav {
+  align-items: center;
+  border-top: 1px solid var(--gray-200);
+  display: flex;
+  gap: var(--space-md);
+  margin-top: var(--space-xxl);
+  padding-top: var(--space-lg);
+
+  p {
+    color: var(--color-help-text);
+    margin: 0;
+  }
+
+  .footer-nav-end {
+    align-items: center;
+    display: flex;
+    gap: var(--space-md);
+    margin-left: auto;
+  }
+
+  .delete-link {
+    align-items: center;
+    color: var(--color-error-darkest);
+    display: inline-flex;
+    font-weight: var(--font-weight-medium);
+    gap: var(--space-sm);
+    text-decoration: none;
+
+    &::after {
+      background-color: currentColor;
+      content: "";
+      height: var(--space-5);
+      mask-image: url("../icons/trash.svg");
+      mask-position: center;
+      mask-repeat: no-repeat;
+      mask-size: contain;
+      width: var(--space-5);
+    }
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
 }

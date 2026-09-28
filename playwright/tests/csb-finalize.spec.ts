@@ -18,7 +18,9 @@ test("finalize examination happy flow", async ({ csbImport }) => {
   await expect(page.getByText("Onderzoek afgerond")).toBeVisible();
   await expect(page.locator(".examination-panels")).toHaveClass(/disabled/);
   await politicalGroupPage.buttonBack.click();
-  await expect(page.getByText(`${groupName} Goedgekeurd`)).toBeVisible();
+  await expect(
+    page.getByText(`${groupName} Onderzoek afgerond Goedgekeurd`),
+  ).toBeVisible();
 });
 
 test("finalize examination with omissions", async ({ csbImport }) => {
@@ -48,6 +50,6 @@ test("finalize examination with omissions", async ({ csbImport }) => {
   await expect(page.locator(".examination-panels")).toHaveClass(/disabled/);
   await politicalGroupPage.buttonBack.click();
   await expect(
-    page.getByText(`${groupName} Verzuimen toegevoegd`),
+    page.getByText(`${groupName} Onderzoek afgerond Verzuimen toegevoegd`),
   ).toBeVisible();
 });

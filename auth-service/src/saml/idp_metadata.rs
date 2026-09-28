@@ -9,6 +9,7 @@ use crate::{
     keys::{CertificateBase64, CertificatePem, KeyPair, PrivateKeyPem},
     saml::{
         constants::{BINDING_HTTP_POST, BINDING_SOAP, CLOCK_SKEW_SECONDS, NS_DSIG, NS_MD},
+        pki::subject_oin,
         verification::{ExpectedRoot, verify_xml_signature},
         xml_parser::{
             Document, NodeId, descendants_by_tag, direct_text, find_child, find_descendant,
@@ -149,10 +150,15 @@ fn required_endpoint(
     root: NodeId,
     tag: &str,
     binding: &str,
+    endpoint_domain: &str,
 ) -> Result<EndpointUrl> {
     let location = endpoint_location(doc, root, tag, binding)
         .ok_or_else(|| AuthError::Config(format!("metadata: no {binding} {tag}")))?;
-    EndpointUrl::from_metadata(&location, tag)
+    let url = EndpointUrl::from_metadata(&location, tag)?;
+    // The document is signed, but its endpoints still may not send the browser
+    // or the back-channel outside the pinned RD domain (see `RdTrust`).
+    url.require_domain(endpoint_domain, tag)?;
+    Ok(url)
 }
 
 /// Parse an XML Schema duration (e.g. `PT24H`, `P1D`, `PT1H30M`) into a
@@ -203,6 +209,9 @@ pub struct RdTrust {
     pub expected_entity_id: EntityId,
     /// Expected RD OIN, required in the signing cert's `Subject.serialNumber`.
     pub expected_oin: &'static str,
+    /// Domain the SSO/ARS/SLO endpoint hosts must be (sub)domains of
+    /// ([`crate::config::RD_ENDPOINT_DOMAIN`]).
+    pub endpoint_domain: &'static str,
     /// Trust-anchor root CA(s), PEM-encoded
     /// ([`crate::saml::pki::RD_METADATA_TRUST_ROOTS`]).
     pub roots: &'static [&'static [u8]],
@@ -218,6 +227,7 @@ impl RdTrust {
         Self {
             expected_entity_id: environment.rd_entity_id(),
             expected_oin: crate::config::RD_OIN,
+            endpoint_domain: environment.rd_endpoint_domain(),
             roots: crate::saml::pki::RD_METADATA_TRUST_ROOTS,
             intermediates: crate::saml::pki::RD_METADATA_INTERMEDIATES,
         }
@@ -228,24 +238,6 @@ fn pem_bytes_to_der(pem: &[u8]) -> Result<Vec<u8>> {
     let pem = std::str::from_utf8(pem)
         .map_err(|e| AuthError::Crypto(format!("non-UTF-8 certificate PEM: {e}")))?;
     Ok(CertificatePem::parse(pem)?.to_der())
-}
-
-/// The `Subject.serialNumber` (OID 2.5.4.5) of a DER certificate, if present.
-/// PKIoverheid encodes the participant OIN there (eID §9.1).
-fn subject_oin(leaf_der: &[u8]) -> Option<String> {
-    use x509_cert::der::Decode;
-    let cert = x509_cert::Certificate::from_der(leaf_der).ok()?;
-    // Build the OID from the same `const_oid` version that `x509_cert` exposes on
-    // `atv.oid`; a direct `const_oid` dep can resolve to a different major version.
-    let serial_number_oid = x509_cert::der::asn1::ObjectIdentifier::new_unwrap("2.5.4.5");
-    cert.tbs_certificate()
-        .subject()
-        .iter()
-        .find(|atv| atv.oid == serial_number_oid)
-        // The serialNumber value is a DER string (Printable/UTF8/IA5); its content
-        // bytes are the ASCII OIN regardless of the exact string type.
-        .and_then(|atv| std::str::from_utf8(atv.value.value()).ok())
-        .map(|s| s.trim().to_string())
 }
 
 /// Whether `cert_pem` is a trusted RD signing certificate (eID §9.1/§9.2): it
@@ -353,7 +345,7 @@ pub fn parse_idp_metadata(xml: &str, trust: &RdTrust) -> Result<IdpMetadata> {
     let idp = idp_sso_descriptor(&doc, root)?;
     let signing_keys = verified_signing_keys(xml, &doc, root, idp, trust)?;
 
-    let (sso_url, ars_url, slo_url) = resolve_endpoints(&doc, idp)?;
+    let (sso_url, ars_url, slo_url) = resolve_endpoints(&doc, idp, trust)?;
     debug!("[metadata] Endpoints resolved: sso={sso_url}, ars={ars_url}, slo={slo_url}");
 
     let cache_duration = doc
@@ -489,11 +481,13 @@ fn pinned_signing_keys(keys: IdpKeys, trust: &RdTrust) -> Result<Vec<KeyPair>> {
 fn resolve_endpoints(
     doc: &Document,
     root: NodeId,
+    trust: &RdTrust,
 ) -> Result<(EndpointUrl, EndpointUrl, EndpointUrl)> {
+    let domain = trust.endpoint_domain;
     Ok((
-        required_endpoint(doc, root, "SingleSignOnService", BINDING_HTTP_POST)?,
-        required_endpoint(doc, root, "ArtifactResolutionService", BINDING_SOAP)?,
-        required_endpoint(doc, root, "SingleLogoutService", BINDING_HTTP_POST)?,
+        required_endpoint(doc, root, "SingleSignOnService", BINDING_HTTP_POST, domain)?,
+        required_endpoint(doc, root, "ArtifactResolutionService", BINDING_SOAP, domain)?,
+        required_endpoint(doc, root, "SingleLogoutService", BINDING_HTTP_POST, domain)?,
     ))
 }
 
@@ -535,7 +529,7 @@ pub async fn fetch_and_cache_idp_metadata(
     );
 
     let path = metadata_cache_path(certs_dir);
-    match std::fs::create_dir_all(certs_dir).and_then(|()| std::fs::write(&path, &xml)) {
+    match write_cache(certs_dir, &path, &xml).await {
         Ok(()) => debug!("[metadata] Wrote metadata cache to {}", path.display()),
         Err(e) => warn!(
             "[metadata] Failed to write metadata cache {}: {e}",
@@ -546,30 +540,73 @@ pub async fn fetch_and_cache_idp_metadata(
     Ok(metadata)
 }
 
+async fn write_cache(certs_dir: &Path, path: &Path, xml: &str) -> std::io::Result<()> {
+    tokio::fs::create_dir_all(certs_dir).await?;
+    tokio::fs::write(path, xml).await
+}
+
 /// Load and parse IdP metadata from the on-disk cache written by an earlier
 /// [`fetch_and_cache_idp_metadata`] call. Used as a startup fallback when the
 /// IdP is unreachable. Returns `None` when no cache file exists or the cached
 /// document fails to parse or verify; callers treat that as "no fallback".
-pub fn load_cached_idp_metadata(certs_dir: &Path, trust: &RdTrust) -> Option<IdpMetadata> {
+pub async fn load_cached_idp_metadata(certs_dir: &Path, trust: &RdTrust) -> Option<IdpMetadata> {
     let path = metadata_cache_path(certs_dir);
-    let xml = std::fs::read_to_string(&path).ok()?;
-    match parse_idp_metadata(&xml, trust) {
-        Ok(metadata) => {
-            info!(
-                "[metadata] Loaded IdP metadata from disk cache {} (entity_id={})",
-                path.display(),
-                metadata.entity_id
-            );
-            Some(metadata)
-        }
+    let xml = tokio::fs::read_to_string(&path).await.ok()?;
+    let metadata = match parse_idp_metadata(&xml, trust) {
+        Ok(metadata) => metadata,
         Err(e) => {
             warn!(
                 "[metadata] Ignoring invalid cached metadata at {}: {e}",
                 path.display()
             );
-            None
+            return None;
         }
+    };
+
+    // eID §8.5: not past cacheDuration, and never past the ceiling
+    let Some(age) = cache_age(&path).await else {
+        warn!(
+            "[metadata] Ignoring cached metadata at {}: its age cannot be determined",
+            path.display()
+        );
+        return None;
+    };
+    let max_age = metadata
+        .cache_duration
+        .unwrap_or(DEFAULT_CACHE_AGE)
+        .min(MAX_CACHE_AGE);
+    if age > max_age {
+        warn!(
+            "[metadata] Ignoring cached metadata at {}: written {}s ago, older than its cacheDuration of {}s",
+            path.display(),
+            age.as_secs(),
+            max_age.as_secs()
+        );
+        return None;
     }
+
+    info!(
+        "[metadata] Loaded IdP metadata from disk cache {} (entity_id={}, age={}s)",
+        path.display(),
+        metadata.entity_id,
+        age.as_secs()
+    );
+    Some(metadata)
+}
+
+/// Age limit for a cached descriptor without a usable `cacheDuration`.
+const DEFAULT_CACHE_AGE: std::time::Duration = std::time::Duration::from_secs(24 * 60 * 60);
+/// Age limit for a cached descriptor whatever its `cacheDuration` says.
+const MAX_CACHE_AGE: std::time::Duration = std::time::Duration::from_secs(7 * 24 * 60 * 60);
+
+/// How long ago the cache file was written, from its modification time.
+async fn cache_age(path: &Path) -> Option<std::time::Duration> {
+    let written = tokio::fs::metadata(path).await.ok()?.modified().ok()?;
+    Some(
+        std::time::SystemTime::now()
+            .duration_since(written)
+            .unwrap_or_default(),
+    )
 }
 
 #[cfg(test)]
@@ -588,6 +625,7 @@ mod tests {
         RdTrust {
             expected_entity_id: EntityId::from_static(entity_id),
             expected_oin: FIXTURE_OIN,
+            endpoint_domain: "rd.test",
             roots: TEST_ROOTS,
             intermediates: NO_INTERMEDIATES,
         }
@@ -669,6 +707,24 @@ mod tests {
         assert_eq!(md.signing_keys.len(), 1);
         // eID §8.5: cacheDuration is parsed for the refresh-cadence hint.
         assert_eq!(md.cache_duration, Some(Duration::from_secs(24 * 3600)));
+    }
+
+    #[test]
+    fn parse_idp_metadata_rejects_endpoints_outside_the_pinned_domain() {
+        // A correctly signed document whose ARS points elsewhere is refused:
+        // the signature authenticates the endpoints, the pin bounds them.
+        let entity_id = "urn:nl-eid-gdi:1.0:RD:00000004000000149000:entities:9002";
+        let signed = signed_rd_metadata_attrs(entity_id, r#" cacheDuration="PT24H""#);
+        assert!(parse_idp_metadata(&signed, &test_trust(entity_id)).is_ok());
+        let trust = RdTrust {
+            endpoint_domain: "toegang.overheid.nl",
+            ..test_trust(entity_id)
+        };
+        let err = parse_idp_metadata(&signed, &trust).unwrap_err();
+        assert!(
+            err.to_string().contains("not under the pinned RD domain"),
+            "{err}"
+        );
     }
 
     #[test]
@@ -934,19 +990,58 @@ mod tests {
         std::env::temp_dir().join(format!("idp-meta-test-{}", uuid::Uuid::new_v4()))
     }
 
-    #[test]
-    fn load_cached_returns_none_when_absent() {
+    #[tokio::test]
+    async fn load_cached_returns_none_when_absent() {
         // No cache file written, so no fallback available.
-        assert!(load_cached_idp_metadata(&unique_temp_dir(), &test_trust("urn:test:rd")).is_none());
+        assert!(
+            load_cached_idp_metadata(&unique_temp_dir(), &test_trust("urn:test:rd"))
+                .await
+                .is_none()
+        );
     }
 
-    #[test]
-    fn load_cached_returns_none_for_invalid_document() {
+    #[tokio::test]
+    async fn load_cached_returns_none_past_cache_duration() {
+        let dir = unique_temp_dir();
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = metadata_cache_path(&dir);
+        std::fs::write(
+            &path,
+            signed_rd_metadata_attrs("urn:test:rd", r#" cacheDuration="PT1H""#),
+        )
+        .unwrap();
+        let trust = test_trust("urn:test:rd");
+
+        assert!(
+            load_cached_idp_metadata(&dir, &trust).await.is_some(),
+            "a fresh cache is used"
+        );
+
+        let two_hours_ago = std::time::SystemTime::now() - std::time::Duration::from_secs(2 * 3600);
+        std::fs::File::options()
+            .write(true)
+            .open(&path)
+            .unwrap()
+            .set_modified(two_hours_ago)
+            .unwrap();
+        assert!(
+            load_cached_idp_metadata(&dir, &trust).await.is_none(),
+            "a cache past its cacheDuration is not trusted"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn load_cached_returns_none_for_invalid_document() {
         // A cache file that fails to parse/verify is ignored, not surfaced.
         let dir = unique_temp_dir();
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(metadata_cache_path(&dir), "<not-metadata/>").unwrap();
-        assert!(load_cached_idp_metadata(&dir, &test_trust("urn:test:rd")).is_none());
+        assert!(
+            load_cached_idp_metadata(&dir, &test_trust("urn:test:rd"))
+                .await
+                .is_none()
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

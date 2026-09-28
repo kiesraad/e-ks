@@ -1,0 +1,15 @@
+{% extends "csb/components/layout.html" %}
+{% import "pg/common/components/macros.html" as macros %}
+{% block breadcrumbs %}
+  {{ breadcrumb(crate::csb::pre_submission::CsbPreSubmissionOverviewPath, "csb.pre_submission.title") }}
+  {{ breadcrumb(crate::csb::pre_submission::CsbPreSubmissionImportPath, "csb.form.import_political_group") }}
+{% endblock %}
+{% block page_title %}{{ "csb.form.import_political_group"|trans }}{% endblock %}
+{% block header_action %}
+  <a href="{{ crate::csb::pre_submission::CsbPreSubmissionOverviewPath }}"
+     class="button secondary">{{ "action.back"|trans }}</a>
+{% endblock %}
+{% block content %}
+  {% set import_action = CsbPreSubmissionImportPath.to_string() %}
+  {% include "csb/components/import_hash_form.html" %}
+{% endblock %}

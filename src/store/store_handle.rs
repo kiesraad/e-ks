@@ -8,7 +8,7 @@ use std::path::PathBuf;
 
 use crate::{ElectionConfig, StreamId, crypto::EventCipher};
 
-use super::{EventHash, StoreData, StoreEvent, memory::MemoryStore};
+use super::{EventHash, EventHashPrefix, StoreData, StoreEvent, memory::MemoryStore};
 
 /// Event-sourced store handle for a single (stream, election) pair.
 pub struct Store<D> {
@@ -123,6 +123,33 @@ where
     pub fn current_event_hash(&self) -> EventHash {
         self.data.read().last_event_hash()
     }
+
+    /// Whether `prefix` names any event in this chain: the check download and
+    /// export links are held to. Any event, not just the newest, so a link
+    /// still on screen survives the audit event its own download appends.
+    pub fn has_event_hash(&self, prefix: EventHashPrefix) -> bool {
+        if prefix.is_genesis() {
+            return false;
+        }
+        self.data
+            .read()
+            .events()
+            .iter()
+            .any(|event| prefix.matches(&event.hash))
+    }
+
+    /// Whether `prefix` names `event_id` specifically, for links that already
+    /// identify one event.
+    pub fn event_hash_matches(&self, event_id: usize, prefix: EventHashPrefix) -> bool {
+        if prefix.is_genesis() {
+            return false;
+        }
+        self.data
+            .read()
+            .events()
+            .iter()
+            .any(|event| event.event_id == event_id && prefix.matches(&event.hash))
+    }
 }
 
 #[cfg(test)]
@@ -203,6 +230,41 @@ mod tests {
         let data = store.data.read();
         assert_eq!(data.last_event_id(), 1);
         assert_eq!(data.applied, vec![42]);
+    }
+
+    /// Applies an event carrying `hash` as its chain hash.
+    fn apply_hashed(store: &Store<TestData>, event_id: usize, hash: EventHash) {
+        let mut event = StoreEvent::new(event_id, event_id);
+        event.hash = hash;
+        store.apply_event(event);
+    }
+
+    #[test]
+    fn event_hash_lookups_accept_only_this_stream_s_events() {
+        let store = test_store();
+        apply_hashed(&store, 1, [0x11; 32]);
+        apply_hashed(&store, 2, [0x22; 32]);
+
+        assert!(store.has_event_hash(EventHashPrefix::of(&[0x11; 32])));
+        assert!(store.has_event_hash(EventHashPrefix::of(&[0x22; 32])));
+        assert!(!store.has_event_hash(EventHashPrefix::of(&[0xEE; 32])));
+
+        // bound to one event, so a sibling's hash does not open it
+        assert!(store.event_hash_matches(2, EventHashPrefix::of(&[0x22; 32])));
+        assert!(!store.event_hash_matches(2, EventHashPrefix::of(&[0x11; 32])));
+        assert!(!store.event_hash_matches(3, EventHashPrefix::of(&[0x22; 32])));
+    }
+
+    /// The genesis placeholder is shared by every stream, so it must never
+    /// name an event, even once one carries it.
+    #[test]
+    fn the_genesis_hash_never_matches() {
+        let store = test_store();
+        apply_hashed(&store, 1, crate::store::GENESIS_HASH);
+
+        let genesis = EventHashPrefix::of(&crate::store::GENESIS_HASH);
+        assert!(!store.has_event_hash(genesis));
+        assert!(!store.event_hash_matches(1, genesis));
     }
 
     #[test]

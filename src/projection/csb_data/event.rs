@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     CsbUser, Event, HasCsbUser, PgEvent, PgStoreData, StreamId,
     structs::{
-        brp::{BrpFinding, BrpStatus},
-        csb::{Correction, Omission, OmissionId, OmissionStatus},
+        brp::{BrpFinding, BrpFindingKind, BrpStatus},
+        csb::{Correction, Omission, OmissionId, OmissionPart, OmissionStatus},
         persons::PersonId,
     },
     trans,
@@ -51,9 +51,8 @@ impl Event for CsbEvent {
         self.action.details()
     }
 
-    fn changes(&self, locale: crate::Locale) -> Vec<crate::structs::audit_log::FieldChange> {
-        self.action.changes(locale)
-    }
+    // `changes` stays the empty default: a correction's old value needs the
+    // stream as it stood before the event, which the audit detail page replays.
 }
 
 /// Domain actions that mutate the CSB (Centraal Stembureau) store.
@@ -96,11 +95,26 @@ pub enum CsbAction {
         omission_id: OmissionId,
         status: OmissionStatus,
     },
+    /// Record the decision for one part of an omission. The projection splits
+    /// the part off while the omission covers other parts, and reads parts
+    /// decided the same way as one omission.
+    SetOmissionPartStatus {
+        omission_id: OmissionId,
+        part: OmissionPart,
+        status: OmissionStatus,
+    },
     UpdateCorrection(Correction),
     /// Empty `findings` means checked, with the BRP agreeing on every field.
     BrpPersonChecked {
         person: PersonId,
         findings: Vec<BrpFinding>,
+    },
+    /// Record whether the committee dealt with one of a candidate's findings.
+    /// The finding is named in full, so the log says what was handled.
+    SetBrpFindingHandled {
+        person: PersonId,
+        finding: BrpFindingKind,
+        handled: bool,
     },
     SetBrpStatus(BrpStatus),
 }
@@ -116,9 +130,12 @@ impl CsbAction {
             CsbAction::CreateOmission(_)
             | CsbAction::UpdateOmission(_)
             | CsbAction::DeleteOmission { .. }
-            | CsbAction::SetOmissionStatus { .. } => "omission",
+            | CsbAction::SetOmissionStatus { .. }
+            | CsbAction::SetOmissionPartStatus { .. } => "omission",
             CsbAction::UpdateCorrection(_) => "correction",
-            CsbAction::BrpPersonChecked { .. } | CsbAction::SetBrpStatus(_) => "brp_validation",
+            CsbAction::BrpPersonChecked { .. }
+            | CsbAction::SetBrpFindingHandled { .. }
+            | CsbAction::SetBrpStatus(_) => "brp_validation",
         }
     }
 
@@ -133,8 +150,10 @@ impl CsbAction {
             CsbAction::UpdateOmission(_) => "update_omission",
             CsbAction::DeleteOmission { .. } => "delete_omission",
             CsbAction::SetOmissionStatus { .. } => "set_omission_status",
+            CsbAction::SetOmissionPartStatus { .. } => "set_omission_part_status",
             CsbAction::UpdateCorrection(_) => "update_correction",
             CsbAction::BrpPersonChecked { .. } => "brp_person_checked",
+            CsbAction::SetBrpFindingHandled { .. } => "set_brp_finding_handled",
             CsbAction::SetBrpStatus(_) => "brp_validation",
         }
     }
@@ -152,11 +171,17 @@ impl CsbAction {
             CsbAction::SetOmissionStatus { .. } => {
                 trans!("audit_log.event.set_omission_status", locale)
             }
+            CsbAction::SetOmissionPartStatus { .. } => {
+                trans!("audit_log.event.set_omission_part_status", locale)
+            }
             CsbAction::UpdateCorrection { .. } => {
                 trans!("audit_log.event.update_correction", locale)
             }
             CsbAction::BrpPersonChecked { .. } => {
                 trans!("audit_log.event.brp_validation", locale)
+            }
+            CsbAction::SetBrpFindingHandled { .. } => {
+                trans!("audit_log.event.set_brp_finding_handled", locale)
             }
             CsbAction::SetBrpStatus(_) => {
                 trans!("audit_log.event.set_brp_validation_state", locale)
@@ -190,16 +215,21 @@ impl CsbAction {
             } => {
                 format!("{omission_id}: {status:?}")
             }
+            CsbAction::SetOmissionPartStatus {
+                omission_id,
+                part,
+                status,
+            } => {
+                format!("{omission_id}: {part:?} {status:?}")
+            }
             CsbAction::UpdateCorrection(_) => String::new(),
             CsbAction::BrpPersonChecked { person, .. } => person.to_string(),
+            CsbAction::SetBrpFindingHandled {
+                person,
+                finding,
+                handled,
+            } => format!("{person}: {finding:?} handled={handled}"),
             CsbAction::SetBrpStatus(value) => value.to_string(),
-        }
-    }
-
-    fn changes(&self, locale: crate::Locale) -> Vec<crate::structs::audit_log::FieldChange> {
-        match self {
-            CsbAction::UpdateCorrection(correction) => vec![correction.change(locale)],
-            _ => vec![],
         }
     }
 }

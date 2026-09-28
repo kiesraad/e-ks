@@ -83,11 +83,11 @@ examination and is rendered on the CSB side instead.
 ### Election types
 
 Every record of data belongs to one election, represented by the `ElectionConfig`
-enum (`src/core/election/`). The user selects an election, and a
-region (if applicable) at the start of a session; this choice, together with the user's stream,
+enum (`src/core/election/`). The user selects an election, and an election
+domain (if applicable) at the start of a session; this choice, together with the user's stream,
 forms the `(stream_id, election)` partition key. The current configurations are:
 
-- **EK27**: the 2027 Eerste Kamer (Senate) election. National, no region.
+- **EK27**: the 2027 Eerste Kamer (Senate) election. National, no election domains.
 - **PS27(province)**: the 2027 Provinciale Staten election, one configuration per
   province.
 - **WS27(water council)**: the 2027 waterschap (water authority) election, one
@@ -141,8 +141,8 @@ workspace-level dependency list.
 - **`tools/utils/`** (`eks-utils`): small runtime helpers with no heavyweight
   dependencies (e.g. the `slugify_teletex` function), so they can be used in
   the main `eks` crate as well as in other build-time tooling.
-- **`tools/districts-codegen/`** (`eks-districts-codegen`): generates the
-  districts and regions enums from `MasterElectionTree.xml`.
+- **`tools/districts-codegen/`** (`eks-districts-codegen`): generates the election
+  districts and domains (e.g. provinces/water councils) enums from `MasterElectionTree.xml`.
 
 Document generation is done in-process with the
 [`textris-pdf`](https://github.com/tweedegolf/textris-pdf) library: the PDF
@@ -159,7 +159,7 @@ modules:
 | `src/lib.rs` | Crate root: module wiring, public re-exports, architecture overview. |
 | `src/router.rs` | Top-level Axum router; merges every domain's `router()` and applies middleware. |
 | `src/state.rs` | `AppState`: the shared application state (config, store registry, sessions). |
-| `src/filters.rs` | Askama template filters (display formatting, translation, validation errors). |
+| `src/view/` | Shared view layer: the Askama template filters (display formatting, translation, validation errors), the request-scoped template `Context`, and the error response whose page each web section renders in its own layout. |
 | `src/pg/` | Political group (PG) **domain** modules (see below). |
 | `src/csb/` | Central voting bureau (CSB) section: import, examination, monitoring, audit log, and its own event stores (see [The CSB section](#the-csb-section-srccsb)). |
 | `src/structs/` | Shared domain model structs (persons, political groups, candidate lists, common value types) used by both `src/pg/` and `src/csb/`. |
@@ -167,10 +167,10 @@ modules:
 | `src/auth/` | Authentication: the session model and token handling, session/pending-request storage, id derivation, and the session cookie helpers + `Session` extractor. The session/store middleware and the development login endpoint live in `src/middleware/`. |
 | `src/core/` | Cross-cutting infrastructure: `Config`, server startup, logging/tracing, election configuration, Askama rendering, CSV, ZIP, locales. |
 | `src/store/` | The generic event store: persistence backends (memory/file/Postgres), at-rest encryption, the event hash chain, and the per-stream `StoreRegistry`. |
-| `src/error/` | `AppError` and the rendering of error responses/pages. |
+| `src/error/` | `AppError`, the application-wide error type. Its mapping to a response lives in `src/view/`, the page layouts in `src/pg/` and `src/csb/`. |
 | `src/form/` | Generic form extraction and validation: the `Form<T>` extractor, CSRF tokens, file uploads, string validators. |
 | `src/pagination/` | Reusable list-pagination helpers (params, page links, page info). |
-| `src/fixtures/` | Sample data loaded into the store on startup in development/test (`fixtures` feature). |
+| `src/fixtures/` | Sample data loaded into the store on startup in development/test (`fixtures` feature). The CSB counterpart, `src/csb/import/fixture.rs`, registers sample political groups with their previous election result and imports several of them, one with omissions and one with paper corrections; one is also imported for the pre-submission check, its BRP check done and some candidates found wanting. |
 | `src/utils/` | Small standalone helpers (id newtypes, redirects, health check, embedding helpers, etc.). |
 
 ### `src/pg/` domain modules
@@ -230,7 +230,10 @@ members import the packages submitted by political groups and examine them
 `pages/`, `forms/`, `extractors/`, `structs/`, `components/` layout, with
 `CsbContext` in place of `Context`), but its access model is fundamentally
 different: a political group only ever sees its own stream, while a committee
-member works across all imported streams.
+member works across all imported streams of the one election its session was
+established for: CSB listings go through `stores_for_election` rather than
+`stores_by_scope`, with the technical `monitoring` overview (which names the
+election per row) the one deliberate exception.
 
 #### Scopes and session identities
 
@@ -238,8 +241,11 @@ Streams carry a `Scope` (`src/core/scope.rs`) of one of the following variants:
 
 - **`PoliticalGroup`**: a political group's own stream.
 - **`CentralElectoralCommittee`**: the shared CSB main stream.
-- **`ImportedByCsb`**: a candidate-list package imported by the CSB; one
-  stream per import action.
+- **`ImportedByCsb`**: a candidate-list package imported by the CSB for the
+  examination; one stream per import action.
+- **`PreSubmittedToCsb`**: a package imported for the pre-submission check
+  (Fase 1, *voorinlevering*); one stream per import action, kept apart from
+  the examination's imports.
 
 Every persisted stream records its scope, and each store registry only sees
 streams matching its projection's scope, so the separation between the two
@@ -270,11 +276,15 @@ The CSB section has two projections of its own on the shared store machinery
   (scope `ImportedByCsb`), driven by `CsbEvent`. The projection holds the
   imported snapshot (`imported_data`), a second projection with the paper
   corrections replayed on top (`paper_corrected_data`), the recorded
-  omissions and person corrections, and the examination-finished flag.
+  omissions and person corrections, and the examination-finished flag. A
+  second registry over the same projection, under scope `PreSubmittedToCsb`,
+  holds the packages imported for the pre-submission check; a registry only
+  lists streams of its own scope, so the two never see each other's imports.
 - **`CsbMainStoreData`** (`src/csb/store_main/`), a single stream per
   election shared by all committee members under the fixed
   `CSB_MAIN_STREAM_ID` (scope `CentralElectoralCommittee`). It records
-  committee-wide events (currently logins) and backs the main CSB audit log.
+  committee-wide events (logins, and the registered political groups with
+  their previous election results) and backs the main CSB audit log.
 
 #### Domains
 
@@ -286,14 +296,35 @@ The CSB section has two projections of its own on the shared store machinery
   (`find_event_by_hash_prefix`, backed by the `events_hash_idx` index),
   replays the source stream up to it (`PgStoreData::snapshot_until`), and
   persists the snapshot as a `CsbAction::Import` on a **fresh** `ImportedByCsb`
-  stream. The political group's own stream is never written to, and importing
-  the same source stream twice is rejected (might change with #999).
+  stream keyed on the session's election. A package handed in for another
+  election is refused.
+- **`pre_submission`**: Fase 1, the pre-submission check (*voorinlevering*).
+  Political groups hand in their package ahead of nomination day; the CSB
+  imports it by hash (the same routine as `import`, into the
+  `PreSubmittedToCsb` registry), runs the BRP check, and reads the findings
+  per candidate off one page, so the group can fix them before the official
+  submission. That page offers an overview for the group as PDF and Word
+  (`models/brp_overview.rs`): every candidate with BRP findings or with
+  warnings from the group's own data entry, with the details the check
+  compares. No omissions, corrections or examination state.
 - **`examination`**: the examination of the imported lists. An overview
   groups the imported political groups by finished/unfinished; detail pages
   render the imported data read-only; omissions and corrections are recorded
-  in overlays; and the model **I 4** notice (the letter listing every
-  recoverable omission across all imported streams, per electoral district)
-  is generated here.
+  in overlays; and the models **I 1** and **I 4** plus the per-group omission
+  letter (*verzuimbrief*) are generated here, their inputs collected in
+  `model_inputs.rs` (I 1 and I 4 across all imported streams, the letter per
+  group). The finish-examination page lists the groups that get a letter;
+  each links to a read-only page with the letter's omissions and its PDF and
+  Word downloads, and the page bundles every letter in a ZIP that streams
+  while the letters render one at a time.
+- **`recovery`**: the "Herstelde lijsten" phase that follows the examination.
+  Once the omission letters have gone out, the CSB marks every recoverable
+  omission as recovered or not recovered; candidates, lists and districts
+  whose omission stays unresolved are scrapped ("geschrapt") and drop out of
+  the I 4. The pages are thin handlers that re-render the examination
+  templates under their own route prefix in `CsbPhase::Recovery` mode, which
+  hides the examination-only actions and shows the assessment controls
+  instead.
 - **`monitoring`**: an overview of the political-group streams built from
   `StreamMeta`: event counts and timestamps read from the backend's index.
   This deliberately reads no payloads: no stream key is unwrapped and nothing
@@ -301,14 +332,27 @@ The CSB section has two projections of its own on the shared store machinery
   data.
 - **`audit_log`**: the CSB audit log, a read view over either the main
   committee stream or a single imported stream.
+- **`registered_political_groups`**: administration of the political groups
+  registered for the election with their result at the previous election of
+  the same body (appellation, votes, seats), kept on the CSB main stream. The
+  lists of groups that obtained one or more seats are numbered first on model
+  I 4, in the order of their votes (Kieswet Art. I 14); the remaining list order
+  is decided by lot (Art. I 15).
+- **`common`**: the not-found page for paths under `/csb` that no CSB route
+  claims. The error pages for the CSB routes (`csb/error_response.rs`) render
+  the page an `AppError` carries in the CSB layout, the counterpart of the
+  `render_error_pages` layer on the app routes.
 
 #### Omissions and corrections
 
 An **omission** (*verzuim*) is a defect found during examination.
 `OmissionCategory` ties each omission to what it concerns: the political
 group itself, a candidate list (with the affected electoral districts), or a
-candidate (with the affected lists). Recoverable omissions feed the I 4
-notice. A **correction** (*ambtshalve correctie*) (`CsbAction::UpdateCorrection`) records a fix to
+candidate (with the affected lists). Recoverable omissions are the
+"Geconstateerde verzuimen" of models I 1 and I 4; an omission left unresolved
+(irreparable, or not recovered) scraps the candidate, the list (per district
+for declarations of support) or, for a political-group omission, the
+appellation. A **correction** (*ambtshalve correctie*) (`CsbAction::UpdateCorrection`) records a fix to
 the imported political group appellation and person data (initials, last name,
 date of birth, place of residence); corrections on persons are kept in a separate
 map in the projection (`csb_corrected_persons`), so the imported snapshot itself stays untouched.
@@ -380,8 +424,10 @@ The handler itself follows one of two shapes:
 
 An `AppError` returned from anywhere in this chain is caught by the
 `render_error_pages` layer, which turns it into the appropriate HTML error page
-and status code. On the way out, the session and store middleware may attach a
-`Set-Cookie` header, the security headers are written, and the trace is closed.
+and status code. The CSB routes have their own `render_csb_error_pages` layer,
+which renders the same page in the CSB layout. On the way out, the session and
+store middleware may attach a `Set-Cookie` header, the security headers are
+written, and the trace is closed.
 
 ## Key dependencies
 
@@ -448,9 +494,12 @@ In production those assets are compiled *into* the binary so there is no
 separate asset directory to deploy:
 
 - Gated behind the `memory-serve` cargo feature. `build.rs` calls
-  `memory_serve::load_directory`, and `router.rs` uses the `memory_serve::load!()`
-  macro to mount the assets under `/static`, with cache-busting filename
-  aliases (`/{hash}-index.js`, `/{hash}-index.css`).
+  `memory_serve::load_directory`, and `src/view/assets.rs` uses the
+  `memory_serve::load!()` macro to mount the assets under `/static` with
+  hashed routes enabled: every file is also served as `/static/index.{hash}.css`
+  with an immutable cache policy, and templates link those routes through
+  `filters::asset_path`, backed by the memory-serve manifest. Unknown paths
+  under `/static` answer a plain 404.
 - When the feature is **off** (development), `/static` instead proxies to the
   esbuild dev server on `localhost:8888`, which also gives hot-reloading of CSS
   and JS. The URL paths are identical in both modes, so templates never need to
@@ -508,8 +557,9 @@ Runtime configuration is read from environment variables once at startup into a
 | `SERVER_NAME` | Short server identifier shown in the page footer. |
 | `EKS_KEY` | Optional shared secret for the `x-eks-key` request gate. |
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` / `GITHUB_ALLOWED_USER_IDS` | Enable the CSB GitHub OAuth login (`/csb/login`): the GitHub OAuth app's credentials and the comma-separated numeric GitHub account ids allowed to log in; all three or none. The client secret is a secret like the master keys. |
-| `DEFAULT_ELECTION` | Election a login lands on when the flow has no election selection of its own (CSB logins, dev logins): the election code, with the region appended after a colon where the type needs one (e.g. `EK27`, `PS27:prov1`). Dev builds default to `EK27`. |
+| `DEFAULT_ELECTION` | Election a login lands on when the flow has no election selection of its own (CSB logins, dev logins): the election code, with the election domain appended after a colon where the type needs one (e.g. `EK27`, `PS27:prov1`). Dev builds default to `EK27`. |
 | `BIND_ADDRESS` | Address the server binds to (also accepted as a CLI argument). |
+| `CSB_BIND_ADDRESS` | Serve the CSB section on a second listener, so it can be published on a domain of its own: a port number (bound on `0.0.0.0`) or an `address:port` with a numeric address. `/csb` is then unreachable on `BIND_ADDRESS`. The second listener serves the whole application, since a committee session correcting paper documents uses the political-group routes as well. With ACME both listeners present the certificate ordered for `ACME_DOMAIN`, so a second domain needs its TLS terminated upstream. |
 | `RATE_LIMIT_DOWNLOADS` / `RATE_LIMIT_DOWNLOADS_WINDOW_SECS` | Document downloads allowed per stream per window (default 60 per 3600s). |
 | `RATE_LIMIT_EVENTS` / `RATE_LIMIT_EVENTS_WINDOW_SECS` | Events one stream may record per window (default 2000 per 3600s). |
 | `RATE_LIMIT_EVENTS_TOTAL` | Absolute cap on the number of events in one stream (default 20000). |
@@ -559,17 +609,20 @@ alerts on that marker.
 ### Cargo features
 
 The build is tailored through Cargo features (`Cargo.toml`). The `default` set
-is development-oriented; a production build typically disables `dev-features`
-and enables the embedding and TLS features.
+is empty, so a plain `cargo build` never compiles in development behaviour:
+`bin/dev` and `bin/check` ask for `development`, while `bin/build` enables the
+embedding and TLS features for a production build.
 
 | Feature | Effect |
 |---------|--------|
+| `development` | The development set: everything `bin/dev` and the local test run need. |
 | `dev-features` | Relaxes config (dev defaults), enables the dev login. |
 | `database` | Postgres / SQLx storage backend. |
 | `migrations` | Run database migrations on startup. |
 | `fixtures` | Optionally load sample data into the store when an election is selected. |
 | `verify-event-hash-chain` | Recompute and verify the event hash chain when replaying. |
 | `livereload` | Live-reload assets and templates during development. |
+| `tvs-mock` | Authenticate against the online TVS mock instead of a real TVS. |
 | `memory-serve` | Serve the frontend assets embedded in the binary. |
 | `tls` | Serve over HTTPS via rustls. |
 | `acme` | Renew the TLS certificate via ACME (Let's Encrypt) http-01. |
@@ -757,11 +810,39 @@ key-wrapping-key derivation below. One `StreamId` covers all of a user's
 elections; the `election` is a separate axis of the `(stream_id, election)`
 key.
 
+### Event encoding
+
+Event payloads and the on-disk stream frames are serialized as CBOR, through
+the small wrapper in `src/store/encoding.rs` (built on `ciborium`). CBOR is
+self-describing: struct fields and enum variants are stored by name, not by
+position. That is what lets the event types evolve without corrupting an
+existing log:
+
+- Inserting, removing or reordering an enum variant or a struct field never
+  makes stored bytes decode as a *different* value. A positional format would
+  silently shift the meaning of every event written before the change.
+- Decoding rejects unknown variant names and trailing bytes, so a type that
+  lost a variant or a field fails loudly instead of quietly dropping data.
+
+What CBOR does not cover: a field added to an existing event still needs
+`#[serde(default)]` to read events written before it existed, and removing or
+renaming a variant or field still needs an explicit migration or a new frame
+version.
+
+Raw byte fields (the chain `hash` and `encrypted_payload` of a frame) carry
+`#[serde(with = "serde_bytes")]` so they encode as CBOR byte strings rather
+than as one integer per byte.
+
+The plaintext encoding runs in two passes: the payload is first measured, then
+encoded into a buffer already sized for the AES-GCM tag, so that neither
+serialization nor in-place encryption reallocates and leaves a plaintext copy
+in freed memory.
+
 ### Event payload encryption and stream keys
 
 On the file and PostgreSQL backends, every event payload is encrypted at rest
 with AES-256-GCM. For implementation details, see `MasterKey` / `StreamKey` /
-`EventCipher` in `src/crypto.rs`.
+`EventCipher` in `src/store/crypto.rs`.
 
 The scheme is envelope encryption with one key **per `(stream_id, election)`**.
 When a stream is first created, a fresh random 256-bit *stream key* is
@@ -782,7 +863,7 @@ consequences:
   between streams or elections.
 - Rotating the master secret only requires re-wrapping each stream's key; the
   event payloads never have to be re-encrypted.
-- A payload is `postcard`-serialized, then AES-256-GCM encrypted under a fresh
+- A payload is CBOR-serialized, then AES-256-GCM encrypted under a fresh
   random 12-byte nonce, and stored as `nonce ‖ ciphertext ‖ tag`. The GCM
   *associated data* additionally binds each ciphertext to its event metadata and
   chain position (see the hash chain below).
@@ -811,7 +892,7 @@ hash_n = SHA256( hash_{n-1} ‖ event_id_n (u64 LE) ‖ created_at_n (i64 LE, mi
   (`GENESIS_HASH`).
 - `body_n` is the *persisted* representation of the payload: the
   `nonce ‖ ciphertext ‖ tag` AES-GCM blob for the file/database backends, or the
-  postcard encoding of the plaintext for the in-memory backend. Hashing the
+  CBOR encoding of the plaintext for the in-memory backend. Hashing the
   *encrypted* blob (which is indistinguishable from random and carries a fresh
   nonce) is deliberate: it lets the hash be stored **unencrypted** without leaking
   anything about the plaintext, while still committing to the exact stored bytes.

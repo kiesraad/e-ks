@@ -11,7 +11,7 @@ use crate::{
     structs::{
         candidate_lists::FullCandidateList,
         candidates::Candidate,
-        common::{HasSeverity, PlaceOfResidence, Problematic},
+        common::{HasSeverity, Problematic},
     },
 };
 
@@ -37,9 +37,10 @@ pub async fn update_person(
         CandidateUpdateTemplate {
             form: FormData::new_with_data(PersonalDataForm::from(candidate.person.clone())),
             overlay: Overlay::new(&query),
-            locality_unknown: PlaceOfResidence::is_unknown_opt(
-                &candidate.person.personal_data.place_of_residence,
-            ),
+            locality_unknown: candidate
+                .person
+                .personal_data
+                .show_unknown_place_of_residence_warning(),
             candidate,
             full_list,
         },
@@ -60,9 +61,10 @@ pub async fn update_person_submit(
         Err(form_data) => Ok(HtmlTemplate(
             CandidateUpdateTemplate {
                 full_list,
-                locality_unknown: PlaceOfResidence::is_unknown_opt(
-                    &candidate.person.personal_data.place_of_residence,
-                ),
+                locality_unknown: candidate
+                    .person
+                    .personal_data
+                    .show_unknown_place_of_residence_warning(),
                 candidate,
                 form: *form_data,
                 overlay: Overlay::new(&query),
@@ -88,7 +90,7 @@ mod tests {
     use super::*;
     use crate::{
         Context, Form, PgStore, QueryParamState,
-        structs::{candidate_lists::CandidateListId, persons::PersonId},
+        structs::{candidate_lists::CandidateListId, common::PlaceOfResidence, persons::PersonId},
         test_utils::{
             response_body_string, sample_candidate_list, sample_person, sample_person_form,
         },

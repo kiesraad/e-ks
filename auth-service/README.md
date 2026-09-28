@@ -59,7 +59,6 @@ paths are advertised in the SP metadata):
 |---|---|---|
 | `GET /saml/sp/metadata` | Serve the signed DV SP metadata (§8.3) | front, browser/RD |
 | `GET /saml/sp/acs` | Assertion Consumer Service (HTTP-Artifact, §7.4) | front, browser |
-| `GET /login/error` | Query-clean landing page for a failed authentication | front, browser |
 | `POST /saml/sp/logout` | Receive the RD `LogoutResponse` (§7.7.2) | front, browser |
 | `GET /saml/sp/autosubmit.js` | Script the HTTP-POST binding page submits | front, browser |
 
@@ -81,7 +80,8 @@ Two channels are used, and they have very different trust properties:
   here is attacker-reachable, so nothing on it is trusted without a signature.
 - **Back-channel**: direct DV→RD HTTPS with **mutual TLS** (§9.4): PKIoverheid
   client certificate, TLS ≥ 1.2, and the RD server pinned to the back-channel
-  root CA ([`pki`](src/saml/pki.rs)). Carries the SOAP `ArtifactResolve` /
+  root CA ([`pki`](src/saml/pki.rs)) and required to carry the RD OIN in its
+  certificate subject ([`mtls`](src/bindings/mtls.rs)). Carries the SOAP `ArtifactResolve` /
   `ArtifactResponse` exchange that actually delivers the assertion.
 
 ## The authentication happy flow
@@ -148,6 +148,10 @@ metadata document is trusted by an *external* anchor, never by its own signature
 - `validUntil`, if present, has to be in the future (§8.2/§8.5); endpoints are clean
   absolute **https** URLs with no characters that could break out of an HTML
   attribute / CSP header / request target.
+- The SSO, ARS and SLO endpoint hosts are **under the pinned RD domain** for the
+  environment (`toegang.overheid.nl`, or `eks-test.nl` for the mock), so even a
+  mis-verified document cannot send the browser or the mTLS back-channel to an
+  arbitrary host.
 
 ### Front-channel binding, login-CSRF / forced login ([`flow.rs`](src/handlers/flow.rs))
 
@@ -263,3 +267,8 @@ attack PoCs ([`xsw_sibling_poc.rs`](tests/xsw_sibling_poc.rs),
 [`xsw_exploit_check.rs`](tests/xsw_exploit_check.rs)) that must stay rejected.
 [`tvs_metadata.rs`](tests/tvs_metadata.rs) validates the real TVS mock metadata;
 its tests are `#[ignore]`d because they need network access.
+
+[`tvs_wire_samples.rs`](tests/tvs_wire_samples.rs) runs the validators over real
+RD `ArtifactResponse` messages: the successful 4.4 flow, the §6.3 cluster
+variant, the two §7.8 error paths, and a pre-4.4 DigiD message that must be
+rejected. Samples and provenance in [`tests/fixtures/tvs/`](tests/fixtures/tvs/).

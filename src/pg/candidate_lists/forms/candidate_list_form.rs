@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeSet;
 use validate::Validate;
 
 use crate::{ElectoralDistrict, structs::candidate_lists::CandidateList};
@@ -8,7 +9,7 @@ use crate::{ElectoralDistrict, structs::candidate_lists::CandidateList};
 #[serde(default)]
 pub struct CandidateListForm {
     #[validate(not_empty)]
-    pub electoral_districts: Vec<ElectoralDistrict>,
+    pub electoral_districts: BTreeSet<ElectoralDistrict>,
 }
 
 impl From<CandidateList> for CandidateListForm {
@@ -27,17 +28,20 @@ mod tests {
     #[tokio::test]
     async fn builds_candidate_list() {
         let form = CandidateListForm {
-            electoral_districts: vec![ElectoralDistrict::Utrecht],
+            electoral_districts: BTreeSet::from([ElectoralDistrict::Utrecht]),
         };
 
         let list = form.validate_create().unwrap();
-        assert_eq!(list.electoral_districts, vec![ElectoralDistrict::Utrecht]);
+        assert_eq!(
+            list.electoral_districts,
+            BTreeSet::from([ElectoralDistrict::Utrecht])
+        );
     }
 
     #[tokio::test]
     async fn rejects_empty_electoral_districts() {
         let form = CandidateListForm {
-            electoral_districts: vec![],
+            electoral_districts: BTreeSet::new(),
         };
 
         let Err(data) = form.validate_create() else {

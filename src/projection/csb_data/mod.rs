@@ -1,24 +1,27 @@
 mod event;
 mod getters;
+mod scrapped;
 
 pub use event::{CsbAction, CsbEvent};
 pub use getters::WithCorrections;
+pub use scrapped::Scrapped;
 
 use std::collections::{HashMap, hash_map::Entry};
 
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 #[cfg(test)]
 use crate::structs::political_groups::PoliticalGroup;
 use crate::{
-    PgEvent, PgStoreData, Scope,
+    ElectoralDistrict, PgEvent, PgStoreData, Scope,
     store::{StoreData, StoreEvent},
     structs::{
-        brp::{BrpFinding, BrpStatus},
+        brp::{BrpFinding, BrpFindingKind, BrpStatus},
         common::{Appellation, UtcDateTime},
         csb::{
-            Correction, Omission, OmissionId, OmissionStatus, PersonCorrection,
-            PersonCorrectionDelta,
+            Correction, Omission, OmissionCategory, OmissionDecision, OmissionId, OmissionPart,
+            OmissionStatus, PersonCorrection, PersonCorrectionDelta,
         },
         persons::PersonId,
     },
@@ -40,6 +43,8 @@ pub struct CsbStoreData {
     pub(crate) brp_validation_status: BrpStatus,
     pub(crate) csb_corrected_persons: HashMap<PersonId, PersonCorrectionDelta>,
     pub(crate) csb_corrected_appellation: Option<Appellation>,
+    /// What the unresolved omissions scrap; derived again after every event.
+    pub(crate) scrapped: Scrapped,
 }
 
 impl StoreData for CsbStoreData {
@@ -61,19 +66,15 @@ impl StoreData for CsbStoreData {
                 snapshot,
                 hash: source_hash,
                 ..
-            } => {
-                self.imported_data = *snapshot;
-                self.paper_corrected_data = self.imported_data.clone();
-
-                // Record the import as event #1 of the corrected projection,
-                // so the paper-corrections audit log starts with it.
-                self.paper_corrected_data.apply(StoreEvent {
+            } => self.apply_import(
+                *snapshot,
+                StoreEvent {
                     event_id,
                     payload: crate::PgEvent::Import { hash: source_hash },
                     created_at,
                     hash,
-                });
-            }
+                },
+            ),
             CsbAction::CreateEmpty => {}
             CsbAction::Delete => self.is_deleted = true,
             CsbAction::PaperCorrectedUpdate(payload) => self.apply_paper_correction(StoreEvent {
@@ -92,17 +93,24 @@ impl StoreData for CsbStoreData {
                 omission_id,
                 status,
             } => self.set_omission_status(omission_id, status, event_time),
-            CsbAction::UpdateCorrection(correction) => {
-                if let Correction::Person(person_id, _) = &correction {
-                    self.forget_brp_check(*person_id);
-                }
-                self.apply_correction(correction)
-            }
+            CsbAction::SetOmissionPartStatus {
+                omission_id,
+                part,
+                status,
+            } => self.set_omission_part_status(omission_id, part, status, event_id, event_time),
+            CsbAction::UpdateCorrection(correction) => self.apply_correction(correction),
             CsbAction::BrpPersonChecked { person, findings } => {
                 self.brp_findings.insert(person, findings);
             }
+            CsbAction::SetBrpFindingHandled {
+                person,
+                finding,
+                handled,
+            } => self.set_brp_finding_handled(person, &finding, handled),
             CsbAction::SetBrpStatus(value) => self.brp_validation_status = value,
         }
+
+        self.refresh_scrapped();
     }
 
     fn events(&self) -> &[StoreEvent<Self::Event>] {
@@ -115,6 +123,40 @@ impl StoreData for CsbStoreData {
 }
 
 impl CsbStoreData {
+    /// Derive what is scrapped from the current omissions and corrected data.
+    pub(crate) fn refresh_scrapped(&mut self) {
+        self.scrapped = Scrapped::derive(&self.paper_corrected_data, &self.omissions);
+    }
+
+    /// Take over an imported package as both projections. `import` becomes
+    /// event #1 of the corrected one, starting its audit log.
+    fn apply_import(&mut self, snapshot: PgStoreData, import: StoreEvent<crate::PgEvent>) {
+        self.imported_data = snapshot;
+        self.paper_corrected_data = self.imported_data.clone();
+        self.paper_corrected_data.apply(import);
+    }
+
+    /// Flag every finding of this candidate that is `finding`; a finding that
+    /// a re-check has since replaced is left alone.
+    fn set_brp_finding_handled(
+        &mut self,
+        person_id: PersonId,
+        finding: &BrpFindingKind,
+        handled: bool,
+    ) {
+        // `get_mut`, not `entry`: an unchecked candidate must not turn into a
+        // checked one with nothing found.
+        let Some(recorded) = self.brp_findings.get_mut(&person_id) else {
+            return;
+        };
+        for recorded in recorded
+            .iter_mut()
+            .filter(|recorded| recorded.kind == *finding)
+        {
+            recorded.handled = handled;
+        }
+    }
+
     /// Forget what the BRP said about this candidate. Their data changed, so
     /// the findings are about values that are no longer on screen; dropping
     /// them puts the candidate back to "not checked" and lets a new check pick
@@ -140,6 +182,8 @@ impl CsbStoreData {
         });
     }
 
+    /// Record a decision on the omission, then read it as one with the
+    /// omission that has the same details and holds the same decision.
     fn set_omission_status(
         &mut self,
         omission_id: OmissionId,
@@ -150,12 +194,102 @@ impl CsbStoreData {
             omission.status = status;
             omission.updated_at = event_time;
         });
+        self.merge_omission(omission_id, event_time);
+    }
+
+    /// Record a decision on one part of the omission. While the omission
+    /// covers other parts, the part is split off first: a copy under an id
+    /// derived from the event, so replaying the stream is deterministic.
+    fn set_omission_part_status(
+        &mut self,
+        omission_id: OmissionId,
+        part: OmissionPart,
+        status: OmissionStatus,
+        event_id: usize,
+        event_time: UtcDateTime,
+    ) {
+        let Some(omission) = self.omissions.get(&omission_id).cloned() else {
+            return;
+        };
+
+        let decided = match omission.category.decide(part) {
+            None => return,
+            Some(OmissionDecision::Whole) => omission_id,
+            Some(OmissionDecision::Split { remaining, split }) => {
+                let split_id = split_off_id(omission_id, event_id);
+                self.omissions.insert(
+                    split_id,
+                    Omission {
+                        id: split_id,
+                        category: split,
+                        updated_at: event_time,
+                        ..omission
+                    },
+                );
+                self.omissions.entry(omission_id).and_modify(|omission| {
+                    omission.category = remaining;
+                    omission.updated_at = event_time;
+                });
+                split_id
+            }
+        };
+
+        self.set_omission_status(decided, status, event_time);
+    }
+
+    /// Read the omission as one with the omission that has the same details
+    /// and holds the same decision, if any: that one takes its parts over and
+    /// the omission goes away. Pending omissions stay as they were reported.
+    fn merge_omission(&mut self, omission_id: OmissionId, event_time: UtcDateTime) {
+        let Some(omission) = self.omissions.get(&omission_id) else {
+            return;
+        };
+        if omission.status == OmissionStatus::Pending {
+            return;
+        }
+        let Some(holder) = self
+            .omissions
+            .values()
+            .filter(|o| {
+                o.id != omission_id && o.status == omission.status && o.has_same_details(omission)
+            })
+            .min_by_key(|o| o.id)
+        else {
+            return;
+        };
+        let Some(mut category) = holder.category.merged_with(&omission.category) else {
+            return;
+        };
+        let holder_id = holder.id;
+
+        self.sort_candidate_lists(&mut category);
+        self.omissions.remove(&omission_id);
+        self.omissions.entry(holder_id).and_modify(|holder| {
+            holder.category = category;
+            holder.updated_at = event_time;
+        });
+    }
+
+    /// Put the lists of a category in district order, by their first
+    /// district, the way omissions are read.
+    fn sort_candidate_lists(&self, category: &mut OmissionCategory) {
+        if let OmissionCategory::CandidateList(lists) | OmissionCategory::Candidate { lists, .. } =
+            category
+        {
+            lists.sort_by_key(|list_id| {
+                self.paper_corrected_data
+                    .candidate_lists
+                    .get(list_id)
+                    .and_then(|list| list.electoral_districts.first())
+                    .map_or(u16::MAX, ElectoralDistrict::region_number)
+            });
+        }
     }
 
     /// Replay an app event onto the corrected projection, keeping the CSB
     /// stream's own event metadata.
     fn apply_paper_correction(&mut self, event: StoreEvent<PgEvent>) {
-        if let Some(person_id) = candidate_changed_by(&event.payload) {
+        for person_id in candidates_changed_by(&event.payload) {
             self.forget_brp_check(person_id);
         }
 
@@ -163,7 +297,8 @@ impl CsbStoreData {
     }
 
     /// Record a CSB correction. Correcting a value back to the one already in
-    /// the paper-corrected projection undoes the correction instead.
+    /// the paper-corrected projection undoes the correction instead. A
+    /// corrected candidate is no longer checked against the BRP.
     fn apply_correction(&mut self, correction: Correction) {
         match correction {
             Correction::Appellation(appellation) => {
@@ -177,6 +312,7 @@ impl CsbStoreData {
                     };
             }
             Correction::Person(person_id, correction) => {
+                self.forget_brp_check(person_id);
                 self.apply_person_correction(person_id, correction)
             }
         }
@@ -205,18 +341,33 @@ impl CsbStoreData {
     }
 }
 
-/// The candidate whose BRP-checked data an app event changes, if any.
+/// The id of the part split off `omission_id` by event `event_id`: the same on
+/// every replay of the stream.
+fn split_off_id(omission_id: OmissionId, event_id: usize) -> OmissionId {
+    Uuid::new_v5(&Uuid::from(omission_id), &event_id.to_be_bytes()).into()
+}
+
+/// The candidates whose BRP-checked data an app event changes.
 ///
 /// The correspondence address and the representative are absent on purpose:
 /// the BRP check does not compare them, so changing one leaves its findings
 /// standing.
-fn candidate_changed_by(event: &PgEvent) -> Option<PersonId> {
+fn candidates_changed_by(event: &PgEvent) -> Vec<PersonId> {
     match event {
-        PgEvent::CreatePerson(person) | PgEvent::UpdatePerson(person) => Some(person.id),
+        PgEvent::CreatePerson(person) | PgEvent::UpdatePerson(person) => vec![person.id],
         PgEvent::CreatePersonPersonalData { person_id, .. }
         | PgEvent::UpdatePersonPersonalData { person_id, .. }
-        | PgEvent::DeletePerson { person_id } => Some(*person_id),
-        _ => None,
+        | PgEvent::DeletePerson { person_id } => vec![*person_id],
+        PgEvent::ImportCandidates {
+            created_persons,
+            updated_persons,
+            ..
+        } => created_persons
+            .iter()
+            .chain(updated_persons)
+            .map(|person| person.id)
+            .collect(),
+        _ => Vec::new(),
     }
 }
 
@@ -241,6 +392,7 @@ impl crate::CsbStream {
         let mut data = self.data.write();
         data.imported_data.political_group = political_group.clone();
         data.paper_corrected_data.political_group = political_group;
+        data.refresh_scrapped();
     }
 
     pub fn add_candidate_list(&self, list: crate::structs::candidate_lists::CandidateList) {
@@ -251,6 +403,7 @@ impl crate::CsbStream {
         data.paper_corrected_data
             .candidate_lists
             .insert(list.id, list);
+        data.refresh_scrapped();
     }
 
     /// Test setter writing only the corrected projection, mirroring a list
@@ -259,11 +412,11 @@ impl crate::CsbStream {
         &self,
         list: crate::structs::candidate_lists::CandidateList,
     ) {
-        self.data
-            .write()
-            .paper_corrected_data
+        let mut data = self.data.write();
+        data.paper_corrected_data
             .candidate_lists
             .insert(list.id, list);
+        data.refresh_scrapped();
     }
 
     pub fn add_person(&self, person: crate::structs::persons::Person) {
@@ -309,6 +462,115 @@ mod tests {
             snapshot: Box::new(snapshot),
         }
         .by(CsbUser::new_test())
+    }
+
+    fn declarations_of_support(districts: Vec<ElectoralDistrict>) -> Omission {
+        Omission::new(
+            OmissionCategory::DeclarationsOfSupport(districts),
+            "Declarations of support missing".parse().unwrap(),
+            "Too few declarations of support were handed in."
+                .parse()
+                .unwrap(),
+            None,
+        )
+    }
+
+    fn replay(events: &[CsbAction]) -> CsbStoreData {
+        let mut data = CsbStoreData::default();
+        for (index, action) in events.iter().enumerate() {
+            data.apply(StoreEvent::new(
+                index + 1,
+                action.clone().by(CsbUser::new_test()),
+            ));
+        }
+        data
+    }
+
+    #[test]
+    fn a_part_decision_splits_the_part_off_under_an_id_derived_from_the_event() {
+        let omission = declarations_of_support(vec![
+            ElectoralDistrict::Groningen,
+            ElectoralDistrict::Fryslan,
+        ]);
+        let events = [
+            CsbAction::CreateOmission(omission.clone()),
+            CsbAction::SetOmissionPartStatus {
+                omission_id: omission.id,
+                part: OmissionPart::ElectoralDistrict(ElectoralDistrict::Groningen),
+                status: OmissionStatus::Recovered,
+            },
+        ];
+
+        let data = replay(&events);
+        assert_eq!(data.omissions.len(), 2);
+        let remaining = &data.omissions[&omission.id];
+        assert_eq!(
+            remaining.category,
+            OmissionCategory::DeclarationsOfSupport(vec![ElectoralDistrict::Fryslan])
+        );
+        assert_eq!(remaining.status, OmissionStatus::Pending);
+        let split = &data.omissions[&split_off_id(omission.id, 2)];
+        assert_eq!(
+            split.category,
+            OmissionCategory::DeclarationsOfSupport(vec![ElectoralDistrict::Groningen])
+        );
+        assert_eq!(split.status, OmissionStatus::Recovered);
+        assert_eq!(split.title, omission.title);
+
+        // Replaying the stream yields the same ids.
+        let ids = |data: &CsbStoreData| {
+            let mut ids: Vec<OmissionId> = data.omissions.keys().copied().collect();
+            ids.sort();
+            ids
+        };
+        assert_eq!(ids(&replay(&events)), ids(&data));
+    }
+
+    #[test]
+    fn decisions_alike_read_as_one_omission() {
+        let groningen = declarations_of_support(vec![ElectoralDistrict::Groningen]);
+        let fryslan = declarations_of_support(vec![ElectoralDistrict::Fryslan]);
+        let data = replay(&[
+            CsbAction::CreateOmission(fryslan.clone()),
+            CsbAction::CreateOmission(groningen.clone()),
+            CsbAction::SetOmissionStatus {
+                omission_id: fryslan.id,
+                status: OmissionStatus::Recovered,
+            },
+            // The whole of Groningen is decided alike, so it joins Fryslân.
+            CsbAction::SetOmissionPartStatus {
+                omission_id: groningen.id,
+                part: OmissionPart::ElectoralDistrict(ElectoralDistrict::Groningen),
+                status: OmissionStatus::Recovered,
+            },
+        ]);
+
+        assert_eq!(data.omissions.len(), 1);
+        let merged = &data.omissions[&fryslan.id];
+        assert_eq!(
+            merged.category,
+            OmissionCategory::DeclarationsOfSupport(vec![
+                ElectoralDistrict::Groningen,
+                ElectoralDistrict::Fryslan
+            ])
+        );
+        assert_eq!(merged.status, OmissionStatus::Recovered);
+    }
+
+    #[test]
+    fn a_part_decision_for_an_uncovered_district_changes_nothing() {
+        let omission = declarations_of_support(vec![ElectoralDistrict::Groningen]);
+        let data = replay(&[
+            CsbAction::CreateOmission(omission.clone()),
+            CsbAction::SetOmissionPartStatus {
+                omission_id: omission.id,
+                part: OmissionPart::ElectoralDistrict(ElectoralDistrict::Utrecht),
+                status: OmissionStatus::Recovered,
+            },
+        ]);
+
+        assert_eq!(data.omissions.len(), 1);
+        assert_eq!(data.omissions[&omission.id].status, OmissionStatus::Pending);
     }
 
     #[test]
@@ -361,7 +623,7 @@ mod tests {
             1,
             CsbAction::UpdateCorrection(Correction::Person(
                 person.id,
-                PersonCorrection::Initials(Initials::from_str("A.B.").unwrap()),
+                PersonCorrection::Initials(Some(Initials::from_str("A.B.").unwrap())),
             ))
             .by(CsbUser::new_test()),
         ));
@@ -501,7 +763,7 @@ mod tests {
         data.apply(StoreEvent::new(1, import_event_with_person(person)));
 
         let corrections = [
-            PersonCorrection::Initials("X.Y.Z.".parse().unwrap()),
+            PersonCorrection::Initials(Some("X.Y.Z.".parse().unwrap())),
             PersonCorrection::LastName("Bakker".parse().unwrap()),
             PersonCorrection::DateOfBirth("15-06-1985".parse().unwrap()),
             PersonCorrection::PlaceOfResidence(PlaceOfResidence::Known("Amsterdam".to_string())),
@@ -528,7 +790,7 @@ mod brp_reset_tests {
     use super::*;
     use crate::{
         structs::{
-            brp::BrpFinding,
+            brp::BrpFindingKind,
             csb::{Correction, PersonCorrection},
         },
         test_utils::sample_person,
@@ -541,7 +803,7 @@ mod brp_reset_tests {
         store
             .update(CsbAction::BrpPersonChecked {
                 person: person.id,
-                findings: vec![BrpFinding::NotDutch],
+                findings: vec![BrpFindingKind::NotDutch.into()],
             })
             .await
             .unwrap();
@@ -593,6 +855,30 @@ mod brp_reset_tests {
     }
 
     #[tokio::test]
+    async fn a_paper_correction_csv_import_drops_what_the_brp_said() {
+        let mut person = sample_person(PersonId::new());
+        let person_id = person.id;
+        let store = checked_store(person.clone()).await;
+
+        person.name.last_name = "Gecorrigeerd".parse().unwrap();
+        store
+            .update(CsbAction::PaperCorrectedUpdate(Box::new(
+                crate::PgEvent::ImportCandidates {
+                    list_id: crate::structs::candidate_lists::CandidateListId::new(),
+                    file_name: "kandidaten.csv".to_string(),
+                    file_size: 1,
+                    created_persons: Vec::new(),
+                    updated_persons: vec![person],
+                    candidates: vec![person_id],
+                },
+            )))
+            .await
+            .unwrap();
+
+        assert!(!store.is_brp_checked(person_id));
+    }
+
+    #[tokio::test]
     async fn a_change_the_brp_check_never_looked_at_leaves_the_findings_alone() {
         let person = sample_person(PersonId::new());
         let person_id = person.id;
@@ -636,5 +922,71 @@ mod brp_reset_tests {
 
         assert!(!store.is_brp_checked(person_id));
         assert_eq!(store.get_brp_status(), BrpStatus::NotStarted);
+    }
+
+    #[tokio::test]
+    async fn marking_a_finding_handled_flags_that_finding_only() {
+        let person = sample_person(crate::structs::persons::PersonId::new());
+        let person_id = person.id;
+        let store = crate::CsbStore::new_for_test();
+        store.add_person(person);
+        store
+            .update(CsbAction::BrpPersonChecked {
+                person: person_id,
+                findings: vec![
+                    BrpFindingKind::NotDutch.into(),
+                    BrpFindingKind::BsnUnknown.into(),
+                ],
+            })
+            .await
+            .unwrap();
+
+        store
+            .update(CsbAction::SetBrpFindingHandled {
+                person: person_id,
+                finding: BrpFindingKind::BsnUnknown,
+                handled: true,
+            })
+            .await
+            .unwrap();
+
+        let handled: Vec<bool> = store
+            .get_brp_findings_for_person(person_id)
+            .iter()
+            .map(|finding| finding.handled)
+            .collect();
+        assert_eq!(handled, vec![false, true]);
+
+        store
+            .update(CsbAction::SetBrpFindingHandled {
+                person: person_id,
+                finding: BrpFindingKind::BsnUnknown,
+                handled: false,
+            })
+            .await
+            .unwrap();
+        assert!(
+            store
+                .get_brp_findings_for_person(person_id)
+                .iter()
+                .all(|finding| !finding.handled)
+        );
+    }
+
+    #[tokio::test]
+    async fn marking_a_finding_of_an_unchecked_candidate_does_not_check_them() {
+        let store = crate::CsbStore::new_for_test();
+        let person_id = crate::structs::persons::PersonId::new();
+
+        store
+            .update(CsbAction::SetBrpFindingHandled {
+                person: person_id,
+                finding: BrpFindingKind::NotDutch,
+                handled: true,
+            })
+            .await
+            .unwrap();
+
+        assert!(!store.is_brp_checked(person_id));
     }
 }

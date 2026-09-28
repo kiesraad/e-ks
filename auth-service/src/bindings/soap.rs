@@ -1,5 +1,6 @@
 //! SAML SOAP binding: the mTLS back-channel used for artifact resolution
-//! (eID §7.5, §9.4).
+//! (eID §7.5, §9.4). The TLS side (pinned root, RD OIN check, client identity)
+//! lives in [`super::mtls`].
 
 use crate::{
     config::TlsConfig,
@@ -11,11 +12,11 @@ use crate::{
     types::EndpointUrl,
 };
 use std::{
-    fs,
     path::PathBuf,
     sync::{Mutex, PoisonError},
     time::Duration,
 };
+use tokio::fs;
 use tracing::debug;
 
 /// Connection-establishment ceiling for the mTLS back-channel.
@@ -40,18 +41,19 @@ pub(crate) const MAX_HTTP_BODY_BYTES: usize = 5 * 1024 * 1024;
 /// A cert rotated in place under the same path is picked up on the next process
 /// start, matching the deployment model (the DV mTLS identity rotates via
 /// redeploy).
+///
+/// The lock is never held across an await: a miss releases it, builds the
+/// client, then stores it. Two concurrent first callers may both build one;
+/// the later store wins and the other client is simply dropped.
 static MTLS_CLIENT: Mutex<Option<(PathBuf, PathBuf, reqwest::Client)>> = Mutex::new(None);
 
 /// The mTLS client for `tls`, built once and then reused across requests.
-fn mtls_client(tls: &TlsConfig) -> Result<reqwest::Client> {
-    let mut cache = MTLS_CLIENT.lock().unwrap_or_else(PoisonError::into_inner);
-    if let Some((cert, key, client)) = cache.as_ref()
-        && *cert == tls.client_cert
-        && *key == tls.client_key
-    {
-        return Ok(client.clone());
+async fn mtls_client(tls: &TlsConfig) -> Result<reqwest::Client> {
+    if let Some(client) = cached_mtls_client(tls) {
+        return Ok(client);
     }
-    let client = build_mtls_client(tls)?;
+    let client = build_mtls_client(tls).await?;
+    let mut cache = MTLS_CLIENT.lock().unwrap_or_else(PoisonError::into_inner);
     *cache = Some((
         tls.client_cert.clone(),
         tls.client_key.clone(),
@@ -60,36 +62,47 @@ fn mtls_client(tls: &TlsConfig) -> Result<reqwest::Client> {
     Ok(client)
 }
 
+/// The cached client, if one was built for exactly these cert/key paths.
+fn cached_mtls_client(tls: &TlsConfig) -> Option<reqwest::Client> {
+    let cache = MTLS_CLIENT.lock().unwrap_or_else(PoisonError::into_inner);
+    let (cert, key, client) = cache.as_ref()?;
+    (*cert == tls.client_cert && *key == tls.client_key).then(|| client.clone())
+}
+
 /// Build a reqwest async client configured for mTLS per eID §9.4.
 ///
 /// eID §9.4: Back-channel requires mutual TLS with PKIoverheid certificates
-/// (key length >= 2048 bits). TLS v1.2 or higher per NCSC directive.
-fn build_mtls_client(tls: &TlsConfig) -> Result<reqwest::Client> {
+/// (key length >= 2048 bits). TLS v1.2 or higher per NCSC directive. The TLS
+/// configuration (pinned root, RD OIN check on the server cert, protocol floor,
+/// client identity) is built in [`super::mtls`] and handed to reqwest as a
+/// preconfigured backend; reqwest's own TLS builder methods are ignored for such
+/// a client, so none are set here.
+///
+/// A preconfigured backend requires reqwest and this crate to use the same
+/// `rustls` crate version; on a mismatch `build()` fails, which the unit test
+/// below (and the first back-channel call) catches.
+async fn build_mtls_client(tls: &TlsConfig) -> Result<reqwest::Client> {
     debug!(
         "[soap] Building mTLS client: client_cert={}, client_key=<redacted>",
         tls.client_cert.display(),
     );
     let cert_pem = fs::read(&tls.client_cert)
+        .await
         .map_err(|e| AuthError::Http(format!("Failed to read TLS client cert: {e}")))?;
     // SECURITY: never log key_pem bytes; it is the private key.
     let key_pem = fs::read(&tls.client_key)
+        .await
         .map_err(|e| AuthError::Http(format!("Failed to read TLS client key: {e}")))?;
 
-    let mut identity_pem = cert_pem;
-    identity_pem.push(b'\n');
-    identity_pem.extend_from_slice(&key_pem);
-    let identity = reqwest::Identity::from_pem(&identity_pem)
-        .map_err(|e| AuthError::Http(format!("Failed to build TLS identity: {e}")))?;
-
-    let ca = reqwest::Certificate::from_pem(crate::saml::pki::BACKCHANNEL_ROOT_CA_PEM)
-        .map_err(|e| AuthError::Http(format!("Failed to parse back-channel root CA: {e}")))?;
+    let config = super::mtls::client_config(
+        crate::saml::pki::BACKCHANNEL_ROOT_CA_PEM,
+        crate::config::RD_OIN,
+        &cert_pem,
+        &key_pem,
+    )?;
 
     reqwest::Client::builder()
-        .identity(identity)
-        .tls_certs_only([ca])
-        // eID §9.4 / NCSC: TLS 1.2 or higher. rustls already refuses older
-        // versions; pin it explicitly so the floor survives a backend change.
-        .min_tls_version(reqwest::tls::Version::TLS_1_2)
+        .tls_backend_preconfigured(config)
         // Bound a slow/unresponsive RD so a back-channel call cannot hang a
         // request (or a tokio worker) indefinitely.
         .connect_timeout(CONNECT_TIMEOUT)
@@ -135,7 +148,7 @@ pub async fn send_soap_request(
     tls: &TlsConfig,
 ) -> Result<String> {
     debug!("[soap] POST {url} (request_body_len={})", soap_xml.len());
-    let client = mtls_client(tls)?;
+    let client = mtls_client(tls).await?;
     let response = client
         .post(url.as_str())
         .header("Content-Type", "text/xml; charset=utf-8")
@@ -230,14 +243,15 @@ mod tests {
         }
     }
 
-    #[test]
-    fn mtls_client_builds_and_is_reused() {
+    #[tokio::test]
+    async fn mtls_client_builds_and_is_reused() {
         let tls = fixture_tls();
         // First call builds the client; the second must hit the cache (same
         // cert/key paths) and also succeed. Both build a real rustls mTLS
         // client from the fixture identity + pinned back-channel root, but do
         // no network I/O.
-        assert!(mtls_client(&tls).is_ok(), "first build");
-        assert!(mtls_client(&tls).is_ok(), "cached reuse");
+        assert!(mtls_client(&tls).await.is_ok(), "first build");
+        assert!(cached_mtls_client(&tls).is_some(), "client is cached");
+        assert!(mtls_client(&tls).await.is_ok(), "cached reuse");
     }
 }

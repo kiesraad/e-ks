@@ -1,0 +1,44 @@
+{% extends "csb/components/layout.html" %}
+{% block breadcrumbs %}
+  {{ breadcrumb(crate::csb::registered_political_groups::CsbRegisteredPoliticalGroupsPath, "csb.registered_political_groups.title") }}
+{% endblock %}
+{% block page_title %}
+  {{ "csb.registered_political_groups.title"|trans }}
+{% endblock %}
+{% block header_action %}
+  <div class="header-buttons">
+    <a href="{{ crate::csb::index::CsbIndexPath }}" class="button secondary">{{ "action.back"|trans }}</a>
+  </div>
+{% endblock %}
+{% block content %}
+  <div class="examination-main card card-plain">
+    <a href="{{ crate::csb::registered_political_groups::CsbAddRegisteredPoliticalGroupPath }}"
+       class="button secondary icon-plus">{{ "csb.action.add_political_group"|trans }}</a>
+    {% if groups.is_empty() %}
+      <p class="font-italic">{{ "csb.registered_political_groups.none"|trans }}</p>
+    {% else %}
+      <table class="registered-political-groups-table mb-xl mt-md">
+        <thead>
+          <tr>
+            <th>{{ "political_group.appellation"|trans }}</th>
+            <th>{{ "csb.registered_political_groups.previous_votes"|trans }}</th>
+            <th>{{ "csb.registered_political_groups.previous_seats"|trans }}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for group in groups %}
+            <tr class="clickable">
+              <td>{{ group.appellation }}</td>
+              <td class="font-number">{{ group.previous_votes }}</td>
+              <td class="font-number">{{ group.previous_seats }}</td>
+              <td>
+                <a href="{{ group.edit_path() }}" title="{{ "action.edit"|trans }}"></a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </div>
+{% endblock %}

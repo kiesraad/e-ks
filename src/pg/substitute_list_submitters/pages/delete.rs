@@ -45,7 +45,7 @@ pub async fn delete_substitute_submitter(
 ) -> Result<Response, AppError> {
     substitute_submitter.delete_substitute(&store).await?;
 
-    Ok(query.redirect_or(ListSubmitter::view_path()))
+    Ok(query.redirect_or_preserving_initial(ListSubmitter::view_path()))
 }
 
 #[cfg(test)]

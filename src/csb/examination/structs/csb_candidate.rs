@@ -1,7 +1,7 @@
 use crate::{
     AnyLocale, CsbStream,
     csb::examination::structs::{BrpCheckState, RestorationStatus},
-    projection::WithCorrections,
+    projection::{Scrapped, WithCorrections},
     structs::{candidate_lists::CandidateList, persons::Person},
 };
 
@@ -33,8 +33,9 @@ impl CsbCandidate {
         list: &CandidateList,
         locale: AnyLocale,
     ) -> Vec<CsbCandidate> {
-        let mut rows = imported_rows(store, list, locale);
-        rows.extend(corrected_only_rows(store, list, locale));
+        let scrapped = store.get_scrapped();
+        let mut rows = imported_rows(store, list, locale, &scrapped);
+        rows.extend(corrected_only_rows(store, list, locale, &scrapped));
         rows.sort_by_key(|(position, _)| *position);
         rows.into_iter().map(|(_, row)| row).collect()
     }
@@ -46,6 +47,7 @@ fn imported_rows(
     store: &CsbStream,
     list: &CandidateList,
     locale: AnyLocale,
+    scrapped: &Scrapped,
 ) -> Vec<(usize, CsbCandidate)> {
     list.candidates
         .iter()
@@ -81,7 +83,7 @@ fn imported_rows(
                     .with_csb_correction(csb_corrected.as_ref().map(residence_string)),
                     restoration_status: RestorationStatus::for_candidate(store, person.id, list.id),
                     brp: BrpCheckState::for_candidate(store, person.id),
-                    is_scrapped: store.is_candidate_scrapped(person.id, list.id),
+                    is_scrapped: scrapped.is_candidate_scrapped(list.id, person.id),
                     recovery_position: store.get_recovery_position(list.id, person.id),
                     person,
                 },
@@ -96,6 +98,7 @@ fn corrected_only_rows(
     store: &CsbStream,
     list: &CandidateList,
     locale: AnyLocale,
+    scrapped: &Scrapped,
 ) -> Vec<(usize, CsbCandidate)> {
     let Some(corrected_list) = store.get_candidate_list(list.id, WithCorrections::All) else {
         return Vec::new();
@@ -121,7 +124,7 @@ fn corrected_only_rows(
                         .with_csb_correction(csb_corrected.as_ref().map(residence_string)),
                     brp: BrpCheckState::for_candidate(store, person.id),
                     restoration_status: RestorationStatus::for_candidate(store, person.id, list.id),
-                    is_scrapped: store.is_candidate_scrapped(person.id, list.id),
+                    is_scrapped: scrapped.is_candidate_scrapped(list.id, person.id),
                     recovery_position: store.get_recovery_position(list.id, person.id),
                     person,
                 },

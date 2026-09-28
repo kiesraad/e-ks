@@ -1,0 +1,12 @@
+{% if !("paper_correction_mode"|value_true) %}
+  <nav class="footer-nav">
+    {% if !delete_path.is_empty() %}
+      <a href="{{ delete_path }}" class="delete-link">{{ "candidate_list.actions.delete_list"|trans }}</a>
+    {% endif %}
+    <div class="footer-nav-end">
+      <p>{{ "candidate_list.finalise_nav.question"|trans }}</p>
+      <a href="{{ crate::finalise::FinalisePath{}.to_string() }}"
+         class="button secondary">{{ "candidate_list.finalise_nav.action"|trans }}</a>
+    </div>
+  </nav>
+{% endif %}

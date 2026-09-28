@@ -1,11 +1,6 @@
 {% extends "pg/common/components/layout.html" %}
-{% block page_title %}{{ title }}{% endblock %}
+{% import "pg/common/components/macros.html" as macros %}
+{% block page_title %}{{ page.title }}{% endblock %}
 {% block content %}
-  <div class="card error-card">
-    <div class="alert alert-error">{{ message }}</div>
-    <div class="error-card-footer">
-      <a href="/" class="button">{{ "action.back_home"|trans }}</a>
-      <span class="error-code">{{ "common.error_code"|trans(status_code.as_str() ) }}</span>
-    </div>
-  </div>
+  {{ macros::error_card(page.message, page.status_code, "/") }}
 {% endblock %}

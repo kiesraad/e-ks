@@ -66,7 +66,7 @@ pub async fn update_list_submitter_submit(
             let updated = list_submitter.updated_from(list_submitter_data);
             updated.update(&store).await?;
 
-            Ok(query.redirect_or(ListSubmitter::view_path()))
+            Ok(query.redirect_or_preserving_initial(ListSubmitter::view_path()))
         }
     }
 }

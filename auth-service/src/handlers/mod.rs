@@ -23,6 +23,8 @@ pub(crate) mod test_support {
         response::{IntoResponse, Response},
     };
     use axum_extra::extract::CookieJar;
+    use parking_lot::Mutex;
+    use std::{collections::HashSet, sync::Arc};
 
     /// Minimal [`AuthState`] wrapping an [`AuthServiceState`], used to drive the
     /// handlers directly without a router. Encodes each [`AuthFailure`] kind as
@@ -32,6 +34,9 @@ pub(crate) mod test_support {
         pub auth: AuthServiceState,
         /// What `logout_session` reports it tore down.
         pub session: LoggedOutSession,
+        /// The application's pending-AuthnRequest store, shared with the clone
+        /// the handler is called with so a test can observe the consume.
+        pending: Arc<Mutex<HashSet<MessageId>>>,
     }
 
     impl MockAuthState {
@@ -39,11 +44,20 @@ pub(crate) mod test_support {
             Self {
                 auth,
                 session: LoggedOutSession::None,
+                pending: Arc::default(),
             }
         }
 
         pub(crate) fn empty() -> Self {
             Self::new(AuthServiceState::new_empty())
+        }
+
+        /// Seed the store with an outstanding AuthnRequest ID, as `/login` would.
+        pub(crate) fn with_pending(self, id: &str) -> Self {
+            self.pending
+                .lock()
+                .insert(MessageId::parse(id).expect("test message id"));
+            self
         }
     }
 
@@ -69,22 +83,29 @@ pub(crate) mod test_support {
             failure: AuthFailure,
             _jar: CookieJar,
             _headers: &HeaderMap,
+            end_session: bool,
         ) -> Response {
-            match failure {
-                AuthFailure::Unavailable => StatusCode::SERVICE_UNAVAILABLE.into_response(),
-                AuthFailure::Cancelled => StatusCode::FORBIDDEN.into_response(),
-                AuthFailure::Error => StatusCode::UNAUTHORIZED.into_response(),
-            }
+            let status = match failure {
+                AuthFailure::Unavailable => StatusCode::SERVICE_UNAVAILABLE,
+                AuthFailure::Cancelled => StatusCode::FORBIDDEN,
+                AuthFailure::Error => StatusCode::UNAUTHORIZED,
+            };
+            // lets tests see the flag
+            (status, [("x-test-end-session", end_session.to_string())]).into_response()
         }
 
         async fn logout_session(&self, jar: CookieJar) -> (CookieJar, LoggedOutSession) {
             (jar, self.session.clone())
         }
 
-        async fn register_pending_request(&self, _id: MessageId) {}
+        async fn register_pending_request(&self, id: MessageId) {
+            self.pending.lock().insert(id);
+        }
 
-        async fn consume_if_pending(&self, _id: MessageId) -> bool {
-            false
+        /// Consume-once, like the real store: a replay of an ID already taken
+        /// finds nothing left to match.
+        async fn consume_if_pending(&self, id: MessageId) -> bool {
+            self.pending.lock().remove(&id)
         }
     }
 }

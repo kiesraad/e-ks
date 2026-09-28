@@ -2,7 +2,7 @@ use askama::Template;
 use axum::response::IntoResponse;
 
 use crate::{
-    AppError, Context, HtmlTemplate, PgStore,
+    AppError, Context, EventHashPrefix, HtmlTemplate, PgStore,
     core::ModelLocale,
     filters,
     finalise::AllProblems,
@@ -32,15 +32,18 @@ pub async fn index(
     store: PgStore,
 ) -> Result<impl IntoResponse, AppError> {
     let problems = AllProblems::find_all(&store)?;
+    let event_hash = EventHashPrefix::of(&store.current_event_hash());
 
     Ok(HtmlTemplate(
         IndexTemplate {
             problems,
             download_path_nl: super::DownloadDocumentsPath {
+                event_hash,
                 locale: ModelLocale::Nl,
             }
             .to_string(),
             download_path_fry: super::DownloadDocumentsPath {
+                event_hash,
                 locale: ModelLocale::Fry,
             }
             .to_string(),
@@ -65,6 +68,7 @@ mod tests {
         },
     };
     use axum::response::IntoResponse;
+    use std::collections::BTreeSet;
 
     #[tokio::test]
     async fn index_shows_document_downloads_for_complete_lists() -> Result<(), AppError> {
@@ -81,6 +85,7 @@ mod tests {
         complete_list.create(&store).await?;
         complete_list.append_candidate(&store, person_id).await?;
 
+        let event_hash = EventHashPrefix::of(&store.current_event_hash());
         let response = index(FinalisePath, Context::new_test_without_db(), store)
             .await?
             .into_response();
@@ -89,6 +94,7 @@ mod tests {
         assert!(
             body.contains(
                 &super::super::DownloadDocumentsPath {
+                    event_hash,
                     locale: ModelLocale::Nl,
                 }
                 .to_string()
@@ -98,6 +104,7 @@ mod tests {
         assert!(
             body.matches(
                 &super::super::DownloadDocumentsPath {
+                    event_hash,
                     locale: ModelLocale::Nl,
                 }
                 .to_string()
@@ -131,10 +138,11 @@ mod tests {
             sample_person(person_id).create(&store).await?;
 
             let mut complete_list = sample_candidate_list(complete_list_id);
-            complete_list.electoral_districts = vec![district];
+            complete_list.electoral_districts = BTreeSet::from([district]);
             complete_list.create(&store).await?;
             complete_list.append_candidate(&store, person_id).await?;
 
+            let event_hash = EventHashPrefix::of(&store.current_event_hash());
             let response = index(
                 FinalisePath,
                 Context::new(&store, Session::new_test_with_locale(Locale::Nl)),
@@ -147,6 +155,7 @@ mod tests {
             assert!(
                 body.contains(
                     &super::super::DownloadDocumentsPath {
+                        event_hash,
                         locale: ModelLocale::Nl,
                     }
                     .to_string()
@@ -156,6 +165,7 @@ mod tests {
             assert!(
                 body.contains(
                     &super::super::DownloadDocumentsPath {
+                        event_hash,
                         locale: ModelLocale::Fry,
                     }
                     .to_string()
@@ -192,10 +202,11 @@ mod tests {
             sample_person(person_id).create(&store).await?;
 
             let mut complete_list = sample_candidate_list(complete_list_id);
-            complete_list.electoral_districts = vec![district];
+            complete_list.electoral_districts = BTreeSet::from([district]);
             complete_list.create(&store).await?;
             complete_list.append_candidate(&store, person_id).await?;
 
+            let event_hash = EventHashPrefix::of(&store.current_event_hash());
             let response = index(
                 FinalisePath,
                 Context::new(&store, Session::new_test_with_locale(Locale::Nl)),
@@ -208,6 +219,7 @@ mod tests {
             assert!(
                 body.contains(
                     &super::super::DownloadDocumentsPath {
+                        event_hash,
                         locale: ModelLocale::Nl,
                     }
                     .to_string()
@@ -217,6 +229,7 @@ mod tests {
             assert!(
                 !body.contains(
                     &super::super::DownloadDocumentsPath {
+                        event_hash,
                         locale: ModelLocale::Fry,
                     }
                     .to_string()

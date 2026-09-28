@@ -1,0 +1,63 @@
+{% extends "csb/components/overlay.html" %}
+{% block overlay_title %}
+  {% if group.is_some() %}
+    {{ "csb.registered_political_groups.edit"|trans }}
+  {% else %}
+    {{ "csb.action.add_political_group"|trans }}
+  {% endif %}
+{% endblock %}
+{% block overlay_form %}
+  <fieldset>
+    <div class="form-row">
+      <p class="form-field form-field-lg">
+        <label for="appellation">{{ "political_group.appellation"|trans }}</label>
+        <input type="text"
+               name="appellation"
+               id="appellation"
+               value="{{ form.data.appellation }}"
+               autocomplete="off" />
+        {% for error in form|error("appellation") %}<span class="error">{{ error }}</span>{% endfor %}
+      </p>
+    </div>
+    <div class="form-row">
+      <p class="form-field form-field-sm">
+        <label for="previous_votes">{{ "csb.registered_political_groups.previous_votes"|trans }}</label>
+        <input type="number"
+               name="previous_votes"
+               id="previous_votes"
+               value="{{ form.data.previous_votes }}"
+               min="0"
+               step="1"
+               inputmode="numeric"
+               autocomplete="off" />
+        {% for error in form|error("previous_votes") %}<span class="error">{{ error }}</span>{% endfor %}
+      </p>
+    </div>
+    <div class="form-row">
+      <p class="form-field form-field-sm">
+        <label for="previous_seats">{{ "csb.registered_political_groups.previous_seats"|trans }}</label>
+        <input type="number"
+               name="previous_seats"
+               id="previous_seats"
+               value="{{ form.data.previous_seats }}"
+               min="0"
+               step="1"
+               inputmode="numeric"
+               autocomplete="off" />
+        {% for error in form|error("previous_seats") %}<span class="error">{{ error }}</span>{% endfor %}
+      </p>
+    </div>
+    <div class="form-row">
+      <span class="alert alert-info">{{ "csb.registered_political_groups.numbering_hint"|trans }}</span>
+    </div>
+  </fieldset>
+{% endblock %}
+{% block overlay_actions %}
+  <div class="form-actions">
+    <button type="submit" class="button lg" name="action" value="save">{{ "action.save"|trans }}</button>
+    {% if let Some(group) = group %}
+      <a class="button tertiary-destructive icon-trash"
+         href="{{ group.delete_path() }}">{{ "action.delete"|trans }}</a>
+    {% endif %}
+  </div>
+{% endblock %}

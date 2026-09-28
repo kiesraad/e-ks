@@ -7,9 +7,10 @@ use secrecy::{ExposeSecret, SecretString};
 use sha1::{Digest, Sha1};
 use sha2::Sha256;
 use std::{
-    fmt, fs,
+    fmt,
     path::{Path, PathBuf},
 };
+use tokio::fs;
 use tracing::{debug, warn};
 
 // ---------------------------------------------------------------------------
@@ -333,15 +334,15 @@ impl KeySet {
 
 /// Load one cert/key pair from disk. Both file paths are named in the error, so
 /// a missing or malformed bundle file is diagnosable from the log alone.
-pub fn load_key_pair(paths: &KeyPaths) -> Result<KeyPair> {
+pub async fn load_key_pair(paths: &KeyPaths) -> Result<KeyPair> {
     // SECURITY: never log key_pem contents; only the public path it came from.
     debug!(
         "[keys] Loading key pair: cert={}, key={}",
         paths.cert.display(),
         paths.key.display()
     );
-    let cert_pem = read_cert(&paths.cert)?;
-    let key_pem = fs::read_to_string(&paths.key).map_err(|e| {
+    let cert_pem = read_cert(&paths.cert).await?;
+    let key_pem = fs::read_to_string(&paths.key).await.map_err(|e| {
         AuthError::Config(format!("Failed to read key {}: {e}", paths.key.display()))
     })?;
 
@@ -357,15 +358,15 @@ pub fn load_key_pair(paths: &KeyPaths) -> Result<KeyPair> {
 }
 
 /// Read and parse a PEM certificate, naming the path in either failure.
-fn read_cert(cert_path: &Path) -> Result<CertificatePem> {
-    let text = fs::read_to_string(cert_path).map_err(|e| {
+async fn read_cert(cert_path: &Path) -> Result<CertificatePem> {
+    let text = fs::read_to_string(cert_path).await.map_err(|e| {
         AuthError::Config(format!("Failed to read cert {}: {e}", cert_path.display()))
     })?;
     CertificatePem::parse(text)
         .map_err(|e| AuthError::Config(format!("Invalid cert {}: {e}", cert_path.display())))
 }
 
-pub fn load_key_set(signing: &[KeyPaths], encryption: &[KeyPaths]) -> Result<KeySet> {
+pub async fn load_key_set(signing: &[KeyPaths], encryption: &[KeyPaths]) -> Result<KeySet> {
     debug!(
         "[keys] load_key_set: {} signing path(s), {} encryption path(s)",
         signing.len(),
@@ -376,14 +377,8 @@ pub fn load_key_set(signing: &[KeyPaths], encryption: &[KeyPaths]) -> Result<Key
             "at least one signing key pair is required".to_string(),
         ));
     }
-    let signing = signing
-        .iter()
-        .map(load_key_pair)
-        .collect::<Result<Vec<_>>>()?;
-    let encryption = encryption
-        .iter()
-        .map(load_key_pair)
-        .collect::<Result<Vec<_>>>()?;
+    let signing = load_key_pairs(signing).await?;
+    let encryption = load_key_pairs(encryption).await?;
     debug!(
         "[keys] load_key_set OK: signing={}, encryption={}",
         signing.len(),
@@ -395,12 +390,21 @@ pub fn load_key_set(signing: &[KeyPaths], encryption: &[KeyPaths]) -> Result<Key
     })
 }
 
+/// Load every pair in `paths`, in order, stopping at the first failure.
+async fn load_key_pairs(paths: &[KeyPaths]) -> Result<Vec<KeyPair>> {
+    let mut pairs = Vec::with_capacity(paths.len());
+    for path in paths {
+        pairs.push(load_key_pair(path).await?);
+    }
+    Ok(pairs)
+}
+
 /// Load a certificate (public key only) into a [`KeyPair`] with no private key.
 /// Used for certificates advertised in metadata but never used to produce a
 /// signature (e.g. the DV's mTLS client certificate).
-pub fn load_cert(cert_path: &Path) -> Result<KeyPair> {
+pub async fn load_cert(cert_path: &Path) -> Result<KeyPair> {
     Ok(KeyPair::from_pem(
-        read_cert(cert_path)?,
+        read_cert(cert_path).await?,
         PrivateKeyPem::absent(),
     ))
 }
@@ -414,11 +418,11 @@ pub fn load_cert(cert_path: &Path) -> Result<KeyPair> {
 /// is logged and omitted from the metadata rather than failing startup. An empty
 /// path (an unconfigured [`TlsConfig`], e.g. in tests) is treated as "not
 /// configured" without a warning.
-pub fn load_metadata_tls_cert(cert_path: &Path) -> Option<KeyPair> {
+pub async fn load_metadata_tls_cert(cert_path: &Path) -> Option<KeyPair> {
     if cert_path.as_os_str().is_empty() {
         return None;
     }
-    match load_cert(cert_path) {
+    match load_cert(cert_path).await {
         Ok(cert) => Some(cert),
         Err(e) => {
             warn!("[keys] TLS client cert not published in SP metadata: {e}");
@@ -461,18 +465,22 @@ pub fn tls_paths(certs_dir: &Path) -> TlsConfig {
 /// one. Every base after it (e.g. a second key kept for rollover) is optional:
 /// it is included only when its certificate file is present on disk, so a
 /// single-key bundle publishes a single key pair in the metadata.
-pub fn discover_key_paths(certs_dir: &Path, bases: &[&str]) -> Vec<KeyPaths> {
-    bases
-        .iter()
-        .enumerate()
-        .filter_map(|(index, base)| {
-            let paths = key_pair_paths(certs_dir, base);
-            if index > 0 && !paths.cert.exists() {
-                return None;
-            }
-            Some(paths)
-        })
-        .collect()
+pub async fn discover_key_paths(certs_dir: &Path, bases: &[&str]) -> Vec<KeyPaths> {
+    let mut discovered = Vec::with_capacity(bases.len());
+    for (index, base) in bases.iter().enumerate() {
+        let paths = key_pair_paths(certs_dir, base);
+        if index > 0 && !file_exists(&paths.cert).await {
+            continue;
+        }
+        discovered.push(paths);
+    }
+    discovered
+}
+
+/// Whether `path` exists, treating an unanswerable stat (e.g. a permission
+/// error on a parent directory) as absent, like [`Path::exists`].
+pub(crate) async fn file_exists(path: &Path) -> bool {
+    fs::try_exists(path).await.unwrap_or(false)
 }
 
 #[cfg(test)]
@@ -636,11 +644,11 @@ mod tests {
         }
     }
 
-    #[test]
-    fn load_key_set_errors_when_signing_empty() {
+    #[tokio::test]
+    async fn load_key_set_errors_when_signing_empty() {
         // An empty signing list is a config error, so `primary_signing` is
         // guaranteed to succeed on any loaded KeySet.
-        let err = load_key_set(&[], &[]).unwrap_err();
+        let err = load_key_set(&[], &[]).await.unwrap_err();
         assert!(
             matches!(&err, AuthError::Config(m) if m.contains("signing key pair")),
             "{err:?}"
@@ -658,29 +666,33 @@ mod tests {
         );
     }
 
-    #[test]
-    fn load_key_set_errors_when_cert_missing() {
+    #[tokio::test]
+    async fn load_key_set_errors_when_cert_missing() {
         // A signing entry whose cert file does not exist fails with a Config error.
         let paths = KeyPaths {
             cert: fixtures_dir().join("does-not-exist.pem"),
             key: fixtures_dir().join("does-not-exist-key.pem"),
         };
-        let err = load_key_set(std::slice::from_ref(&paths), &[]).unwrap_err();
+        let err = load_key_set(std::slice::from_ref(&paths), &[])
+            .await
+            .unwrap_err();
         assert!(
             matches!(&err, AuthError::Config(m) if m.contains("Failed to read cert")),
             "{err:?}"
         );
     }
 
-    #[test]
-    fn load_key_set_errors_when_cert_is_not_pem() {
+    #[tokio::test]
+    async fn load_key_set_errors_when_cert_is_not_pem() {
         // A file that exists but holds no certificate names the path in the error.
         let dir = std::env::temp_dir().join("eks-keys-test-not-pem");
         std::fs::create_dir_all(&dir).unwrap();
         let paths = key_pair_paths(&dir, "dv-signing-1");
         std::fs::write(&paths.cert, b"garbage").unwrap();
         std::fs::write(&paths.key, b"key").unwrap();
-        let err = load_key_set(std::slice::from_ref(&paths), &[]).unwrap_err();
+        let err = load_key_set(std::slice::from_ref(&paths), &[])
+            .await
+            .unwrap_err();
         assert!(
             matches!(&err, AuthError::Config(m) if m.contains("Invalid cert")),
             "{err:?}"
@@ -688,29 +700,33 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
-    #[test]
-    fn load_key_set_errors_when_key_missing() {
+    #[tokio::test]
+    async fn load_key_set_errors_when_key_missing() {
         // Cert present, private key absent: the key-read branch reports the error.
         let paths = KeyPaths {
             cert: fixtures_dir().join("dv-signing-1.pem"),
             key: fixtures_dir().join("does-not-exist-key.pem"),
         };
-        let err = load_key_set(std::slice::from_ref(&paths), &[]).unwrap_err();
+        let err = load_key_set(std::slice::from_ref(&paths), &[])
+            .await
+            .unwrap_err();
         assert!(
             matches!(&err, AuthError::Config(m) if m.contains("Failed to read key")),
             "{err:?}"
         );
     }
 
-    #[test]
-    fn load_key_set_loads_fixture_pair() {
+    #[tokio::test]
+    async fn load_key_set_loads_fixture_pair() {
         // The success path: the committed DV signing fixture loads and derives a
         // key name and public base64.
         let paths = KeyPaths {
             cert: fixtures_dir().join("dv-signing-1.pem"),
             key: fixtures_dir().join("dv-signing-1-key.pem"),
         };
-        let set = load_key_set(std::slice::from_ref(&paths), &[]).unwrap();
+        let set = load_key_set(std::slice::from_ref(&paths), &[])
+            .await
+            .unwrap();
         assert_eq!(set.signing.len(), 1);
         assert_eq!(set.encryption.len(), 0);
         let primary = set.primary_signing().unwrap();
@@ -719,18 +735,20 @@ mod tests {
         assert!(primary.key_pem.is_present());
     }
 
-    #[test]
-    fn load_cert_reads_public_cert_without_private_key() {
-        let cert = load_cert(&fixtures_dir().join("dv-tls.pem")).unwrap();
+    #[tokio::test]
+    async fn load_cert_reads_public_cert_without_private_key() {
+        let cert = load_cert(&fixtures_dir().join("dv-tls.pem")).await.unwrap();
         assert_eq!(cert.key_name.as_str().len(), 40);
         assert!(!cert.cert_base64.as_str().is_empty());
         // A public-only cert carries no private key.
         assert!(!cert.key_pem.is_present());
     }
 
-    #[test]
-    fn load_cert_errors_when_file_missing() {
-        let err = load_cert(&fixtures_dir().join("nope.pem")).unwrap_err();
+    #[tokio::test]
+    async fn load_cert_errors_when_file_missing() {
+        let err = load_cert(&fixtures_dir().join("nope.pem"))
+            .await
+            .unwrap_err();
         assert!(
             matches!(&err, AuthError::Config(m) if m.contains("Failed to read cert")),
             "{err:?}"

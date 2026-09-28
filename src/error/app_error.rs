@@ -43,6 +43,8 @@ pub enum AppError {
     /// Missing or invalid data when generating a PDF.
     IncompleteData(&'static str),
     PdfError(textris_pdf::render::RenderError),
+    /// Failed to pack the Word (`.docx`) export.
+    DocxError(std::io::Error),
     MarkdownError(textris_pdf::markdown::MarkdownParseError),
     EmlError(eml_nl::EMLError),
 
@@ -59,6 +61,18 @@ pub enum AppError {
     TooManyCandidates {
         max: usize,
     },
+
+    /// A person appears more than once on a candidate list.
+    DuplicateCandidate,
+
+    /// A reorder submitted a different set of candidates than the list holds.
+    CandidateSetChanged,
+
+    /// The submission still has errors, so no documents are generated.
+    NotDownloadable,
+
+    /// The stream changed between validating the request and writing its event.
+    Conflict,
 
     /// A hash prefix matched more than one event; the user must supply a longer prefix.
     AmbiguousHash,
@@ -106,6 +120,10 @@ impl Display for AppError {
                 f,
                 "Cannot add more than {max} candidates to a candidate list"
             ),
+            AppError::DuplicateCandidate => write!(f, "Person appears twice on a candidate list"),
+            AppError::CandidateSetChanged => write!(f, "Reorder changed the set of candidates"),
+            AppError::NotDownloadable => write!(f, "Submission has errors, documents withheld"),
+            AppError::Conflict => write!(f, "Data changed during the request"),
             AppError::AmbiguousHash => write!(f, "Ambiguous hash prefix"),
             AppError::TooManyDownloads { max, window } => write!(
                 f,
@@ -128,6 +146,7 @@ impl Display for AppError {
             AppError::MultipartFormError(err) => write!(f, "Multipart form error: {err}"),
             AppError::NoStorageConfigured => write!(f, "No event storage configured"),
             AppError::PdfError(err) => write!(f, "PDF error: {err}"),
+            AppError::DocxError(err) => write!(f, "Word export error: {err}"),
             AppError::MarkdownError(err) => write!(f, "Markdown template error: {err}"),
             AppError::NotFound(msg) => write!(f, "{msg}"),
             AppError::UserError(msg) => write!(f, "{msg}"),

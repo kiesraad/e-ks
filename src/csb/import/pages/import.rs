@@ -12,14 +12,15 @@ use axum::{
 use serde::Deserialize;
 
 use crate::{
-    AppError, AppRequestState, Context, CsbAction, CsbContext, CsbStore, CsbUser, Form,
-    HtmlTemplate, Locale, PgStoreData, StreamId,
+    AppError, AppRequestState, Context, CsbAction, CsbContext, CsbStore, CsbStoreData, CsbUser,
+    ElectionConfig, Form, HtmlTemplate, Locale, PgStoreData, StreamId,
     csb::examination::{CsbExaminationOverviewPath, CsbPoliticalGroupPath},
     filters,
     projection::WithCorrections,
     redirect_success,
+    store::{StoreData, StoreRegistry},
     structs::{
-        brp::{BRP_BSN_BATCH_SIZE, BrpClient, BrpStatus},
+        brp::{BRP_BSN_BATCH_SIZE, BrpClient, BrpFinding, BrpStatus},
         persons::Person,
     },
     trans,
@@ -28,7 +29,10 @@ use crate::{
 
 use super::{CsbCreateEmptyPath, CsbImportPath};
 
+#[cfg(not(test))]
 const BRP_COURTESY_TIMEOUT: Duration = Duration::from_secs(1);
+#[cfg(test)]
+const BRP_COURTESY_TIMEOUT: Duration = Duration::from_millis(20);
 
 #[derive(Template)]
 #[template(path = "csb/import/pages/import.html")]
@@ -70,7 +74,7 @@ pub struct ImportForm {
 
 /// Outcome of an import attempt that did not fail outright.
 enum ImportOutcome {
-    Imported(Response),
+    Imported(StreamId),
     /// The source stream was already imported into a live CSB store carrying
     /// this appellation; the user must confirm before importing again.
     AlreadyImported {
@@ -78,7 +82,51 @@ enum ImportOutcome {
     },
 }
 
-/// Import the package identified by the submitted chain hash.
+/// What an import attempt leaves the import page to do.
+pub(in crate::csb) enum ImportResult {
+    /// Imported under this fresh stream; show it.
+    Imported(StreamId),
+    /// Nothing imported; re-render the form with this feedback.
+    Retry {
+        error: Option<String>,
+        warning: Option<String>,
+    },
+}
+
+/// Import the package identified by the submitted chain hash into a fresh
+/// stream of `registry`. Shared by the examination and the pre-submission
+/// check, which differ only in the registry they import into.
+pub(in crate::csb) async fn import_package<S: AppRequestState>(
+    state: &S,
+    registry: &StoreRegistry<CsbStoreData>,
+    form: ImportForm,
+    user: CsbUser,
+    election: ElectionConfig,
+    locale: Locale,
+) -> Result<ImportResult, AppError> {
+    match do_import(state, registry, form, user, election, locale).await {
+        Ok(ImportOutcome::Imported(stream_id)) => Ok(ImportResult::Imported(stream_id)),
+        Ok(ImportOutcome::AlreadyImported { appellation }) => Ok(ImportResult::Retry {
+            error: None,
+            warning: Some(trans!(
+                "csb.import.warning.already_imported",
+                locale,
+                appellation
+            )),
+        }),
+        Err(AppError::UserError(msg)) => Ok(ImportResult::Retry {
+            error: Some(msg),
+            warning: None,
+        }),
+        Err(AppError::AmbiguousHash) => Ok(ImportResult::Retry {
+            error: Some(trans!("csb.import.error.ambiguous_hash", locale)),
+            warning: None,
+        }),
+        Err(e) => Err(e),
+    }
+}
+
+/// Import the package identified by the submitted chain hash for examination.
 pub async fn import_submit<S: AppRequestState>(
     _: CsbImportPath,
     State(state): State<S>,
@@ -86,41 +134,62 @@ pub async fn import_submit<S: AppRequestState>(
     Form(form): Form<ImportForm>,
 ) -> Result<Response, AppError> {
     let hash = form.hash.clone();
-    let locale = context.session.locale;
-    let user = context.user()?;
-    match do_import(&state, form, user, locale).await {
-        Ok(ImportOutcome::Imported(response)) => Ok(response),
-        Ok(ImportOutcome::AlreadyImported { appellation }) => Ok(render_import(
-            context,
-            hash,
-            None,
-            Some(trans!(
-                "csb.import.warning.already_imported",
-                locale,
-                appellation
-            )),
-        )),
-        Err(AppError::UserError(msg)) => Ok(render_import(context, hash, Some(msg), None)),
-        Err(AppError::AmbiguousHash) => Ok(render_import(
-            context,
-            hash,
-            Some(trans!("csb.import.error.ambiguous_hash", locale)),
-            None,
-        )),
-        Err(e) => Err(e),
+    let result = import_package(
+        &state,
+        state.csb_store_registry(),
+        form,
+        context.user()?,
+        context.election,
+        context.session.locale,
+    )
+    .await?;
+
+    Ok(match result {
+        ImportResult::Imported(stream_id) => redirect_success(CsbPoliticalGroupPath { stream_id }),
+        ImportResult::Retry { error, warning } => render_import(context, hash, error, warning),
+    })
+}
+
+fn election_label(election: ElectionConfig, locale: Locale) -> String {
+    let title = election.title(locale.into());
+    match election.domain_title() {
+        Some(domain) => format!("{title} - {domain}"),
+        None => title.to_string(),
     }
+}
+
+/// The appellation `source_stream_id` was already imported under, if any.
+async fn imported_appellation(
+    registry: &StoreRegistry<CsbStoreData>,
+    election: ElectionConfig,
+    source_stream_id: StreamId,
+) -> Result<Option<String>, AppError> {
+    for store in registry.stores_for_election(election).await? {
+        let already_imported_and_not_deleted = store.data.read().events.first().is_some_and(|e| {
+            matches!(&e.payload.action, CsbAction::Import { source_stream_id: sid, .. } if *sid == source_stream_id) &&
+            !store.is_deleted()
+        });
+        if already_imported_and_not_deleted {
+            return Ok(Some(store.get_appellation(WithCorrections::All)));
+        }
+    }
+
+    Ok(None)
 }
 
 /// Locates the political-group event whose hash matches the entry, replays that
 /// stream up to the event into an [`PgStoreData`] snapshot (its event log
 /// excluded), and records the snapshot in a [`CsbAction::Import`] persisted under
-/// a fresh CSB stream keyed on the source election. The source `stream_id` is
-/// carried on the event for reference; it is never reused as the CSB partition,
-/// which would collide with the PG stream's own events there.
+/// a fresh stream of `registry` keyed on `election`, the election the session
+/// works on. The source `stream_id` is carried on the event for reference; it
+/// is never reused as the CSB partition, which would collide with the PG
+/// stream's own events there.
 async fn do_import<S: AppRequestState>(
     state: &S,
+    registry: &StoreRegistry<CsbStoreData>,
     form: ImportForm,
     user: CsbUser,
+    election: ElectionConfig,
     locale: Locale,
 ) -> Result<ImportOutcome, AppError> {
     let hash_prefix = parse_hash_prefix(&form.hash)
@@ -133,21 +202,22 @@ async fn do_import<S: AppRequestState>(
         .await?
         .ok_or_else(|| AppError::UserError(trans!("csb.import.error.not_found", locale)))?;
 
+    if source_election != election {
+        return Err(AppError::UserError(trans!(
+            "csb.import.error.other_election",
+            locale,
+            election_label(source_election, locale),
+        )));
+    }
+
     // Importing a source stream that was already imported is allowed, but only
     // after the user confirms the warning for this exact hash entry.
     let confirmed = form.confirmed_hash.as_deref() == Some(form.hash.as_str());
-    if !confirmed {
-        for store in state.csb_store_registry().stores_by_scope().await? {
-            let already_imported_and_not_deleted =
-                store.data.read().events.first().is_some_and(|e| {
-                    matches!(&e.payload.action, CsbAction::Import { source_stream_id: sid, .. } if *sid == source_stream_id) &&
-                    !store.is_deleted()
-                });
-            if already_imported_and_not_deleted {
-                let appellation = store.get_appellation(WithCorrections::All);
-                return Ok(ImportOutcome::AlreadyImported { appellation });
-            }
-        }
+    if !confirmed
+        && let Some(appellation) =
+            imported_appellation(registry, election, source_stream_id).await?
+    {
+        return Ok(ImportOutcome::AlreadyImported { appellation });
     }
 
     // Replay the source stream up to the matched event into a snapshot. Reload
@@ -167,11 +237,9 @@ async fn do_import<S: AppRequestState>(
         .ok_or(AppError::GenericNotFound)?;
     let snapshot = PgStoreData::snapshot_until(&events, event_id);
 
-    // Persist the import under a fresh CSB stream.
+    // Persist the import under a fresh stream.
     let csb_store = CsbStore::acting_as(
-        state
-            .csb_store_for_stream(StreamId::new(), source_election)
-            .await?,
+        registry.get_or_create(StreamId::new(), election).await?,
         user,
     );
     csb_store
@@ -184,11 +252,7 @@ async fn do_import<S: AppRequestState>(
 
     do_brp_verification(&csb_store, state.brp_client()).await?;
 
-    Ok(ImportOutcome::Imported(redirect_success(
-        CsbPoliticalGroupPath {
-            stream_id: csb_store.stream_id,
-        },
-    )))
+    Ok(ImportOutcome::Imported(csb_store.stream_id))
 }
 
 /// Create a new empty CSB store without importing from a political-group stream.
@@ -306,6 +370,43 @@ async fn monitor_verification(store: CsbStore, brp_client: BrpClient, _claim: Sw
     }
 }
 
+/// Record what the BRP said about `checked`, unless the candidate was corrected
+/// while the BRP was consulted: those findings are about values no longer on
+/// screen, and a later sweep picks the candidate up again. Returns whether the
+/// result was recorded.
+async fn record_brp_result(
+    store: &CsbStore,
+    checked: &Person,
+    findings: Vec<BrpFinding>,
+) -> Result<bool, AppError> {
+    const ATTEMPTS: usize = 3;
+
+    for _ in 0..ATTEMPTS {
+        // the event id first: a change landing after it is caught by the append
+        let expected = store.data.read().last_event_id();
+        if store.get_person(checked.id, WithCorrections::All).as_ref() != Some(checked) {
+            return Ok(false);
+        }
+
+        let action = CsbAction::BrpPersonChecked {
+            person: checked.id,
+            findings: findings.clone(),
+        };
+        match store.update_if_unchanged(action, expected).await {
+            Ok(()) => return Ok(true),
+            Err(AppError::Conflict) => continue,
+            Err(err) => return Err(err),
+        }
+    }
+
+    tracing::warn!(
+        "BRP result for {} not recorded: stream {} kept changing",
+        checked.id,
+        store.stream_id
+    );
+    Ok(false)
+}
+
 /// Check every candidate not covered by `CsbStoreData::brp_findings` yet,
 /// [`BRP_BSN_BATCH_SIZE`] per request with `BRP_COURTESY_TIMEOUT` in between.
 ///
@@ -324,10 +425,10 @@ async fn verify_candidates(store: CsbStore, brp_client: BrpClient) -> Result<(),
     for batch in unchecked.chunks(BRP_BSN_BATCH_SIZE) {
         ticker.tick().await;
 
-        for (person, findings) in brp_client.verify_batch(batch).await? {
-            store
-                .update(CsbAction::BrpPersonChecked { person, findings })
-                .await?;
+        for (person_id, findings) in brp_client.verify_batch(batch).await? {
+            if let Some(checked) = batch.iter().find(|person| person.id == person_id) {
+                record_brp_result(&store, checked, findings).await?;
+            }
         }
     }
 
@@ -353,19 +454,62 @@ mod tests {
     use crate::{
         AppState,
         CsbAction::Delete,
-        CsbContext, ElectionConfig, PgEvent,
+        CsbContext, ElectionConfig, PgEvent, Province,
         brp_stub::{BrpStub, matching_record},
-        structs::brp::{BrpFinding, BrpValue},
+        structs::brp::{BrpFindingKind, BrpValue},
         test_utils::{response_body_string, sample_person_from_brp},
         utils::format_hash,
     };
 
+    #[tokio::test]
+    async fn a_brp_result_for_a_corrected_candidate_is_dropped() -> Result<(), AppError> {
+        use crate::{
+            structs::{
+                csb::{Correction, PersonCorrection},
+                persons::PersonId,
+            },
+            test_utils::sample_person,
+        };
+
+        let store = CsbStore::new_for_test();
+        let person = sample_person(PersonId::new());
+        store.add_person(person.clone());
+
+        // the candidate is corrected while the BRP is being consulted
+        store
+            .update(CsbAction::UpdateCorrection(Correction::Person(
+                person.id,
+                PersonCorrection::LastName("Gecorrigeerd".parse().unwrap()),
+            )))
+            .await?;
+
+        assert!(!record_brp_result(&store, &person, vec![]).await?);
+        assert!(!store.is_brp_checked(person.id));
+
+        // a result for the current data is recorded
+        let current = store
+            .get_person(person.id, WithCorrections::All)
+            .expect("person");
+        assert!(record_brp_result(&store, &current, vec![BrpFindingKind::NotDutch.into()]).await?);
+        assert!(store.is_brp_checked(person.id));
+
+        Ok(())
+    }
+
     /// Populate a political-group stream with a single event in the (in-memory)
     /// test store and return its `(stream_id, formatted chain hash)`.
     async fn seed_source_event(state: &AppState) -> Result<(StreamId, String), AppError> {
+        seed_source_event_for(state, ElectionConfig::EK27).await
+    }
+
+    /// As [`seed_source_event`], for a political-group stream of `election`.
+    async fn seed_source_event_for(
+        state: &AppState,
+        election: ElectionConfig,
+    ) -> Result<(StreamId, String), AppError> {
         let source_stream = StreamId::new();
         let source_store = state
-            .store_for_stream(source_stream, ElectionConfig::EK27, false)
+            .store_for_stream(source_stream, election, false)
             .await?;
         source_store.update(PgEvent::HideDownloadWarning).await?;
 
@@ -479,6 +623,43 @@ mod tests {
             matches!(&e.payload.action, CsbAction::Import { source_stream_id, .. } if *source_stream_id == source_stream)
         });
         assert!(imported);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn import_submit_rejects_package_of_another_election() -> Result<(), AppError> {
+        let state = AppState::new_for_tests().await;
+        // The session works on EK27 (see `CsbContext::new_test`).
+        let (_, hash) =
+            seed_source_event_for(&state, ElectionConfig::PS27(Province::Groningen)).await?;
+
+        let response = submit(&state, &hash, None).await?;
+
+        // The form is re-rendered with an error, naming the other election.
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response_body_string(response).await;
+        assert!(body.contains("<span class=\"error\">"));
+        assert!(body.contains("Elections of the Provincial Council 2027 - Groningen"));
+
+        // Nothing was imported, not even after confirming the hash entry: the
+        // confirmation only covers the duplicate-import warning.
+        assert!(
+            state
+                .csb_store_registry()
+                .stores_by_scope()
+                .await?
+                .is_empty()
+        );
+        let response = submit(&state, &hash, Some(&hash)).await?;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(
+            state
+                .csb_store_registry()
+                .stores_by_scope()
+                .await?
+                .is_empty()
+        );
 
         Ok(())
     }
@@ -617,9 +798,12 @@ mod tests {
 
         assert_eq!(
             csb_store.get_brp_findings_for_person(person_id),
-            vec![BrpFinding::Mismatch {
-                brp_value: BrpValue::PlaceOfResidence("Amsterdam".parse().unwrap()),
-            }]
+            vec![
+                BrpFindingKind::Mismatch {
+                    brp_value: BrpValue::PlaceOfResidence("Amsterdam".parse().unwrap()),
+                }
+                .into()
+            ]
         );
         // A BRP difference is for the committee to weigh, not a verzuim.
         assert!(csb_store.data.read().omissions.is_empty());

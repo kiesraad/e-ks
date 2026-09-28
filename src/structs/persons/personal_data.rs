@@ -67,6 +67,10 @@ impl PersonalData {
         self.country.as_ref().is_none_or(CountryCode::is_nl)
     }
 
+    pub fn show_unknown_place_of_residence_warning(&self) -> bool {
+        self.lives_in_nl() && PlaceOfResidence::is_unknown_opt(&self.place_of_residence)
+    }
+
     /// Whether this person needs an authorised person (gemachtigde) instead of
     /// a Dutch correspondence address: living abroad, or in the Caribbean
     /// Netherlands (which has country code NL, but no Dutch postal addresses).
@@ -221,6 +225,35 @@ mod tests {
                 .potential_problems
                 .contains(&PotentialProblems::UnknownPlaceOfResidence)
         );
+    }
+
+    #[test]
+    fn show_unknown_place_of_residence_warning_when_unknown_and_in_nl() {
+        let mut data = complete_personal_data();
+        data.place_of_residence = Some(PlaceOfResidence::Unknown("Leipzig".to_string()));
+        data.country = Some("NL".parse().unwrap());
+        assert!(data.show_unknown_place_of_residence_warning());
+    }
+
+    #[test]
+    fn show_unknown_place_of_residence_warning_false_when_known() {
+        let data = complete_personal_data();
+        assert!(!data.show_unknown_place_of_residence_warning());
+    }
+
+    #[test]
+    fn show_unknown_place_of_residence_warning_false_when_unknown_but_abroad() {
+        let mut data = complete_personal_data();
+        data.place_of_residence = Some(PlaceOfResidence::Unknown("Leipzig".to_string()));
+        data.country = Some("DE".parse().unwrap());
+        assert!(!data.show_unknown_place_of_residence_warning());
+    }
+
+    #[test]
+    fn show_unknown_place_of_residence_warning_false_when_no_place() {
+        let mut data = complete_personal_data();
+        data.place_of_residence = None;
+        assert!(!data.show_unknown_place_of_residence_warning());
     }
 
     #[test]

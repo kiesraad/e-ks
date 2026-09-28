@@ -1,5 +1,6 @@
 {
-  "political-group": [
+  "political-group": [],
+  "appellation": [
     {
       "title": "De aanduiding is niet geregistreerd",
       "description": "De machtiging om de aanduiding van de politieke groepering boven de lijst te plaatsen, wordt geacht te ontbreken omdat de aanduiding niet vermeld staat in het register van aanduidingen voor de Tweede Kamer of het register van aanduidingen voor de Eerste Kamer. Dit is een onherstelbaar verzuim. De politieke groepering kan nog wel meedoen aan de Eerste Kamerverkiezing, maar dan zonder aanduiding. Het zal dus een blanco lijst worden.",
@@ -16,8 +17,8 @@
   "declarations-of-support": [
     {
       "title": "Voor één kieskring ontbreken ondersteuningsverklaringen",
-      "description": "Bij de lijst zijn niet voldoende geldige verklaringen van ondersteuning ingeleverd voor de kieskring {district}.",
-      "help_text": "Dit verzuim is te herstellen door alsnog voldoende (ten minste 1) ondertekende ondersteuningsverklaringen (model H 4) in te leveren.",
+      "description": "Bij de lijst zijn niet voldoende geldige verklaringen van ondersteuning ingeleverd voor de genoemde kieskring.",
+      "help_text": "Dit betreft de kieskring {district}. Dit verzuim is te herstellen door alsnog voldoende (ten minste 1) ondertekende ondersteuningsverklaringen (model H 4) in te leveren.",
       "recoverable": true
     },
     {

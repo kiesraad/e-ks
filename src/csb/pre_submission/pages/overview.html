@@ -1,0 +1,47 @@
+{% extends "csb/components/layout.html" %}
+{% block breadcrumbs %}
+  {{ breadcrumb(crate::csb::pre_submission::CsbPreSubmissionOverviewPath, "csb.pre_submission.title") }}
+{% endblock %}
+{% block page_title %}
+  {{ "csb.pre_submission.title"|trans }}
+{% endblock %}
+{% block page_sub_title %}
+  <span class="subtitle">{{ "csb.pre_submission.explanation"|trans }}</span>
+{% endblock %}
+{% block header_action %}
+  <div class="header-buttons">
+    <a href="{{ crate::csb::index::CsbIndexPath }}" class="button secondary">{{ "action.back"|trans }}</a>
+  </div>
+{% endblock %}
+{% block content %}
+  <div class="examination-main card card-plain">
+    <a href="{{ crate::csb::pre_submission::CsbPreSubmissionImportPath }}"
+       class="button secondary icon-plus">{{ "csb.action.add_political_group"|trans }}</a>
+    <h2>{{ "csb.added"|trans }}</h2>
+    {% if groups.is_empty() %}
+      <p class="font-italic">{{ "csb.pre_submission.none"|trans }}</p>
+    {% else %}
+      <table class="pre-submission-table mb-xl mt-md">
+        <thead>
+          <tr>
+            <th>{{ "common.political_group"|trans }}</th>
+            <th>{{ "csb.list.brp_check"|trans }}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for group in groups %}
+            <tr class="clickable">
+              <td>{{ group.appellation }}</td>
+              <td>{{ brp_badge(group.brp, group.path() ) }}</td>
+              <td>
+                <a href="{{ group.path() }}"
+                   title="{{ "csb.pre_submission.view"|trans }}"></a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </div>
+{% endblock %}

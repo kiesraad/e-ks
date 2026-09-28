@@ -3,8 +3,8 @@
      href="{{ political_group.all_restorations_path() }}">
     {% if political_group.mode.is_recovery() %}
       {{ "csb.recovery.omissions_title"|trans }}
-      {% if political_group.pending_omission_count > 0 %}
-        <span class="restoration_count">{{ political_group.pending_omission_count }}</span>
+      {% if political_group.recovery.pending > 0 %}
+        <span class="restoration_count">{{ political_group.recovery.pending }}</span>
       {% endif %}
     {% else %}
       {{ "csb.all_restorations.title"|trans }}

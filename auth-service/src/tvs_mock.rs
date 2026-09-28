@@ -8,10 +8,9 @@
 //!
 //! This embeds the committed test private keys into the binary: it is strictly
 //! for mock deployments and must never be enabled for a real environment.
-use std::{
-    path::{Path, PathBuf},
-    sync::OnceLock,
-};
+use std::path::{Path, PathBuf};
+
+use tokio::{fs, sync::OnceCell};
 
 use crate::{
     error::AuthError,
@@ -64,9 +63,9 @@ const FIXTURES: &[(&str, &[u8])] = embedded_fixtures![
 /// fixtures. A `CERTS_DIR` pointing at a directory without the bundle is a
 /// stale deployment setting, not a reason to refuse to start: a mock build
 /// carries the keys it needs, so fall back to them.
-pub(crate) fn certs_dir(configured: Option<PathBuf>) -> Result<PathBuf, AuthError> {
+pub(crate) async fn certs_dir(configured: Option<PathBuf>) -> Result<PathBuf, AuthError> {
     if let Some(dir) = configured {
-        if holds_bundle(&dir) {
+        if holds_bundle(&dir).await {
             return Ok(dir);
         }
         tracing::warn!(
@@ -74,13 +73,13 @@ pub(crate) fn certs_dir(configured: Option<PathBuf>) -> Result<PathBuf, AuthErro
             "tvs-mock: CERTS_DIR does not hold a DV cert/key bundle; using the embedded test keys"
         );
     }
-    embedded_certs_dir()
+    embedded_certs_dir().await
 }
 
 /// Whether `dir` holds the mandatory part of a DV bundle: the mTLS client pair
 /// and the first signing/encryption pair (the later pairs are rollover-only, so
 /// [`crate::keys::discover_key_paths`] treats them as optional).
-fn holds_bundle(dir: &Path) -> bool {
+async fn holds_bundle(dir: &Path) -> bool {
     let tls = tls_paths(dir);
     let mut required = vec![tls.client_cert, tls.client_key];
     required.extend(
@@ -92,26 +91,40 @@ fn holds_bundle(dir: &Path) -> bool {
                 [paths.cert, paths.key]
             }),
     );
-    required.iter().all(|path| path.is_file())
+    for path in &required {
+        if !is_file(path).await {
+            return false;
+        }
+    }
+    true
+}
+
+async fn is_file(path: &Path) -> bool {
+    fs::metadata(path).await.is_ok_and(|m| m.is_file())
 }
 
 /// Materialize the embedded DV bundle into a per-process temp directory the
 /// first time it is needed and hand back its path, so the existing
 /// path-based key loaders read it exactly like a real `CERTS_DIR`. The
 /// extraction happens once per process (subsequent calls reuse the result).
-fn embedded_certs_dir() -> Result<PathBuf, AuthError> {
-    static DIR: OnceLock<Result<PathBuf, String>> = OnceLock::new();
+async fn embedded_certs_dir() -> Result<PathBuf, AuthError> {
+    static DIR: OnceCell<Result<PathBuf, String>> = OnceCell::const_new();
     DIR.get_or_init(materialize)
+        .await
         .clone()
         .map_err(AuthError::Config)
 }
 
-fn materialize() -> Result<PathBuf, String> {
+async fn materialize() -> Result<PathBuf, String> {
     let dir = std::env::temp_dir().join(format!("eks-tvs-mock-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).map_err(|e| format!("create {}: {e}", dir.display()))?;
+    fs::create_dir_all(&dir)
+        .await
+        .map_err(|e| format!("create {}: {e}", dir.display()))?;
     for (name, bytes) in FIXTURES {
         let path = dir.join(name);
-        std::fs::write(&path, bytes).map_err(|e| format!("write {}: {e}", path.display()))?;
+        fs::write(&path, bytes)
+            .await
+            .map_err(|e| format!("write {}: {e}", path.display()))?;
     }
     tracing::warn!(
         certs_dir = %dir.display(),

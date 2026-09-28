@@ -36,8 +36,8 @@ impl Pdf for H9 {
     fn filename(&self) -> String {
         format!(
             "h9-{}-{}.pdf",
+            self.detailed_candidate.candidate.position,
             slugify_teletex(&self.detailed_candidate.candidate.last_name, true),
-            self.detailed_candidate.candidate.position
         )
     }
 }

@@ -50,6 +50,10 @@
     --badge-icon: url("../icons/badge-locked.svg");
   }
 
+  &:is(.unlocked) {
+    --badge-icon: url("../icons/badge-unlocked.svg");
+  }
+
   &:is(.success) {
     --badge-bg: var(--green-200);
     --badge-icon: url("../icons/badge-success.svg");

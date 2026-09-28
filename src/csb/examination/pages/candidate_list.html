@@ -51,7 +51,7 @@
     {% if political_group.mode.is_examination() %}
       {{ restorations::omission_panel("csb.omission.title_for.candidate_list"|trans, "csb.list.add_text"|trans, political_group.add_candidate_list_omission_path(list_id) , political_group.manage_candidate_list_omissions_path(list_id) , omissions.as_slice()) }}
     {% else %}
-      {{ restorations::status_panel(political_group, "csb.omission.title_for.candidate_list"|trans, "csb.recovery.omissions_explanation"|trans, omissions.as_slice() , political_group.candidate_list_path(list_id)) }}
+      {{ restorations::status_panel(political_group, "csb.omission.title_for.candidate_list"|trans, "csb.recovery.omissions_explanation"|trans, omissions.as_slice() , political_group.candidate_list_path(list_id), scope_list=list_id.to_string()) }}
     {% endif %}
     {% if candidates.is_empty() %}
       <p class="font-italic">{{ "candidate_list.view.empty"|trans }}</p>

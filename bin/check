@@ -34,8 +34,8 @@ if [ "$FULL" = true ]; then
     cargo dylint --all -- --locked
 else
     cargo +nightly fmt --all -- --config imports_granularity="Crate"
-    cargo clippy --locked --all-targets -- -D warnings
-    cargo test --locked
+    cargo clippy --locked --all-targets --features development -- -D warnings
+    cargo test --locked --features development
 fi
 
 # typescript

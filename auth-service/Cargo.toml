@@ -26,13 +26,14 @@ wildcard_imports = "warn"
 tvs-mock = []
 
 [dependencies]
-bergshamra-dsig = "0.8"
-bergshamra-enc  = "0.8"
-bergshamra-keys = "0.8"
+bergshamra-dsig = "0.9"
+bergshamra-enc  = "0.9"
+bergshamra-keys = "0.9"
 cookie = "0.18"
 base64 = "0.23"
 sha1 = "0.11"
 roxmltree = "0.21"
+rustls = { workspace = true }
 rustls-webpki = { version = "0.103", default-features = false, features = ["std", "aws-lc-rs"] }
 rustls-pki-types = "1"
 x509-cert = "0.3"

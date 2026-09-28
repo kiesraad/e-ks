@@ -39,7 +39,12 @@ impl CandidateCorrectionField {
     /// the same formatting as the examination pages and the correction overlay.
     pub fn extract(self, person: &Person) -> String {
         match self {
-            Self::Initials => person.name.initials.to_string(),
+            Self::Initials => person
+                .name
+                .initials
+                .as_ref()
+                .map(ToString::to_string)
+                .unwrap_or_default(),
             Self::LastNamePrefix => person
                 .name
                 .last_name_prefix

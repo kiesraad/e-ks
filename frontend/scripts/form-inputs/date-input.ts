@@ -1,12 +1,12 @@
 // Assist date-of-birth inputs with numeric formatting and dash handling.
 const DATE_INPUT_ROW_SELECTOR = 'span[class="date-input-row"]';
 
-const DATE_INPUT_SELECTOR = 'input[name="date_of_birth"]';
+const DATE_INPUT_SELECTOR = 'input[class="date"]';
 
 const DATE_OF_BIRTH_SEPARATE_SELECTOR = ".date-separate";
-const DAY_INPUT_SELECTOR = 'input[name="day_of_birth"]';
-const MONTH_INPUT_SELECTOR = 'input[name="month_of_birth"]';
-const YEAR_INPUT_SELECTOR = 'input[name="year_of_birth"]';
+const DAY_INPUT_SELECTOR = 'input[class="day"]';
+const MONTH_INPUT_SELECTOR = 'input[class="month"]';
+const YEAR_INPUT_SELECTOR = 'input[class="year"]';
 
 const DAY_DIGITS = 2;
 const MONTH_DIGITS = 2;

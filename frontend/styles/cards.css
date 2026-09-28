@@ -55,6 +55,29 @@
     --card-min-height: 18.875rem;
     align-items: center;
     justify-content: center;
+    text-align: center;
+
+    p {
+      color: var(--gray-500);
+      font-size: var(--font-size-sm);
+      font-weight: 300;
+      line-height: var(--leading-sm);
+      margin-top: var(--space-6);
+    }
+
+    /* all districts are taken; adding a list is still allowed */
+    &.muted {
+      --card-bg: var(--gray-25);
+
+      .button {
+        border-color: var(--gray-200);
+        color: var(--button-color-disabled);
+      }
+
+      p {
+        color: var(--gray-400);
+      }
+    }
   }
 
   &.success {

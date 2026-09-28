@@ -24,6 +24,7 @@ auth:
     title: Inloggen bij het centraal stembureau
 brp:
   check_candidate: Deze kandidaat controleren met de BRP
+  checking: Bezig met controleren
   correct: Correct
   errors: Fouten
   finding:
@@ -35,6 +36,7 @@ brp:
     deceased: "Volgens de BRP is deze kandidaat overleden op {}."
     deceased_date_unknown: "Volgens de BRP is deze kandidaat overleden, zonder volledige datum van overlijden."
     excluded_from_suffrage: Volgens de BRP is deze kandidaat uitgesloten van het kiesrecht.
+    last_name_not_allowed: "De achternaam mag volgens de BRP zijn: {}"
     mismatch: "{} wijkt af van de BRP, waarin staat: {}"
     missing_in_brp: "De BRP bevat geen {} voor deze kandidaat."
     not_dutch: Volgens de BRP heeft deze kandidaat niet de Nederlandse nationaliteit.
@@ -43,6 +45,15 @@ brp:
     residence_unknown: De verblijfplaats van deze kandidaat is onbekend in de BRP.
     residence_without_address: "Deze kandidaat heeft geen woonadres in de BRP (bijvoorbeeld een briefadres), waardoor de BRP geen woonplaats bevat."
     unparsable: "De waarde uit de BRP voor {} is niet te interpreteren en is daarom niet vergeleken: {}"
+  handled:
+    badge: Afgehandeld
+    candidate: Kandidaat
+    count: "{} van {} afgehandeld"
+    done: Afgehandeld
+    explanation: "Markeer een BRP-fout als afgehandeld wanneer die geen probleem blijkt te zijn, of wanneer er een verzuim voor is toegevoegd."
+    finding: Fout
+    not_done: Niet afgehandeld
+    title: BRP-fouten
   incomplete: Controle niet afgerond
   not_checked: Niet gecontroleerd
   refresh: Pagina verversen
@@ -69,7 +80,30 @@ declarations_of_support:
   instruction: Meld problemen met de ondersteunings\u00ADverklaringen
   title: Ondersteunings\u00ADverklaringen
 examination: Onderzoek
-finish_examination: Afronden onderzoek
+finalise:
+  add_objection: Bezwaar toevoegen
+  district_count: Kieskringen
+  i4_note: Proces-verbaal over geldigheid en nummering kandidatenlijsten. Maak het document aan van het verslag van de openbare zitting.
+  i4_title: I 4 Proces-verbaal
+  no_lists: Er zijn geen lijsten om te nummeren.
+  objections_note: Heeft iemand tijdens de zitting bezwaar gemaakt? Voeg het hieronder toe.
+  objections_title: Bezwaar invoeren
+  order_note: "Politieke groeperingen die bij de laatstgehouden verkiezing een of meer zetels hebben behaald, staan vooraan op volgorde van het aantal stemmen. Versleep de lijsten in de volgorde die tijdens de zitting is vastgesteld."
+  order_title: Partij volgorde
+  position: Positie
+  title: Vaststellen kandidatenlijsten
+finish_examination:
+  download_note: Download hier alle verzuimbrieven als Word en PDF in één ZIP
+  download_pdf: Download PDF
+  download_word: Download Word
+  download_zip: Download ZIP
+  hearing_details: Zitting details
+  i1_note: Onderzoek ingeleverde kandidatenlijsten. Maak het document aan van verslag van het onderzoek naar de kandidatenlijsten
+  i1_title: I 1 Proces-verbaal
+  no_omission_letters: Er zijn geen verzuimbrieven aan te maken.
+  omission_letters: Verzuimbrieven
+  omission_letters_note: Maak de verzuimbrieven aan voor de politieke groeperingen waarbij verzuimen zijn vastgesteld.
+  title: Afronden onderzoek
 finish_instruction:
   create_defects: Aanmaken verzuimbrief
   create_model_i1: Aanmaken model I 1
@@ -105,11 +139,20 @@ group:
   instruction_submitter: Controleer de gegevens van de lijstinleveraar(s)
   toggle: Onderzoek afronden of heropenen
   unfinished: Onderzoek afronden
+hearing:
+  chair_name: Naam voorzitter
+  date: Datum zitting
+  location: Het betreft de zitting van het centraal stembureau in
+  member_name: Naam lid
+  place_and_time: Locatie en tijdstip
+  signing: Ondertekening
+  time: Tijdstip zitting
 import:
   error:
     ambiguous_hash: De ingevoerde hash code komt overeen met meer dan één dataset; voer meer tekens in.
     invalid_hash: "Voer een geldige hash code in (tenminste 4 paren van hexadecimale tekens, bijv. AB12 C3D4)."
     not_found: Er is geen data gevonden voor de ingevoerde hash code.
+    other_election: "De dataset voor de ingevoerde hash code hoort bij een andere verkiezing ({}) en kan niet worden geïmporteerd."
   warning:
     already_imported: "De politieke groepering “{}” is al geïmporteerd. Kies “Toch importeren” om deze opnieuw te importeren."
 index:
@@ -119,12 +162,21 @@ index:
     add_omissions: Verzuimen en correcties toevoegen
     create_i1_letters: I 1 en verzuimbrieven aanmaken
     create_i4: I 4 aanmaken
+    record_list_order: Uitslag van de loting vastleggen
+    record_objections: Bezwaren vastleggen
     recover_omissions: Verzuimen herstellen
+    register_appellations: Geregistreerde aanduidingen vastleggen
+    register_previous_results: Uitslag van de laatstgehouden verkiezing vastleggen
     report_errors: Fouten doorgeven
     view_candidate_lists: Inzage kandidatenlijsten
   go_to_examination: Ga naar onderzoek
+  go_to_finalise: Ga naar vaststellen kandidatenlijsten
+  go_to_pre_submission: Ga naar voorinlevering
   go_to_recovery: Ga naar herstelde lijsten
+  go_to_registered_political_groups: Ga naar registratie
   phase: "Fase {}"
+  phase_0:
+    title: Registratie
   phase_1:
     title: Voorinlevering
   phase_2:
@@ -132,8 +184,6 @@ index:
   phase_3:
     title: Herstelde lijsten
   phase_4:
-    title: Lijstnummering
-  phase_5:
     title: Vaststellen kandidatenlijsten
 list:
   add_text: Voeg verzuimen toe voor deze kandidatenlijst
@@ -151,6 +201,11 @@ monitoring:
 no_finished_political_group: Er zijn geen afgeronde onderzoeken naar politieke groeperingen.
 no_political_groups_added: Er zijn geen onderzoeken voor politieke groeperingen toegevoegd.
 no_unfinished_political_groups: Er zijn geen onafgeronde onderzoeken naar politieke groeperingen.
+objection:
+  form:
+    add_title: Bezwaar toevoegen
+    text_label: Bezwaar tekst
+    update_title: Bezwaar wijzigen
 omission:
   action:
     add: Verzuim toevoegen
@@ -158,8 +213,9 @@ omission:
     applies_to: "Dit verzuim geldt voor:"
     description_label: I 1 verzuim toevoegen
     edit_heading: Type of bewerk hier het verzuim
+    help_text_hint: Alleen bij een herstelbaar verzuim. Onherstelbare verzuimen komen niet in de verzuimbrief.
     help_text_label: Verzuimbriefnotitie toevoegen
-    placeholder_warning: De tekst bevat nog niet ingevulde placeholders.
+    no_omission_letter_hint: "Let op: dit verzuim komt nu niet in de verzuimbrief en het model I 1 te staan"
     presets_heading: Gebruik deze verzuimen als sjabloon (optioneel)
     recoverable_hint: "Een herstelbaar verzuim kan de politieke groepering nog herstellen, een onherstelbaar verzuim niet."
     recoverable_label: Herstelbaar verzuim
@@ -173,11 +229,19 @@ omission:
     not_recoverable: Onherstelbaar
     recoverable: Herstelbaar
     title: Overzicht
+  removed_candidate: "{} (verwijderd)"
   title: Verzuimen
   title_for:
+    appellation: Verzuimen aanduiding
     candidate: "Verzuimen {}"
     candidate_list: Verzuimen kandidatenlijst
     general: Verzuimen basisgegevens
+omission_letter:
+  download_note: Download de verzuimbrief voor deze politieke groepering als Word- of PDF-bestand.
+  explanation: In de verzuimbrief staan alle verzuimen die bij deze politieke groepering zijn vastgesteld.
+  omissions_explanation: "Alle vastgestelde verzuimen van deze politieke groepering, zoals ze in de verzuimbrief staan."
+  omissions_title: Verzuimen in de brief
+  title: Verzuimbrief
 paper_corrections:
   added: Papieren correctie toegevoegd
   banner: "U corrigeert {}. Neem alleen correcties over die met de hand op de ingeleverde papieren documenten zijn geschreven, verder niets."
@@ -186,12 +250,23 @@ paper_corrections:
   start: Ga naar gegevens
   stop: Terug naar onderzoek
   title: Papieren correcties
+pre_submission:
+  download_title: Overzicht voor de politieke groepering
+  explanation: "Controleer de kandidatenlijsten die politieke groeperingen vóór de dag van kandidaatstelling aanleveren tegen de BRP, zodat zij fouten vóór de officiële inlevering kunnen herstellen."
+  group_explanation: "Alle verschillen die de controle tegen de BRP heeft gevonden, per kandidaat. Geef ze door aan de politieke groepering, zodat ze vóór de dag van kandidaatstelling hersteld kunnen worden."
+  none: Er zijn nog geen politieke groeperingen geïmporteerd voor de voorinlevering.
+  title: Voorinlevering
+  view: BRP fouten bekijken
 progress: Voortgang
 recovery:
   assess: Beoordelen
   assessed: Beoordeeld
   assessed_count: "{} van {} beoordeeld"
+  download_i4_pdf: I 4 downloaden (PDF)
+  download_i4_word: I 4 downloaden (Word)
   explanation: "Leg per verzuim vast of het is hersteld. Kandidaten, lijsten en kieskringen met een niet hersteld verzuim worden geschrapt."
+  finish_note: "Zolang nog niet alle verzuimen zijn beoordeeld, is het model I 4 nog niet definitief."
+  finish_title: Afronden herstel
   no_omissions: Geen verzuimen
   not_recovered: Niet hersteld
   omissions_explanation: Leg per verzuim vast of het is hersteld.
@@ -199,6 +274,13 @@ recovery:
   recovered: Hersteld
   scrapped: Geschrapt
   title: Herstelde lijsten
+registered_political_groups:
+  edit: Politieke groepering bewerken
+  none: Er zijn nog geen politieke groeperingen geregistreerd.
+  numbering_hint: "Alleen politieke groeperingen die ten minste één zetel hebben behaald, worden op stemmen genummerd. De overige lijsten worden door loting genummerd."
+  previous_seats: Zetels bij de laatstgehouden verkiezing
+  previous_votes: Stemmen bij de laatstgehouden verkiezing
+  title: Geregistreerde politieke groeperingen
 status:
   approved: Goedgekeurd
   correction: Ambtshalve correcties toegevoegd

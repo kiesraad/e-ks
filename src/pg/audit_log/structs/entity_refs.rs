@@ -79,7 +79,7 @@ fn describe_entity(kind: &EntityKind, id_str: &str, state: &PgStoreData) -> Stri
             .map(|cl| {
                 cl.electoral_districts
                     .iter()
-                    .map(ElectoralDistrict::code)
+                    .map(ElectoralDistrict::title)
                     .collect::<Vec<_>>()
                     .join(", ")
             })

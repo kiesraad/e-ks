@@ -41,7 +41,7 @@
 //! - `src/pg/`: political group section domain modules (candidates, candidate_lists,
 //!   persons, etc), plus the per-stream [`PgStoreData`] projection (`pg/store/`) and
 //!   the HTML error-page renderer.
-//! - `src/csb/`: central voting bureau section (import, examination, monitoring).
+//! - `src/csb/`: central voting bureau section (import, pre-submission, examination, monitoring).
 //! - `src/structs/`: shared domain model structs used by both `pg` and `csb`.
 //! - `src/middleware/`: shared HTTP infrastructure that needs [`AppState`]
 //!   (session/store middleware, health, proxy, eks_key, dev login).
@@ -152,11 +152,11 @@ pub(crate) use utils::{
 };
 // Askama resolves custom filters from the enclosing module scope, so template
 // modules do `use crate::filters`.
-pub(crate) use view::{Context, filters};
+pub(crate) use view::{Context, ErrorPage, filters};
 
 #[cfg(test)]
 mod test_support;
 #[cfg(test)]
 pub(crate) use test_support::{brp_stub, test_utils};
 
-pub(crate) use store::{StreamId, crypto};
+pub(crate) use store::{EventHashPrefix, StreamId, crypto};

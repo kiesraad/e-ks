@@ -31,5 +31,5 @@ children:
       - --watch
       - locales
       - --exec
-      - run --locked
+      - run --locked --features development
     wait_for_postgres: true

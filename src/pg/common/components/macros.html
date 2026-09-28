@@ -15,6 +15,15 @@
     </form>
   </dialog>
 {% endmacro delete_modal %}
+{% macro error_card(message, status_code, home_href) %}
+  <div class="card error-card">
+    <div class="alert alert-error">{{ message }}</div>
+    <div class="error-card-footer">
+      <a href="{{ home_href }}" class="button">{{ "action.back_home"|trans }}</a>
+      <span class="error-code">{{ "common.error_code"|trans(status_code.as_str() ) }}</span>
+    </div>
+  </div>
+{% endmacro error_card %}
 {% macro download_button(label, href, downloadable, version) %}
   {% if downloadable %}
     <a href="{{ href }}" class="button secondary icon-download">{{ label }} (v{{ version }})</a>

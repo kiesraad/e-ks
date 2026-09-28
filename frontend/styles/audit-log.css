@@ -50,6 +50,12 @@ table.diff-table {
     overflow-wrap: break-word;
   }
 
+  th:nth-child(2),
+  th:nth-child(3) {
+    /* Ensure that 'Oude waarde' and 'Nieuwe waarde' go on one line */
+    white-space: nowrap;
+  }
+
   tr:nth-child(even) {
     background-color: var(--gray-100);
   }

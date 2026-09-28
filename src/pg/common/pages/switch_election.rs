@@ -22,7 +22,7 @@ struct SwitchElectionTemplate {
     current_election: ElectionConfig,
     title_locale: AnyLocale,
     current_type: &'static str,
-    selected_region: Option<&'static str>,
+    selected_domain: Option<&'static str>,
     provinces: &'static [Province],
     water_councils: &'static [WaterCouncil],
 }
@@ -39,7 +39,7 @@ pub async fn switch_election<S: AppRequestState>(
             current_election: context.election,
             title_locale: AnyLocale::from(context.session.locale),
             current_type: context.election.code(),
-            selected_region: context.election.region_code(),
+            selected_domain: context.election.domain_code(),
             provinces: Province::ALL,
             water_councils: WaterCouncil::ALL,
             elections: ElectionConfig::type_options(),
@@ -150,7 +150,7 @@ mod tests {
         let cookie = format!("{}={}", crate::SESSION_COOKIE_NAME, token_value);
 
         // Submit switch to PS27 Groningen
-        let body = format!("csrf_token={csrf_token}&election=PS27&region_province=prov1");
+        let body = format!("csrf_token={csrf_token}&election=PS27&domain_province=prov1");
         let response = app
             .oneshot(
                 Request::builder()

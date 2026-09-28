@@ -7,7 +7,7 @@
 
 use auth_service::{
     bindings::soap::unwrap_soap,
-    keys::{CertificateBase64, KeyPair, key_pair_paths, load_key_pair},
+    keys::{CertificateBase64, CertificatePem, KeyPair, PrivateKeyPem, key_pair_paths},
     saml::{
         constants::{NS_SAML, NS_SAMLP, NS_SOAP, STATUS_SUCCESS, SUBJECT_CONFIRMATION_BEARER},
         loa::MINIMUM_LOA,
@@ -53,9 +53,18 @@ pub const SAMLP: &str = NS_SAMLP;
 // ---------------------------------------------------------------------------
 
 /// Load a keypair (by fixture base name) from the committed TVS fixtures.
+///
+/// Reads the files synchronously (the library's loaders are async) so the many
+/// plain `#[test]` functions here need no runtime.
 pub fn load_key(name: &str) -> KeyPair {
     let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures");
-    load_key_pair(&key_pair_paths(&dir, name)).expect("fixture key pair loads")
+    let paths = key_pair_paths(&dir, name);
+    let read = |path: &std::path::Path| {
+        std::fs::read_to_string(path)
+            .unwrap_or_else(|e| panic!("read fixture {}: {e}", path.display()))
+    };
+    let cert = CertificatePem::parse(read(&paths.cert)).expect("fixture cert parses");
+    KeyPair::from_pem(cert, PrivateKeyPem::new(read(&paths.key)))
 }
 
 /// A SAML timestamp (`%Y-%m-%dT%H:%M:%SZ`) at `offset` from now.

@@ -19,7 +19,22 @@ use crate::{
     utils::bag,
 };
 
+/// Whether a router serves the CSB section. The listener configured through
+/// `CSB_BIND_ADDRESS` gets [`Included`](WithCsbRoutes::Included) and the main
+/// one [`Excluded`](WithCsbRoutes::Excluded), so `/csb` lives on that domain
+/// only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WithCsbRoutes {
+    Included,
+    Excluded,
+}
+
+/// The complete router, CSB section included.
 pub fn create(state: AppState) -> Router<AppState> {
+    create_with(state, WithCsbRoutes::Included)
+}
+
+pub fn create_with(state: AppState, csb_routes: WithCsbRoutes) -> Router<AppState> {
     let app_router = app_feature_router();
 
     #[cfg(feature = "dev-features")]
@@ -39,8 +54,6 @@ pub fn create(state: AppState) -> Router<AppState> {
             store_middleware,
         ));
 
-    let csb_router = csb_router(&state);
-
     // These routes need a session but NOT store middleware: select-election runs
     // before a stream_id is chosen, and /language must stay reachable for CSB
     // (committee) sessions that store_middleware redirects off app routes.
@@ -50,12 +63,17 @@ pub fn create(state: AppState) -> Router<AppState> {
     // request (see `auth::csrf_guard`), so no handler can forget the check.
     let app_router = app_router
         .merge(common::session_only_router())
-        .merge(bag::router())
-        .merge(csb_router)
-        .layer(middleware::from_fn_with_state(
-            state.clone(),
-            session_middleware,
-        ));
+        .merge(bag::router());
+
+    let app_router = match csb_routes {
+        WithCsbRoutes::Included => app_router.merge(csb_router(&state)),
+        WithCsbRoutes::Excluded => app_router,
+    };
+
+    let app_router = app_router.layer(middleware::from_fn_with_state(
+        state.clone(),
+        session_middleware,
+    ));
 
     #[cfg(feature = "dev-features")]
     let router = Router::new().merge(dev_router).merge(app_router);
@@ -63,7 +81,7 @@ pub fn create(state: AppState) -> Router<AppState> {
     #[cfg(not(feature = "dev-features"))]
     let router = app_router;
 
-    let router = router.merge(public_router());
+    let router = router.merge(public_router(csb_routes));
 
     let router = router
         .layer(middleware::from_fn_with_state(
@@ -111,10 +129,13 @@ fn csrf_layer() -> CsrfLayer {
 /// Routes mounted outside the session middleware (no session required): the
 /// SAML auth-service endpoints, the PG login and logged-out pages, and the
 /// CSB GitHub login.
-fn public_router() -> Router<AppState> {
-    auth_service::router()
-        .merge(common::public_router())
-        .merge(csb::login::public_router())
+fn public_router(csb_routes: WithCsbRoutes) -> Router<AppState> {
+    let router = auth_service::router().merge(common::public_router());
+
+    match csb_routes {
+        WithCsbRoutes::Included => router.merge(csb::login::public_router()),
+        WithCsbRoutes::Excluded => router,
+    }
 }
 
 /// The application's feature routes (everything that sits behind the session
@@ -123,13 +144,27 @@ fn public_router() -> Router<AppState> {
 /// CSB routes need the session plus their own (CSB) store middleware, which
 /// also gates them to committee-scoped sessions. They must NOT get the app
 /// `store_middleware`, so they are merged into the session layer separately.
+///
+/// Errors are rendered in the CSB layout by `render_csb_error_pages`, the CSB
+/// counterpart of `render_error_pages`. `csb::common::router()` claims every
+/// other path under `/csb` for the CSB not-found page: the app router's
+/// fallback would otherwise catch those, and its store middleware redirects
+/// committee sessions away instead of answering with a page.
 fn csb_router(state: &AppState) -> Router<AppState> {
     csb::index::router()
         .merge(csb::audit_log::router())
+        .merge(csb::common::router())
         .merge(csb::examination::router())
+        .merge(csb::finalise::router())
+        .merge(csb::pre_submission::router())
         .merge(csb::recovery::router())
+        .merge(csb::registered_political_groups::router())
         .merge(csb::import::router())
         .merge(csb::monitoring::router())
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            csb::render_csb_error_pages,
+        ))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             csb_store_middleware,
@@ -247,37 +282,32 @@ fn apply_no_store(router: Router<AppState>) -> Router<AppState> {
     ))
 }
 
-/// Mount the cache-busted `/static` asset routes: served from the embedded
-/// bundle in release builds, proxied to the dev asset server otherwise.
+/// Mount the `/static` asset routes: served from the embedded bundle in
+/// release builds (also on hashed, immutable routes that templates reach via
+/// [`crate::view::assets::asset_path`]), proxied to the dev asset server
+/// otherwise.
 ///
-/// [`apply_no_store`] runs first, so these cache-busted assets stay cacheable
-/// while every page above them does not.
+/// [`apply_no_store`] runs first, so these assets stay cacheable while every
+/// page above them does not.
+///
+/// An unknown asset path answers a plain 404 rather than falling through to
+/// the app fallback, whose login redirect would hand the browser HTML where
+/// it expects a stylesheet or script.
 fn mount_static_assets(router: Router<AppState>) -> Router<AppState> {
     let router = apply_no_store(router);
-    let code = crate::filters::cache_buster();
-    let index_js = format!("/{code}-index.js");
-    let index_css = format!("/{code}-index.css");
 
     #[cfg(feature = "memory-serve")]
-    let router = {
-        let memory_serve = memory_serve::load!()
-            .index_file(None)
-            .add_alias(index_js.leak(), "/index.js")
-            .add_alias(index_css.leak(), "/index.css");
-
-        router.nest("/static", memory_serve.into_router())
-    };
+    let router = router.nest(
+        crate::view::assets::STATIC_PREFIX,
+        crate::view::assets::memory_serve()
+            .into_router()
+            .fallback(|| async { axum::http::StatusCode::NOT_FOUND }),
+    );
 
     #[cfg(not(feature = "memory-serve"))]
     let router = router.nest(
-        "/static",
-        Router::new().fallback(crate::proxy_handler(
-            "http://localhost:8888",
-            vec![
-                (index_js, "/index.js".to_string()),
-                (index_css, "/index.css".to_string()),
-            ],
-        )),
+        crate::view::assets::STATIC_PREFIX,
+        Router::new().fallback(crate::proxy_handler("http://localhost:8888", vec![])),
     );
 
     router
@@ -317,6 +347,140 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
         assert!(body.contains("Kiesraad - Kandidaatstelling"));
+    }
+
+    /// Insert a committee session and build a GET request for `uri` that
+    /// carries its cookie.
+    async fn committee_request(state: &AppState, uri: &str) -> Request<Body> {
+        let session = crate::Session::new_test_committee();
+        let token = session.token_string();
+        state.sessions.insert(session).await;
+
+        Request::builder()
+            .uri(uri)
+            .header(
+                header::COOKIE,
+                format!("{}={}", crate::SESSION_COOKIE_NAME, token),
+            )
+            .body(Body::empty())
+            .unwrap()
+    }
+
+    /// An unknown path under `/csb` gets the CSB not-found page, not the app
+    /// router's fallback (which would redirect the committee session).
+    #[tokio::test]
+    async fn unknown_csb_path_renders_csb_not_found_page() {
+        let state = AppState::new_for_tests().await;
+        let app: Router = create(state.clone()).with_state(state.clone());
+
+        let request = committee_request(&state, "/csb/does-not-exist").await;
+        let response = app.oneshot(request).await.expect("response");
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let body = response_body_string(response).await;
+        assert!(body.contains("Pagina niet gevonden"), "{body}");
+        assert!(body.contains("/csb/does-not-exist"), "{body}");
+        assert!(body.contains("href=\"/csb\""), "{body}");
+    }
+
+    /// An error from a CSB handler or extractor is rendered as a page in the
+    /// CSB layout rather than answered with a bare status code.
+    #[tokio::test]
+    async fn csb_handler_error_renders_csb_error_page() {
+        let state = AppState::new_for_tests().await;
+        let app: Router = create(state.clone()).with_state(state.clone());
+
+        let uri = format!("/csb/examination/{}", crate::StreamId::new());
+        let request = committee_request(&state, &uri).await;
+        let response = app.oneshot(request).await.expect("response");
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let body = response_body_string(response).await;
+        assert!(body.contains("Foutcode 404"), "{body}");
+        assert!(body.contains("Stream not found"), "{body}");
+        assert!(body.contains("href=\"/csb\""), "{body}");
+    }
+
+    /// The model download routes are static segments under the same prefix as
+    /// `/csb/examination/{stream_id}`; they must resolve to their own handlers
+    /// rather than being parsed as a (bogus) stream id.
+    #[tokio::test]
+    async fn model_download_routes_win_over_the_political_group_route() {
+        let state = AppState::new_for_tests().await;
+
+        for (uri, content_type) in [
+            ("/csb/examination/i1.pdf", "application/pdf"),
+            (
+                "/csb/examination/i1.docx",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ),
+            ("/csb/examination/i4.pdf", "application/pdf"),
+            (
+                "/csb/examination/finish/verzuimbrieven.zip",
+                "application/zip",
+            ),
+        ] {
+            let app: Router = create(state.clone()).with_state(state.clone());
+            let request = committee_request(&state, uri).await;
+            let response = app.oneshot(request).await.expect("response");
+
+            assert_eq!(response.status(), StatusCode::OK, "{uri}");
+            assert_eq!(
+                response.headers().get(header::CONTENT_TYPE).expect("type"),
+                content_type,
+                "{uri}"
+            );
+        }
+    }
+
+    /// `/csb/examination/finish/{stream_id}` shares its first segments with
+    /// the static finish page and the `{stream_id}` group route; it must reach
+    /// the omission letter page's stream extractor rather than fall through.
+    #[tokio::test]
+    async fn omission_letter_page_route_resolves_under_the_finish_page() {
+        let state = AppState::new_for_tests().await;
+        let app: Router = create(state.clone()).with_state(state.clone());
+
+        let uri = format!("/csb/examination/finish/{}", crate::StreamId::new());
+        let request = committee_request(&state, &uri).await;
+        let response = app.oneshot(request).await.expect("response");
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let body = response_body_string(response).await;
+        assert!(body.contains("Stream not found"), "{body}");
+    }
+
+    /// With the CSB section on its own listener, its routes (and its login)
+    /// must be gone from the main router; the political-group routes stay.
+    #[tokio::test]
+    async fn excluded_csb_routes_are_unreachable_on_the_main_router() {
+        let state = AppState::new_for_tests_with_config(
+            crate::csb::login::test_support::github_test_config(),
+        )
+        .await;
+        let app: Router =
+            create_with(state.clone(), WithCsbRoutes::Excluded).with_state(state.clone());
+
+        for uri in [
+            csb::index::CsbIndexPath::PATH,
+            csb::import::CsbImportPath::PATH,
+            csb::login::CsbLoginPath::PATH,
+            csb::login::CsbLoginStartPath::PATH,
+        ] {
+            let request = committee_request(&state, uri).await;
+            let response = app.clone().oneshot(request).await.expect("response");
+
+            // The political-group fallback answers instead: its store
+            // middleware redirects a committee session off app routes.
+            assert_eq!(response.status(), StatusCode::SEE_OTHER, "{uri}");
+        }
+
+        let request = Request::builder()
+            .uri("/login")
+            .body(Body::empty())
+            .unwrap();
+        let response = app.oneshot(request).await.expect("response");
+        assert_eq!(response.status(), StatusCode::OK);
     }
 
     #[tokio::test]
@@ -554,8 +718,55 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
             response.headers().get("clear-site-data").unwrap(),
-            "\"cache\", \"storage\""
+            "\"storage\""
         );
+    }
+
+    /// Templates link the hashed route, which changes with the file and is
+    /// therefore served as immutable in release builds. Debug builds serve
+    /// the files dynamically and keep the regular cache policy there.
+    #[cfg(feature = "memory-serve")]
+    #[tokio::test]
+    async fn hashed_asset_route_is_served_cacheable() {
+        let state = AppState::new_for_tests().await;
+        let app: Router = create(state.clone()).with_state(state.clone());
+
+        let request = Request::builder()
+            .uri(crate::view::assets::asset_path("/index.css"))
+            .body(Body::empty())
+            .unwrap();
+        let response = app.oneshot(request).await.expect("response");
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.headers().get(header::CONTENT_TYPE).unwrap(),
+            "text/css"
+        );
+
+        let cache_control = response.headers().get(header::CACHE_CONTROL).unwrap();
+        if cfg!(debug_assertions) {
+            assert_ne!(cache_control, "no-store");
+        } else {
+            assert_eq!(cache_control, "max-age=31536000, immutable");
+        }
+    }
+
+    /// A missing asset must fail as a 404, not as the login redirect: with
+    /// `nosniff` the browser refuses HTML in place of a stylesheet, and the
+    /// redirect is what a mixed-version deploy would otherwise hand out.
+    #[cfg(feature = "memory-serve")]
+    #[tokio::test]
+    async fn unknown_static_asset_is_not_found() {
+        let state = AppState::new_for_tests().await;
+        let app: Router = create(state.clone()).with_state(state.clone());
+
+        let request = Request::builder()
+            .uri("/static/deadbeef-index.css")
+            .body(Body::empty())
+            .unwrap();
+        let response = app.oneshot(request).await.expect("response");
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 
     /// The load balancer has no `x-eks-key`, so its probe must answer from
@@ -727,6 +938,54 @@ mod tests {
             let response = app.clone().oneshot(request).await.expect("response");
 
             assert_eq!(response.status(), StatusCode::UNAUTHORIZED, "{uri}");
+        }
+    }
+
+    /// Downloads are GET links, which the fetch-metadata layer and the session
+    /// middleware both wave through: the event-hash in the path is what stops a
+    /// cross-site navigation from forging the audit event a download writes.
+    #[tokio::test]
+    async fn cross_site_download_navigation_needs_a_hash_from_the_stream() {
+        let state = AppState::new_for_tests().await;
+        let stream_id = crate::StreamId::new();
+        let store = state
+            .store_for_stream(stream_id, crate::ElectionConfig::EK27, false)
+            .await
+            .expect("store");
+        crate::test_utils::sample_person(crate::structs::persons::PersonId::new())
+            .create(&crate::PgStore::own(store.clone()))
+            .await
+            .expect("seed an event");
+
+        let mut session = crate::Session::new_test_for_stream(stream_id);
+        session.set_test_election(crate::ElectionConfig::EK27);
+        let token = session.token_string();
+        state.sessions.insert(session).await;
+
+        let hash = crate::EventHashPrefix::of(&store.current_event_hash());
+        let app: Router = create(state.clone()).with_state(state);
+
+        // a hash this stream never had, as an off-site page would have to guess
+        let forged = crate::EventHashPrefix::of(&[0xEE; 32]);
+        for (hash, expected) in [(forged, true), (hash, false)] {
+            let request = Request::builder()
+                .uri(format!("/generate/{hash}/nl/documents.zip"))
+                .header("sec-fetch-site", "cross-site")
+                .header("sec-fetch-mode", "navigate")
+                .header(
+                    header::COOKIE,
+                    format!("{}={}", crate::SESSION_COOKIE_NAME, token),
+                )
+                .body(Body::empty())
+                .unwrap();
+            let response = app.clone().oneshot(request).await.expect("response");
+
+            assert_eq!(
+                response.status() == StatusCode::NOT_FOUND,
+                expected,
+                "hash {hash} should {}have been refused",
+                if expected { "" } else { "not " }
+            );
         }
     }
 

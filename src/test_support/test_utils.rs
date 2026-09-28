@@ -12,6 +12,7 @@ use crate::structs::{
     political_groups::PoliticalGroup,
 };
 use http_body_util::BodyExt;
+use std::collections::BTreeSet;
 
 use crate::{
     AppError, Context, ElectionConfig, ElectoralDistrict, PgStore, TokenValue,
@@ -59,7 +60,7 @@ pub fn sample_full_name(
         first_name: first_name.map(parse_first_name),
         last_name: parse_last_name(last_name),
         last_name_prefix: last_name_prefix.map(parse_last_name_prefix),
-        initials: parse_initials(initials),
+        initials: Some(parse_initials(initials)),
     }
 }
 
@@ -149,7 +150,7 @@ fn sample_dutch_address_form(
 pub fn sample_candidate_list(id: CandidateListId) -> CandidateList {
     CandidateList {
         id,
-        electoral_districts: vec![ElectoralDistrict::Utrecht],
+        electoral_districts: BTreeSet::from([ElectoralDistrict::Utrecht]),
         ..Default::default()
     }
 }
@@ -178,7 +179,7 @@ pub fn sample_person_from_brp() -> Person {
             first_name: Some("Tina-Antïna".parse().unwrap()),
             last_name: "Bruin".parse().unwrap(),
             last_name_prefix: Some("de".parse().unwrap()),
-            initials: "T.".parse().unwrap(),
+            initials: Some("T.".parse().unwrap()),
         },
         personal_data: PersonalData {
             gender: Some(Gender::Female),
@@ -353,7 +354,7 @@ pub async fn setup_documents_test_state(
             .into_iter()
             .next()
         {
-            list.electoral_districts = vec![district];
+            list.electoral_districts = BTreeSet::from([district]);
         }
 
         for _ in 0..candidate_count {

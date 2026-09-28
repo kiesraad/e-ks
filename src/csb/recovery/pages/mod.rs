@@ -77,17 +77,22 @@ async fn candidate(
 
 #[cfg(test)]
 mod tests {
+    use std::{collections::BTreeSet, str::FromStr};
+
     use super::*;
     use axum::{http::StatusCode, response::IntoResponse};
 
     use crate::{
+        CsbAction, PgEvent,
         structs::{
             candidate_lists::CandidateListId,
-            csb::{Omission, OmissionCategory, OmissionStatus},
+            csb::{Omission, OmissionCategory, OmissionStatus, OmissionText, OmissionTitle},
+            name_authorisations::NameAuthorisationId,
             persons::PersonId,
         },
         test_utils::{
-            response_body_string, sample_candidate_list, sample_person, sample_political_group,
+            response_body_string, sample_candidate_list, sample_name_authorisation, sample_person,
+            sample_political_group,
         },
     };
 
@@ -223,7 +228,9 @@ mod tests {
         store.add_candidate_list(list.clone());
 
         let omission = Omission::new(
-            OmissionCategory::DeclarationsOfSupport(list.electoral_districts.clone()),
+            OmissionCategory::DeclarationsOfSupport(
+                list.electoral_districts.iter().copied().collect(),
+            ),
             "Too few declarations".parse().unwrap(),
             "Not enough declarations of support were handed in."
                 .parse()
@@ -300,6 +307,125 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn recovery_candidate_list_page_decides_a_multi_list_omission_per_list() {
+        use crate::ElectoralDistrict;
+
+        let store = CsbStore::new_for_test();
+        let stream_id = store.stream_id;
+
+        let mut lists = Vec::new();
+        for district in [ElectoralDistrict::Groningen, ElectoralDistrict::Utrecht] {
+            let list_id = CandidateListId::new();
+            let mut list = sample_candidate_list(list_id);
+            list.electoral_districts = BTreeSet::from([district]);
+            store.add_candidate_list(list);
+            lists.push(list_id);
+        }
+
+        Omission::new(
+            OmissionCategory::CandidateList(lists.clone()),
+            "Too many candidates".parse().unwrap(),
+            "The list holds more candidates than allowed."
+                .parse()
+                .unwrap(),
+            None,
+        )
+        .create(&store)
+        .await
+        .unwrap();
+
+        let response = candidate_list(
+            CsbRecoveryCandidateListPath {
+                stream_id,
+                list_id: lists[0],
+            },
+            CsbContext::new_test(),
+            store,
+        )
+        .await
+        .unwrap()
+        .into_response();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response_body_string(response).await;
+        // The page decides its own list only; the other list has its own page.
+        assert_eq!(body.matches(r#"name="candidate_list""#).count(), 1);
+        assert!(body.contains(&format!(r#"value="{}""#, lists[0])));
+        assert!(!body.contains(&format!(r#"value="{}""#, lists[1])));
+        assert!(!body.contains("omission-part-table"));
+    }
+
+    #[tokio::test]
+    async fn recovery_candidate_page_decides_a_multi_list_omission_per_list() {
+        use crate::ElectoralDistrict;
+
+        let store = CsbStore::new_for_test();
+        let stream_id = store.stream_id;
+
+        let person = sample_person(PersonId::new());
+        let person_id = person.id;
+        store.add_person(person);
+
+        let mut lists = Vec::new();
+        for district in [ElectoralDistrict::Groningen, ElectoralDistrict::Utrecht] {
+            let list_id = CandidateListId::new();
+            let mut list = sample_candidate_list(list_id);
+            list.electoral_districts = BTreeSet::from([district]);
+            list.candidates = vec![person_id];
+            store.add_candidate_list(list);
+            lists.push(list_id);
+        }
+
+        let candidate_omission = |title: &str, lists: Vec<CandidateListId>| {
+            Omission::new(
+                OmissionCategory::Candidate {
+                    person: person_id,
+                    lists,
+                },
+                title.parse().unwrap(),
+                "The document is missing.".parse().unwrap(),
+                None,
+            )
+        };
+        candidate_omission("Missing consent", lists.clone())
+            .create(&store)
+            .await
+            .unwrap();
+        // Reported on the other list only; the page says so.
+        candidate_omission("Missing identity document", vec![lists[1]])
+            .create(&store)
+            .await
+            .unwrap();
+
+        let response = candidate(
+            CsbRecoveryCandidatePath {
+                stream_id,
+                list_id: lists[0],
+                person_id,
+            },
+            CsbContext::new_test(),
+            store,
+        )
+        .await
+        .unwrap()
+        .into_response();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response_body_string(response).await;
+        // The candidate's omissions on every list, each naming its list: one
+        // decision per list for the shared one...
+        assert!(body.contains("Missing consent"));
+        assert_eq!(body.matches(r#"name="candidate_list""#).count(), 2);
+        assert!(body.contains(&format!(r#"value="{}""#, lists[0])));
+        assert!(body.contains(&format!(r#"value="{}""#, lists[1])));
+        assert!(body.contains("1. Groningen"));
+        // ...and the other list's own omission decided as a whole, but named.
+        assert!(body.contains("Missing identity document"));
+        assert!(body.contains("Candidate list"));
+        assert_eq!(body.matches("7. Utrecht").count(), 2);
+    }
+
+    #[tokio::test]
     async fn recovery_general_information_hides_correction_links() {
         let store = CsbStore::new_for_test();
         store.set_political_group(sample_political_group());
@@ -319,5 +445,50 @@ mod tests {
         assert!(body.contains("Kiesraad Demo"));
         assert!(!body.contains("/correction/"));
         assert!(!body.contains("/csb/examination/"));
+    }
+
+    #[tokio::test]
+    async fn scrapped_appellation_renders() {
+        let store = CsbStore::new_for_test();
+
+        // add a name authorisation
+        store
+            .update(CsbAction::PaperCorrectedUpdate(Box::new(
+                PgEvent::CreateNameAuthorisation(sample_name_authorisation(
+                    NameAuthorisationId::new(),
+                )),
+            )))
+            .await
+            .expect("Create name authorisation");
+
+        // add irrecoverable omission for the appellation
+        let mut omission = Omission::new(
+            OmissionCategory::Appellation,
+            OmissionTitle::from_str("unregistered").unwrap(),
+            OmissionText::from_str("unregistered").unwrap(),
+            None,
+        );
+        omission.recoverable = false;
+        store
+            .update(CsbAction::CreateOmission(omission))
+            .await
+            .expect("Update store with appellation omission creation");
+
+        let response = general_information(
+            CsbRecoveryGeneralInformationPath {
+                stream_id: store.stream_id,
+            },
+            CsbContext::new_test(),
+            store,
+        )
+        .await
+        .unwrap()
+        .into_response();
+
+        let body = response_body_string(response).await;
+
+        assert!(body.contains("Blank list"));
+        // 1 badge for the appellation and 2 badges for the name authorisation
+        assert_eq!(body.matches("Scrapped</span>").count(), 3);
     }
 }

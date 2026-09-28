@@ -4,7 +4,7 @@ version = "0.1.0"
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
-description = "Generates the districts and regions enums from MasterElectionTree.xml for the eks build script"
+description = "Generates the districts and domains enums from MasterElectionTree.xml for the eks build script"
 
 [dependencies]
 eks-utils = { path = "../utils" }

@@ -167,6 +167,65 @@ impl EndpointUrl {
         Ok(Self(url.to_owned()))
     }
 
+    /// Require an RD endpoint's host to be `domain` or a subdomain of it, so a
+    /// metadata document cannot point an endpoint at an arbitrary host (see
+    /// [`crate::config::RD_ENDPOINT_DOMAIN`]). `what` names the endpoint in the
+    /// error.
+    ///
+    /// The host is compared as DNS labels, case-insensitively, after stripping
+    /// an optional numeric port: `evil-toegang.overheid.nl` and
+    /// `toegang.overheid.nl.evil.example` do not match `toegang.overheid.nl`. A
+    /// user-info part, an IP literal, or an empty label is rejected outright.
+    pub fn require_domain(&self, domain: &str, what: &str) -> Result<()> {
+        let host = self.host().ok_or_else(|| {
+            AuthError::Config(format!(
+                "metadata {what} endpoint has no plain DNS host name: {}",
+                self.0
+            ))
+        })?;
+        let host = host.to_ascii_lowercase();
+        let domain = domain.to_ascii_lowercase();
+        let in_domain = host == domain
+            || host
+                .strip_suffix(&domain)
+                .is_some_and(|prefix| prefix.ends_with('.'));
+        if !in_domain {
+            return Err(AuthError::Config(format!(
+                "metadata {what} endpoint host {host} is not under the pinned RD domain {domain}: {}",
+                self.0
+            )));
+        }
+        Ok(())
+    }
+
+    /// The DNS host name of this URL, if it is one: the authority without a
+    /// user-info part or IP literal, with a trailing numeric port stripped, made
+    /// of non-empty labels of letters, digits and hyphens.
+    fn host(&self) -> Option<&str> {
+        let rest = self
+            .0
+            .strip_prefix("https://")
+            .or_else(|| self.0.strip_prefix("http://"))?;
+        let authority = rest.split(['/', '?', '#']).next()?;
+        if authority.contains('@') {
+            return None;
+        }
+        let host = match authority.rsplit_once(':') {
+            Some((host, port)) if !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()) => {
+                host
+            }
+            Some(_) => return None,
+            None => authority,
+        };
+        let is_label = |label: &str| {
+            !label.is_empty() && label.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+        };
+        let is_dns_name = host.split('.').all(is_label)
+            // An all-numeric final label is an IPv4 address, not a domain name.
+            && !host.rsplit('.').next()?.bytes().all(|b| b.is_ascii_digit());
+        is_dns_name.then_some(host)
+    }
+
     /// One of the DV's own endpoints, derived from the configured `BASE_URL`.
     /// Plain `http` is accepted here (and only here) because local development
     /// runs the SP on `http://localhost`; see [`Self::is_https`], which decides
@@ -478,6 +537,54 @@ mod tests {
         assert!(EndpointUrl::from_metadata("http://rd.test/sso", "SSO").is_err());
         assert!(EndpointUrl::from_metadata("https://", "SSO").is_err());
         assert!(EndpointUrl::from_metadata("https://rd.test/sso", "SSO").is_ok());
+    }
+
+    #[test]
+    fn metadata_endpoint_domain_pin_accepts_the_domain_and_its_subdomains() {
+        for url in [
+            "https://toegang.overheid.nl/kvs/rd/metadata",
+            "https://artifact-pp2.toegang.overheid.nl/kvs/rd/resolve_artifact",
+            "https://a.b.toegang.overheid.nl/",
+            "https://Artifact-RD2.Toegang.Overheid.NL/x",
+            "https://artifact-pp2.toegang.overheid.nl:443/x",
+            "https://artifact-pp2.toegang.overheid.nl",
+            "https://artifact-pp2.toegang.overheid.nl?x=1",
+        ] {
+            let url = EndpointUrl::from_metadata(url, "ARS").unwrap();
+            assert!(
+                url.require_domain("toegang.overheid.nl", "ARS").is_ok(),
+                "{url} must be accepted"
+            );
+        }
+    }
+
+    #[test]
+    fn metadata_endpoint_domain_pin_rejects_other_hosts() {
+        for url in [
+            // Other domains, including look-alikes around the pinned one.
+            "https://evil.example/kvs/rd/resolve_artifact",
+            "https://evil-toegang.overheid.nl/x",
+            "https://toegang.overheid.nl.evil.example/x",
+            "https://xtoegang.overheid.nl/x",
+            "https://overheid.nl/x",
+            // A user-info part: the real host is the part after `@`.
+            "https://toegang.overheid.nl@evil.example/x",
+            "https://toegang.overheid.nl:443@evil.example/x",
+            // Not DNS names at all.
+            "https://127.0.0.1/x",
+            "https://[::1]/x",
+            "https://.toegang.overheid.nl/x",
+            "https://a..toegang.overheid.nl/x",
+            "https://toegang.overheid.nl:port/x",
+            "https://toegang.overheid.nl:/x",
+            "https://toegang.overheid.nl./x",
+        ] {
+            let url = EndpointUrl::from_metadata(url, "ARS").unwrap();
+            assert!(
+                url.require_domain("toegang.overheid.nl", "ARS").is_err(),
+                "{url} must be rejected"
+            );
+        }
     }
 
     #[test]

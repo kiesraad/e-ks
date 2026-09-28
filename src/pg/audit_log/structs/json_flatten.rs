@@ -4,6 +4,9 @@
 //! lists like `electoral_districts` produce one diff row), except when the
 //! array key is in `POSITIONAL_ARRAY_KEYS` — those keep per-index entries so
 //! reorders stay visible.
+//!
+//! Externally tagged enums that wrap a single scalar (`{"Known": "Juinen"}`)
+//! collapse to that scalar, so the variant name stays out of the field path.
 
 use std::collections::BTreeMap;
 
@@ -50,10 +53,29 @@ fn join_key(prefix: &str, segment: &str) -> String {
     }
 }
 
+/// The payload of an externally tagged enum variant wrapping a single scalar,
+/// e.g. `{"Known": "Juinen"}`. The variant name records how the value was
+/// classified internally (a BAG lookup, say), which is not a field of its own,
+/// so the payload takes the place of the whole object.
+fn scalar_variant_payload(
+    obj: &serde_json::Map<String, serde_json::Value>,
+) -> Option<&serde_json::Value> {
+    if obj.len() != 1 {
+        return None;
+    }
+    let (tag, payload) = obj.iter().next()?;
+    let is_variant_tag = tag.starts_with(|c: char| c.is_uppercase());
+    (is_variant_tag && is_scalar(payload)).then_some(payload)
+}
+
 fn flatten_object(
     obj: &serde_json::Map<String, serde_json::Value>,
     prefix: &str,
 ) -> BTreeMap<String, String> {
+    if let Some(payload) = scalar_variant_payload(obj) {
+        return flatten(payload, prefix);
+    }
+
     let mut map = BTreeMap::new();
     for (key, val) in obj {
         let full_key = join_key(prefix, key);
@@ -215,6 +237,32 @@ mod tests {
         let val = serde_json::json!("hello");
         let flat = flatten(&val, "");
         assert!(flat.is_empty());
+    }
+
+    #[test]
+    fn flatten_scalar_enum_variant_drops_the_variant_name() {
+        let val = serde_json::json!({
+            "place_of_residence": { "Known": "Juinen" }
+        });
+        let flat = flatten(&val, "");
+        assert_eq!(flat.get("place_of_residence").unwrap(), "Juinen");
+        assert!(!flat.contains_key("place_of_residence.Known"));
+    }
+
+    #[test]
+    fn flatten_keeps_struct_enum_variant_name() {
+        let val = serde_json::json!({
+            "address": { "Dutch": { "locality": "Juinen" } }
+        });
+        let flat = flatten(&val, "");
+        assert_eq!(flat.get("address.Dutch.locality").unwrap(), "Juinen");
+    }
+
+    #[test]
+    fn flatten_keeps_single_snake_case_key() {
+        let val = serde_json::json!({ "outer": { "inner": "x" } });
+        let flat = flatten(&val, "");
+        assert_eq!(flat.get("outer.inner").unwrap(), "x");
     }
 
     #[test]

@@ -162,7 +162,7 @@ impl From<Person> for CandidateRecordCsv {
         };
 
         CandidateRecordCsv {
-            voorletters: candidate_name.initials.to_string(),
+            voorletters: candidate_name.initials.to_string_or_default(),
             roepnaam: candidate_name.first_name.to_string_or_default(),
             voorvoegsel: candidate_name.last_name_prefix.to_string_or_default(),
             achternaam: candidate_name.last_name.to_string(),
@@ -191,7 +191,7 @@ impl From<Person> for CandidateRecordCsv {
             correspondentie_straatnaam: address.street_name.to_string_or_default(),
             correspondentie_plaats: address.locality.to_string_or_default(),
 
-            gemachtigde_voorletters: representative.name.initials.to_string(),
+            gemachtigde_voorletters: representative.name.initials.to_string_or_default(),
             gemachtigde_voorvoegsel: representative.name.last_name_prefix.to_string_or_default(),
             gemachtigde_achternaam: representative.name.last_name.to_string(),
             gemachtigde_postcode: representative.address.postal_code.to_string_or_default(),
@@ -292,7 +292,7 @@ mod tests {
 
         let person = record.validate_create().unwrap();
 
-        assert_eq!(person.name.initials.to_string(), "J.");
+        assert_eq!(person.name.initials.to_string_or_default(), "J.");
         assert_eq!(person.name.first_name.unwrap().to_string(), "Jan");
         assert_eq!(person.name.last_name_prefix.unwrap().to_string(), "van de");
         assert_eq!(person.name.last_name.to_string(), "Berg");
@@ -387,7 +387,10 @@ mod tests {
 
         let representative = person.representative.as_ref().unwrap();
 
-        assert_eq!(representative.name.initials.to_string(), "P.");
+        assert_eq!(
+            representative.name.initials.clone().to_string_or_default(),
+            "P."
+        );
         assert_eq!(
             display_opt(&representative.name.first_name).as_deref(),
             None
@@ -411,7 +414,7 @@ mod tests {
                 first_name: None,
                 last_name: "Puk".parse().expect("last name"),
                 last_name_prefix: None,
-                initials: "P.".parse().expect("initials"),
+                initials: Some("P.".parse().expect("initials")),
             },
             address: sample_dutch_address("Den Haag", "5678 CD", "34", "b", "Mooiere Straat"),
         });

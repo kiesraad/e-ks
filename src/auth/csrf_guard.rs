@@ -101,6 +101,12 @@ fn header_token(headers: &HeaderMap) -> Option<&str> {
     headers.get(CSRF_HEADER)?.to_str().ok()
 }
 
+/// True when the token travelled in the header, which only a script can set:
+/// the request came from a background `fetch`, not a form navigation.
+pub(crate) fn is_header_token_request(headers: &HeaderMap) -> bool {
+    headers.contains_key(CSRF_HEADER)
+}
+
 fn query_token(uri: &Uri) -> Option<String> {
     url::form_urlencoded::parse(uri.query()?.as_bytes())
         .find(|(name, _)| name == CSRF_FORM_FIELD)

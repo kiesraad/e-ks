@@ -1,8 +1,9 @@
 //! The official election PDF models, rendered in-process with
 //! [`textris_pdf`].
 //!
-//! Each model lives in its own file (`h1`, `h3`, `h4`, `h9`, `i1`, `i4`); H 3 covers
-//! both the H 3-1 and H 3-2 variants. The document text is authored as askama
+//! Each model lives in its own file (`h1`, `h3`, `h4`, `h9`, `i1`, `i4`, plus
+//! the omission letter in `omission_letter` and the pre-submission overview in
+//! `brp_overview`); H 3 covers both the H 3-1 and H 3-2 variants. The document text is authored as askama
 //! Markdown templates in `templates/` (one per locale and variant), written in
 //! the textris-pdf Markdown dialect and wired up by [`mod@markdown`].
 //! [`layout`] holds the shared page set-up, and [`inputs`] the shared input
@@ -14,6 +15,7 @@
 //! the rendered models plus the [`mod@eml::eml210`] nomination export as a ZIP
 //! download.
 
+pub mod brp_overview;
 pub(crate) mod documents;
 pub(crate) mod eml;
 pub mod examples;
@@ -27,13 +29,22 @@ pub mod i4;
 pub mod inputs;
 mod layout;
 mod markdown;
+pub mod omission_letter;
 
 pub use examples::{Example, examples};
 pub use fonts::fonts;
 
-use textris_pdf::build::Textris;
+use axum::{
+    http::HeaderValue,
+    response::{IntoResponse, Response},
+};
+use textris_pdf::{build::Textris, render::RenderError};
 
-use crate::AppError;
+use crate::{AppError, utils::no_cache_headers};
+
+pub const PDF_CONTENT_TYPE: &str = "application/pdf";
+pub const DOCX_CONTENT_TYPE: &str =
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
 /// A document that renders to a PDF: it can build a [`Textris`] document and
 /// knows its download file name.
@@ -50,12 +61,58 @@ pub trait Pdf: Sized {
     #[allow(async_fn_in_trait)]
     async fn generate_bytes(&self) -> Result<Vec<u8>, AppError> {
         let document = self.document()?;
-        Ok(
-            tokio::task::spawn_blocking(move || document.render(fonts()))
-                .await
-                .map_err(|_| AppError::InternalServerError)??,
+        render_blocking(move || document.render(fonts())).await
+    }
+
+    /// [`Self::filename`] with the `.docx` extension.
+    fn docx_filename(&self) -> String {
+        let filename = self.filename();
+        format!(
+            "{}.docx",
+            filename.strip_suffix(".pdf").unwrap_or(&filename)
         )
     }
+
+    /// Export the Word (`.docx`) bytes on a blocking thread. This is a
+    /// structural export of the same document: content and coarse structure,
+    /// but not the PDF's styling.
+    #[allow(async_fn_in_trait)]
+    async fn generate_docx_bytes(&self) -> Result<Vec<u8>, AppError> {
+        let document = self.document()?;
+        tokio::task::spawn_blocking(move || document.to_docx())
+            .await
+            .map_err(|_| AppError::InternalServerError)?
+            .map_err(AppError::DocxError)
+    }
+
+    /// The rendered PDF as a download response under [`Self::filename`].
+    #[allow(async_fn_in_trait)]
+    async fn pdf_response(&self) -> Result<Response, AppError> {
+        let headers = no_cache_headers::generate_attachment_headers(
+            &self.filename(),
+            HeaderValue::from_static(PDF_CONTENT_TYPE),
+        )?;
+        Ok((headers, self.generate_bytes().await?).into_response())
+    }
+
+    /// The Word export as a download response under [`Self::docx_filename`].
+    #[allow(async_fn_in_trait)]
+    async fn docx_response(&self) -> Result<Response, AppError> {
+        let headers = no_cache_headers::generate_attachment_headers(
+            &self.docx_filename(),
+            HeaderValue::from_static(DOCX_CONTENT_TYPE),
+        )?;
+        Ok((headers, self.generate_docx_bytes().await?).into_response())
+    }
+}
+
+/// Run a PDF render on a blocking thread
+pub(crate) async fn render_blocking(
+    render: impl FnOnce() -> Result<Vec<u8>, RenderError> + Send + 'static,
+) -> Result<Vec<u8>, AppError> {
+    Ok(tokio::task::spawn_blocking(render)
+        .await
+        .map_err(|_| AppError::InternalServerError)??)
 }
 
 #[cfg(test)]
@@ -82,9 +139,10 @@ mod tests {
             .expect("render model")
     }
 
-    /// Every example input renders to a valid PDF. This drives all seven
-    /// document builders (`h1`, `h3-1`, `h3-2`, `h4`, `h9`, `i1`, `i4`)
-    /// together with the shared layout code, end to end.
+    /// Every example input renders to a valid PDF. This drives all nine
+    /// document builders (`h1`, `h3-1`, `h3-2`, `h4`, `h9`, `i1`, `i4`, the
+    /// omission letter and the pre-submission overview) together with the
+    /// shared layout code, end to end.
     #[test]
     fn renders_every_example_input() {
         let mut rendered = 0;
@@ -93,7 +151,22 @@ mod tests {
             assert_pdf(&example.render().expect("render example"), name);
             rendered += 1;
         }
-        assert_eq!(rendered, 19, "expected to render every example input");
+        assert_eq!(rendered, 23, "expected to render every example input");
+    }
+
+    /// Every example input also exports as a Word document, which exercises the
+    /// docx translation of every block type the models use.
+    #[test]
+    fn exports_every_example_as_docx() {
+        for example in examples() {
+            let bytes = example.to_docx().expect("export example as docx");
+            // A .docx is a ZIP archive.
+            assert!(
+                bytes.starts_with(b"PK"),
+                "{}: output is not a ZIP archive",
+                example.name
+            );
+        }
     }
 
     /// H 1's attachment checklist branches on the election type; render each so
@@ -141,8 +214,7 @@ mod tests {
         assert_pdf(&render(input), "h9 missing representative");
     }
 
-    /// Render I 4 with every list section empty so the "geen ..." fallbacks run,
-    /// and with the objections still open so the write-in space is emitted.
+    /// Render I 4 with every list section empty so the "geen ..." fallbacks run.
     #[test]
     fn i4_renders_with_empty_sections() {
         let mut input = i4_example_1();
@@ -152,13 +224,9 @@ mod tests {
         input.removed_candidates.clear();
         input.removed_appellations.clear();
         input.corrected_appellations.clear();
-        input.objections = Some(Vec::new());
+        input.objections = Vec::new();
         input.response_objections = None;
         assert_pdf(&render(input), "i4 empty sections");
-
-        let mut input = i4_example_1();
-        input.objections = None;
-        assert_pdf(&render(input), "i4 open objections");
     }
 
     /// I 1 is downloaded before anything was imported too: render it with both
@@ -188,5 +256,24 @@ mod tests {
 
         assert_eq!(i1_example_1().filename(), "i1-proces-verbaal.pdf");
         assert_eq!(i4_example_1().filename(), "i4-proces-verbaal.pdf");
+
+        // The omission letter is stamped with the group it is addressed to and
+        // the election; a blank list has no appellation to slugify.
+        assert_eq!(
+            omission_letter_example_1().filename(),
+            "verzuimbrief-kiesraad-demo-ek27.pdf"
+        );
+        let mut blank = omission_letter_example_1();
+        blank.appellation = String::new();
+        assert_eq!(blank.filename(), "verzuimbrief-ek27.pdf");
+
+        assert_eq!(
+            brp_overview_example_1().filename(),
+            "brp-overzicht-kiesraad-demo-ek27.pdf"
+        );
+        assert_eq!(
+            brp_overview_example_1().docx_filename(),
+            "brp-overzicht-kiesraad-demo-ek27.docx"
+        );
     }
 }

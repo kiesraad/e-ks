@@ -1,63 +1,73 @@
-use axum::{extract::State, http::HeaderValue, response::IntoResponse};
+use axum::{extract::State, response::Response};
 
 use crate::{
     AppError, AppRequestState, CsbMainStore,
     core::{ModelLocale, constants::DEFAULT_DATE_FORMAT},
     csb::examination::{
-        actions::{found_omissions, submitted_lists},
-        pages::CsbI1DownloadPath,
+        model_inputs::{found_omissions, submitted_lists},
+        pages::{CsbI1DocxDownloadPath, CsbI1DownloadPath},
     },
-    models::{Pdf, i1::I1},
-    utils::no_cache_headers,
+    models::{Pdf, i1::I1, i4::PublicSession},
+    structs::csb::HearingModel,
 };
 
-const PDF_CONTENT_TYPE: &str = "application/pdf";
-
-pub async fn gen_i1<S: AppRequestState>(
-    _: CsbI1DownloadPath,
-    main_store: CsbMainStore,
-    State(state): State<S>,
-) -> Result<impl IntoResponse, AppError> {
+/// Collect the store data the I 1 model needs.
+async fn i1_model<S: AppRequestState>(main_store: CsbMainStore, state: &S) -> Result<I1, AppError> {
     let election = main_store.election;
     let registry = state.csb_store_registry();
     let submitted_lists = submitted_lists(registry, &election).await?;
     let found_omissions = found_omissions(registry, &election).await?;
 
-    let model = I1 {
+    let mut session = PublicSession::from(election.public_session());
+    if let Some(hearing_details) = main_store.get_hearing_details(HearingModel::I1) {
+        session = session.with_hearing_details(hearing_details);
+    }
+
+    Ok(I1 {
         election_name: election.formal_title(ModelLocale::Nl),
         election_date: election
             .election_date()
             .format(DEFAULT_DATE_FORMAT)
             .to_string(),
-        session: election.public_session().into(),
+        session,
         submitted_lists,
         found_omissions,
-    };
-    let filename = model.filename();
-    let bytes = model.generate_bytes().await?;
+    })
+}
 
-    let headers = no_cache_headers::generate_attachment_headers(
-        &filename,
-        HeaderValue::from_static(PDF_CONTENT_TYPE),
-    )?;
+pub async fn gen_i1<S: AppRequestState>(
+    _: CsbI1DownloadPath,
+    main_store: CsbMainStore,
+    State(state): State<S>,
+) -> Result<Response, AppError> {
+    i1_model(main_store, &state).await?.pdf_response().await
+}
 
-    Ok((headers, bytes).into_response())
+/// The same I 1 as [`gen_i1`], exported as a Word document.
+pub async fn gen_i1_docx<S: AppRequestState>(
+    _: CsbI1DocxDownloadPath,
+    main_store: CsbMainStore,
+    State(state): State<S>,
+) -> Result<Response, AppError> {
+    i1_model(main_store, &state).await?.docx_response().await
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::DOCX_CONTENT_TYPE;
     use axum::{
         body::to_bytes,
         http::{StatusCode, header},
         response::IntoResponse,
     };
+    use std::collections::BTreeSet;
 
     use crate::{
-        AppState, CsbAction, ElectionConfig, PgStoreData, StreamId,
+        AppState, CsbAction, CsbMainAction, CsbUser, ElectionConfig, PgStoreData, StreamId,
         structs::{
             candidate_lists::CandidateList,
-            csb::{OmissionCategory, sample_omission},
+            csb::{HearingDetails, OmissionCategory, sample_omission},
             list_designation::ListDesignation,
             persons::PersonId,
             political_groups::PoliticalGroup,
@@ -93,6 +103,86 @@ mod tests {
         Ok(())
     }
 
+    #[tokio::test]
+    async fn gen_i1_docx_returns_word_response() -> Result<(), AppError> {
+        let main_store = CsbMainStore::new_for_test();
+        let state = AppState::new_for_tests().await;
+        let response = gen_i1_docx(CsbI1DocxDownloadPath, main_store, State(state))
+            .await?
+            .into_response();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let headers = response.headers();
+        assert_eq!(
+            headers.get(header::CONTENT_TYPE).expect("content type"),
+            DOCX_CONTENT_TYPE
+        );
+        assert_eq!(
+            headers
+                .get(header::CONTENT_DISPOSITION)
+                .expect("content disposition"),
+            "attachment; filename=\"i1-proces-verbaal.docx\""
+        );
+
+        // A .docx is a ZIP archive.
+        let body = to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("read body");
+        assert!(body.starts_with(b"PK"), "body is not a ZIP archive");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn i1_session_falls_back_to_the_configured_session() -> Result<(), AppError> {
+        let state = AppState::new_for_tests().await;
+        let model = i1_model(CsbMainStore::new_for_test(), &state).await?;
+
+        let configured = ElectionConfig::EK27.public_session();
+        assert_eq!(model.session.date, configured.formatted_date());
+        assert_eq!(model.session.time, configured.formatted_time());
+        assert_eq!(model.session.chair, configured.chair);
+        assert_eq!(model.session.members.len(), configured.members.len());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn i1_session_uses_the_stored_hearing_details() -> Result<(), AppError> {
+        let state = AppState::new_for_tests().await;
+        let main_store = CsbMainStore::new_for_test();
+        main_store
+            .update(
+                CsbMainAction::UpdateHearingDetails(
+                    HearingModel::I1,
+                    HearingDetails {
+                        date_time: chrono::NaiveDate::from_ymd_opt(1999, 12, 31)
+                            .expect("valid date")
+                            .and_hms_opt(12, 34, 0)
+                            .expect("valid time"),
+                        chair: "Vera Voorzitter".to_string(),
+                        members: vec!["Jan Klaassen".to_string(), "Malle Babbe".to_string()],
+                    },
+                )
+                .by(CsbUser::new_test()),
+            )
+            .await?;
+
+        let model = i1_model(main_store, &state).await?;
+
+        assert_eq!(model.session.date, "31-12-1999");
+        assert_eq!(model.session.time, "12:34");
+        assert_eq!(model.session.chair, "Vera Voorzitter");
+        assert_eq!(model.session.members, vec!["Jan Klaassen", "Malle Babbe"]);
+        // The location and chair keep coming from the election configuration.
+        assert_eq!(
+            model.session.location,
+            ElectionConfig::EK27.public_session().location
+        );
+
+        Ok(())
+    }
+
     /// The empty-registry case above never fills the submitted-lists and
     /// omissions sections; drive the handler once with a group that has both.
     #[tokio::test]
@@ -114,7 +204,7 @@ mod tests {
         };
         snapshot.persons.insert(person.id, person.clone());
         let list = CandidateList {
-            electoral_districts: vec![crate::ElectoralDistrict::Groningen],
+            electoral_districts: BTreeSet::from([crate::ElectoralDistrict::Groningen]),
             candidates: vec![person.id],
             ..Default::default()
         };

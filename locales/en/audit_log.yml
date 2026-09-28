@@ -1,7 +1,6 @@
 detail:
   field: Field
   fields:
-    address_type: Address type
     appellation: Appellation
     bsn: Social security number (BSN)
     candidates: Candidates
@@ -17,9 +16,11 @@ detail:
     house_number: House number
     house_number_addition: House number addition
     initials: Initials
+    known_in_bag: Known in the BAG
     last_name: Last name
     last_name_prefix: Last name prefix
     legal_name: Full statutory name
+    list_designation: List type
     list_id: List ID
     locality: Locality
     long_list_allowed: Long list allowed
@@ -27,31 +28,42 @@ detail:
     place_of_residence: Place of residence
     political_group_id: Political group ID
     postal_code: Postal code
+    previous_election_results: Result of the previous election
+    representative: Authorised person
     state_or_province: State / province
+    stream_id: Stream ID
     street_name: Street name
     updated_persons: Updated candidates
   new_value: New value
   no_changes: No field changes recorded for this event.
   old_value: Old value
   subject_link: Subject page
+  values:
+    bool_false: "No"
+    bool_true: "Yes"
+    bsn_none_confirmed: "Confirmed: no social security number"
 documents:
   download: Download documents
   no_download: This version was not in a state where downloading documents was possible.
 empty: No events have been recorded yet that meet the filter criteria.
 event:
   add_candidate_to_list: Added candidate to list
+  add_objection: Added objection
   brp_validation: Validated candidate against the BRP
   create_candidate_list: Created list of candidates
   create_empty: Created empty political group
   create_name_authorisation: Created statutory name and authorised agent
   create_omission: Created omission
   create_person: Created person
+  create_registered_political_group: Registered political group
   create_substitute_submitter: Created substitute submitter of the list
   delete: Deleted political group
   delete_candidate_list: Deleted list of candidates
   delete_name_authorisation: Deleted statutory name and authorised agent
+  delete_objection: Deleted objection
   delete_omission: Deleted omission
   delete_person: Deleted person
+  delete_registered_political_group: Deleted registered political group
   delete_substitute_submitter: Deleted substitute submitter of the list
   developer_login: Developer login
   download_file: Downloaded file
@@ -64,19 +76,25 @@ event:
   logout: Signed out
   paper_correction: Paper corrections
   remove_candidate_from_list: Removed candidate from list
+  set_brp_finding_handled: Set BRP finding handled
   set_brp_validation_state: Set BRP validation state
   set_finished: Set finished state
+  set_omission_part_status: Set omission status per electoral district or list
   set_omission_status: Set omission status
   update_candidate_list_districts: Updated electoral districts of list
   update_candidate_list_order: Updated order of list of candidates
   update_correction: Update correction
+  update_hearing_details: Update hearing details
+  update_list_order: Updated list order
   update_list_submitter: Updated submitter of the list
   update_name_authorisation: Updated statutory name and authorised agent
+  update_objection: Updated objection
   update_omission: Updated omission
   update_person: Updated person
   update_person_address: Updated person address
   update_person_representative: Updated person representative
   update_political_group: Updated political group
+  update_registered_political_group: Updated registered political group
   update_substitute_submitter: Updated substitute submitter of the list
 fields:
   details: Details
@@ -96,15 +114,19 @@ filter:
     import: Import
     list_submitter: List submitter
     name_authorisation: Statutory name and authorised agent
+    numbering: Numbering
+    objection: Objection
     omission: Omission
     paper_correction: Paper corrections
     person: Person
     political_group: Political group
+    registered_political_group: Registered political groups
     set_finished: Finished state
     substitute_submitter: Substitute submitter
     system: System
   csb_main_stream: Main CSB stream
   event_type: Event type
+  pre_submission_stream: "{} (pre-submission)"
   reset: Reset
   search: Search
   search_placeholder: "Search by name, ID..."

@@ -9,7 +9,14 @@ use super::{
     layout::markdown_document,
     markdown::{filters, model_template},
 };
-use crate::{AppError, core::election};
+use crate::{
+    AppError,
+    core::{
+        constants::{DEFAULT_DATE_FORMAT, DEFAULT_TIME_FORMAT},
+        election,
+    },
+    structs::csb::HearingDetails,
+};
 
 #[derive(Debug)]
 pub struct I4 {
@@ -25,8 +32,8 @@ pub struct I4 {
     pub valid_lists: Vec<DistrictLists>,
     pub numbered_based_on_votes: Vec<NumberedOnVotes>,
     pub numbered_based_on_districts: Vec<NumberedOnDistricts>,
-    /// `None`: room to write during the session; empty: no objections raised.
-    pub objections: Option<Vec<String>>,
+    /// Empty: no objections raised.
+    pub objections: Vec<String>,
     pub response_objections: Option<String>,
 }
 
@@ -51,6 +58,21 @@ impl From<election::PublicSession> for PublicSession {
     }
 }
 
+impl PublicSession {
+    /// Override the moment and the signatories configured for the election with
+    /// the hearing details the committee entered. The location stays
+    /// configured: the form shows it read-only.
+    pub fn with_hearing_details(self, details: HearingDetails) -> Self {
+        Self {
+            date: details.date_time.format(DEFAULT_DATE_FORMAT).to_string(),
+            time: details.date_time.format(DEFAULT_TIME_FORMAT).to_string(),
+            chair: details.chair,
+            members: details.members,
+            ..self
+        }
+    }
+}
+
 /// Omissions for one list, identified by its appellation and district(s).
 #[derive(Debug)]
 pub struct OmissionGroup {
@@ -69,7 +91,7 @@ pub struct RemovedCandidates {
 #[derive(Debug)]
 pub struct RemovedCandidate {
     pub name: String,
-    pub reason: String,
+    pub reasons: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -77,7 +99,7 @@ pub struct RemovedAppellation {
     pub appellation: String,
     pub electoral_district: String,
     pub first_candidate_name: String,
-    pub reason: String,
+    pub reasons: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -94,13 +116,13 @@ pub struct DistrictLists {
     pub lists: Vec<ValidList>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ValidList {
     pub appellation: String,
     pub candidates: Vec<ValidListCandidate>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ValidListCandidate {
     pub last_name: String,
     pub initials: String,

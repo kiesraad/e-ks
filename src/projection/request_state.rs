@@ -26,6 +26,10 @@ pub trait AppRequestState: Clone + Send + Sync + 'static {
     /// Registry for the per-import CSB stores.
     fn csb_store_registry(&self) -> &StoreRegistry<CsbStoreData>;
 
+    /// Registry for the pre-submission imports: the same projection as
+    /// [`Self::csb_store_registry`], under its own scope.
+    fn pre_submission_store_registry(&self) -> &StoreRegistry<CsbStoreData>;
+
     /// Registry for the political-group stores.
     fn store_registry(&self) -> &StoreRegistry<PgStoreData>;
 

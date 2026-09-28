@@ -147,7 +147,7 @@ mod tests {
         let entry = AuditLogEntry::new(event, EN);
 
         assert_eq!(entry.description, "Created list of candidates");
-        assert_eq!(entry.details, "prov7");
+        assert_eq!(entry.details, "Utrecht");
     }
 
     #[test]

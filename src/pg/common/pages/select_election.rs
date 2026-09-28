@@ -65,7 +65,7 @@ pub async fn select_election_submit<S: AppRequestState>(
     mut session: Session,
     axum::Form(form): axum::Form<SelectElectionForm>,
 ) -> Result<Response, AppError> {
-    #[cfg(not(feature = "fixtures"))]
+    #[cfg(not(all(feature = "fixtures", feature = "dev-features")))]
     let _ = jar;
 
     // Committee sessions use CSB stores, not app stores; never create an
@@ -78,11 +78,11 @@ pub async fn select_election_submit<S: AppRequestState>(
         return Ok(Redirect::to(&SelectElectionPath.to_string()).into_response());
     };
 
-    // Only available with the `fixtures` feature: this is a test/dev shortcut
-    // into the committee (CSB) role. An explicit escalation: a brand-new
-    // committee session replaces the political-group one (the old token dies
-    // in `establish_session`), it is never mutated into one.
-    #[cfg(feature = "fixtures")]
+    // Only available with the `fixtures` and `dev-features` features: this is a
+    // test/dev shortcut into the committee (CSB) role. An explicit escalation:
+    // a brand-new committee session replaces the political-group one (the old
+    // token dies in `establish_session`), it is never mutated into one.
+    #[cfg(all(feature = "fixtures", feature = "dev-features"))]
     if form.login_as_csb() {
         let user = crate::CsbUser::Developer;
 
@@ -173,6 +173,47 @@ mod tests {
         assert_eq!(response.headers().get(header::LOCATION).unwrap(), "/");
     }
 
+    /// TVS "Checklist Testen" v2.1 T7: a logout option must be on screen from
+    /// the moment of login. This page is the first screen a newly authenticated
+    /// user without an election lands on, and it does not use the main layout.
+    #[tokio::test]
+    async fn select_election_offers_logout() {
+        let state = AppState::new_for_tests().await;
+        let app = Router::new()
+            .typed_get(select_election::<crate::AppState>)
+            .layer(middleware::from_fn_with_state(
+                state.clone(),
+                session_middleware,
+            ))
+            .with_state(state.clone());
+
+        let session = Session::new_test();
+        let token = session.token_string();
+        state.sessions().insert(session).await;
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/select-election")
+                    .header(
+                        header::COOKIE,
+                        format!("{}={}", crate::SESSION_COOKIE_NAME, token),
+                    )
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .expect("response");
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = crate::test_utils::response_body_string(response).await;
+        assert!(body.contains(r#"class="logout-form""#), "{body}");
+        assert!(
+            body.contains(&format!(r#"action="{}""#, crate::common::LogoutPath)),
+            "{body}"
+        );
+    }
+
     #[tokio::test]
     async fn select_election_submit_sets_current_election() {
         let state = AppState::new_for_tests().await;
@@ -243,10 +284,10 @@ mod tests {
         assert_eq!(session.user.election(), Some(ElectionConfig::EK27));
     }
 
-    /// The fixtures-only CSB shortcut replaces the political-group session
+    /// The development-only CSB shortcut replaces the political-group session
     /// with a brand-new committee session: the submitted token is dead
     /// afterwards, and the freshly minted one reaches CSB routes.
-    #[cfg(feature = "fixtures")]
+    #[cfg(all(feature = "fixtures", feature = "dev-features"))]
     #[tokio::test]
     async fn login_as_csb_replaces_the_session_with_a_committee_one() {
         let state = AppState::new_for_tests().await;

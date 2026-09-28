@@ -11,6 +11,7 @@ export class CsbOmissionsPartyPage {
   readonly checkboxRecoverable: Locator;
   readonly buttonAddAndClose: Locator;
   readonly linkClose: Locator;
+  readonly noLetterWarning: Locator;
   private readonly buttonRemoveOmission: Locator;
 
   constructor(protected readonly page: Page) {
@@ -38,6 +39,9 @@ export class CsbOmissionsPartyPage {
       name: "Toevoegen en sluiten",
     });
     this.linkClose = this.page.getByRole("link", { name: "Sluiten" });
+    this.noLetterWarning = this.page.locator(
+      "[data-omission-no-letter-warning]",
+    );
     this.buttonRemoveOmission = this.page.getByRole("button", {
       name: "Verwijderen",
     });

@@ -13,6 +13,7 @@
             <ElectionName>Verkiezing van de provinciale staten van Limburg 2027</ElectionName>
             <ElectionCategory>PS</ElectionCategory>
             <kr:ElectionSubcategory>PS2</kr:ElectionSubcategory>
+            <kr:ElectionDomain>Limburg</kr:ElectionDomain>
             <kr:ElectionDate>2027-03-17</kr:ElectionDate>
             <kr:NominationDate>2027-02-01</kr:NominationDate>
         </ElectionIdentifier>

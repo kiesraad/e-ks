@@ -12,8 +12,9 @@
   <span class="subtitle">{{ "csb.recovery.omissions_explanation"|trans }}</span>
 {% endblock %}
 {% block header_action %}
-  {% set back_url = political_group.group_path() %}
-  {% include "csb/components/header_examination_actions.html" %}
+<div class="header-buttons">
+  <a href="{{ political_group.group_path() }}" class="button secondary">{{ "action.back"|trans }}</a>
+</div>
 {% endblock %}
 {% block content %}
   <div class="examination-panels">
@@ -25,7 +26,7 @@
             {{ "csb.recovery.omissions_title"|trans }}
           </h2>
           <p>
-            {{ "csb.recovery.assessed_count"|trans(&political_group.decided_omission_count().to_string() , &political_group.actionable_omission_count.to_string() ) }}
+            {{ "csb.recovery.assessed_count"|trans(&political_group.recovery.decided().to_string() , &political_group.recovery.total.to_string() ) }}
           </p>
         </div>
       </div>

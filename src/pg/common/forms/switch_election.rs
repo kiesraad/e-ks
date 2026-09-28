@@ -2,29 +2,29 @@ use serde::Deserialize;
 
 use crate::ElectionConfig;
 
-/// Separate fields per region type so the form deserializes cleanly even when
-/// JavaScript is disabled and every region picker submits a value.
+/// Separate fields per election domain type so the form deserializes cleanly even when
+/// JavaScript is disabled and every election domain picker submits a value.
 #[derive(Deserialize)]
 pub struct SwitchElectionForm {
     election: String,
-    region_province: Option<String>,
-    region_water_council: Option<String>,
+    domain_province: Option<String>,
+    domain_water_council: Option<String>,
 }
 
 impl SwitchElectionForm {
     pub fn into_election_config(self) -> Option<ElectionConfig> {
-        // Try each submitted region in turn; only the one whose code matches
-        // the election's region type produces a valid config. Falls back to
-        // `None` for region-less elections.
+        // Try each submitted election domain in turn; only the one whose code matches
+        // the election's domain type produces a valid config. Falls back to
+        // `None` for domain-less elections.
         [
-            self.region_province.as_deref(),
-            self.region_water_council.as_deref(),
+            self.domain_province.as_deref(),
+            self.domain_water_council.as_deref(),
         ]
         .into_iter()
         .flatten()
         .filter(|s| !s.is_empty())
-        .find_map(|r| ElectionConfig::from_code_and_region(&self.election, Some(r)))
-        .or_else(|| ElectionConfig::from_code_and_region(&self.election, None))
+        .find_map(|d| ElectionConfig::from_code_and_domain(&self.election, Some(d)))
+        .or_else(|| ElectionConfig::from_code_and_domain(&self.election, None))
     }
 }
 
@@ -38,14 +38,14 @@ mod tests {
     }
 
     #[test]
-    fn deserializes_with_optional_region_fields_absent() {
+    fn deserializes_with_optional_domain_fields_absent() {
         let form = parse("election=EK27");
         assert_eq!(form.into_election_config(), Some(ElectionConfig::EK27));
     }
 
     #[test]
-    fn ps27_uses_region_province() {
-        let form = parse("election=PS27&region_province=prov1");
+    fn ps27_uses_domain_province() {
+        let form = parse("election=PS27&domain_province=prov1");
         assert_eq!(
             form.into_election_config(),
             Some(ElectionConfig::PS27(Province::Groningen))
@@ -53,8 +53,8 @@ mod tests {
     }
 
     #[test]
-    fn ws27_uses_region_water_council() {
-        let form = parse("election=WS27&region_water_council=ws2");
+    fn ws27_uses_domain_water_council() {
+        let form = parse("election=WS27&domain_water_council=ws2");
         assert_eq!(
             form.into_election_config(),
             Some(ElectionConfig::WS27(WaterCouncil::Fryslan))
@@ -62,10 +62,10 @@ mod tests {
     }
 
     #[test]
-    fn ek27_ignores_submitted_region_fields() {
-        // When JS is disabled, every region picker submits a value. The form
-        // should still resolve to EK27 because EK27 has no region.
-        let form = parse("election=EK27&region_province=prov1&region_water_council=ws2");
+    fn ek27_ignores_submitted_domain_fields() {
+        // When JS is disabled, every election domain picker submits a value.
+        // The form should still resolve to EK27 because EK27 has no domain.
+        let form = parse("election=EK27&domain_province=prov1&domain_water_council=ws2");
         assert_eq!(form.into_election_config(), Some(ElectionConfig::EK27));
     }
 
@@ -73,31 +73,31 @@ mod tests {
     fn ps27_ignores_unrelated_water_council_field() {
         // The province field is empty (placeholder option) but the water
         // council field is filled — it must not satisfy a PS27 election.
-        let form = parse("election=PS27&region_province=&region_water_council=ws2");
+        let form = parse("election=PS27&domain_province=&domain_water_council=ws2");
         assert_eq!(form.into_election_config(), None);
     }
 
     #[test]
-    fn ps27_with_empty_region_returns_none() {
-        let form = parse("election=PS27&region_province=");
+    fn ps27_with_empty_domain_returns_none() {
+        let form = parse("election=PS27&domain_province=");
         assert_eq!(form.into_election_config(), None);
     }
 
     #[test]
-    fn ps27_with_invalid_region_returns_none() {
-        let form = parse("election=PS27&region_province=XX");
+    fn ps27_with_invalid_domain_returns_none() {
+        let form = parse("election=PS27&domain_province=XX");
         assert_eq!(form.into_election_config(), None);
     }
 
     #[test]
-    fn ps27_without_region_returns_none() {
+    fn ps27_without_domain_returns_none() {
         let form = parse("election=PS27");
         assert_eq!(form.into_election_config(), None);
     }
 
     #[test]
     fn unknown_election_code_returns_none() {
-        let form = parse("election=ZZ99&region_province=prov1");
+        let form = parse("election=ZZ99&domain_province=prov1");
         assert_eq!(form.into_election_config(), None);
     }
 }

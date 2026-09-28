@@ -1,13 +1,17 @@
 mod event;
 mod extractor;
+mod getters;
 
 pub use event::{CsbMainAction, CsbMainEvent};
 
 use serde::{Deserialize, Serialize};
 
+use std::collections::HashMap;
+
 use crate::{
     Scope, StreamId,
     store::{StoreData, StoreEvent},
+    structs::csb::{HearingDetails, HearingModel, Objection, RegisteredPoliticalGroup},
 };
 
 /// Fixed stream ID shared by all CSB members for the global committee stream.
@@ -16,10 +20,16 @@ pub const CSB_MAIN_STREAM_ID: StreamId = StreamId(uuid::Uuid::from_u128(
 ));
 
 /// Global CSB state shared across all committee members: process step tracking,
-/// audit log entries (logins, imports, etc.), and other committee-wide events.
+/// audit log entries (logins, imports, etc.), the registered political groups
+/// with their previous election results, and other committee-wide events.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct CsbMainStoreData {
     pub(crate) events: Vec<StoreEvent<CsbMainEvent>>,
+    pub(crate) registered_political_groups: Vec<RegisteredPoliticalGroup>,
+    /// The hearings the committee entered details for, at most one per model.
+    pub(crate) hearing_details: HashMap<HearingModel, HearingDetails>,
+    pub(crate) list_order: Vec<StreamId>,
+    pub(crate) objections: Vec<Objection>,
 }
 
 impl StoreData for CsbMainStoreData {
@@ -29,6 +39,35 @@ impl StoreData for CsbMainStoreData {
         self.events.push(event.clone());
         match event.payload.action {
             CsbMainAction::Login | CsbMainAction::Logout => {}
+            CsbMainAction::CreateRegisteredPoliticalGroup(group) => {
+                self.registered_political_groups.push(group);
+            }
+            CsbMainAction::UpdateRegisteredPoliticalGroup(group) => {
+                if let Some(existing) = self
+                    .registered_political_groups
+                    .iter_mut()
+                    .find(|existing| existing.id == group.id)
+                {
+                    *existing = group;
+                }
+            }
+            CsbMainAction::DeleteRegisteredPoliticalGroup(id) => {
+                self.registered_political_groups
+                    .retain(|group| group.id != id);
+            }
+            CsbMainAction::UpdateHearingDetails(model, hearing_details) => {
+                self.hearing_details.insert(model, hearing_details);
+            }
+            CsbMainAction::UpdateListOrder(order) => {
+                self.list_order = order;
+            }
+            CsbMainAction::AddObjection(objection) => self.objections.push(objection),
+            CsbMainAction::UpdateObjection(objection) => {
+                if let Some(existing) = self.objections.iter_mut().find(|o| o.id == objection.id) {
+                    *existing = objection;
+                }
+            }
+            CsbMainAction::DeleteObjection(id) => self.objections.retain(|o| o.id != id),
         }
     }
 

@@ -99,6 +99,43 @@ mod tests {
         Ok(())
     }
 
+    /// Opening an overlay from this page must not lose `initial=true`: without
+    /// it, closing the overlay lands back here with warnings turned on for
+    /// steps the user has not reached yet.
+    #[tokio::test]
+    async fn view_list_submitter_keeps_initial_in_overlay_links() -> Result<(), AppError> {
+        let store = PgStore::new_for_test();
+
+        let submitter = sample_list_submitter(ListSubmitterId::new());
+        submitter.update(&store).await?;
+        submitter.create_substitute(&store).await?;
+
+        let response = view_list_submitter(
+            ListSubmitterViewPath {},
+            Context::new_test_without_db(),
+            store.clone(),
+            Query(QueryParamState::initial()),
+        )
+        .await
+        .unwrap()
+        .into_response();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response_body_string(response).await;
+
+        for path in [
+            ListSubmitter::update_path().to_string(),
+            ListSubmitter::substitute_create_path().to_string(),
+            submitter.substitute_update_path().to_string(),
+        ] {
+            // Askama escapes the `&` that `with_query_params` emits.
+            let expected = format!("\"{path}?&#38;initial=true\"");
+            assert!(body.contains(&expected), "{path} must keep initial=true");
+        }
+
+        Ok(())
+    }
+
     #[tokio::test]
     async fn view_list_submitter_hides_add_button_when_submitter_exists() -> Result<(), AppError> {
         let store = PgStore::new_for_test();

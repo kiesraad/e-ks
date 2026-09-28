@@ -7,12 +7,14 @@ use axum::{
 use crate::{
     AppError, AppRequestState, Context,
     CsbAction::{self},
-    CsbContext, CsbStore, HtmlTemplate, Overlay, QueryParamState,
+    CsbContext, CsbStore, ElectoralDistrict, HtmlTemplate, Overlay, QueryParamState,
     csb::{
         examination::{
             extractors::CsbPoliticalGroup,
             pages::{CsbBrpCheckPath, CsbPoliticalGroupPath, CsbPoliticalGroupToggleFinishPath},
-            structs::{BrpCheckState, CsbCandidateList, RestorationStatus, brp_incomplete_reason},
+            structs::{
+                BrpBadge, BrpCheckState, CsbCandidateList, RestorationStatus, brp_incomplete_reason,
+            },
         },
         import::{brp_sweep_running, do_brp_verification},
     },
@@ -30,6 +32,8 @@ struct CsbPoliticalGroupTemplate {
     /// Why the BRP data on this page may be incomplete, when the check did not
     /// finish. `Some` is also what makes the start button worth offering.
     brp_incomplete: Option<String>,
+    /// The badges of the BRP strip, derived from `brp` and `brp_running`.
+    brp_badges: Vec<BrpBadge>,
     candidate_lists: Vec<CsbCandidateList>,
     political_group_status: RestorationStatus,
     declarations_of_support_omissions: Vec<Omission>,
@@ -74,13 +78,24 @@ pub(in crate::csb) async fn render(
         let from_original_import = imported_lists.iter().any(|l| l.id == list.id);
         candidate_lists.push(CsbCandidateList {
             restoration_status: RestorationStatus::for_candidate_list(&store, list.id)?,
-            is_scrapped: store.is_candidate_list_scrapped(list.id)?,
-            scrapped_districts: store.get_candidate_list_scrapped_districts(list.id),
+            is_scrapped: political_group.scrapped.is_list_scrapped(list.id),
+            scrapped_districts: political_group.scrapped.list_districts(list.id).to_vec(),
             list,
             brp,
             is_paper_added: !from_original_import,
         });
     }
+
+    // Sort lists by minimal district region number
+    candidate_lists.sort_by_key(|csb_list| {
+        csb_list
+            .list
+            .electoral_districts
+            .iter()
+            .map(ElectoralDistrict::region_number)
+            .min()
+            .unwrap_or_default()
+    });
 
     // Over the candidates rather than over everyone the sweep touched: the
     // snapshot also holds people who stand on no list at all.
@@ -93,10 +108,12 @@ pub(in crate::csb) async fn render(
         context.session.locale,
     );
     let political_group_status = RestorationStatus::for_political_group(&store);
+    let scrapped_districts = political_group.scrapped.districts(&store.election);
 
     Ok(HtmlTemplate(
         CsbPoliticalGroupTemplate {
             political_group,
+            brp_badges: brp.strip_badges(brp_running),
             brp,
             brp_running,
             brp_incomplete,
@@ -104,7 +121,7 @@ pub(in crate::csb) async fn render(
             political_group_status,
             declarations_of_support_omissions: store.get_all_declarations_of_support_omissions(),
             has_paper_corrections: store.has_paper_corrections(),
-            scrapped_districts: store.get_scrapped_districts(),
+            scrapped_districts,
         },
         context,
     )
@@ -138,6 +155,7 @@ pub async fn toggle_examination_finish(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeSet;
 
     use axum::http::StatusCode;
 
@@ -145,7 +163,7 @@ mod tests {
         AppState,
         csb::import::claim_sweep_for_test,
         structs::{
-            brp::{BrpFinding, BrpStatus},
+            brp::{BrpFindingKind, BrpStatus},
             candidate_lists::CandidateListId,
             csb::{Omission, OmissionCategory},
             persons::PersonId,
@@ -205,7 +223,7 @@ mod tests {
         store
             .update(CsbAction::BrpPersonChecked {
                 person: person_id,
-                findings: vec![BrpFinding::NotDutch],
+                findings: vec![BrpFindingKind::NotDutch.into()],
             })
             .await
             .unwrap();
@@ -223,6 +241,44 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn findings_that_are_all_handled_show_the_handled_badge() {
+        let (store, person_id) = store_with_a_candidate();
+        store
+            .update(CsbAction::BrpPersonChecked {
+                person: person_id,
+                findings: vec![BrpFindingKind::NotDutch.into()],
+            })
+            .await
+            .unwrap();
+        store
+            .update(CsbAction::SetBrpStatus(BrpStatus::Finished))
+            .await
+            .unwrap();
+        let handled = r#"restoration-tag restoration-tag-handled">Handled<"#;
+
+        let body = examination_body(store.clone()).await;
+        assert!(body.contains("1 BRP error"), "{body}");
+        assert!(body.contains("restoration-strip-error"));
+        assert!(!body.contains(handled));
+
+        store
+            .update(CsbAction::SetBrpFindingHandled {
+                person: person_id,
+                finding: BrpFindingKind::NotDutch,
+                handled: true,
+            })
+            .await
+            .unwrap();
+
+        // Both the group strip and the list tile turn grey.
+        let body = examination_body(store).await;
+        assert_eq!(body.matches(handled).count(), 2, "{body}");
+        assert!(!body.contains("1 BRP error"));
+        assert!(!body.contains("restoration-strip-error"));
+        assert!(!body.contains("restoration-tag-error"));
+    }
+
+    #[tokio::test]
     async fn findings_for_someone_who_is_not_a_candidate_are_not_counted() {
         let (store, person_id) = store_with_a_candidate();
         // The sweep covers every person in the imported snapshot, which holds
@@ -234,7 +290,10 @@ mod tests {
             (person_id, Vec::new()),
             (
                 bystander_id,
-                vec![BrpFinding::NotDutch, BrpFinding::NotDutch],
+                vec![
+                    BrpFindingKind::NotDutch.into(),
+                    BrpFindingKind::NotDutch.into(),
+                ],
             ),
         ] {
             store
@@ -418,7 +477,7 @@ mod tests {
         let list_id = CandidateListId::new();
         store.add_candidate_list(sample_candidate_list(list_id));
         let mut corrected = sample_candidate_list(list_id);
-        corrected.electoral_districts = vec![ElectoralDistrict::Groningen];
+        corrected.electoral_districts = BTreeSet::from([ElectoralDistrict::Groningen]);
         store.set_paper_corrected_candidate_list(corrected);
 
         let response = overview(
@@ -512,8 +571,7 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
-        // The BRP check belongs to the examination, so neither the panel
-        // counting its errors nor the per-list error tag renders here.
+        // The BRP check belongs to the examination.
         assert!(!body.contains("BRP"));
         assert!(!body.contains("restoration-tag-error"));
     }

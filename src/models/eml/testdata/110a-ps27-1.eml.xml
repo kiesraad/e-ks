@@ -10,6 +10,7 @@
                 <ElectionName>Verkiezing van de provinciale staten van Groningen 2027</ElectionName>
                 <ElectionCategory>PS</ElectionCategory>
                 <kr:ElectionSubcategory>PS1</kr:ElectionSubcategory>
+                <kr:ElectionDomain>Groningen</kr:ElectionDomain>
                 <kr:ElectionDate>2027-03-17</kr:ElectionDate>
                 <kr:NominationDate>2027-02-01</kr:NominationDate>
             </ElectionIdentifier>

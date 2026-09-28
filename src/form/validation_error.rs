@@ -20,8 +20,11 @@ pub enum ValidationError {
     TooManyInitials(ActualCount, MaxCount),
     InvalidPostalCode,
     NameAlreadyExists,
+    AppellationAlreadyExists,
     BsnAlreadyExists,
     DateInFuture,
+    InvalidDateFormat,
+    ContainsPlaceholder,
 }
 
 impl std::fmt::Display for ValidationError {
@@ -66,8 +69,15 @@ impl ValidationError {
             ValidationError::NameAlreadyExists => {
                 trans!("validation.name_already_exists", locale)
             }
+            ValidationError::AppellationAlreadyExists => {
+                trans!("validation.appellation_already_exists", locale)
+            }
             ValidationError::BsnAlreadyExists => trans!("validation.bsn_already_exists", locale),
             ValidationError::DateInFuture => trans!("validation.date_of_birth_in_future", locale),
+            ValidationError::InvalidDateFormat => trans!("validation.invalid_date_format", locale),
+            ValidationError::ContainsPlaceholder => {
+                trans!("validation.contains_placeholder", locale)
+            }
         }
         .to_string()
     }
@@ -126,6 +136,10 @@ mod tests {
         assert_eq!(
             ValidationError::DateInFuture.message(Locale::En),
             "Date of birth cannot be in the future."
+        );
+        assert_eq!(
+            ValidationError::InvalidDateFormat.message(Locale::En),
+            "Use the format dd-mm-yyyy, for example 31-12-1990."
         );
     }
 

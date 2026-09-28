@@ -21,6 +21,7 @@ exclude:
   - ".*[.]md"
   - ".*/deploy/.*"
   - ".*/development/.*"
+  - ".*/auth-service/.*"
   - ".*/docs/.*"
   - ".*/frontend/fonts/.*"
   - ".*/frontend/icons/.*"

@@ -3,6 +3,7 @@ use axum_extra::routing::TypedPath;
 use crate::{
     AppError, CsbStream, QueryParamState,
     csb::examination::extractors::CsbPoliticalGroup,
+    projection::WithCorrections,
     structs::{
         candidate_lists::CandidateListId,
         csb::{CsbPhase, Omission, OmissionCategory},
@@ -20,6 +21,8 @@ pub struct AllOmissions {
 pub struct CandidateOmissions {
     pub omissions: Vec<OmissionWithPath>,
     pub person: Person,
+    /// No longer on the corrected list; `person` is the imported data.
+    pub removed: bool,
 }
 
 pub struct OmissionWithPath {
@@ -32,13 +35,7 @@ impl CsbStream {
         &self,
         political_group: &CsbPoliticalGroup,
     ) -> Result<AllOmissions, AppError> {
-        let omissions = self
-            .data
-            .read()
-            .omissions
-            .values()
-            .cloned()
-            .collect::<Vec<_>>();
+        let omissions = self.get_omissions();
 
         let mut general = Vec::new();
         let mut declarations_of_support = Vec::new();
@@ -49,6 +46,10 @@ impl CsbStream {
             match omission.category {
                 OmissionCategory::PoliticalGroup => general.push(OmissionWithPath {
                     path: general_path(political_group),
+                    omission,
+                }),
+                OmissionCategory::Appellation => general.push(OmissionWithPath {
+                    path: appellation_path(political_group),
                     omission,
                 }),
                 OmissionCategory::CandidateList(ref lists) => {
@@ -64,31 +65,81 @@ impl CsbStream {
                         omission,
                     })
                 }
-                OmissionCategory::Candidate { person, ref lists } => {
-                    let list = lists.first().ok_or(AppError::InternalServerError)?;
-                    let with_path = OmissionWithPath {
-                        path: candidate_path(political_group, &person, list),
-                        omission: omission.clone(),
-                    };
-                    if let Some(candidate) = candidates.iter_mut().find(|c| c.person.id == person) {
-                        candidate.omissions.push(with_path)
-                    } else {
-                        candidates.push(CandidateOmissions {
-                            omissions: vec![with_path],
-                            person: self
-                                .get_person(person, crate::projection::WithCorrections::All)
-                                .ok_or(AppError::InternalServerError)?,
-                        });
-                    }
+                OmissionCategory::Candidate { person, .. } => {
+                    self.push_candidate_omission(
+                        &mut candidates,
+                        political_group,
+                        person,
+                        omission,
+                    )?;
                 }
             }
         }
-        Ok(AllOmissions {
+        let mut all = AllOmissions {
             general,
             declarations_of_support,
             candidate_lists,
             candidates,
-        })
+        };
+        all.sort_by_district(self);
+        Ok(all)
+    }
+
+    /// Add `omission` to its candidate's group, starting a new group when this
+    /// is the candidate's first one.
+    fn push_candidate_omission(
+        &self,
+        candidates: &mut Vec<CandidateOmissions>,
+        political_group: &CsbPoliticalGroup,
+        person: PersonId,
+        omission: Omission,
+    ) -> Result<(), AppError> {
+        let list = omission
+            .candidate_lists()
+            .first()
+            .ok_or(AppError::InternalServerError)?;
+        let with_path = OmissionWithPath {
+            path: candidate_path(political_group, &person, list),
+            omission,
+        };
+
+        if let Some(candidate) = candidates.iter_mut().find(|c| c.person.id == person) {
+            candidate.omissions.push(with_path);
+        } else {
+            // a candidate deleted on paper keeps their omissions, shown from the imported data
+            let (person, removed) = match self.get_person(person, WithCorrections::All) {
+                Some(current) => (current, false),
+                None => (
+                    self.get_person(person, WithCorrections::None)
+                        .ok_or(AppError::InternalServerError)?,
+                    true,
+                ),
+            };
+            candidates.push(CandidateOmissions {
+                omissions: vec![with_path],
+                person,
+                removed,
+            });
+        }
+
+        Ok(())
+    }
+}
+
+impl AllOmissions {
+    /// Read the omissions assessed part by part in district order rather than
+    /// in store order, so the parts of a split stay together and in place.
+    fn sort_by_district(&mut self, store: &CsbStream) {
+        self.declarations_of_support
+            .sort_by_key(|view| store.district_order(&view.omission));
+        self.candidate_lists
+            .sort_by_key(|view| store.district_order(&view.omission));
+
+        for candidate in &mut self.candidates {
+            candidate
+                .omissions
+                .sort_by_key(|view| store.district_order(&view.omission));
+        }
     }
 }
 
@@ -100,6 +151,18 @@ fn general_path(political_group: &CsbPoliticalGroup) -> String {
     match political_group.mode {
         CsbPhase::Examination => political_group
             .manage_political_group_omissions_path()
+            .with_query_params(QueryParamState::redirect_to(
+                political_group.all_restorations_path(),
+            ))
+            .to_string(),
+        CsbPhase::Recovery => political_group.general_information_path(),
+    }
+}
+
+fn appellation_path(political_group: &CsbPoliticalGroup) -> String {
+    match political_group.mode {
+        CsbPhase::Examination => political_group
+            .manage_appellation_omissions_path()
             .with_query_params(QueryParamState::redirect_to(
                 political_group.all_restorations_path(),
             ))
@@ -281,6 +344,46 @@ mod tests {
 
         assert_eq!(all_omissions.candidates.len(), 1);
         assert_eq!(all_omissions.candidates[0].omissions.len(), 1)
+    }
+
+    /// A candidate deleted on paper keeps their omissions in the overview,
+    /// shown from the imported data, instead of failing the page.
+    #[tokio::test]
+    async fn omissions_of_a_candidate_deleted_on_paper_are_kept() {
+        let store = CsbStore::new_for_test();
+
+        let person_id = PersonId::new();
+        store.add_person(sample_person(person_id));
+        let list_id = CandidateListId::new();
+        store.add_candidate_list(sample_candidate_list(list_id));
+
+        Omission::new(
+            OmissionCategory::Candidate {
+                person: person_id,
+                lists: vec![list_id],
+            },
+            "title".parse().unwrap(),
+            "description".parse().unwrap(),
+            None,
+        )
+        .create(&store)
+        .await
+        .expect("Couldn't create omission");
+
+        store
+            .update(crate::CsbAction::PaperCorrectedUpdate(Box::new(
+                crate::PgEvent::DeletePerson { person_id },
+            )))
+            .await
+            .expect("Couldn't delete the candidate");
+
+        let all_omissions = store
+            .get_all_omissions(&CsbPoliticalGroup::new_from_csb_store(&store))
+            .expect("Couldn't retrieve all omissions");
+
+        assert_eq!(all_omissions.candidates.len(), 1);
+        assert!(all_omissions.candidates[0].removed);
+        assert_eq!(all_omissions.candidates[0].person.id, person_id);
     }
 
     #[tokio::test]

@@ -14,6 +14,7 @@ struct CandidateListViewTemplate {
     duplicate_districts: Vec<ElectoralDistrict>,
     max_candidates_reached: bool,
     import_capped: bool,
+    ignored_columns: String,
 }
 
 pub async fn view_candidate_list(
@@ -31,6 +32,7 @@ pub async fn view_candidate_list(
             duplicate_districts,
             max_candidates_reached: query.is_max_candidates_reached(),
             import_capped: query.is_import_capped(),
+            ignored_columns: query.ignored_columns().join(", "),
         },
         context,
     ))
@@ -75,6 +77,36 @@ mod tests {
         let body = response_body_string(response).await;
         assert!(body.contains("Jansen"));
         assert!(body.contains(&list.add_candidate_path().to_string()));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn view_candidate_list_warns_about_ignored_import_columns() -> Result<(), AppError> {
+        let store = PgStore::new_for_test();
+        let list_id = CandidateListId::new();
+        sample_candidate_list(list_id).create(&store).await?;
+        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
+
+        let query = QueryParamState::import_warnings(
+            false,
+            &["lijst_nummer".to_string(), "opmerking".to_string()],
+        );
+        let response = view_candidate_list(
+            ViewCandidateListPath { list_id },
+            Context::new_test_without_db(),
+            full_list,
+            store,
+            Query(query),
+        )
+        .await?
+        .into_response();
+
+        let body = response_body_string(response).await;
+        assert!(body.contains(
+            "The following columns in the CSV file were not recognised and have been skipped: lijst_nummer, opmerking."
+        ));
+        assert!(!body.contains("Only the first"));
 
         Ok(())
     }

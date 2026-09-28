@@ -86,7 +86,9 @@ where
 ///
 /// `Clear-Site-Data` drops what the session left on the client. `"cookies"` is
 /// left out: browsers widen it to the whole registrable domain, which would sign
-/// the user out of unrelated `kiesraad.nl` sites.
+/// the user out of unrelated `kiesraad.nl` sites. `"cache"` is left out too: the
+/// cached assets hold no session data, and clearing them only makes browsers
+/// that honour it re-fetch the bundle right after signing out.
 pub async fn logged_out(_: LoggedOutPath, headers: HeaderMap) -> Response {
     let mut response = HtmlTemplate(
         LoggedOutTemplate,
@@ -98,7 +100,7 @@ pub async fn logged_out(_: LoggedOutPath, headers: HeaderMap) -> Response {
 
     response.headers_mut().insert(
         HeaderName::from_static("clear-site-data"),
-        HeaderValue::from_static("\"cache\", \"storage\""),
+        HeaderValue::from_static("\"storage\""),
     );
 
     response
@@ -457,7 +459,7 @@ mod tests {
 
         let jar = CookieJar::new().add(Cookie::new(SESSION_COOKIE_NAME, token.clone()));
         let response = state
-            .on_authentication_failed(AuthFailure::Error, jar, &HeaderMap::new())
+            .on_authentication_failed(AuthFailure::Error, jar, &HeaderMap::new(), true)
             .await;
 
         assert!(
@@ -472,11 +474,40 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn on_authentication_failed_keeps_the_session_outside_a_flow() {
+        // A cross-site hit on the ACS must not log out.
+        let state = crate::AppState::new_for_tests().await;
+        let session = Session::new_test();
+        let token = session.token_string();
+        state.sessions().insert(session).await;
+
+        let jar = CookieJar::new().add(Cookie::new(SESSION_COOKIE_NAME, token.clone()));
+        let response = state
+            .on_authentication_failed(AuthFailure::Error, jar, &HeaderMap::new(), false)
+            .await;
+
+        assert!(
+            state
+                .sessions
+                .get_existing(Some(&token))
+                .await
+                .expect("load session")
+                .is_some()
+        );
+        assert!(response.status().is_success());
+    }
+
+    // TVS L10 requires this literal text on a DigiD result error.
+    const L10_MESSAGE: &str = "Inloggen bij deze organisatie is niet gelukt. \
+        Probeert u het later nog een keer. Lukt het nog steeds niet? Log in bij \
+        Mijn DigiD. Zo controleert u of uw DigiD goed werkt. Mogelijk is er een \
+        storing bij de organisatie waar u inlogt.";
+
+    #[tokio::test]
     async fn error_page_shows_mandated_digid_message() {
         let response = auth_failure_response(AuthFailure::Error, Locale::Nl);
         let body = response_body_string(response).await;
-        // TVS L10 requires this literal text on a DigiD result error.
-        assert!(body.contains("Inloggen bij deze organisatie is niet gelukt"));
+        assert!(body.contains(L10_MESSAGE), "{body}");
     }
 
     #[tokio::test]

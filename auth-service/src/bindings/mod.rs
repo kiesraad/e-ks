@@ -2,4 +2,5 @@
 //! and the mTLS SOAP back-channel.
 
 pub mod http_post;
+pub mod mtls;
 pub mod soap;

@@ -28,7 +28,7 @@ pub(crate) use constrained_string::constrained_strings;
 pub use constrained_string::{FirstName, LegalName, StateOrProvince, StreetName};
 pub use countries::COUNTRY_CODES;
 pub use country_code::{CountryCode, RVIG_COUNTRY_CODES_URL};
-pub use date::DateOfBirth;
+pub use date::{DATE_FORMAT_REGEX, DateOfBirth};
 pub use form_action::FormAction;
 pub use gender::Gender;
 pub use house_number::HouseNumber;

@@ -11,7 +11,6 @@ services:
     networks: [default]
 
   personen-mock:
-    container_name: brp-personen-mock
     image: ghcr.io/brp-api/personen-mock:2.7.0-latest
     environment:
       - ASPNETCORE_ENVIRONMENT=Release

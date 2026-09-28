@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use hkdf::Hkdf;
 use secrecy::{ExposeSecret, SecretString};
 use sha2::Sha256;
@@ -17,13 +19,13 @@ const STREAM_INFO_PREFIX: &[u8] = b"stream-id:";
 /// is tracked alongside the stream as a second key axis in the store.
 #[derive(Clone)]
 pub struct IdDeriver {
-    hk: Hkdf<Sha256>,
+    hk: Arc<Hkdf<Sha256>>,
 }
 
 impl IdDeriver {
     pub fn new(secret: &SecretString) -> Self {
         let hk = Hkdf::<Sha256>::new(Some(HKDF_SALT), secret.expose_secret().as_bytes());
-        Self { hk }
+        Self { hk: Arc::new(hk) }
     }
 
     pub fn derive_stream_id(&self, code: &SecretString) -> StreamId {

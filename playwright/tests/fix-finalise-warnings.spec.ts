@@ -21,6 +21,9 @@ import { NameAuthorisationPage } from "./pages/pg/nameAuthorisationPage.ts";
 import { OverviewPage } from "./pages/pg/overviewPage.ts";
 import { PoliticalGroupPage } from "./pages/pg/politicalGroupPage.ts";
 
+// A save redirects to `/finalise?&success=true&overlay=true`; the page scripts
+// strip those params again, so waiting on the bare path waits on that cleanup
+// rather than on the redirect. Hence the trailing `*`.
 test.describe("fix submit warnings", async () => {
   test("general information", async ({ noExistingData: page }) => {
     const finalisePage = new FinalisePage(page);
@@ -42,12 +45,12 @@ test.describe("fix submit warnings", async () => {
     await nameAuthorisationPage.buttonNext.click();
     await listSubmittersPage.buttonNext.click();
     await overviewPage.linkFinalise.click();
-    await page.waitForURL("/finalise");
+    await page.waitForURL("/finalise*");
     await expect(finalisePage.linkRegisteredDesignation).not.toBeVisible();
 
     await finalisePage.linkNoLegalName.click();
     await nameAuthorisationPage.editNameAuthorisation([authorisation]);
-    await page.waitForURL("/finalise");
+    await page.waitForURL("/finalise*");
     await expect(finalisePage.linkNoLegalName).not.toBeVisible();
   });
 
@@ -59,18 +62,21 @@ test.describe("fix submit warnings", async () => {
     await finalisePage.linkBSN.click();
     await createPersonPage.checkboxNoBSN.check();
     await createPersonPage.buttonNext.click();
-    await page.waitForURL("/finalise");
+    await page.waitForURL("/finalise*");
     await expect(finalisePage.linkBSN).not.toBeVisible();
 
     await finalisePage.linkIncorrectDate.first().click();
     await createPersonPage.textfieldYearOfBirth.fill("1925");
     await createPersonPage.buttonNext.click();
-    await page.waitForURL("/finalise");
+    // Waiting on the remaining warning rather than on the URL: it is back on
+    // the finalise page, one warning fixed and one left, so the click below
+    // resolves to a single link.
+    await expect(finalisePage.linkIncorrectDate).toHaveCount(1);
 
     await finalisePage.linkIncorrectDate.click();
     await createPersonPage.textfieldYearOfBirth.fill("1990");
     await createPersonPage.buttonNext.click();
-    await page.waitForURL("/finalise");
+    await page.waitForURL("/finalise*");
     await expect(finalisePage.linkIncorrectDate).not.toBeVisible();
   });
 
@@ -91,7 +97,7 @@ test.describe("fix submit warnings", async () => {
     await manageCandidateListPage.buttonOverviewPage.click();
     await page.waitForURL("/");
     await overviewPage.linkFinalise.click();
-    await page.waitForURL("/finalise");
+    await page.waitForURL("/finalise*");
     await expect(finalisePage.linkTooManyCandidates).not.toBeVisible();
   });
 
@@ -111,7 +117,7 @@ test.describe("fix submit warnings", async () => {
     await manageCandidateListPage.buttonOverviewPage.click();
     await page.waitForURL("/");
     await overviewPage.linkFinalise.click();
-    await page.waitForURL("/finalise");
+    await page.waitForURL("/finalise*");
     const finalisePage = new FinalisePage(page);
     await expect(finalisePage.linkBSN).toBeVisible();
     await expect(finalisePage.linkDateOfBirth).toBeVisible();

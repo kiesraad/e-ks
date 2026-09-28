@@ -25,6 +25,7 @@ struct CsbGeneralInformationTemplate {
     list_submitter: Option<PaperCorrectedSubmitter>,
     substitute_submitters: Vec<PaperCorrectedSubmitter>,
     political_group_omissions: Vec<Omission>,
+    appellation_omissions: Vec<Omission>,
 }
 
 /// Render the placeholder general information (basisgegevens) page for a
@@ -47,11 +48,12 @@ pub(in crate::csb) async fn render(
     Ok(HtmlTemplate(
         CsbGeneralInformationTemplate {
             political_group: CsbPoliticalGroup::new_from_csb_store(&store).with_mode(mode),
-            group_info: PaperCorrectedPoliticalGroupInfo::new(&store, context.session.locale),
+            group_info: PaperCorrectedPoliticalGroupInfo::new(&store, context.session.locale, mode),
             name_authorisations: paper_corrected_name_authorisations(&store),
             list_submitter: paper_corrected_list_submitter(&store),
             substitute_submitters: paper_corrected_substitute_submitters(&store),
             political_group_omissions: store.get_political_group_omissions(),
+            appellation_omissions: store.get_appellation_omissions(),
         },
         context,
     )
@@ -65,7 +67,11 @@ mod tests {
     use axum::http::StatusCode;
 
     use crate::{
-        structs::{csb::OmissionCategory, list_designation::ListDesignation},
+        CsbAction,
+        structs::{
+            csb::{OmissionCategory, sample_omission},
+            list_designation::ListDesignation,
+        },
         test_utils::{response_body_string, sample_political_group},
     };
 
@@ -288,5 +294,79 @@ mod tests {
                 None => assert!(!body.contains(single_label) && !body.contains(combined_label)),
             }
         }
+    }
+
+    #[tokio::test]
+    async fn appellation_omission_bar_is_hidden_for_blank_lists() {
+        let store = CsbStore::new_for_test();
+        let mut pg = sample_political_group();
+        pg.list_designation = Some(ListDesignation::Blank);
+        store.set_political_group(pg);
+
+        let response = overview(
+            CsbGeneralInformationPath {
+                stream_id: store.stream_id,
+            },
+            CsbContext::new_test(),
+            store,
+        )
+        .await
+        .unwrap()
+        .into_response();
+        let body = response_body_string(response).await;
+
+        assert!(!body.contains("Omissions appellation</h2>"));
+    }
+
+    /// A paper correction can blank a list after appellation omissions were
+    /// added; those stay visible, but no new ones can be added.
+    #[tokio::test]
+    async fn appellation_omission_bar_shows_existing_omissions_of_a_blank_list() {
+        let store = CsbStore::new_for_test();
+        let mut pg = sample_political_group();
+        pg.list_designation = Some(ListDesignation::Blank);
+        store.set_political_group(pg);
+        store
+            .update(CsbAction::CreateOmission(sample_omission(
+                OmissionCategory::Appellation,
+            )))
+            .await
+            .unwrap();
+
+        let stream_id = store.stream_id;
+        let response = overview(
+            CsbGeneralInformationPath { stream_id },
+            CsbContext::new_test(),
+            store,
+        )
+        .await
+        .unwrap()
+        .into_response();
+        let body = response_body_string(response).await;
+
+        assert!(body.contains("Omissions appellation</h2>"));
+        assert!(body.contains("test title"));
+        // The overview is linked, the add dialog is not.
+        assert!(body.contains(&format!("/omission/appellation/{stream_id}/overview")));
+        assert!(!body.contains(&format!("/omission/appellation/{stream_id}\"")));
+    }
+
+    #[tokio::test]
+    async fn appellation_omission_bar_shows_for_non_blank_lists() {
+        let store = CsbStore::new_for_test();
+
+        let response = overview(
+            CsbGeneralInformationPath {
+                stream_id: store.stream_id,
+            },
+            CsbContext::new_test(),
+            store,
+        )
+        .await
+        .unwrap()
+        .into_response();
+        let body = response_body_string(response).await;
+
+        assert!(body.contains("Omissions appellation</h2>"));
     }
 }

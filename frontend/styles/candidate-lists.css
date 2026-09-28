@@ -20,3 +20,14 @@
     grid-column: span 3;
   }
 }
+
+/* Only warn while a district of another candidate list is actually selected */
+.form .district-select {
+  span.warning.district-duplicate-warning {
+    display: none;
+  }
+
+  &:has(.checkbox.warning) span.warning.district-duplicate-warning {
+    display: block;
+  }
+}
