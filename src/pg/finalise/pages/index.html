@@ -38,7 +38,7 @@
                 {% endif %}
                 {% for agent_pp in problems.general.name_authorisations %}
                   <div class="mb-md">
-                    <div class="mb-sm">{{ agent_pp.entity.name.display() }} ({{ "political_group.authorised_agent"|trans }}):</div>
+                    <div class="mb-sm">{{ agent_pp.entity.display(locale) }}:</div>
                     <ul class="warnings tags-list">
                       {% for problem in &agent_pp.problems %}
                         <li class="tag link">
@@ -49,13 +49,11 @@
                     </ul>
                   </div>
                 {% endfor %}
-                {% if problems.general.list_submitter.is_some() %}
+                {% if let Some(ls) = problems.general.list_submitter %}
                   <div class="mb-md">
-                    <div class="mb-sm">
-                      {{ problems.general.list_submitter.as_ref().unwrap().entity.name.display() }} ({{ "political_group.list_submitter"|trans }}):
-                    </div>
+                    <div class="mb-sm">{{ ls.entity.display(locale, false) }}:</div>
                     <ul class="warnings tags-list">
-                      {% for problem in problems.general.list_submitter.as_ref().unwrap().problems %}
+                      {% for problem in ls.problems %}
                         <li class="tag link">
                           <a class="{{ problem.severity().class() }}"
                              href="{{ ListSubmitter::update_path_from(FinalisePath {}) }}">{{ problem.translate(locale) }}</a>
@@ -66,7 +64,7 @@
                 {% endif %}
                 {% for ss_pp in problems.general.substitute_submitters %}
                   <div class="mb-md">
-                    <div class="mb-sm">{{ ss_pp.entity.name.display() }} ({{ "political_group.substitute_submitter"|trans }}):</div>
+                    <div class="mb-sm">{{ ss_pp.entity.display(locale, true) }}:</div>
                     <ul class="warnings tags-list">
                       {% for problem in &ss_pp.problems %}
                         <li class="tag link">
@@ -135,8 +133,8 @@
                     </li>
                   {% endfor %}
                 </ul>
-                <label for="info-toggle" class="more-less center open">{{"action.show"|trans}}</label>
-                <label for="info-toggle" class="more-less center close">{{"action.hide"|trans}}</label>
+                <label for="info-toggle" class="more-less center open">{{ "action.show"|trans }}</label>
+                <label for="info-toggle" class="more-less center close">{{ "action.hide"|trans }}</label>
               </div>
             {% endif %}
           </section>
@@ -254,7 +252,7 @@
           <p class="alert alert-info">
             {{ "finalise.delivery.only_on"|trans(&election.nomination_day_date().format("%d-%m-%Y").to_string())|safe }}
           </p>
-          <p>{{ "finalise.delivery.description"|trans |safe}}</p>
+          <p>{{ "finalise.delivery.description"|trans |safe }}</p>
           <p>{{ "finalise.delivery.appointment"|trans }}</p>
           <address>
             Zurichtoren

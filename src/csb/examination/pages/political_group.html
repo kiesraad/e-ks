@@ -63,7 +63,7 @@
                href="{{ political_group.all_brp_findings_path() }}">{{ "csb.group.examine_all"|trans }}</a>
           </div>
         </div>
-        {{ restorations::brp_strip(brp, brp_badges, brp_incomplete.as_deref() ) }}
+        {{ restorations::brp_strip(brp, brp_badges, brp_incomplete.as_deref() , all_problems) }}
       </div>
     {% endif %}
     <div class="examination-panel">
@@ -123,8 +123,18 @@
               <li>{{ "csb.group.instruction_group"|trans }}</li>
               <li>{{ "csb.group.instruction_submitter"|trans }}</li>
             </ul>
-            {% if political_group_status.has_changes() %}
-              <div class="restoration-strip">{{ omission_badge(political_group_status) }}</div>
+            {% let show_general_problems = political_group.mode.is_examination() && !all_problems.general.is_all_good() %}
+            {% if political_group_status.has_changes() || show_general_problems %}
+              <div class="restoration-strip {% if show_general_problems && all_problems.general.has_severity_or_higher(crate::structs::common::Severity::Error) %}restoration-strip-error{% endif %}">
+                {% if show_general_problems %}
+                  <ul class="restoration-tags">
+                    <li>
+                      <span class="restoration-tag restoration-tag-{{ all_problems.general.highest_severity_class() }}">{{ "csb.group.problems_present"|trans }}</span>
+                    </li>
+                  </ul>
+                {% endif %}
+                {{ omission_badge(political_group_status) }}
+              </div>
             {% endif %}
           </div>
           <a class="card-footer"
@@ -167,14 +177,21 @@
               <p>{{ "csb.group.candidate_count"|trans(&candidate_list.list.candidates.len().to_string())|safe }}</p>
               {% let show_brp = political_group.mode.is_examination() && !candidate_list.brp.is_correct() %}
               {% let is_scrapped = political_group.mode.is_recovery() && candidate_list.is_scrapped %}
-              {% if show_brp || is_scrapped || candidate_list.restoration_status.has_changes() %}
-                <div class="restoration-strip {% if political_group.mode.is_examination() && candidate_list.brp.has_unhandled_errors() %}restoration-strip-error{% endif %}">
-                  {% if show_brp || is_scrapped %}
+              {% let problems_severity = all_problems.max_severity_for_list_and_candidates(&candidate_list.list) %}
+              {% let show_problems = political_group.mode.is_examination() && problems_severity.is_some() %}
+              {% if show_brp || is_scrapped || show_problems || candidate_list.restoration_status.has_changes() %}
+                <div class="restoration-strip {% if political_group.mode.is_examination() && (candidate_list.brp.has_unhandled_errors() || problems_severity == Some(crate::structs::common::Severity::Error)) %}restoration-strip-error{% endif %}">
+                  {% if show_brp || is_scrapped || show_problems %}
                     <ul class="restoration-tags">
                       {% if show_brp %}
                         {% let badge = candidate_list.brp.badge(false) %}
                         <li>
                           <span class="restoration-tag restoration-tag-{{ badge.css() }}">{{ badge.label_key() |trans }}</span>
+                        </li>
+                      {% endif %}
+                      {% if show_problems && let Some(severity) = problems_severity %}
+                        <li>
+                          <span class="restoration-tag restoration-tag-{{ severity.class() }}">{{ "csb.group.problems_present"|trans }}</span>
                         </li>
                       {% endif %}
                       {% if is_scrapped %}
@@ -184,9 +201,7 @@
                       {% endif %}
                     </ul>
                   {% endif %}
-                  {% if !candidate_list.is_scrapped %}
-                    {{ omission_badge(candidate_list.restoration_status) }}
-                  {% endif %}
+                  {% if !candidate_list.is_scrapped %}{{ omission_badge(candidate_list.restoration_status) }}{% endif %}
                 </div>
               {% endif %}
             </div>

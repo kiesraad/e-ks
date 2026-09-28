@@ -52,7 +52,7 @@ impl BrpBadge {
         match self {
             Self::Running => "running",
             Self::NotChecked => "pending",
-            Self::Incomplete => "warning",
+            Self::Incomplete => "incomplete",
             Self::Correct => "ok",
             Self::Handled => "handled",
             Self::Errors { .. } => "error",
