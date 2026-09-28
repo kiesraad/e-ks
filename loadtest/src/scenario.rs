@@ -6,16 +6,18 @@
 //! (`/select-election` rotates it), so every step reads the token off the page
 //! it just rendered, exactly like a browser submitting that page's form.
 //!
-//! When the actions a user does change, the only file that needs to change is
-//! this one.
+//! When the actions a user does change, the only files that need to change are
+//! this one and, for the login, `login.rs`.
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 use rand::seq::SliceRandom;
 
-use crate::client::{Client, GetOutcome};
+use crate::client::Client;
 use crate::data::{PersonRow, unique_last_name};
+use crate::login::{Login, log_in};
 
 pub struct ScenarioConfig {
+    pub login: Login,
     pub persons_per_user: usize,
     pub election: &'static str,
     pub load_fixtures_via_form: bool,
@@ -30,26 +32,10 @@ pub async fn run_session(
     suffix: &str,
     config: &ScenarioConfig,
 ) -> Result<()> {
-    // 1. Login. The real flow is DigiD/TVS SAML, which a load test can't drive,
-    //    so we use the `dev-features` shortcut. `select_election=true` keeps the
-    //    election picker in the flow instead of dropping us straight into EK27,
-    //    so `--election` and `--load-fixtures` still mean something.
-    let next = match client
-        .get("dev-login", "/dev/login?select_election=true")
-        .await?
-    {
-        GetOutcome::Redirect(loc) => loc,
-        GetOutcome::Page(_) => bail!(
-            "/dev/login did not redirect (is the server built with the `dev-features` feature?)"
-        ),
-    };
-
-    // 2. Follow to /select-election, whose rendered form carries the token the
-    //    election choice has to be submitted with.
-    client
-        .follow("select-election:get", next)
-        .await
-        .context("GET /select-election")?;
+    // 1-2. Log in (see `login.rs`) and land on /select-election, whose
+    //      rendered form carries the token the election choice has to be
+    //      submitted with.
+    log_in(client, config.login).await.context("login")?;
     let csrf = client.csrf().to_string();
 
     // 3. Submit the election choice. This rotates the session's token, so

@@ -1,8 +1,9 @@
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, bail};
+use rand::RngExt;
 use reqwest::{
-    StatusCode,
+    Method, RequestBuilder, StatusCode,
     header::{HeaderMap, HeaderName, HeaderValue},
     redirect::Policy,
 };
@@ -25,10 +26,36 @@ const CSRF_HEADER: &str = "x-csrf-token";
 /// session has to send the same one.
 const USER_AGENT: &str = "eks-loadtest/1.0";
 
+/// How long a user waits before each request they make themselves: `base`
+/// plus a uniformly random extra of up to `jitter`. Redirect hops and
+/// auto-submitted forms go out immediately, as a browser sends them.
+#[derive(Clone, Copy)]
+pub struct ThinkTime {
+    pub base: Duration,
+    pub jitter: Duration,
+}
+
+impl ThinkTime {
+    async fn pause(self) {
+        let extra = if self.jitter.is_zero() {
+            Duration::ZERO
+        } else {
+            rand::rng().random_range(Duration::ZERO..=self.jitter)
+        };
+        let total = self.base + extra;
+        if !total.is_zero() {
+            tokio::time::sleep(total).await;
+        }
+    }
+}
+
 pub struct Client {
     http: reqwest::Client,
     base: Url,
+    /// Only sent to `base`'s origin, so the EKS key never reaches the IdP.
+    app_headers: HeaderMap,
     reporter: Reporter,
+    think_time: ThinkTime,
     csrf: Option<String>,
 }
 
@@ -38,6 +65,7 @@ impl Client {
         reporter: Reporter,
         timeout: Duration,
         eks_key: Option<&str>,
+        think_time: ThinkTime,
     ) -> Result<Self> {
         let mut headers = HeaderMap::new();
         // The global `CsrfLayer` rejects cross-site POSTs on fetch metadata. A
@@ -56,12 +84,13 @@ impl Client {
             .redirect(Policy::none())
             .timeout(timeout)
             .user_agent(USER_AGENT)
-            .default_headers(headers)
             .build()?;
         Ok(Self {
             http,
             base,
+            app_headers: headers,
             reporter,
+            think_time,
             csrf: None,
         })
     }
@@ -70,16 +99,36 @@ impl Client {
         self.csrf.as_deref().unwrap_or("")
     }
 
-    /// GET a path, keeping [`Client::csrf`] on the token the last rendered page
-    /// carried. The session's token is not immutable: `/select-election`
-    /// rotates it, so latching onto the first one 400s every later POST.
+    /// Resolve a path against the base URL. Every `path` this client takes
+    /// may also be an absolute URL on another origin.
+    pub fn url(&self, path: &str) -> Result<Url> {
+        self.base.join(path).with_context(|| format!("join {path}"))
+    }
+
+    fn request(&self, method: Method, url: Url) -> RequestBuilder {
+        let same_origin = url.origin() == self.base.origin();
+        let request = self.http.request(method, url);
+        if same_origin {
+            request.headers(self.app_headers.clone())
+        } else {
+            request
+        }
+    }
+
+    /// A GET the user makes: waits the think time first. See [`Client::fetch`].
     pub async fn get(&mut self, label: &'static str, path: &str) -> Result<GetOutcome> {
-        let url = self
-            .base
-            .join(path)
-            .with_context(|| format!("join {path}"))?;
+        self.think_time.pause().await;
+        self.fetch(label, path).await
+    }
+
+    /// GET a path right away, keeping [`Client::csrf`] on the token the last
+    /// rendered page carried. The session's token is not immutable:
+    /// `/select-election` rotates it, so latching onto the first one 400s every
+    /// later POST.
+    pub async fn fetch(&mut self, label: &'static str, path: &str) -> Result<GetOutcome> {
+        let url = self.url(path)?;
         let started = Instant::now();
-        let response = self.http.get(url).send().await?;
+        let response = self.request(Method::GET, url).send().await?;
         let status = response.status();
         let location = response
             .headers()
@@ -114,14 +163,11 @@ impl Client {
     /// GET a file download (PDF, XML, ZIP). Consumes the body as bytes so the
     /// timing reflects the full transfer, but doesn't parse it.
     pub async fn download(&self, label: &'static str, path: &str) -> Result<()> {
-        let url = self
-            .base
-            .join(path)
-            .with_context(|| format!("join {path}"))?;
+        self.think_time.pause().await;
+        let url = self.url(path)?;
         let started = Instant::now();
         let response = self
-            .http
-            .get(url)
+            .request(Method::GET, url)
             .send()
             .await
             .with_context(|| describe_send_error(label, path, started.elapsed()))?;
@@ -149,7 +195,7 @@ impl Client {
     /// non-redirect response. Returns the final page body (if any).
     pub async fn follow(&mut self, label: &'static str, mut path: String) -> Result<String> {
         for _ in 0..5 {
-            match self.get(label, &path).await? {
+            match self.fetch(label, &path).await? {
                 GetOutcome::Redirect(next) => path = next,
                 GetOutcome::Page(body) => return Ok(body),
             }
@@ -160,6 +206,17 @@ impl Client {
     /// POST a form. The caller is responsible for including `csrf_token` in
     /// `form` (use [`Client::csrf`]).
     pub async fn post<F: Serialize + ?Sized>(
+        &mut self,
+        label: &'static str,
+        path: &str,
+        form: &F,
+    ) -> Result<PostOutcome> {
+        self.think_time.pause().await;
+        self.autosubmit(label, path, form).await
+    }
+
+    /// POST a form right away, like the HTTP-POST binding's auto-submit page.
+    pub async fn autosubmit<F: Serialize + ?Sized>(
         &mut self,
         label: &'static str,
         path: &str,
@@ -179,12 +236,9 @@ impl Client {
         form: &F,
         referer: &str,
     ) -> Result<PostOutcome> {
+        self.think_time.pause().await;
         let body = serde_urlencoded::to_string(form).context("encode form")?;
-        let referer = self
-            .base
-            .join(referer)
-            .with_context(|| format!("join referer {referer}"))?
-            .to_string();
+        let referer = self.url(referer)?.to_string();
         self.post_raw(
             label,
             path,
@@ -204,6 +258,7 @@ impl Client {
         path: &str,
         payload: &P,
     ) -> Result<PostOutcome> {
+        self.think_time.pause().await;
         let body = serde_json::to_string(payload).context("encode json")?;
         self.post_raw(label, path, "application/json", body, None)
             .await
@@ -217,14 +272,10 @@ impl Client {
         body: String,
         referer: Option<String>,
     ) -> Result<PostOutcome> {
-        let url = self
-            .base
-            .join(path)
-            .with_context(|| format!("join {path}"))?;
+        let url = self.url(path)?;
         let started = Instant::now();
         let mut request = self
-            .http
-            .post(url)
+            .request(Method::POST, url)
             .header(reqwest::header::CONTENT_TYPE, content_type)
             .body(body);
         if let Some(referer) = referer {
@@ -284,6 +335,14 @@ pub enum PostOutcome {
 }
 
 impl PostOutcome {
+    pub fn expect_page(self, label: &str) -> Result<String> {
+        match self {
+            PostOutcome::Rerender(body) => Ok(body),
+            PostOutcome::Redirect(loc) => bail!("{label}: expected 200, got redirect to {loc}"),
+            PostOutcome::NoContent => bail!("{label}: expected 200, got 204"),
+        }
+    }
+
     pub fn expect_redirect(self, label: &str) -> Result<String> {
         match self {
             PostOutcome::Redirect(loc) => Ok(loc),

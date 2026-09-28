@@ -17,14 +17,45 @@ cargo run --release --manifest-path loadtest/Cargo.toml -- \
 ```
 
 `--help` lists every option. Defaults: 10 users, 1 run each, 50 persons per
-run, 10 edits, 3 reorders, EK27, `nl` documents, base URL
-`http://localhost:3000`.
+run, 10 edits, 3 reorders, EK27, `nl` documents, no think time, dev login, base
+URL `http://localhost:3000`.
 
-The server has to be built with the `dev-features` feature (it is on by
-default): the real login is DigiD/TVS SAML, which a load test can't drive, so
-each session logs in through `/dev/login` instead. If the server runs with
-`EKS_KEY` set, pass `--eks-key` (or export `EKS_KEY`), otherwise every request
-answers 401.
+By default each session logs in through `/dev/login`, so the server has to be
+built with the `dev-features` feature (it is on by default). A server without
+it, such as the preview environment, takes `--login tvs-mock` instead: each
+session then runs the real SAML flow against the TVS mock the server is
+configured with (https://tvs-mock.eks-test.nl), logging in with a random BSN:
+
+```bash
+cargo run --release --manifest-path loadtest/Cargo.toml -- \
+    --base-url https://preview.kandidaatstellen.nl \
+    --login tvs-mock \
+    --users 20 \
+    --think-time-ms 1000 \
+    --think-time-jitter-ms 2000
+```
+
+The BSN is drawn from the whole nine-digit range, not just the `999…` numbers
+the mock's own "Nieuwe test-BSN" button picks: a BSN that an earlier run used
+logs into that run's stream, where every person create fails the uniqueness
+check.
+
+If the server runs with `EKS_KEY` set, pass `--eks-key` (or export `EKS_KEY`),
+otherwise every request answers 401. It is only sent to `--base-url`'s origin,
+never to the mock. Preview needs none: requests through its CDN already pass.
+
+`--think-time-ms` makes every user wait that long before each request they
+make themselves, plus a uniformly random extra of up to
+`--think-time-jitter-ms`. Redirect hops and the SAML auto-submit POST go out
+immediately, as a browser sends them. Both default to 0, i.e. every user
+hammers the server back to back.
+
+`--continuous` keeps `--users` sessions running at all times: as soon as a
+user's session finishes, that user starts a new one with a fresh login (and so
+a fresh stream, and with `--login tvs-mock` a fresh BSN). It runs until
+`--duration-secs` has passed or you press Ctrl-C. Either one also works without
+`--continuous`: the sessions still running are aborted and the summary covers
+everything recorded up to that point.
 
 `--persons-per-user` is capped at 80, the app's `MAX_CANDIDATES`: every person
 a session creates also goes onto its candidate list, and
@@ -33,11 +64,14 @@ a session creates also goes onto its candidate list, and
 ## What each session does
 
 The flow lives in [src/scenario.rs](src/scenario.rs) as a flat top-to-bottom
-script. **That's the only file you need to touch when the actions a user does
-change.** Per session:
+script, with the login in [src/login.rs](src/login.rs). **Those are the only
+files you need to touch when the actions a user does change.** Per session:
 
-1. `GET /dev/login?select_election=true` — mints a fresh stream per session, so
-   concurrent users never share a store
+1. Log in, minting a fresh stream per session so concurrent users never share a
+   store. `--login dev`: `GET /dev/login?select_election=true`. `--login
+   tvs-mock`: `GET /login`, `POST /login` (renders the SAML auto-submit form),
+   `POST` the `SAMLRequest` to the mock (renders its BSN form), `POST` a random
+   BSN to the mock (302 to the ACS), `GET /saml/sp/acs?SAMLart=…`
 2. `GET /select-election`, `POST /select-election` with `election=EK27`
 3. Browse `/persons`, `/political-group`, `/political-group/information`,
    `/audit-log`, `/candidate-lists`
@@ -110,6 +144,7 @@ POST     candidate-list:reorder                 60     10.4ms     11.9ms     12.
 GET      download:documents                     20    298.6ms      1.2s       2.1s       2.1s        0
 ...
 total requests: 4380, errors: 100
+sessions: 20 completed, 0 failed, 0 aborted
 wall clock: 1.59s
 ```
 
@@ -129,7 +164,8 @@ the current fixtures reports no skips at all.
 
 - `src/main.rs` — CLI, spawns N user tasks
 - `src/client.rs` — `Client` per user: cookie store, GET/POST/JSON-POST/download,
-  and the CSRF token of the last page rendered
+  think time, and the CSRF token of the last page rendered
+- `src/login.rs`: dev login and the SAML login through the TVS mock
 - `src/scenario.rs` — the per-session flow
 - `src/data.rs` — loads `../src/fixtures/persons.csv` (the same CSV the server
   uses to seed fixtures) and splits last-name prefixes off its rows

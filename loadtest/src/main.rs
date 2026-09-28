@@ -1,9 +1,16 @@
 mod client;
 mod data;
+mod login;
 mod metrics;
 mod scenario;
 
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
+    time::Duration,
+};
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -11,7 +18,8 @@ use rand::{RngExt, distr::Alphanumeric};
 use tokio::task::JoinSet;
 use url::Url;
 
-use crate::client::Client;
+use crate::client::{Client, ThinkTime};
+use crate::login::Login;
 use crate::metrics::Collector;
 use crate::scenario::{ScenarioConfig, run_session};
 
@@ -26,6 +34,22 @@ struct Args {
     #[arg(long, default_value = "http://localhost:3000")]
     base_url: String,
 
+    /// How each session logs in. `tvs-mock` runs the real SAML flow against
+    /// the TVS mock the server points at, with a random BSN per session, for
+    /// servers without `dev-features` such as https://preview.kandidaatstellen.nl.
+    #[arg(long, value_enum, default_value_t = Login::Dev)]
+    login: Login,
+
+    /// Milliseconds each user waits before every request they make
+    /// themselves. Redirects and auto-submitted forms are not delayed.
+    #[arg(long, default_value_t = 0)]
+    think_time_ms: u64,
+
+    /// Up to this many extra milliseconds, drawn uniformly per request, on top
+    /// of `--think-time-ms`.
+    #[arg(long, default_value_t = 0)]
+    think_time_jitter_ms: u64,
+
     /// Number of concurrent simulated users.
     #[arg(long, default_value_t = 10)]
     users: usize,
@@ -33,6 +57,17 @@ struct Args {
     /// Number of full sessions per user (each session re-logs in).
     #[arg(long, default_value_t = 1)]
     runs_per_user: usize,
+
+    /// Keep `--users` sessions running at all times: as soon as a user's
+    /// session finishes, that user starts a new one with a fresh login. Runs
+    /// until `--duration-secs` has passed or Ctrl-C.
+    #[arg(long, conflicts_with = "runs_per_user")]
+    continuous: bool,
+
+    /// Stop after this many seconds, aborting the sessions still running, and
+    /// print the summary so far. Ctrl-C does the same.
+    #[arg(long)]
+    duration_secs: Option<u64>,
 
     /// How many fixture persons each session should create + address.
     #[arg(long, default_value_t = 50)]
@@ -86,8 +121,14 @@ async fn main() -> Result<()> {
         Url::parse(&args.base_url).with_context(|| format!("parse base_url {}", args.base_url))?;
     let persons = data::load_persons().context("load persons.csv")?;
     println!(
-        "loadtest: {} users x {} runs, {} persons/run against {}",
-        args.users, args.runs_per_user, args.persons_per_user, args.base_url
+        "loadtest: {} users x {} runs, {} persons/run against {} ({:?} login, think time {}+0..{}ms)",
+        args.users,
+        args.runs_per_user,
+        args.persons_per_user,
+        args.base_url,
+        args.login,
+        args.think_time_ms,
+        args.think_time_jitter_ms,
     );
     if args.persons_per_user > persons.len() {
         anyhow::bail!(
@@ -109,6 +150,7 @@ async fn main() -> Result<()> {
 
     let (reporter, collector) = Collector::new();
     let scenario = Arc::new(ScenarioConfig {
+        login: args.login,
         persons_per_user: args.persons_per_user,
         election: Box::leak(args.election.into_boxed_str()),
         load_fixtures_via_form: args.load_fixtures,
@@ -121,6 +163,17 @@ async fn main() -> Result<()> {
     let started = std::time::Instant::now();
     let args_timeout_secs = args.timeout_secs;
     let eks_key = Arc::new(args.eks_key);
+    let think_time = ThinkTime {
+        base: Duration::from_millis(args.think_time_ms),
+        jitter: Duration::from_millis(args.think_time_jitter_ms),
+    };
+    // In continuous mode a user only stops when the whole test is stopped.
+    let runs = if args.continuous {
+        usize::MAX
+    } else {
+        args.runs_per_user
+    };
+    let sessions = Arc::new(SessionCounts::default());
     let mut tasks: JoinSet<Result<()>> = JoinSet::new();
     for user in 0..args.users {
         let base = base.clone();
@@ -128,7 +181,7 @@ async fn main() -> Result<()> {
         let scenario = scenario.clone();
         let persons = persons.clone();
         let eks_key = eks_key.clone();
-        let runs = args.runs_per_user;
+        let sessions = sessions.clone();
         tasks.spawn(async move {
             for run in 0..runs {
                 let suffix = format!(
@@ -144,23 +197,66 @@ async fn main() -> Result<()> {
                     reporter.clone(),
                     Duration::from_secs(args_timeout_secs),
                     eks_key.as_deref(),
+                    think_time,
                 )?;
-                if let Err(err) = run_session(&mut client, &persons, &suffix, &scenario).await {
-                    eprintln!("user={user} run={run}: {err:#}");
-                }
+                match run_session(&mut client, &persons, &suffix, &scenario).await {
+                    Ok(()) => sessions.completed.fetch_add(1, Ordering::Relaxed),
+                    Err(err) => {
+                        eprintln!("user={user} run={run}: {err:#}");
+                        sessions.failed.fetch_add(1, Ordering::Relaxed)
+                    }
+                };
             }
             Ok(())
         });
     }
 
-    while let Some(joined) = tasks.join_next().await {
-        if let Err(err) = joined {
-            eprintln!("task panicked: {err}");
+    let stop = stop_signal(args.duration_secs.map(Duration::from_secs));
+    tokio::pin!(stop);
+    let mut aborted = 0;
+    loop {
+        tokio::select! {
+            joined = tasks.join_next() => match joined {
+                Some(Err(err)) => eprintln!("task panicked: {err}"),
+                Some(Ok(_)) => {}
+                None => break,
+            },
+            () = &mut stop => {
+                aborted = tasks.len();
+                eprintln!("stopping, aborting {aborted} running sessions");
+                tasks.shutdown().await;
+                break;
+            }
         }
     }
     drop(reporter);
     let summary = collector.drain().await;
     summary.print();
+    println!(
+        "sessions: {} completed, {} failed, {aborted} aborted",
+        sessions.completed.load(Ordering::Relaxed),
+        sessions.failed.load(Ordering::Relaxed),
+    );
     println!("wall clock: {:.2}s", started.elapsed().as_secs_f64());
     Ok(())
+}
+
+#[derive(Default)]
+struct SessionCounts {
+    completed: AtomicUsize,
+    failed: AtomicUsize,
+}
+
+/// Resolves on Ctrl-C, or once `duration` has passed.
+async fn stop_signal(duration: Option<Duration>) {
+    let deadline = async {
+        match duration {
+            Some(duration) => tokio::time::sleep(duration).await,
+            None => std::future::pending().await,
+        }
+    };
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => {}
+        () = deadline => {}
+    }
 }
