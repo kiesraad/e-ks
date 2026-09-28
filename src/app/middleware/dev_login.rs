@@ -81,7 +81,7 @@ impl<'a> DevLogin<'a> {
     /// political group with its stream derived from `bsn`), and its locale and
     /// user agent from the request headers.
     fn new(state: &'a AppState, query: &'a DevLoginQuery, headers: &axum::http::HeaderMap) -> Self {
-        let locale = Locale::from_headers(headers);
+        let locale = Locale::default();
         let mut session = match query.csb {
             // Committee members share the CSB main stream, and dev logins are
             // not told apart in the audit log, so no BSN-derived stream is
@@ -238,8 +238,8 @@ mod tests {
     use secrecy::SecretString;
 
     use crate::{
-        AppState, CsbMainAction, CsbMainEvent, CsbUser, ElectionConfig, Locale, PgEvent, PgStore,
-        Scope, Session, StreamId, router, store::StoreEvent, test_utils::response_body_string,
+        AppState, CsbMainAction, CsbMainEvent, CsbUser, ElectionConfig, PgEvent, PgStore, Scope,
+        Session, StreamId, router, store::StoreEvent, test_utils::response_body_string,
     };
 
     const TEST_ID_CODE: &str = "999999990";
@@ -340,7 +340,6 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .uri(format!("/dev/login?bsn={TEST_ID_CODE}&fixtures=false"))
-                    .header(header::ACCEPT_LANGUAGE, "en")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -351,7 +350,6 @@ mod tests {
         assert_eq!(response.headers().get(header::LOCATION).unwrap(), "/");
 
         let session = session_from(&state, &response).await;
-        assert_eq!(session.locale, Locale::En);
         assert_eq!(
             session.test_stream_id(),
             derive_test_id(&state, TEST_ID_CODE)

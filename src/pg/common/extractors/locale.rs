@@ -17,6 +17,6 @@ where
             return Ok(locale);
         }
 
-        Ok(Locale::from_headers(&parts.headers))
+        Ok(Locale::default())
     }
 }
