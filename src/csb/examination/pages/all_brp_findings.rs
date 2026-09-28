@@ -27,6 +27,17 @@ struct CsbAllBrpFindingsTemplate {
     brp_badges: Vec<BrpBadge>,
     all_findings: AllBrpFindings,
 }
+/*
+TODO #1263:
+ - merge main into this branch after  #1188 is merged
+ - set the redirect_to param on problems and brp error links on all_brp_findings page
+ - use it to change behaviour of back button on:
+   - candidate page
+   - candidate-list page
+   - basisgegevens page
+   - how long should the back navigation be honored? https://github.com/kiesraad/e-ks/issues/1263#issuecomment-5873737016
+   - should something similar be implemented for all restorations? https://github.com/kiesraad/e-ks/issues/1263#issuecomment-5873737016 
+*/
 
 pub async fn all_brp_findings(
     _: CsbAllBrpFindingsPath,
