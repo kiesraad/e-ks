@@ -840,8 +840,14 @@ mod tests {
 
         let body = response_body_string(response).await;
 
-        // one in the brp bar, one on the candidate list card
-        assert_eq!(2, body.matches(">Problems</span").count())
+        // The empty list is correct as far as the BRP is concerned.
+        let card = list_card(&body, &stream_id.to_string(), list_id);
+        assert!(!card.contains("BRP"), "{card}");
+        assert!(card.contains("restoration-strip-error"), "{card}");
+        assert!(
+            card.contains(r#"restoration-tag-error">Problems</span>"#),
+            "{card}"
+        );
     }
 
     #[tokio::test]
@@ -871,7 +877,22 @@ mod tests {
 
         let body = response_body_string(response).await;
 
-        // one in the brp bar, one on the candidate list card
-        assert_eq!(2, body.matches(">Problems</span").count())
+        let card = list_card(&body, &stream_id.to_string(), list_id);
+        assert!(!card.contains("restoration-strip-error"), "{card}");
+        assert!(
+            card.contains(r#"restoration-tag-warning">Problems</span>"#),
+            "{card}"
+        );
+    }
+
+    /// The card of candidate list `list_id` on the group page.
+    fn list_card<'a>(body: &'a str, stream_id: &str, list_id: CandidateListId) -> &'a str {
+        let start = body
+            .find(&format!(
+                r#"data-href="/csb/examination/{stream_id}/list/{list_id}""#
+            ))
+            .expect("list card");
+        let end = start + body[start..].find("card-footer").expect("card footer");
+        &body[start..end]
     }
 }

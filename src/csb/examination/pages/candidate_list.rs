@@ -82,12 +82,10 @@ pub(in crate::csb) async fn render(
 
     let all_problems = store.get_all_problems(context.election)?;
     let list_problems = all_problems
-        .lists
-        .per_list
-        .iter()
-        .find(|l| l.entity.id == list_id)
-        .map(|l| l.problems.clone())
-        .unwrap_or_default();
+        .get_problems_for_list(list_id)
+        .into_iter()
+        .cloned()
+        .collect();
     let candidate_problems = all_problems.candidates;
 
     Ok(HtmlTemplate(

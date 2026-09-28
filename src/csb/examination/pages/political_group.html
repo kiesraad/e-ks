@@ -123,13 +123,16 @@
               <li>{{ "csb.group.instruction_group"|trans }}</li>
               <li>{{ "csb.group.instruction_submitter"|trans }}</li>
             </ul>
-            {% if political_group_status.has_changes() || (political_group.mode.is_examination() && !all_problems.general.is_all_good()) %}
-              <div class="restoration-strip {% if political_group.mode.is_examination() && all_problems.general.has_severity_or_higher(crate::structs::common::Severity::Error) %}restoration-strip-error{% endif %}">
-                <ul class="restoration-tags">
-                  {% if political_group.mode.is_examination() && !all_problems.general.is_all_good() %}
-                    <span class="restoration-tag restoration-tag-{{ all_problems.general.highest_severity_class() }}">{{ "csb.group.problems_present"|trans }}</span>
-                  {% endif %}
-                </ul>
+            {% let show_general_problems = political_group.mode.is_examination() && !all_problems.general.is_all_good() %}
+            {% if political_group_status.has_changes() || show_general_problems %}
+              <div class="restoration-strip {% if show_general_problems && all_problems.general.has_severity_or_higher(crate::structs::common::Severity::Error) %}restoration-strip-error{% endif %}">
+                {% if show_general_problems %}
+                  <ul class="restoration-tags">
+                    <li>
+                      <span class="restoration-tag restoration-tag-{{ all_problems.general.highest_severity_class() }}">{{ "csb.group.problems_present"|trans }}</span>
+                    </li>
+                  </ul>
+                {% endif %}
                 {{ omission_badge(political_group_status) }}
               </div>
             {% endif %}
@@ -174,20 +177,22 @@
               <p>{{ "csb.group.candidate_count"|trans(&candidate_list.list.candidates.len().to_string())|safe }}</p>
               {% let show_brp = political_group.mode.is_examination() && !candidate_list.brp.is_correct() %}
               {% let is_scrapped = political_group.mode.is_recovery() && candidate_list.is_scrapped %}
-              {% if show_brp || is_scrapped || candidate_list.restoration_status.has_changes() %}
-                <div class="restoration-strip {% if political_group.mode.is_examination() && (candidate_list.brp.has_unhandled_errors() || all_problems.has_severity_or_higher_for_list_and_candidates(candidate_list.list.id, crate::structs::common::Severity::Error)) %}restoration-strip-error{% endif %}">
-                  {% if show_brp || is_scrapped %}
+              {% let problems_severity = all_problems.max_severity_for_list_and_candidates(&candidate_list.list) %}
+              {% let show_problems = political_group.mode.is_examination() && problems_severity.is_some() %}
+              {% if show_brp || is_scrapped || show_problems || candidate_list.restoration_status.has_changes() %}
+                <div class="restoration-strip {% if political_group.mode.is_examination() && (candidate_list.brp.has_unhandled_errors() || problems_severity == Some(crate::structs::common::Severity::Error)) %}restoration-strip-error{% endif %}">
+                  {% if show_brp || is_scrapped || show_problems %}
                     <ul class="restoration-tags">
                       {% if show_brp %}
                         {% let badge = candidate_list.brp.badge(false) %}
                         <li>
                           <span class="restoration-tag restoration-tag-{{ badge.css() }}">{{ badge.label_key() |trans }}</span>
                         </li>
-                        {% if political_group.mode.is_examination() && let Some(severity) = all_problems.max_severity_for_list_and_candidates(candidate_list.list.id) %}
-                          <li>
-                            <span class="restoration-tag restoration-tag-{{ severity.class() }}">{{ "csb.group.problems_present"|trans }}</span>
-                          </li>
-                        {% endif %}
+                      {% endif %}
+                      {% if show_problems && let Some(severity) = problems_severity %}
+                        <li>
+                          <span class="restoration-tag restoration-tag-{{ severity.class() }}">{{ "csb.group.problems_present"|trans }}</span>
+                        </li>
                       {% endif %}
                       {% if is_scrapped %}
                         <li>

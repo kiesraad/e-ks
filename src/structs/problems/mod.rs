@@ -48,38 +48,31 @@ impl AllProblems {
             .map_or(Vec::new(), |c| c.problems.iter().collect())
     }
 
-    /// Determines the max severity of problems of this list and the candidates on this list
-    pub fn max_severity_for_list_and_candidates(
-        &self,
-        list_id: &CandidateListId,
-    ) -> Option<Severity> {
-        if let Some(list_problems) = self.lists.per_list.iter().find(|l| &l.entity.id == list_id) {
-            let highest_list = list_problems
-                .problems
-                .iter()
-                .map(PotentialProblems::severity)
-                .max();
-            let highest_candidate = self
-                .candidates
-                .iter()
-                .filter(|c| list_problems.entity.candidates.contains(&c.entity.id))
-                .flat_map(|c| c.problems.iter().map(PotentialProblems::severity))
-                .max();
-            highest_list.max(highest_candidate)
-        } else {
-            None
-        }
+    /// The problems of the list itself, errors first. Sorting may have split
+    /// them over more than one entry of `per_list`.
+    pub fn get_problems_for_list(&self, list_id: CandidateListId) -> Vec<&PotentialProblems> {
+        self.lists
+            .per_list
+            .iter()
+            .filter(|l| l.entity.id == list_id)
+            .flat_map(|l| &l.problems)
+            .collect()
     }
 
-    /// Tests if a list or its candidates have an equal or higher severity than provided
-    pub fn has_severity_or_higher_for_list_and_candidates(
-        &self,
-        list_id: &CandidateListId,
-        severity: Severity,
-    ) -> bool {
-        self.max_severity_for_list_and_candidates(list_id)
-            .map(|s| s >= severity)
-            .unwrap_or(false)
+    /// Determines the max severity of problems of this list and the candidates on this list
+    pub fn max_severity_for_list_and_candidates(&self, list: &CandidateList) -> Option<Severity> {
+        let highest_list = self
+            .get_problems_for_list(list.id)
+            .into_iter()
+            .map(PotentialProblems::severity)
+            .max();
+        let highest_candidate = self
+            .candidates
+            .iter()
+            .filter(|c| list.candidates.contains(&c.entity.id))
+            .flat_map(|c| c.problems.iter().map(PotentialProblems::severity))
+            .max();
+        highest_list.max(highest_candidate)
     }
 }
 
@@ -311,6 +304,65 @@ mod tests {
                 info_problems: Vec::new()
             }
             .models_downloadable()
+        );
+    }
+
+    #[test]
+    fn list_problems_split_by_sorting_are_all_found() {
+        let list = sample_candidate_list(CandidateListId::new());
+        let mut problems = AllProblems {
+            general: empty_general(),
+            candidates: Vec::new(),
+            lists: ListProblems {
+                general: Vec::new(),
+                per_list: vec![EntityProblems {
+                    entity: list.clone(),
+                    problems: vec![
+                        PotentialProblems::TooManyCandidates { count: 1 },
+                        PotentialProblems::NoDistricts,
+                    ],
+                }],
+            },
+            info_problems: Vec::new(),
+        };
+        problems.sort_problems_by_severity();
+        assert_eq!(problems.lists.per_list.len(), 2);
+
+        assert_eq!(
+            problems.get_problems_for_list(list.id),
+            vec![
+                &PotentialProblems::NoDistricts,
+                &PotentialProblems::TooManyCandidates { count: 1 }
+            ]
+        );
+    }
+
+    #[test]
+    fn list_severity_includes_candidates_without_list_problems() {
+        let person = sample_person(PersonId::new());
+        let mut list = sample_candidate_list(CandidateListId::new());
+        let other_list = sample_candidate_list(CandidateListId::new());
+        list.candidates = vec![person.id];
+        let problems = AllProblems {
+            general: empty_general(),
+            candidates: vec![PersonProblems {
+                entity: person,
+                problems: vec![PotentialProblems::NoBsn],
+            }],
+            lists: ListProblems {
+                general: Vec::new(),
+                per_list: Vec::new(),
+            },
+            info_problems: Vec::new(),
+        };
+
+        assert_eq!(
+            problems.max_severity_for_list_and_candidates(&list),
+            Some(Severity::Warn)
+        );
+        assert_eq!(
+            problems.max_severity_for_list_and_candidates(&other_list),
+            None
         );
     }
 
