@@ -84,7 +84,7 @@ finalise:
   add_objection: Add objection
   district_count: Electoral districts
   i4_note: Official report on the validity and numbering of the candidate lists. Create the form for the report of the public session.
-  i4_title: I 4 Official report
+  i4_title: I\u00A04 Official report
   no_lists: There are no lists to number.
   objections_note: Did anyone raise an objection during the session? Add it below.
   objections_title: Enter objection
@@ -99,14 +99,14 @@ finish_examination:
   download_zip: Download ZIP
   hearing_details: Hearing details
   i1_note: Examination of submitted candidate lists. Create the form for the report on the examination of the candidate lists.
-  i1_title: I 1 Official report
+  i1_title: I\u00A01 Official report
   no_omission_letters: There are no letters of omission to create.
   omission_letters: Letters of omission
   omission_letters_note: Create the letters of omission for the political groups that were found to have omissions.
   title: Finish examination
 finish_instruction:
   create_defects: Create notice of defects
-  create_model_i1: Create model I 1
+  create_model_i1: Create model I\u00A01
 finished: Finished
 form:
   create_empty: Create empty
@@ -160,8 +160,8 @@ index:
   download_election_definition: Download election definition
   feature:
     add_omissions: Add omissions and corrections
-    create_i1_letters: Create I 1 and omission letters
-    create_i4: Create I 4
+    create_i1_letters: Create I\u00A01 and omission letters
+    create_i4: Create I\u00A04
     record_list_order: Record the order drawn by lot
     record_objections: Record objections
     recover_omissions: Recover omissions
@@ -211,11 +211,11 @@ omission:
     add: Add omission
   form:
     applies_to: "This omission applies to:"
-    description_label: Add I 1 omission
+    description_label: Add I\u00A01 omission
     edit_heading: Type or edit the omission here
     help_text_hint: Only for a recoverable omission. Irreparable omissions do not go into the omission letter.
     help_text_label: Add omission letter note
-    no_omission_letter_hint: "Note: this omission will therefore not be included in the omission letter and in the model I 1"
+    no_omission_letter_hint: "Note: this omission will therefore not be included in the omission letter and in the model I\u00A01"
     presets_heading: Use one of these omissions as a template (optional)
     recoverable_hint: "A recoverable omission can still be remedied by the political group, an irreparable one cannot."
     recoverable_label: Recoverable omission
@@ -262,10 +262,10 @@ recovery:
   assess: Assess
   assessed: Assessed
   assessed_count: "{} of {} assessed"
-  download_i4_pdf: Download I 4 (PDF)
-  download_i4_word: Download I 4 (Word)
+  download_i4_pdf: Download I\u00A04 (PDF)
+  download_i4_word: Download I\u00A04 (Word)
   explanation: "Record per omission whether it was recovered. Candidates, lists and electoral districts with an unrecovered omission are scrapped."
-  finish_note: "As long as omissions are still to be assessed, the I 4 is not yet final."
+  finish_note: "As long as omissions are still to be assessed, the I\u00A04 is not yet final."
   finish_title: Finish recovery
   no_omissions: No omissions
   not_recovered: Not recovered
