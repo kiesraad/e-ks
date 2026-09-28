@@ -40,3 +40,59 @@ pub async fn start_acme_renewal(
     ));
     Ok(rustls_config)
 }
+
+#[cfg(test)]
+mod tests {
+    use rustls::pki_types::{CertificateDer, pem::PemObject};
+    use tokio::net::TcpListener;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn start_acme_renewal_serves_the_bootstrapped_certificate() {
+        let dir = std::env::temp_dir().join(format!("eks-acme-start-{}", std::process::id()));
+        tokio::fs::create_dir_all(&dir).await.unwrap();
+        let acme = AcmeConfig {
+            directory_url: "https://acme.example/dir".to_string(),
+            domain: "eks.example.nl".to_string(),
+            // Invalid, so the spawned renewer fails before reaching the network.
+            account_credentials: secrecy::SecretString::from("{}"),
+            root_ca_path: None,
+        };
+        let tls = TlsConfig {
+            cert_path: dir.join("cert.pem"),
+            key_path: dir.join("key.pem"),
+        };
+
+        let rustls_config = start_acme_renewal(acme, tls.clone(), AcmeStore::default())
+            .await
+            .unwrap();
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(server::serve_tls(
+            axum::Router::new(),
+            listener,
+            rustls_config,
+        ));
+
+        let client = reqwest::Client::builder()
+            .tls_danger_accept_invalid_certs(true)
+            .tls_info(true)
+            .build()
+            .unwrap();
+        let resp = client.get(format!("https://{addr}/")).send().await.unwrap();
+        let presented = resp
+            .extensions()
+            .get::<reqwest::tls::TlsInfo>()
+            .and_then(|info| info.peer_certificate())
+            .expect("peer certificate")
+            .to_vec();
+
+        let bootstrapped = CertificateDer::from_pem_file(&tls.cert_path).unwrap();
+        assert_eq!(presented, bootstrapped.to_vec());
+
+        server.abort();
+        tokio::fs::remove_dir_all(&dir).await.unwrap();
+    }
+}
