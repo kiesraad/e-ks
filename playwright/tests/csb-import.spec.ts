@@ -1,3 +1,6 @@
+// Use case:
+// Centraal stembureau vult de hascode in in e-KS
+
 import { expect } from "@playwright/test";
 import { test } from "./fixtures.ts";
 import { CsbExaminationPage } from "./pages/csb/csbExaminationPage.ts";

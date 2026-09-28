@@ -12,6 +12,8 @@ export class CsbPoliticalGroupPage {
   readonly linkCandidateList: Locator;
   readonly linkDelete: Locator;
   readonly buttonDeleteConfirm: Locator;
+  readonly buttonBRPCheck: Locator;
+  readonly linkRefresh: Locator;
 
   constructor(protected readonly page: Page) {
     this.switchFinalize = this.page.getByLabel(
@@ -45,6 +47,12 @@ export class CsbPoliticalGroupPage {
     this.buttonDeleteConfirm = this.page.getByRole("button", {
       name: "Verwijderen",
     });
+    this.buttonBRPCheck = this.page.getByRole("button", {
+      name: "Controleren met de BRP",
+    });
+    this.linkRefresh = this.page.getByRole("link", {
+      name: "Pagina verversen",
+    });
   }
 
   async selectedGroup(politicalgroup: string) {
@@ -60,4 +68,6 @@ export class CsbPoliticalGroupPage {
     // the delete request is still in flight
     await this.page.waitForURL(/\/csb\/examination$/);
   }
+
+
 }
