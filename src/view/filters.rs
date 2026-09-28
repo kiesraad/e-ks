@@ -7,7 +7,7 @@ use crate::{
     constants::{DATE_TIME_SECONDS_FORMAT, DEFAULT_DATE_TIME_FORMAT, DEFAULT_TIMEZONE},
     core::AnyLocale,
     form::FormData,
-    structs::persons::Person,
+    structs::{list_designation::ListDesignation, persons::Person},
 };
 
 // Templates reach the asset URLs through the filters namespace.
@@ -122,6 +122,17 @@ pub fn election_type_title(
     let locale: &Locale = askama::get_value(values, "locale")?;
 
     Ok(value.election_type().title(*locale))
+}
+
+#[askama::filter_fn]
+pub fn designation_form(
+    value: &Option<ListDesignation>,
+    _: &dyn askama::Values,
+) -> askama::Result<&'static str> {
+    Ok(match value {
+        Some(ListDesignation::Combined) => "H\u{A0}3-2",
+        _ => "H\u{A0}3-1",
+    })
 }
 
 #[askama::filter_fn]
