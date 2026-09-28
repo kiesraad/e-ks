@@ -82,7 +82,7 @@ impl Summary {
     }
 }
 
-fn fmt_us(us: u128) -> String {
+pub fn fmt_us(us: u128) -> String {
     if us >= 1_000_000 {
         format!("{:.2}s", us as f64 / 1_000_000.0)
     } else if us >= 1_000 {

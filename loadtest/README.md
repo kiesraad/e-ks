@@ -53,9 +53,11 @@ hammers the server back to back.
 `--continuous` keeps `--users` sessions running at all times: as soon as a
 user's session finishes, that user starts a new one with a fresh login (and so
 a fresh stream, and with `--login tvs-mock` a fresh BSN). It runs until
-`--duration-secs` has passed or you press Ctrl-C. Either one also works without
-`--continuous`: the sessions still running are aborted and the summary covers
-everything recorded up to that point.
+`--duration-secs` has passed or you press Ctrl-C. Every request is logged to
+stderr as it completes (time, user and run, method, status, duration, label,
+path), so the summary on stdout stays clean. `--duration-secs` and Ctrl-C also
+work without `--continuous`: the sessions still running are aborted and the
+summary covers everything recorded up to that point.
 
 `--persons-per-user` is capped at 80, the app's `MAX_CANDIDATES`: every person
 a session creates also goes onto its candidate list, and

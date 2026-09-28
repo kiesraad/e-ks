@@ -60,7 +60,8 @@ struct Args {
 
     /// Keep `--users` sessions running at all times: as soon as a user's
     /// session finishes, that user starts a new one with a fresh login. Runs
-    /// until `--duration-secs` has passed or Ctrl-C.
+    /// until `--duration-secs` has passed or Ctrl-C. Every request is logged
+    /// to stderr.
     #[arg(long, conflicts_with = "runs_per_user")]
     continuous: bool,
 
@@ -173,6 +174,7 @@ async fn main() -> Result<()> {
     } else {
         args.runs_per_user
     };
+    let continuous = args.continuous;
     let sessions = Arc::new(SessionCounts::default());
     let mut tasks: JoinSet<Result<()>> = JoinSet::new();
     for user in 0..args.users {
@@ -199,6 +201,9 @@ async fn main() -> Result<()> {
                     eks_key.as_deref(),
                     think_time,
                 )?;
+                if continuous {
+                    client = client.log_requests(format!("user={user} run={run}"));
+                }
                 match run_session(&mut client, &persons, &suffix, &scenario).await {
                     Ok(()) => sessions.completed.fetch_add(1, Ordering::Relaxed),
                     Err(err) => {

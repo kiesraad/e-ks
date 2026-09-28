@@ -10,7 +10,7 @@ use reqwest::{
 use serde::Serialize;
 use url::Url;
 
-use crate::metrics::{Metric, Reporter};
+use crate::metrics::{Metric, Reporter, fmt_us};
 
 /// Header the app's `eks_key_middleware` gates every route on when
 /// `EKS_KEY` is configured (it exists so only the CDN can reach the server).
@@ -56,6 +56,8 @@ pub struct Client {
     app_headers: HeaderMap,
     reporter: Reporter,
     think_time: ThinkTime,
+    /// Set to print every request to stderr, prefixed with this tag.
+    log_tag: Option<String>,
     csrf: Option<String>,
 }
 
@@ -91,8 +93,38 @@ impl Client {
             app_headers: headers,
             reporter,
             think_time,
+            log_tag: None,
             csrf: None,
         })
+    }
+
+    pub fn log_requests(mut self, tag: String) -> Self {
+        self.log_tag = Some(tag);
+        self
+    }
+
+    fn record(
+        &self,
+        label: &'static str,
+        method: &'static str,
+        path: &str,
+        status: StatusCode,
+        duration: Duration,
+    ) {
+        self.reporter.record(Metric {
+            label,
+            method,
+            status: status.as_u16(),
+            duration,
+        });
+        if let Some(tag) = &self.log_tag {
+            eprintln!(
+                "{} {tag} {method:<4} {} {:>8} {label} {path}",
+                chrono::Local::now().format("%H:%M:%S%.3f"),
+                status.as_u16(),
+                fmt_us(duration.as_micros()),
+            );
+        }
     }
 
     pub fn csrf(&self) -> &str {
@@ -151,12 +183,7 @@ impl Client {
             bail!("GET {path} unexpected status {status}: {}", truncate(&body));
         };
 
-        self.reporter.record(Metric {
-            label,
-            method: "GET",
-            status: status.as_u16(),
-            duration: started.elapsed(),
-        });
+        self.record(label, "GET", path, status, started.elapsed());
         Ok(outcome)
     }
 
@@ -176,12 +203,7 @@ impl Client {
             .bytes()
             .await
             .with_context(|| format!("{label}: GET {path} body read"))?;
-        self.reporter.record(Metric {
-            label,
-            method: "GET",
-            status: status.as_u16(),
-            duration: started.elapsed(),
-        });
+        self.record(label, "GET", path, status, started.elapsed());
         if !status.is_success() {
             let body = String::from_utf8_lossy(&bytes);
             let snippet = extract_validation_errors(&body)
@@ -296,12 +318,7 @@ impl Client {
             .and_then(|v| v.to_str().ok())
             .map(str::to_string);
 
-        self.reporter.record(Metric {
-            label,
-            method: "POST",
-            status: status.as_u16(),
-            duration: started.elapsed(),
-        });
+        self.record(label, "POST", path, status, started.elapsed());
 
         if status == StatusCode::SEE_OTHER || status == StatusCode::FOUND {
             return Ok(PostOutcome::Redirect(location.unwrap_or_default()));
