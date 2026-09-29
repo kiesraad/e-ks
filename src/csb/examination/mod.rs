@@ -2,12 +2,13 @@ mod actions;
 pub(in crate::csb) mod extractors;
 mod forms;
 mod model_inputs;
-pub(in crate::csb) mod numbering;
+pub mod numbering;
 pub(in crate::csb) mod pages;
 mod paths;
 pub(in crate::csb) mod structs;
 
 pub use forms::OmissionForm;
+pub use numbering::ListNumbering;
 pub use pages::router;
 pub use paths::{
     CsbExaminationOverviewPath, CsbFinishExaminationPath, CsbHearingDetailsPath,

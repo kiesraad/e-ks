@@ -1,0 +1,27 @@
+//! Model OSV 3-2: Publicatie kandidatenlijsten.
+//! This model is Dutch-only; the document text lives in the `templates/osv3-2.md`
+//! Markdown template.
+
+use textris_pdf::build::Textris;
+
+use super::{Pdf, layout::markdown_document, markdown::model_template};
+use crate::{AppError, csb::examination::ListNumbering};
+
+#[derive(Debug)]
+pub struct OSV3_2 {
+    pub election_name: String,
+    pub election_date: String,
+    pub list_numbering: ListNumbering,
+}
+
+model_template!(OSV3_2Template, OSV3_2, "models/templates/osv3-2.md");
+
+impl Pdf for OSV3_2 {
+    fn document(&self) -> Result<Textris, AppError> {
+        markdown_document(OSV3_2Template(self))
+    }
+
+    fn filename(&self) -> String {
+        "OSV_3-2_publicatie_kandidatenlijsten.pdf".to_string()
+    }
+}
