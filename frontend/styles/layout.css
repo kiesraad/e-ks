@@ -27,6 +27,27 @@ main {
     gap: var(--space-lg);
     margin-bottom: var(--space-xl);
   }
+
+  /* Push the footer nav to the bottom of main */
+  &:has(> .container > .footer-nav) {
+    display: flex;
+    flex-direction: column;
+
+    & > .container {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      width: 100%;
+    }
+
+    .footer-nav {
+      margin-top: auto;
+    }
+
+    :has(+ .footer-nav) {
+      margin-bottom: var(--space-xxl);
+    }
+  }
 }
 
 footer {

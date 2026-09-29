@@ -145,6 +145,7 @@
 /* The download call to action and its button(s) share one row */
 .download-card {
   --card-padding: var(--space-6);
+  border: none;
   align-items: center;
   flex-direction: row;
   gap: var(--space-8);

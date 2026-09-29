@@ -1,5 +1,5 @@
 actions:
-  add: Lijst aanmaken
+  add: Lijst toevoegen
   add_candidates: Kandidaten toevoegen
   add_existing: Bestaand
   add_new: Nieuw
@@ -41,7 +41,7 @@ form:
   copy_candidates_from_previous: Kopieer kandidaten van de laatst aangemaakte lijst
   copy_candidates_from_previous_legend: Kopieer kandidaten
   create:
-    title: Kandidatenlijst aanmaken
+    title: Kandidatenlijst toevoegen
   delete_warning_text: Weet u zeker dat u deze kandidatenlijst wilt verwijderen?
   update:
     title: Kieskringen beheren

@@ -48,6 +48,7 @@ a.person-block {
 /* The submitter blocks sit in a white frame, with the add button on its right */
 .submitters-card {
   --card-padding: var(--space-6);
+  border: none;
   align-items: flex-start;
   flex-direction: row;
   gap: var(--space-6);
