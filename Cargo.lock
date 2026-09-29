@@ -1631,7 +1631,7 @@ dependencies = [
 [[package]]
 name = "eml-nl"
 version = "0.7.0"
-source = "git+https://github.com/kiesraad/rust-eml-nl?rev=e9fcd7e90aebba463a36d7bbf7cd418f2032ed26#e9fcd7e90aebba463a36d7bbf7cd418f2032ed26"
+source = "git+https://github.com/kiesraad/rust-eml-nl?rev=3c3de7fba4901b31d55ac7223076c26ac430892f#3c3de7fba4901b31d55ac7223076c26ac430892f"
 dependencies = [
  "chrono",
  "quick-xml",

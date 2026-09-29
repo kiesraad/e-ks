@@ -23,9 +23,7 @@ impl From<ElectionType> for ElectionCategory {
             ElectionType::Ps => ElectionCategory::PS,
             ElectionType::Ws => ElectionCategory::AB,
             ElectionType::Ep => ElectionCategory::EP,
-            ElectionType::Kc | ElectionType::Kcni => {
-                todo!("Kiescolleges don't have an official code yet in EML-NL")
-            }
+            ElectionType::Kc | ElectionType::Kcni => ElectionCategory::KC,
             ElectionType::Er => ElectionCategory::ER,
         }
     }
@@ -58,9 +56,8 @@ impl From<&ElectionConfig> for ElectionSubcategory {
                 }
             }
             ElectionType::Ep => ElectionSubcategory::EP,
-            ElectionType::Kc | ElectionType::Kcni => {
-                todo!("Kiescolleges don't have an official code yet in EML-NL")
-            }
+            ElectionType::Kc => ElectionSubcategory::KCCN,
+            ElectionType::Kcni => ElectionSubcategory::KCNI,
             ElectionType::Er => ElectionSubcategory::ER1,
         }
     }
