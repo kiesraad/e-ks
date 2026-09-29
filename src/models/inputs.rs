@@ -1,5 +1,7 @@
 //! Input data types shared by the PDF models, and their conversions from the
-//! application store types.
+//! application store types. The H models share [`ModelData`]; the central
+//! voting bureau models (I 1, I 4, OSV 3-2) share the session, omission and
+//! [`DistrictLists`] types.
 //!
 //! Type-checked example values live in `super::examples`.
 
@@ -8,11 +10,16 @@ use tracing::error;
 
 use crate::{
     AppError, ElectionConfig,
-    core::{ElectionType, ModelLocale},
+    core::{
+        ElectionType, ModelLocale,
+        constants::{DEFAULT_DATE_FORMAT, DEFAULT_TIME_FORMAT},
+        election,
+    },
     structs::{
         candidate_lists::CandidateList,
         candidates::Candidate as AppCandidate,
         common::{Address, BsnOrNoneConfirmed},
+        csb::HearingDetails,
         list_submitters::ListSubmitter,
         name_authorisations::NameAuthorisation as AppNameAuthorisation,
         persons::Representative,
@@ -238,6 +245,77 @@ impl DetailedCandidate {
             postal_address,
         })
     }
+}
+
+/// The session of the central voting bureau, shared by the I 1 and I 4 models.
+#[derive(Debug)]
+pub struct PublicSession {
+    pub location: String,
+    pub date: String,
+    pub time: String,
+    pub chair: String,
+    pub members: Vec<String>,
+}
+
+impl From<election::PublicSession> for PublicSession {
+    fn from(session: election::PublicSession) -> Self {
+        PublicSession {
+            location: session.location.to_string(),
+            date: session.formatted_date(),
+            time: session.formatted_time(),
+            chair: session.chair.to_string(),
+            members: session.members.iter().map(ToString::to_string).collect(),
+        }
+    }
+}
+
+impl PublicSession {
+    /// Override the moment and the signatories configured for the election with
+    /// the hearing details the committee entered. The location stays
+    /// configured: the form shows it read-only.
+    pub fn with_hearing_details(self, details: HearingDetails) -> Self {
+        Self {
+            date: details.date_time.format(DEFAULT_DATE_FORMAT).to_string(),
+            time: details.date_time.format(DEFAULT_TIME_FORMAT).to_string(),
+            chair: details.chair,
+            members: details.members,
+            ..self
+        }
+    }
+}
+
+/// Omissions for one list, identified by its appellation and district(s).
+#[derive(Debug)]
+pub struct OmissionGroup {
+    pub appellation: String,
+    pub electoral_district: String,
+    pub omission_descriptions: Vec<String>,
+}
+
+/// One "Kieskring" table: the district heading plus its lists, in the order
+/// they are printed. `L` is the per-list row, e.g. [`ValidList`] or
+/// [`super::i1::SubmittedList`].
+#[derive(Debug)]
+pub struct DistrictLists<L> {
+    /// The district as printed after the "Kieskring" label, e.g. `20 (Bonaire)`.
+    pub electoral_district: String,
+    pub lists: Vec<L>,
+}
+
+/// A valid candidate list with its candidates, as reproduced by the I 4 and
+/// OSV 3-2 models.
+#[derive(Debug, Clone)]
+pub struct ValidList {
+    pub appellation: String,
+    pub candidates: Vec<ValidListCandidate>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ValidListCandidate {
+    pub last_name: String,
+    pub initials: String,
+    pub locality: String,
+    pub position: usize,
 }
 
 #[cfg(test)]

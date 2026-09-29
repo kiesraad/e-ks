@@ -7,7 +7,7 @@ use crate::{
         model_inputs::{found_omissions, submitted_lists},
         pages::{CsbI1DocxDownloadPath, CsbI1DownloadPath},
     },
-    models::{Pdf, i1::I1, i4::PublicSession},
+    models::{Pdf, i1::I1, inputs::PublicSession},
     structs::csb::HearingModel,
 };
 

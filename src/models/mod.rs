@@ -1,7 +1,7 @@
 //! The official election PDF models, rendered in-process with
 //! [`textris_pdf`].
 //!
-//! Each model lives in its own file (`h1`, `h3`, `h4`, `h9`, `i1`, `i4`, plus
+//! Each model lives in its own file (`h1`, `h3`, `h4`, `h9`, `i1`, `i4`, `osv3_2`, plus
 //! the omission letter in `omission_letter` and the pre-submission overview in
 //! `brp_overview`); H 3 covers both the H 3-1 and H 3-2 variants. The document text is authored as askama
 //! Markdown templates in `templates/` (one per locale and variant), written in
@@ -30,6 +30,7 @@ pub mod inputs;
 mod layout;
 mod markdown;
 pub mod omission_letter;
+pub mod osv3_2;
 
 pub use examples::{Example, examples};
 pub use fonts::fonts;

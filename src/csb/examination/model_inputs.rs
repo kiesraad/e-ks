@@ -8,7 +8,11 @@ use std::collections::BTreeMap;
 use crate::{
     AppError, CsbStoreData, CsbStream, ElectionConfig, ElectoralDistrict,
     core::AnyLocale,
-    models::{i1, i4, omission_letter},
+    models::{
+        i1, i4,
+        inputs::{DistrictLists, OmissionGroup, ValidList, ValidListCandidate},
+        omission_letter,
+    },
     projection::{Scrapped, WithCorrections},
     store::StoreRegistry,
     structs::{
@@ -39,7 +43,7 @@ async fn examined_stores(
 pub async fn submitted_lists(
     registry: &StoreRegistry<CsbStoreData>,
     election: &ElectionConfig,
-) -> Result<Vec<i1::DistrictLists>, AppError> {
+) -> Result<Vec<DistrictLists<i1::SubmittedList>>, AppError> {
     let mut by_district: BTreeMap<ElectoralDistrict, Vec<i1::SubmittedList>> = BTreeMap::new();
     for store in examined_stores(registry, election).await? {
         for (district, list) in store_submitted_lists(&store) {
@@ -49,7 +53,7 @@ pub async fn submitted_lists(
 
     Ok(by_district
         .into_iter()
-        .map(|(district, lists)| i1::DistrictLists {
+        .map(|(district, lists)| DistrictLists {
             electoral_district: district_label(district, election),
             lists,
         })
@@ -86,7 +90,7 @@ fn store_submitted_lists(store: &CsbStream) -> Vec<(ElectoralDistrict, i1::Submi
 pub async fn found_omissions(
     registry: &StoreRegistry<CsbStoreData>,
     election: &ElectionConfig,
-) -> Result<Vec<i4::OmissionGroup>, AppError> {
+) -> Result<Vec<OmissionGroup>, AppError> {
     let mut found = Vec::new();
     for store in examined_stores(registry, election).await? {
         let omissions = sorted_omissions(&store);
@@ -214,13 +218,13 @@ impl SectionOmissions {
 /// and objections are recorded during the public session.
 #[derive(Debug, Default)]
 pub struct I4Inputs {
-    pub found_omissions: Vec<i4::OmissionGroup>,
-    pub recovered_omissions: Vec<i4::OmissionGroup>,
-    pub invalid_lists: Vec<i4::OmissionGroup>,
+    pub found_omissions: Vec<OmissionGroup>,
+    pub recovered_omissions: Vec<OmissionGroup>,
+    pub invalid_lists: Vec<OmissionGroup>,
     pub removed_candidates: Vec<i4::RemovedCandidates>,
     pub removed_appellations: Vec<i4::RemovedAppellation>,
     pub corrected_appellations: Vec<i4::CorrectedAppellation>,
-    pub valid_lists: Vec<i4::DistrictLists>,
+    pub valid_lists: Vec<DistrictLists<ValidList>>,
 }
 
 pub async fn i4_inputs(
@@ -231,7 +235,7 @@ pub async fn i4_inputs(
         found_omissions: found_omissions(registry, election).await?,
         ..Default::default()
     };
-    let mut valid_by_district: BTreeMap<ElectoralDistrict, Vec<i4::ValidList>> = BTreeMap::new();
+    let mut valid_by_district: BTreeMap<ElectoralDistrict, Vec<ValidList>> = BTreeMap::new();
 
     for store in examined_stores(registry, election).await? {
         let omissions = sorted_omissions(&store);
@@ -267,7 +271,7 @@ pub async fn i4_inputs(
 
     inputs.valid_lists = valid_by_district
         .into_iter()
-        .map(|(district, lists)| i4::DistrictLists {
+        .map(|(district, lists)| DistrictLists {
             electoral_district: district_label(district, election),
             lists,
         })
@@ -321,7 +325,7 @@ fn omission_groups<'a>(
     store: &CsbStream,
     election: &ElectionConfig,
     omissions: impl IntoIterator<Item = &'a Omission>,
-) -> Result<Vec<i4::OmissionGroup>, AppError> {
+) -> Result<Vec<OmissionGroup>, AppError> {
     let mut by_district: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for omission in omissions {
         let district = omission.category.electoral_district(store, election)?;
@@ -335,7 +339,7 @@ fn omission_groups<'a>(
     Ok(by_district
         .into_iter()
         .map(
-            |(electoral_district, omission_descriptions)| i4::OmissionGroup {
+            |(electoral_district, omission_descriptions)| OmissionGroup {
                 appellation: appellation.clone(),
                 electoral_district,
                 omission_descriptions,
@@ -456,7 +460,7 @@ fn corrected_appellation(
 fn valid_lists(
     store: &CsbStream,
     scrapped: &Scrapped,
-) -> Result<Vec<(ElectoralDistrict, i4::ValidList)>, AppError> {
+) -> Result<Vec<(ElectoralDistrict, ValidList)>, AppError> {
     let appellation = store.get_appellation_with_scrapped(WithCorrections::All, scrapped);
 
     let mut valid = Vec::new();
@@ -469,7 +473,7 @@ fn valid_lists(
             if !scrapped.is_district_scrapped(*district) {
                 valid.push((
                     *district,
-                    i4::ValidList {
+                    ValidList {
                         appellation: appellation.clone(),
                         candidates: candidates.clone(),
                     },
@@ -486,7 +490,7 @@ fn valid_candidates(
     store: &CsbStream,
     scrapped: &Scrapped,
     list: &CandidateList,
-) -> Result<Vec<i4::ValidListCandidate>, AppError> {
+) -> Result<Vec<ValidListCandidate>, AppError> {
     list.candidates
         .iter()
         .filter(|person| !scrapped.is_candidate_scrapped(list.id, **person))
@@ -495,7 +499,7 @@ fn valid_candidates(
             let person = store
                 .get_person(*person, WithCorrections::All)
                 .ok_or(AppError::GenericNotFound)?;
-            Ok(i4::ValidListCandidate {
+            Ok(ValidListCandidate {
                 position: index + 1,
                 last_name: person.name.last_name_with_prefix(),
                 initials: person.initials_as_printed_on_list(AnyLocale::Nl),
@@ -741,7 +745,7 @@ mod tests {
         omission
     }
 
-    fn last_names(list: &i4::ValidList) -> Vec<(usize, String)> {
+    fn last_names(list: &ValidList) -> Vec<(usize, String)> {
         list.candidates
             .iter()
             .map(|candidate| (candidate.position, candidate.last_name.clone()))
