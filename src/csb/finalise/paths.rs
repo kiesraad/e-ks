@@ -42,3 +42,8 @@ impl Objection {
         CsbDeleteObjectionPath { id: self.id }
     }
 }
+
+/// Temporary EML230b ZIP endpoint, should be replaced by one zip that contains everything
+#[derive(TypedPath)]
+#[typed_path("/csb/finalise/eml230b.zip", rejection(AppError))]
+pub struct CsbEml230bDownloadPath;
