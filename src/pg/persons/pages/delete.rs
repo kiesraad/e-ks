@@ -27,7 +27,7 @@ pub async fn delete_person_confirm(
     Ok(HtmlTemplate(
         DeletePersonTemplate {
             person,
-            overlay: Overlay::new(&query),
+            overlay: Overlay::new_edit(&query),
         },
         context,
     ))

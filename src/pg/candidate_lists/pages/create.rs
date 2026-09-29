@@ -3,7 +3,7 @@ use askama::Template;
 use axum::response::{IntoResponse, Redirect, Response};
 
 use crate::{
-    AppError, Context, ElectoralDistrict, Form, HtmlTemplate, Overlay, PgStore,
+    AppError, Context, ElectoralDistrict, Form, HtmlTemplate, Overlay, PgStore, QueryParamState,
     candidate_lists::{CandidateListCreateForm, pages::CandidateListCreatePath},
     filters,
     form::FormData,
@@ -54,7 +54,7 @@ pub async fn create_candidate_list(
             available_districts,
             districts_on_other_lists,
             has_previous_list,
-            overlay: Overlay::default(),
+            overlay: Overlay::new_create(&QueryParamState::default()),
         },
         context,
     )
@@ -84,7 +84,7 @@ pub async fn create_candidate_list_submit(
                 has_previous_list: !store.get_candidate_lists().is_empty(),
                 available_districts,
                 districts_on_other_lists,
-                overlay: Overlay::default(),
+                overlay: Overlay::new_create(&QueryParamState::default()),
             },
             context,
         )

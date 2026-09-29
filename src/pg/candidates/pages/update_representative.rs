@@ -45,7 +45,7 @@ pub async fn update_representative(
             candidate: candidate.clone(),
             full_list,
             form,
-            overlay: Overlay::new(&query),
+            overlay: Overlay::new_edit(&query),
         },
         context,
     ))
@@ -69,7 +69,7 @@ pub async fn update_representative_submit(
                 candidate,
                 full_list,
                 form: form_data,
-                overlay: Overlay::new(&query),
+                overlay: Overlay::new_edit(&query),
             },
             context,
         )

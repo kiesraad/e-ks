@@ -33,7 +33,7 @@ pub async fn update_person_address(
             should_warn: query.should_warn(),
             address_unknown: person.address.is_unknown(),
             form: FormData::new_with_data(AddressForm::from(person.clone())),
-            overlay: Overlay::new(&query),
+            overlay: Overlay::new_edit(&query),
             person,
         },
         context,
@@ -55,7 +55,7 @@ pub async fn update_person_address_submit(
                 address_unknown: person.address.is_unknown(),
                 person,
                 form: form_data,
-                overlay: Overlay::new(&query),
+                overlay: Overlay::new_edit(&query),
             },
             context,
         )

@@ -33,7 +33,7 @@ pub async fn delete(
         CsbPoliticalGroupDeleteTemplate {
             close_action,
             political_group,
-            overlay: Overlay::new(&query),
+            overlay: Overlay::new_edit(&query),
         },
         context,
     )
