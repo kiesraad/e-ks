@@ -144,14 +144,14 @@ mod tests {
 
     #[test]
     fn redirects_to_matches_path() {
-        let query: QueryParamState = QueryParamState::redirect_to("/foo".into());
-        let overlay = Overlay::new(&query);
+        let query = QueryParamState::redirect_to("/foo".into());
+        let overlay = Overlay::new_edit(&query);
         assert!(overlay.redirects_to(FooPath));
 
-        let query: QueryParamState = QueryParamState::redirect_to("/some_other_path".into());
-        let overlay = Overlay::new(&query);
+        let query = QueryParamState::redirect_to("/some_other_path".into());
+        let overlay = Overlay::new_edit(&query);
         assert!(!overlay.redirects_to(FooPath));
 
-        assert!(!Overlay::default().redirects_to(FooPath));
+        assert!(!Overlay::new_edit(&QueryParamState::default()).redirects_to(FooPath));
     }
 }
