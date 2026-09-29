@@ -4,12 +4,12 @@ use crate::{
     AppError, AppRequestState, CsbMainStore,
     core::{ModelLocale, constants::DEFAULT_DATE_FORMAT},
     csb::examination::{
-        model_inputs::{I4Inputs, i4_inputs},
         numbering::list_numbering,
         pages::{CsbI4DocxDownloadPath, CsbI4DownloadPath},
     },
     models::{
         Pdf,
+        csb_model_inputs::{I4Inputs, i4_inputs},
         i4::{I4, NumberedOnDistricts, NumberedOnVotes, PublicSession},
     },
     structs::csb::HearingModel,

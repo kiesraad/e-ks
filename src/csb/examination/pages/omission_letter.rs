@@ -16,7 +16,6 @@ use crate::{
     core::{ModelLocale, ZipResponseWriter},
     csb::examination::{
         extractors::CsbPoliticalGroup,
-        model_inputs::omission_letter_sections,
         pages::{
             CsbFinishExaminationPath, CsbOmissionLetterDocxDownloadPath,
             CsbOmissionLetterDownloadPath, CsbOmissionLetterPath, CsbOmissionLettersDownloadPath,
@@ -24,7 +23,10 @@ use crate::{
         structs::AllOmissions,
     },
     filters,
-    models::{Pdf, documents::ZIP_CONTENT_TYPE, inputs::Person, omission_letter::OmissionLetter},
+    models::{
+        Pdf, csb_model_inputs::omission_letter_sections, documents::ZIP_CONTENT_TYPE,
+        inputs::Person, omission_letter::OmissionLetter,
+    },
     projection::WithCorrections,
     utils::no_cache_headers,
 };

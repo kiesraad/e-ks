@@ -1,7 +1,8 @@
 //! Model I 1 and I 4 inputs, collected over every imported political group,
-//! plus the omission letter inputs of a single group. What the omissions
-//! scrap is read from the store's [`Scrapped`] state, so the models report
-//! the same outcome as the recovery pages.
+//! plus the omission letter inputs of a single group and the established
+//! lists/candidates the EML 230b export ([`super::eml::eml230b`]) needs.
+//! What the omissions scrap is read from the store's [`Scrapped`] state, so
+//! the models report the same outcome as the recovery pages.
 
 use std::collections::BTreeMap;
 
@@ -15,7 +16,7 @@ use crate::{
         candidate_lists::{CandidateList, CandidateListId},
         common::UtcDateTime,
         csb::{Omission, OmissionCategory, OmissionId},
-        persons::PersonId,
+        persons::{Person, PersonId},
     },
 };
 
@@ -459,34 +460,55 @@ fn valid_lists(
 ) -> Result<Vec<(ElectoralDistrict, i4::ValidList)>, AppError> {
     let appellation = store.get_appellation_with_scrapped(WithCorrections::All, scrapped);
 
+    valid_lists_by_district(store, scrapped)
+        .into_iter()
+        .map(|(district, list)| {
+            let candidates = valid_candidates(store, scrapped, &list)?
+                .into_iter()
+                .map(|(position, person)| i4::ValidListCandidate {
+                    position,
+                    last_name: person.name.last_name_with_prefix(),
+                    initials: person.initials_as_printed_on_list(AnyLocale::Nl),
+                    locality: person.personal_data.locality().unwrap_or_default(),
+                })
+                .collect();
+            Ok((
+                district,
+                i4::ValidList {
+                    appellation: appellation.clone(),
+                    candidates,
+                },
+            ))
+        })
+        .collect()
+}
+
+/// The lists that are not scrapped, per district that is not scrapped for I 4 / EML 230b
+pub fn valid_lists_by_district(
+    store: &CsbStream,
+    scrapped: &Scrapped,
+) -> Vec<(ElectoralDistrict, CandidateList)> {
     let mut valid = Vec::new();
     for list in lists_by_creation(store) {
         if scrapped.is_list_scrapped(list.id) {
             continue;
         }
-        let candidates = valid_candidates(store, scrapped, &list)?;
         for district in &list.electoral_districts {
             if !scrapped.is_district_scrapped(*district) {
-                valid.push((
-                    *district,
-                    i4::ValidList {
-                        appellation: appellation.clone(),
-                        candidates: candidates.clone(),
-                    },
-                ));
+                valid.push((*district, list.clone()));
             }
         }
     }
 
-    Ok(valid)
+    valid
 }
 
-/// The candidates that are not scrapped, renumbered.
-fn valid_candidates(
+/// The candidates that are not scrapped, renumbered for I 4 / EML 230b
+pub fn valid_candidates(
     store: &CsbStream,
     scrapped: &Scrapped,
     list: &CandidateList,
-) -> Result<Vec<i4::ValidListCandidate>, AppError> {
+) -> Result<Vec<(usize, Person)>, AppError> {
     list.candidates
         .iter()
         .filter(|person| !scrapped.is_candidate_scrapped(list.id, **person))
@@ -495,12 +517,7 @@ fn valid_candidates(
             let person = store
                 .get_person(*person, WithCorrections::All)
                 .ok_or(AppError::GenericNotFound)?;
-            Ok(i4::ValidListCandidate {
-                position: index + 1,
-                last_name: person.name.last_name_with_prefix(),
-                initials: person.initials_as_printed_on_list(AnyLocale::Nl),
-                locality: person.personal_data.locality().unwrap_or_default(),
-            })
+            Ok((index + 1, person))
         })
         .collect()
 }
