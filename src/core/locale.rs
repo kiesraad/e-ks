@@ -1,5 +1,5 @@
 //! Locale detection and formatting helpers for request handling.
-//! Extracted from Accept-Language headers and used by Context and templates.
+//! Read from the session (Dutch by default) and used by Context and templates.
 
 use serde::Deserialize;
 use std::str::FromStr;

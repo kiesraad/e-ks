@@ -20,3 +20,22 @@ where
         Ok(Locale::default())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::{body::Body, http::Request};
+
+    #[tokio::test]
+    async fn request_locale_uses_session() {
+        let mut request = Request::builder().uri("/").body(Body::empty()).unwrap();
+        request
+            .extensions_mut()
+            .insert(Session::new_test_with_locale(Locale::En));
+        let (mut parts, _body) = request.into_parts();
+
+        let locale = Locale::from_request_parts(&mut parts, &()).await.unwrap();
+
+        assert_eq!(locale, Locale::En);
+    }
+}

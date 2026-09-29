@@ -20,13 +20,11 @@
   </fieldset>
 {% endblock %}
 {% block overlay_actions %}
-  {% if overlay.redirects_to_finalise() %}
-    {% let submit_label = "action.save"|trans %}
-    {% include "pg/common/components/submit.html" %}
-  {% else %}
-    {% let submit_label = "action.next"|trans %}
-    {% include "pg/common/components/submit.html" %}
+  {% let mut submit_label = "action.next"|trans %}
+  {% if overlay.redirects_to(crate::finalise::FinalisePath) %}
+    {% mut submit_label = "action.save"|trans %}
   {% endif %}
+  {% include "pg/common/components/submit.html" %}
 {% endblock %}
 {% block overlay_end %}
 {% endblock %}

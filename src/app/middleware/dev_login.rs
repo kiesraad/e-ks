@@ -78,8 +78,8 @@ struct DevLogin<'a> {
 
 impl<'a> DevLogin<'a> {
     /// Builds the session: its identity from `csb` (a committee member, or a
-    /// political group with its stream derived from `bsn`), and its locale and
-    /// user agent from the request headers.
+    /// political group with its stream derived from `bsn`), in the default
+    /// locale and with the user agent from the request headers.
     fn new(state: &'a AppState, query: &'a DevLoginQuery, headers: &axum::http::HeaderMap) -> Self {
         let locale = Locale::default();
         let mut session = match query.csb {

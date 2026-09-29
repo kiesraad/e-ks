@@ -51,12 +51,11 @@ impl Overlay {
         .to_string()
     }
 
-    /// Returns true when this overlay redirects to the finalise page when closed
-    pub fn redirects_to_finalise(&self) -> bool {
-        dbg!(&self.redirect_to);
+    /// Returns true when this overlay redirects to `path` when closed
+    pub fn redirects_to(&self, path: impl TypedPath) -> bool {
         self.redirect_to
             .as_ref()
-            .is_some_and(|redir| redir == "/finalise")
+            .is_some_and(|redir| *redir == path.to_string())
     }
 }
 
@@ -128,13 +127,15 @@ mod tests {
     }
 
     #[test]
-    fn redirect_to_finalise() {
-        let query: QueryParamState = QueryParamState::redirect_to("/finalise".into());
+    fn redirects_to_matches_path() {
+        let query: QueryParamState = QueryParamState::redirect_to("/foo".into());
         let overlay = Overlay::new(&query);
-        assert!(overlay.redirects_to_finalise());
+        assert!(overlay.redirects_to(FooPath));
 
         let query: QueryParamState = QueryParamState::redirect_to("/some_other_path".into());
         let overlay = Overlay::new(&query);
-        assert!(!overlay.redirects_to_finalise());
+        assert!(!overlay.redirects_to(FooPath));
+
+        assert!(!Overlay::default().redirects_to(FooPath));
     }
 }
