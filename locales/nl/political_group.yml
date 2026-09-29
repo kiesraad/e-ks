@@ -9,7 +9,7 @@ appellation_any: Aanduiding
 appellation_combined: Samengevoegde aanduiding
 authorised_agent: Gemachtigde
 authorised_agent_data: Gegevens (plv.) gemachtigde
-authorised_agent_info: Voeg hier de statutaire naam met bijbehorende gemachtigde toe. De statutaire naam is de naam van de partij die is vastgelegd in de notariële akte en bij de Kamer van Koophandel. De gemachtigde of plaatsvervangend gemachtigde is geregistreerd bij het centraal stembureau samen met de aanduiding. Deze persoon geeft de lijstinleveraar toestemming om de naam van de partij boven de kandidatenlijst te plaatsen. Dit gebeurt met formulier H 3-1 of H 3-2.
+authorised_agent_info: Voeg hier de statutaire naam met bijbehorende gemachtigde toe. De statutaire naam is de naam van de partij die is vastgelegd in de notariële akte en bij de Kamer van Koophandel. De gemachtigde of plaatsvervangend gemachtigde is geregistreerd bij het centraal stembureau samen met de aanduiding. Deze persoon geeft de lijstinleveraar toestemming om de naam van de partij boven de kandidatenlijst te plaatsen. Dit gebeurt met formulier {}.
 basic_information_political_group: Gegevens politieke groepering
 blank_list_warning: U gebruikt een blanco lijst. Wijzigingen die u hier maakt hebben geen effect.
 delete_name_authorisation_warning_text: Weet u zeker dat u dit wilt verwijderen? Deze actie kan niet ongedaan worden gemaakt.

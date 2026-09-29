@@ -84,7 +84,7 @@ finalise:
   add_objection: Bezwaar toevoegen
   district_count: Kieskringen
   i4_note: Proces-verbaal over geldigheid en nummering kandidatenlijsten. Maak het document aan van het verslag van de openbare zitting.
-  i4_title: I 4 Proces-verbaal
+  i4_title: I\u00A04 Proces-verbaal
   no_lists: Er zijn geen lijsten om te nummeren.
   objections_note: Heeft iemand tijdens de zitting bezwaar gemaakt? Voeg het hieronder toe.
   objections_title: Bezwaar invoeren
@@ -99,14 +99,14 @@ finish_examination:
   download_zip: Download ZIP
   hearing_details: Zitting details
   i1_note: Onderzoek ingeleverde kandidatenlijsten. Maak het document aan van verslag van het onderzoek naar de kandidatenlijsten
-  i1_title: I 1 Proces-verbaal
+  i1_title: I\u00A01 Proces-verbaal
   no_omission_letters: Er zijn geen verzuimbrieven aan te maken.
   omission_letters: Verzuimbrieven
   omission_letters_note: Maak de verzuimbrieven aan voor de politieke groeperingen waarbij verzuimen zijn vastgesteld.
   title: Afronden onderzoek
 finish_instruction:
   create_defects: Aanmaken verzuimbrief
-  create_model_i1: Aanmaken model I 1
+  create_model_i1: Aanmaken model I\u00A01
 finished: Afgerond
 form:
   create_empty: Leeg aanmaken
@@ -161,8 +161,8 @@ index:
   download_election_definition: Verkiezings\u00ADdefinitie downloaden
   feature:
     add_omissions: Verzuimen en correcties toevoegen
-    create_i1_letters: I 1 en verzuimbrieven aanmaken
-    create_i4: I 4 aanmaken
+    create_i1_letters: I\u00A01 en verzuimbrieven aanmaken
+    create_i4: I\u00A04 aanmaken
     record_list_order: Uitslag van de loting vastleggen
     record_objections: Bezwaren vastleggen
     recover_omissions: Verzuimen herstellen
@@ -212,11 +212,11 @@ omission:
     add: Verzuim toevoegen
   form:
     applies_to: "Dit verzuim geldt voor:"
-    description_label: I 1 verzuim toevoegen
+    description_label: I\u00A01 verzuim toevoegen
     edit_heading: Type of bewerk hier het verzuim
     help_text_hint: Alleen bij een herstelbaar verzuim. Onherstelbare verzuimen komen niet in de verzuimbrief.
     help_text_label: Verzuimbriefnotitie toevoegen
-    no_omission_letter_hint: "Let op: dit verzuim komt nu niet in de verzuimbrief en het model I 1 te staan"
+    no_omission_letter_hint: "Let op: dit verzuim komt nu niet in de verzuimbrief en het model I\u00A01 te staan"
     presets_heading: Gebruik deze verzuimen als sjabloon (optioneel)
     recoverable_hint: "Een herstelbaar verzuim kan de politieke groepering nog herstellen, een onherstelbaar verzuim niet."
     recoverable_label: Herstelbaar verzuim
@@ -263,10 +263,10 @@ recovery:
   assess: Beoordelen
   assessed: Beoordeeld
   assessed_count: "{} van {} beoordeeld"
-  download_i4_pdf: I 4 downloaden (PDF)
-  download_i4_word: I 4 downloaden (Word)
+  download_i4_pdf: I\u00A04 downloaden (PDF)
+  download_i4_word: I\u00A04 downloaden (Word)
   explanation: "Leg per verzuim vast of het is hersteld. Kandidaten, lijsten en kieskringen met een niet hersteld verzuim worden geschrapt."
-  finish_note: "Zolang nog niet alle verzuimen zijn beoordeeld, is het model I 4 nog niet definitief."
+  finish_note: "Zolang nog niet alle verzuimen zijn beoordeeld, is het model I\u00A04 nog niet definitief."
   finish_title: Afronden herstel
   no_omissions: Geen verzuimen
   not_recovered: Niet hersteld

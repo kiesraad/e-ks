@@ -3,12 +3,14 @@ use std::path::Path;
 use crate::{collect_locale_files::collect_locale_files, naive_yaml_parse::naive_yaml_parse};
 
 const SOFT_HYPHEN: &str = "\\u00AD";
+const NON_BREAKING_SPACE: &str = "\\u00A0";
 
 /// Renders a locale value as a Rust literal expression.
 ///
 /// Soft hyphen escapes cannot appear inside a raw string, so values containing
 /// them are split into a `concat!` of raw parts joined by the real character.
 fn value_literal(value: &str) -> String {
+    let value = value.replace(NON_BREAKING_SPACE, "\u{A0}");
     if value.contains(SOFT_HYPHEN) {
         let parts: Vec<String> = value
             .split(SOFT_HYPHEN)

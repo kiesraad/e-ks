@@ -82,7 +82,6 @@ pub(crate) mod test_support {
             &self,
             failure: AuthFailure,
             _jar: CookieJar,
-            _headers: &HeaderMap,
             end_session: bool,
         ) -> Response {
             let status = match failure {
