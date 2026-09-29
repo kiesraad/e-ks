@@ -197,6 +197,7 @@
 
 .problems-card {
   --card-gap: var(--space-3);
+  border: none;
 
   h4:not(:first-child) {
     margin-top: var(--space-5);
