@@ -383,7 +383,8 @@ order on an incoming request is:
 1. **`eks-key` gate.** If `EKS_KEY` is configured, the request must carry a
    matching `x-eks-key` header, otherwise it is rejected with `401`. When the
    key is unset this layer is a no-op. Intended for gating the app behind a
-   known upstream.
+   known upstream. The separate CSB listener (`CSB_BIND_ADDRESS`) is never
+   gated.
 2. **Tracing and security headers.** HTTP tracing is opened, and the security
    response headers (CSP, `X-Frame-Options`, etc.) are scheduled. They are
    written by a layer rather than by handlers, so no handler can weaken them,
@@ -559,7 +560,8 @@ Runtime configuration is read from environment variables once at startup into a
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` / `GITHUB_ALLOWED_USER_IDS` | Enable the CSB GitHub OAuth login (`/csb/login`): the GitHub OAuth app's credentials and the comma-separated numeric GitHub account ids allowed to log in; all three or none. The client secret is a secret like the master keys. |
 | `DEFAULT_ELECTION` | Election a login lands on when the flow has no election selection of its own (CSB logins, dev logins): the election code, with the election domain appended after a colon where the type needs one (e.g. `EK27`, `PS27:prov1`). Dev builds default to `EK27`. |
 | `BIND_ADDRESS` | Address the server binds to (also accepted as a CLI argument). |
-| `CSB_BIND_ADDRESS` | Serve the CSB section on a second listener, so it can be published on a domain of its own: a port number (bound on `0.0.0.0`) or an `address:port` with a numeric address. `/csb` is then unreachable on `BIND_ADDRESS`. The second listener serves the whole application, since a committee session correcting paper documents uses the political-group routes as well. With ACME both listeners present the certificate ordered for `ACME_DOMAIN`, so a second domain needs its TLS terminated upstream. |
+| `CSB_BIND_ADDRESS` | Serve the CSB section on a second listener, so it can be published on a domain of its own: a port number (bound on `0.0.0.0`) or an `address:port` with a numeric address. `/csb` is then unreachable on `BIND_ADDRESS`. The second listener serves the whole application, since a committee session correcting paper documents uses the political-group routes as well. It is not behind the `EKS_KEY` gate. |
+| `CSB_DOMAIN` | Domain the CSB listener is published on. With ACME it gets a certificate of its own, stored next to the `TLS_CERT_PATH` / `TLS_KEY_PATH` files with a `csb-` name prefix; without it the CSB listener presents the certificate ordered for `ACME_DOMAIN`. |
 | `RATE_LIMIT_DOWNLOADS` / `RATE_LIMIT_DOWNLOADS_WINDOW_SECS` | Document downloads allowed per stream per window (default 60 per 3600s). |
 | `RATE_LIMIT_EVENTS` / `RATE_LIMIT_EVENTS_WINDOW_SECS` | Events one stream may record per window (default 2000 per 3600s). |
 | `RATE_LIMIT_EVENTS_TOTAL` | Absolute cap on the number of events in one stream (default 20000). |
@@ -638,7 +640,9 @@ the renewed cert/key back to the configured paths, and hot-reloads the running
 server without a restart. An instance may also start without provisioned
 cert/key files: at boot it writes a short-lived self-signed placeholder to
 the TLS paths (`src/acme/bootstrap.rs`) so the HTTPS server can come up, and
-the renewer replaces it with a real certificate on its first pass.
+the renewer replaces it with a real certificate on its first pass. With
+`CSB_DOMAIN` set, the CSB listener's certificate is bootstrapped and renewed
+the same way, from the same account.
 
 Because the application is scaled horizontally, http-01 challenge tokens are
 stored in the database, so the CA's validation request to
@@ -649,7 +653,8 @@ tokens are public by protocol. Deployment prerequisites:
 - Provision `ACME_ACCOUNT_CREDENTIALS` (see below).
 - Apply `deploy/schema.sql` to the database manually before enabling
   ACME (the `acme_challenges` table is not part of the startup migrations).
-- The CA dials `http://<domain>:80/.well-known/acme-challenge/...`; the load
+- The CA dials `http://<domain>:80/.well-known/acme-challenge/...` (for
+  `CSB_DOMAIN` too); the load
   balancer must forward that path to the instances, or redirect it to HTTPS
   (the CA follows redirects and does not validate the certificate).
 - The cert/key files should be writable; on a read-only volume the renewed

@@ -111,9 +111,12 @@ pub struct Config {
     /// upstream (e.g. a load balancer that injects the header).
     pub eks_key: Option<SecretString>,
     /// Second listener for the CSB section, so it can be published on a domain
-    /// of its own; `/csb` is then unreachable on the main listener. Set via
-    /// `CSB_BIND_ADDRESS`.
+    /// of its own; `/csb` is then unreachable on the main listener, and the
+    /// `eks_key` gate does not apply to it. Set via `CSB_BIND_ADDRESS`.
     pub csb_bind_address: Option<SocketAddr>,
+    /// Domain the CSB listener is published on; with ACME it gets a
+    /// certificate of its own. Set via `CSB_DOMAIN`.
+    pub csb_domain: Option<String>,
     /// When true, opts this instance out of the live auth-service (so
     /// `AuthServiceState::new_empty` is used instead of
     /// `AuthServiceState::new_from_env`, skipping the startup IdP-metadata
@@ -348,6 +351,7 @@ impl Config {
             .filter(|raw| !raw.is_empty())
             .map(|raw| parse_csb_bind_address(&raw))
             .transpose()?;
+        let csb_domain = lookup("CSB_DOMAIN").ok().filter(|s| !s.is_empty());
 
         let disable_auth_service = lookup("DISABLE_AUTH_SERVICE").is_ok_and(|value| {
             matches!(
@@ -385,12 +389,33 @@ impl Config {
             server_name,
             eks_key,
             csb_bind_address,
+            csb_domain,
             disable_auth_service,
             brp_client,
             github_oauth,
             default_election,
             rate_limits,
         })
+    }
+
+    /// ACME and TLS config for the `CSB_DOMAIN` certificate, whose files sit
+    /// next to the main certificate's with a `csb-` name prefix.
+    #[cfg(feature = "acme")]
+    pub fn csb_acme(&self) -> Option<(AcmeConfig, TlsConfig)> {
+        let acme = AcmeConfig {
+            domain: self.csb_domain.clone()?,
+            ..self.acme.clone()?
+        };
+        let tls = self.tls.as_ref()?;
+        let csb_path = |path: &PathBuf| {
+            let name = path.file_name().unwrap_or_default().to_string_lossy();
+            path.with_file_name(format!("csb-{name}"))
+        };
+        let tls = TlsConfig {
+            cert_path: csb_path(&tls.cert_path),
+            key_path: csb_path(&tls.key_path),
+        };
+        Some((acme, tls))
     }
 
     #[cfg(test)]
@@ -406,6 +431,7 @@ impl Config {
             server_name: None,
             eks_key: None,
             csb_bind_address: None,
+            csb_domain: None,
             disable_auth_service: false,
             brp_client: BrpConfig {
                 base_url: "http://localhost:5010".to_string(),
@@ -650,6 +676,29 @@ mod tests {
             TEST_ACME_CREDENTIALS
         );
         assert!(acme.root_ca_path.is_none());
+    }
+
+    #[cfg(feature = "acme")]
+    #[test]
+    fn csb_acme_orders_csb_domain_into_prefixed_files() {
+        let map = config_env([
+            ("TLS_CERT_PATH", "/etc/tls/cert.pem"),
+            ("TLS_KEY_PATH", "/etc/tls/key.pem"),
+            (
+                "ACME_DIRECTORY_URL",
+                "https://acme-staging-v02.api.letsencrypt.org/directory",
+            ),
+            ("ACME_DOMAIN", "example.nl"),
+            ("ACME_ACCOUNT_CREDENTIALS", TEST_ACME_CREDENTIALS),
+            ("CSB_DOMAIN", "csb.example.nl"),
+        ]);
+
+        let config = Config::from_env_with(lookup_from(&map)).expect("config");
+        let (acme, tls) = config.csb_acme().expect("csb acme");
+
+        assert_eq!(acme.domain, "csb.example.nl");
+        assert_eq!(tls.cert_path, PathBuf::from("/etc/tls/csb-cert.pem"));
+        assert_eq!(tls.key_path, PathBuf::from("/etc/tls/csb-key.pem"));
     }
 
     #[test]
