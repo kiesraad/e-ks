@@ -26,7 +26,7 @@ candidate_list_description:
 districts:
   all: Alle
   duplicate_warning: U heeft kieskring(en) in meerdere kandidatenlijsten geselecteerd
-  select_hint: Kies hier voor welke gebieden je deze lijst inlevert
+  select_hint: Kies hier de gebieden waarvoor deze lijst wordt ingeleverd. In deze gebieden kunnen kiezers tijdens de Eerste Kamerverkiezing op de politieke groepering stemmen.
 edit_position: Volgorde op de lijst
 errors:
   candidate_set_changed: Bij het herordenen kan alleen de volgorde van de huidige kandidaten veranderen.
