@@ -35,7 +35,8 @@
             {% for agent in name_authorisations %}
               <a href="{{ steps.step_url(agent.update_path() ) }}"
                  class="person-block {{ agent.get_problems(*() ).highest_severity_class() }}">
-                {{ agent.legal_name }} ({{ agent.name.display() }})
+                <p class="font-bold">{{ agent.legal_name }}</p>
+                {{ agent.name.display() }}
               </a>
             {% endfor %}
           {% endif %}
