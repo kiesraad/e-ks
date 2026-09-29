@@ -1,10 +1,10 @@
-**Let op: dit project bevindt zich momenteel in een opstartfase. Documentatie en code zullen onvolledig en soms incorrect zijn.**
-
 # e-KS
 
-Om te kunnen deelnemen aan een verkiezing moet een politieke groepering aangeven met welke kandidaten ze mee wil doen. Hiervoor moeten ze verschillende documenten inleveren bij het centraal stembureau. Dit heet de kandidaatstellingsprocedure.
+Het elektronisch Kandidaatstellingssysteem (e-KS) is software die politieke partijen en centraal stembureaus ondersteunt bij de kandidaatstellingsprocedure.
 
-e-KS staat voor het elektronisch Kandidaatstellingssysteem: een webapplicatie waarmee de Kiesraad de huidige kandidaatstellingsprocedure op een eerlijke, transparante en controleerbare manier wil moderniseren. Het nieuwe systeem zal op termijn de huidige ondersteunende software (OSV2020-PP en OSV2020-KS) vervangen.
+Om namelijk te kunnen deelnemen aan een verkiezing moet een politieke groepering aangeven met welke kandidaten ze mee wil doen. Hiervoor moeten ze verschillende documenten inleveren bij het centraal stembureau, dit wordt gedaan op de dag van kandidaatstelling, onderdeel van de kandidaatstellingsprocedure. 
+
+e-KS is een webapplicatie waarmee de Kiesraad de huidige kandidaatstellingsprocedure op een eerlijke, transparante en controleerbare manier wil moderniseren. Het nieuwe systeem zal op termijn de huidige ondersteunende software (OSV2020-PP en OSV2020-KS) vervangen. 
 
 ## Requirements
 
@@ -12,6 +12,7 @@ De kandidaatstellingsprocedure is verankerd in de [Kieswet](https://wetten.overh
 
 Een overzicht van het huidige proces en e-KS is te lezen in [deze presentatie](https://github.com/user-attachments/files/24053768/e-KS-Proces.pdf).
 
+Het papieren proces is op dit moment leidend. e-KS helpt om de juiste documenten met de juiste gegevens te genereren. 
 Belangrijke stukken of [formulieren voor de kandidaatstellingsprocedure](https://www.kiesraad.nl/verkiezingen/eerste-kamer/kandidaatstelling/stukken-kandidaatstelling) zijn:
 
 - [Kandidatenlijst H1](https://www.rijksoverheid.nl/onderwerpen/verkiezingen/documenten/publicaties/2020/12/15/model-h-1-kandidatenlijst)
@@ -19,6 +20,10 @@ Belangrijke stukken of [formulieren voor de kandidaatstellingsprocedure](https:/
 - [Machtiging om aanduiding boven lijst te plaatsen H3-1](https://www.rijksoverheid.nl/documenten/publicaties/2020/12/15/model-h-3-1-machtiging-om-aanduiding-boven-kandidatenlijst-te-plaatsen)
 - [Samenvoeging aanduidingen H3-2](https://www.rijksoverheid.nl/onderwerpen/verkiezingen/documenten/publicaties/2020/12/15/model-h-3-2-machtiging-om-samengevoegde-aanduiding-boven-kandidatenlijst-te-plaatsen)
 - [Ondersteuningsverklaringen H4](https://www.rijksoverheid.nl/onderwerpen/verkiezingen/documenten/publicaties/2021/08/19/model-h-4-ondersteuningsverklaring)
+
+## Kwaliteit waarborgen
+
+Kwaliteit is een integraal onderdeel van het ontwikkelproces binnen het e-KS-team. Het is niet de laatste stap in het proces, maar is van begin tot eind volledig geïntegreerd in de ontwikkeling. Meer informatie over de werkwijze van het e-KS team is [hier](docs/werkwijze-kwaliteit-waarborgen.md) te vinden.
 
 ## Technische architectuur
 
@@ -60,3 +65,9 @@ bin/dev
 ## Playwright tests
 
 Playwright lives in `playwright`. See `playwright/README.md` for setup and run instructions.
+
+## Over de Kiesraad
+
+De Kiesraad is de onafhankelijke autoriteit in Nederland op het gebied van verkiezingen. De missie van de Kiesraad is dat iedereen de uitslag van de verkiezingen kan vertrouwen.
+
+Meer informatie over de Kiesraad en de verkiezingen is te vinden op onze [GitHub organisatie-pagina](https://github.com/kiesraad) en op www.kiesraad.nl
