@@ -39,11 +39,9 @@ volgende geldige kandidatenlijsten zijn ingeleverd:
 {% endfor %}
 
 De voorzitter van het centraal stembureau voor de verkiezing van de leden van
-**{{ election_name | line}}** ,
+**{{ election_name | line}}**,
 
-| Ondertekenaar | ________ |
 | Datum         | ________ |
-| Plaats        | ________ |
 
 { row-height = "3.5em" }
-| Handtekening | ________ |
+| Naam en Handtekening voorzitter | ________ |
