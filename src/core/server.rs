@@ -3,6 +3,8 @@
 //! via `axum-server` with rustls. Called from binaries to run the router
 //! with AppState.
 
+use std::net::SocketAddr;
+
 use axum::Router;
 use tokio::{net::TcpListener, signal};
 
@@ -25,10 +27,14 @@ pub async fn serve(router: Router, listener: TcpListener, config: &Config) -> Re
 
     tracing::info!("Starting server on http://{addr}");
 
-    axum::serve(listener, router)
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-        .map_err(AppError::ServerError)?;
+    // Peer addresses feed the CSB IP allow list.
+    axum::serve(
+        listener,
+        router.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal())
+    .await
+    .map_err(AppError::ServerError)?;
 
     Ok(())
 }
@@ -94,7 +100,7 @@ mod tls {
         axum_server::from_tcp_rustls(std_listener, config)
             .map_err(AppError::ServerError)?
             .handle(handle)
-            .serve(router.into_make_service())
+            .serve(router.into_make_service_with_connect_info::<SocketAddr>())
             .await
             .map_err(AppError::ServerError)?;
 
