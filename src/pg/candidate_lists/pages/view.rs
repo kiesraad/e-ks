@@ -199,6 +199,7 @@ mod tests {
         person.create(&store).await?;
         let body = render(store.clone()).await?;
         assert!(body.contains(&add_path));
+        assert!(!body.contains("aria-disabled"));
 
         list.clone().update_order(&store, &[person.id]).await?;
         let body = render(store.clone()).await?;
