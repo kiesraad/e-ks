@@ -20,7 +20,8 @@ pub struct OSV3_2 {
     pub valid_lists: Vec<DistrictLists<NumberedList>>,
 }
 
-/// A valid list with the number it was given in the numbering.
+/// A valid list with its number in the district: the lists of a district
+/// are numbered sequentially, without gaps.
 #[derive(Debug)]
 pub struct NumberedList {
     pub number: usize,

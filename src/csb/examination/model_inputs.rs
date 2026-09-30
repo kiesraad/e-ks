@@ -8,10 +8,12 @@ use std::collections::BTreeMap;
 use crate::{
     AppError, CsbStoreData, CsbStream, ElectionConfig, ElectoralDistrict,
     core::AnyLocale,
+    csb::examination::ListNumbering,
     models::{
         i1, i4,
         inputs::{DistrictLists, OmissionGroup, ValidList, ValidListCandidate},
         omission_letter,
+        osv3_2::{NumberedList, PublishedCandidate},
     },
     projection::{Scrapped, WithCorrections},
     store::StoreRegistry,
@@ -278,6 +280,52 @@ pub async fn i4_inputs(
         .collect();
 
     Ok(inputs)
+}
+
+/// The OSV 3-2 lists: per district, the valid lists in list order, numbered
+/// on within the district. A district without a group's list, never
+/// submitted or scrapped there, numbers on without a gap. Fails while the
+/// order drawn by lot is not recorded.
+pub async fn published_lists(
+    registry: &StoreRegistry<CsbStoreData>,
+    election: &ElectionConfig,
+    numbering: &ListNumbering,
+) -> Result<Vec<DistrictLists<NumberedList>>, AppError> {
+    if numbering
+        .groups
+        .iter()
+        .any(|group| group.position.is_none())
+    {
+        return Err(AppError::IncompleteData("List order not recorded"));
+    }
+
+    let stores = examined_stores(registry, election).await?;
+    let mut by_district: BTreeMap<ElectoralDistrict, Vec<ValidList<PublishedCandidate>>> =
+        BTreeMap::new();
+
+    for group in &numbering.groups {
+        let store = stores
+            .iter()
+            .find(|store| store.stream_id == group.stream_id)
+            .ok_or(AppError::Conflict)?;
+
+        for (district, list) in valid_lists(store, &store.get_scrapped(), PublishedCandidate::new)?
+        {
+            by_district.entry(district).or_default().push(list);
+        }
+    }
+
+    Ok(by_district
+        .into_iter()
+        .map(|(district, lists)| DistrictLists {
+            electoral_district: district.title().to_string(),
+            lists: lists
+                .into_iter()
+                .zip(1..)
+                .map(|(list, number)| NumberedList { number, list })
+                .collect(),
+        })
+        .collect())
 }
 
 /// Whether a scrapping omission of this category is reported under the
@@ -605,7 +653,6 @@ mod tests {
     use crate::{
         AppRequestState, AppState, CsbAction, CsbStore, ElectionConfig, ElectoralDistrict,
         PgStoreData, Province, StreamId,
-        models::osv3_2::PublishedCandidate,
         structs::{
             candidate_lists::{CandidateList, CandidateListId},
             common::UtcDateTime,

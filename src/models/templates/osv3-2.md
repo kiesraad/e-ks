@@ -6,13 +6,14 @@ footer_right = "Pagina {page} van {total}"
 
 # Centraal Stembureau
 
-Kandidatenlijsten verkiezing van de leden van *{{ election_name|line }}*
+Kandidatenlijsten verkiezing van de leden van **{{ election_name|line }}**
 
 De voorzitter van het centraal stembureau voor verkiezing van de leden van **{{ election_name|line }}**;
 
 gelet op artikel S 13 van de Kieswet;
 
-maakt bekend dat voor de op **{{ election_date|line }}** te houden verkiezing de volgende geldige kandidatenlijsten zijn ingeleverd:
+maakt bekend dat voor de op **{{ election_date|line }}** te houden verkiezing de
+volgende geldige kandidatenlijsten zijn ingeleverd:
 
 {% for district in valid_lists %}
 ## Kieskring {{ district.electoral_district|line }}
@@ -28,12 +29,21 @@ maakt bekend dat voor de op **{{ election_date|line }}** te houden verkiezing de
 | {{ candidate.position }} | {{ candidate.name|cell }} | {{ candidate.locality|cell }} |
 {%- endfor %}
 
+{# break on every candidate list except last #}
 {% if !loop.last %}
 @pagebreak
 {% endif %}
 {% endfor %}
 
-{% if !loop.last %}
 @pagebreak
-{% endif %}
 {% endfor %}
+
+De voorzitter van het centraal stembureau voor de verkiezing van de leden van
+**{{ election_name | line}}** ,
+
+| Ondertekenaar | ________ |
+| Datum         | ________ |
+| Plaats        | ________ |
+
+{ row-height = "3.5em" }
+| Handtekening | ________ |

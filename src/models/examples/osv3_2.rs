@@ -16,9 +16,9 @@ fn candidate(name: &str, locality: &str, position: usize) -> PublishedCandidate 
     }
 }
 
-fn kiesraad_demo() -> NumberedList {
+fn kiesraad_demo(number: usize) -> NumberedList {
     NumberedList {
-        number: 1,
+        number,
         list: ValidList {
             appellation: "Kiesraad Demo".to_string(),
             candidates: vec![
@@ -30,9 +30,9 @@ fn kiesraad_demo() -> NumberedList {
     }
 }
 
-fn correcte_partij() -> NumberedList {
+fn correcte_partij(number: usize) -> NumberedList {
     NumberedList {
-        number: 2,
+        number,
         list: ValidList {
             appellation: "De Correcte Partij".to_string(),
             candidates: vec![
@@ -44,9 +44,9 @@ fn correcte_partij() -> NumberedList {
     }
 }
 
-fn blanco_nagelhout() -> NumberedList {
+fn blanco_nagelhout(number: usize) -> NumberedList {
     NumberedList {
-        number: 3,
+        number,
         list: ValidList {
             appellation: "Blanco (Nagelhout, H.)".to_string(),
             candidates: vec![candidate("Nagelhout, H. (v)", "Kralendijk", 1)],
@@ -54,8 +54,8 @@ fn blanco_nagelhout() -> NumberedList {
     }
 }
 
-/// Two districts; De Correcte Partij has no list in Bonaire, so list 2 is
-/// missing there.
+/// Two districts; De Correcte Partij has no list in Bonaire, so the blank
+/// list moves up to number 2 there.
 pub fn osv3_2_example_1() -> OSV3_2 {
     OSV3_2 {
         election_name: "de Eerste Kamer der Staten-Generaal".to_string(),
@@ -63,11 +63,11 @@ pub fn osv3_2_example_1() -> OSV3_2 {
         valid_lists: vec![
             DistrictLists {
                 electoral_district: ElectoralDistrict::Groningen.title().to_string(),
-                lists: vec![kiesraad_demo(), correcte_partij(), blanco_nagelhout()],
+                lists: vec![kiesraad_demo(1), correcte_partij(2), blanco_nagelhout(3)],
             },
             DistrictLists {
                 electoral_district: ElectoralDistrict::Bonaire.title().to_string(),
-                lists: vec![kiesraad_demo(), blanco_nagelhout()],
+                lists: vec![kiesraad_demo(1), blanco_nagelhout(2)],
             },
         ],
     }
