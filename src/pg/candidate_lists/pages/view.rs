@@ -15,6 +15,8 @@ struct CandidateListViewTemplate {
     max_candidates_reached: bool,
     import_capped: bool,
     ignored_columns: String,
+    has_persons: bool,
+    all_persons_added: bool,
 }
 
 pub async fn view_candidate_list(
@@ -25,6 +27,8 @@ pub async fn view_candidate_list(
     Query(query): Query<QueryParamState>,
 ) -> Result<impl IntoResponse, AppError> {
     let duplicate_districts = full_list.list.duplicate_districts(&store);
+    let person_count = store.get_person_count();
+    let all_persons_added = full_list.candidates.len() >= person_count;
 
     Ok(HtmlTemplate(
         CandidateListViewTemplate {
@@ -33,6 +37,8 @@ pub async fn view_candidate_list(
             max_candidates_reached: query.is_max_candidates_reached(),
             import_capped: query.is_import_capped(),
             ignored_columns: query.ignored_columns().join(", "),
+            has_persons: person_count > 0,
+            all_persons_added,
         },
         context,
     ))
@@ -57,9 +63,11 @@ mod tests {
         let list_id = CandidateListId::new();
         let list = sample_candidate_list(list_id);
         let person = sample_person(PersonId::new());
+        let other = sample_person_with_last_name(PersonId::new(), "Bakker");
 
         list.create(&store).await?;
         person.create(&store).await?;
+        other.create(&store).await?;
         list.clone().update_order(&store, &[person.id]).await?;
 
         let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
@@ -133,6 +141,9 @@ mod tests {
             }
             list.candidates = full;
             list.create(&store).await?;
+            sample_person_with_last_name(PersonId::new(), "Visser")
+                .create(&store)
+                .await?;
 
             let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
 
@@ -153,6 +164,46 @@ mod tests {
                 "paper corrections mode: {correcting}"
             );
         }
+
+        Ok(())
+    }
+
+    /// "Add existing" is hidden without persons and disabled once all are on the list.
+    #[tokio::test]
+    async fn view_candidate_list_add_existing_button_state() -> Result<(), AppError> {
+        let store = PgStore::new_for_test();
+        let list_id = CandidateListId::new();
+        let list = sample_candidate_list(list_id);
+        list.create(&store).await?;
+
+        let render = |store: PgStore| async move {
+            let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
+            let response = view_candidate_list(
+                ViewCandidateListPath { list_id },
+                Context::new_test_without_db(),
+                full_list,
+                store,
+                Query(QueryParamState::default()),
+            )
+            .await?
+            .into_response();
+            Ok::<_, AppError>(response_body_string(response).await)
+        };
+        let add_path = list.add_candidate_path().to_string();
+
+        let body = render(store.clone()).await?;
+        assert!(!body.contains(&add_path));
+        assert!(!body.contains("aria-disabled"));
+
+        let person = sample_person(PersonId::new());
+        person.create(&store).await?;
+        let body = render(store.clone()).await?;
+        assert!(body.contains(&add_path));
+
+        list.clone().update_order(&store, &[person.id]).await?;
+        let body = render(store.clone()).await?;
+        assert!(!body.contains(&add_path));
+        assert!(body.contains("aria-disabled"));
 
         Ok(())
     }
