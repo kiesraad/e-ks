@@ -140,10 +140,10 @@ mod tests {
             .expect("render model")
     }
 
-    /// Every example input renders to a valid PDF. This drives all nine
-    /// document builders (`h1`, `h3-1`, `h3-2`, `h4`, `h9`, `i1`, `i4`, the
-    /// omission letter and the pre-submission overview) together with the
-    /// shared layout code, end to end.
+    /// Every example input renders to a valid PDF. This drives all ten
+    /// document builders (`h1`, `h3-1`, `h3-2`, `h4`, `h9`, `i1`, `i4`,
+    /// `osv3-2`, the omission letter and the pre-submission overview) together
+    /// with the shared layout code, end to end.
     #[test]
     fn renders_every_example_input() {
         let mut rendered = 0;
@@ -152,7 +152,7 @@ mod tests {
             assert_pdf(&example.render().expect("render example"), name);
             rendered += 1;
         }
-        assert_eq!(rendered, 23, "expected to render every example input");
+        assert_eq!(rendered, 24, "expected to render every example input");
     }
 
     /// Every example input also exports as a Word document, which exercises the

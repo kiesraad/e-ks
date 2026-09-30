@@ -31,7 +31,6 @@ maakt bekend dat voor de op **{{ election_date|line }}** te houden verkiezing de
 {% if !loop.last %}
 @pagebreak
 {% endif %}
-
 {% endfor %}
 
 {% if !loop.last %}

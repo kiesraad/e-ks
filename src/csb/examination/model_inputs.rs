@@ -19,7 +19,7 @@ use crate::{
         candidate_lists::{CandidateList, CandidateListId},
         common::UtcDateTime,
         csb::{Omission, OmissionCategory, OmissionId},
-        persons::PersonId,
+        persons::{Person, PersonId},
     },
 };
 
@@ -264,7 +264,7 @@ pub async fn i4_inputs(
         inputs
             .corrected_appellations
             .extend(corrected_appellation(&store, election, &scrapped));
-        for (district, list) in valid_lists(&store, &scrapped)? {
+        for (district, list) in valid_lists(&store, &scrapped, ValidListCandidate::new)? {
             valid_by_district.entry(district).or_default().push(list);
         }
     }
@@ -456,11 +456,13 @@ fn corrected_appellation(
     })
 }
 
-/// The lists that are not scrapped, per district that is not scrapped.
-fn valid_lists(
+/// The lists that are not scrapped, per district that is not scrapped, with
+/// each remaining candidate made into a row by `candidate`.
+fn valid_lists<C: Clone>(
     store: &CsbStream,
     scrapped: &Scrapped,
-) -> Result<Vec<(ElectoralDistrict, ValidList)>, AppError> {
+    candidate: impl Fn(usize, &Person) -> C,
+) -> Result<Vec<(ElectoralDistrict, ValidList<C>)>, AppError> {
     let appellation = store.get_appellation_with_scrapped(WithCorrections::All, scrapped);
 
     let mut valid = Vec::new();
@@ -468,7 +470,7 @@ fn valid_lists(
         if scrapped.is_list_scrapped(list.id) {
             continue;
         }
-        let candidates = valid_candidates(store, scrapped, &list)?;
+        let candidates = valid_candidates(store, scrapped, &list, &candidate)?;
         for district in &list.electoral_districts {
             if !scrapped.is_district_scrapped(*district) {
                 valid.push((
@@ -486,11 +488,12 @@ fn valid_lists(
 }
 
 /// The candidates that are not scrapped, renumbered.
-fn valid_candidates(
+fn valid_candidates<C>(
     store: &CsbStream,
     scrapped: &Scrapped,
     list: &CandidateList,
-) -> Result<Vec<ValidListCandidate>, AppError> {
+    candidate: impl Fn(usize, &Person) -> C,
+) -> Result<Vec<C>, AppError> {
     list.candidates
         .iter()
         .filter(|person| !scrapped.is_candidate_scrapped(list.id, **person))
@@ -499,12 +502,7 @@ fn valid_candidates(
             let person = store
                 .get_person(*person, WithCorrections::All)
                 .ok_or(AppError::GenericNotFound)?;
-            Ok(ValidListCandidate {
-                position: index + 1,
-                last_name: person.name.last_name_with_prefix(),
-                initials: person.initials_as_printed_on_list(AnyLocale::Nl),
-                locality: person.personal_data.locality().unwrap_or_default(),
-            })
+            Ok(candidate(index + 1, &person))
         })
         .collect()
 }
@@ -607,6 +605,7 @@ mod tests {
     use crate::{
         AppRequestState, AppState, CsbAction, CsbStore, ElectionConfig, ElectoralDistrict,
         PgStoreData, Province, StreamId,
+        models::osv3_2::PublishedCandidate,
         structs::{
             candidate_lists::{CandidateList, CandidateListId},
             common::UtcDateTime,
@@ -1427,6 +1426,33 @@ mod tests {
         assert_eq!(candidate.position, 2);
         assert_eq!(candidate.last_name, "de Boer");
         assert_eq!(candidate.initials, "B. (Bas) (v)");
+        assert_eq!(
+            candidate.locality,
+            persons[1].personal_data.locality().unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn valid_lists_can_publish_the_candidates_under_their_full_name() {
+        let state = AppState::new_for_tests().await;
+        let (store, list, persons) = seed_group_with_list(&state, "De Publieke Partij").await;
+        create_omission_with_status(
+            &store,
+            OmissionCategory::Candidate {
+                person: persons[0].id,
+                lists: vec![list.id],
+            },
+            "Kandidaatverzuim",
+            OmissionStatus::NotRecovered,
+        )
+        .await;
+
+        let lists = valid_lists(&store, &store.get_scrapped(), PublishedCandidate::new).unwrap();
+
+        // Aarts is scrapped, so de Boer moves up to the first position.
+        let candidate = &lists[0].1.candidates[0];
+        assert_eq!(candidate.position, 1);
+        assert_eq!(candidate.name, "de Boer, B. (Bas) (v)");
         assert_eq!(
             candidate.locality,
             persons[1].personal_data.locality().unwrap()
