@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<EML xmlns="urn:oasis:names:tc:evs:schema:eml" xmlns:kr="http://www.kiesraad.nl/extensions" xmlns:xal="urn:oasis:names:tc:ciq:xsdschema:xAL:2.0" xmlns:xnl="urn:oasis:names:tc:ciq:xsdschema:xNL:2.0" Id="230b" SchemaVersion="5">
+    <TransactionId>1</TransactionId>
+    <ManagingAuthority>
+        <AuthorityIdentifier Id="CSB">Centraal stembureau Limburg</AuthorityIdentifier>
+        <AuthorityAddress/>
+    </ManagingAuthority>
+    <IssueDate>2026-09-24</IssueDate>
+    <kr:CreationDateTime>2026-09-24T14:33:05.245131679+00:00</kr:CreationDateTime>
+    <CandidateList>
+        <Election>
+            <ElectionIdentifier Id="PS2027_Limburg">
+                <ElectionName>Verkiezing van de provinciale staten van Limburg 2027</ElectionName>
+                <ElectionCategory>PS</ElectionCategory>
+                <kr:ElectionSubcategory>PS2</kr:ElectionSubcategory>
+                <kr:ElectionDomain>Limburg</kr:ElectionDomain>
+                <kr:ElectionDate>2027-03-17</kr:ElectionDate>
+                <kr:NominationDate>2027-02-01</kr:NominationDate>
+            </ElectionIdentifier>
+            <Contest>
+                <ContestIdentifier Id="1">
+                    <ContestName>Maastricht</ContestName>
+                </ContestIdentifier>
+                <Affiliation>
+                    <AffiliationIdentifier Id="1">
+                        <RegisteredName>Kiesraad Demo</RegisteredName>
+                    </AffiliationIdentifier>
+                    <Type>op zichzelf staande lijst</Type>
+                    <kr:ListData PublishGender="true" PublicationLanguage="nl"/>
+                    <Candidate>
+                        <CandidateIdentifier Id="1"/>
+                        <CandidateFullName>
+                            <xnl:PersonName>
+                                <xnl:NameLine NameType="Initials">H.A.H.A.</xnl:NameLine>
+                                <xnl:FirstName>Henk</xnl:FirstName>
+                                <xnl:LastName>Candidate I</xnl:LastName>
+                            </xnl:PersonName>
+                        </CandidateFullName>
+                        <DateOfBirth>1990-02-01</DateOfBirth>
+                        <Gender>female</Gender>
+                        <QualifyingAddress>
+                            <xal:Locality>
+                                <xal:LocalityName>Juinen</xal:LocalityName>
+                            </xal:Locality>
+                        </QualifyingAddress>
+                    </Candidate>
+                    <Candidate>
+                        <CandidateIdentifier Id="2"/>
+                        <CandidateFullName>
+                            <xnl:PersonName>
+                                <xnl:NameLine NameType="Initials">H.A.H.A.</xnl:NameLine>
+                                <xnl:FirstName>Henk</xnl:FirstName>
+                                <xnl:LastName>Candidate II</xnl:LastName>
+                            </xnl:PersonName>
+                        </CandidateFullName>
+                        <DateOfBirth>1990-02-01</DateOfBirth>
+                        <Gender>unknown</Gender>
+                        <QualifyingAddress>
+                            <xal:Country>
+                                <xal:CountryNameCode>BE</xal:CountryNameCode>
+                                <xal:Locality>
+                                    <xal:LocalityName>Juinen</xal:LocalityName>
+                                </xal:Locality>
+                            </xal:Country>
+                        </QualifyingAddress>
+                    </Candidate>
+                </Affiliation>
+                <Affiliation>
+                    <AffiliationIdentifier Id="2">
+                        <RegisteredName>Andere Partij</RegisteredName>
+                    </AffiliationIdentifier>
+                    <Type>op zichzelf staande lijst</Type>
+                    <kr:ListData PublishGender="true" PublicationLanguage="nl"/>
+                    <Candidate>
+                        <CandidateIdentifier Id="1"/>
+                        <CandidateFullName>
+                            <xnl:PersonName>
+                                <xnl:NameLine NameType="Initials">H.A.H.A.</xnl:NameLine>
+                                <xnl:FirstName>Henk</xnl:FirstName>
+                                <xnl:LastName>Candidate III</xnl:LastName>
+                            </xnl:PersonName>
+                        </CandidateFullName>
+                        <DateOfBirth>1990-02-01</DateOfBirth>
+                        <Gender>female</Gender>
+                        <QualifyingAddress>
+                            <xal:Locality>
+                                <xal:LocalityName>Juinen</xal:LocalityName>
+                            </xal:Locality>
+                        </QualifyingAddress>
+                    </Candidate>
+                </Affiliation>
+                <Affiliation>
+                    <AffiliationIdentifier Id="3">
+                        <RegisteredName/>
+                    </AffiliationIdentifier>
+                    <Type>op zichzelf staande lijst</Type>
+                    <kr:ListData PublishGender="true" PublicationLanguage="nl"/>
+                    <Candidate>
+                        <CandidateIdentifier Id="1"/>
+                        <CandidateFullName>
+                            <xnl:PersonName>
+                                <xnl:NameLine NameType="Initials">H.A.H.A.</xnl:NameLine>
+                                <xnl:FirstName>Henk</xnl:FirstName>
+                                <xnl:LastName>Candidate IV</xnl:LastName>
+                            </xnl:PersonName>
+                        </CandidateFullName>
+                        <DateOfBirth>1990-02-01</DateOfBirth>
+                        <Gender>female</Gender>
+                        <QualifyingAddress>
+                            <xal:Locality>
+                                <xal:LocalityName>Juinen</xal:LocalityName>
+                            </xal:Locality>
+                        </QualifyingAddress>
+                    </Candidate>
+                </Affiliation>
+            </Contest>
+        </Election>
+    </CandidateList>
+</EML>
