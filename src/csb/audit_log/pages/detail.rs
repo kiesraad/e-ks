@@ -150,7 +150,7 @@ pub async fn csb_audit_log_detail<S: AppRequestState>(
     Ok(HtmlTemplate(
         CsbAuditLogDetailTemplate {
             detail,
-            overlay: Overlay::new(&query),
+            overlay: Overlay::new_edit(&query),
         },
         context,
     ))

@@ -41,7 +41,7 @@ pub async fn update_person_address(
             should_warn: query.should_warn(),
             address_unknown: candidate.person.address.is_unknown(),
             form,
-            overlay: Overlay::new(&query),
+            overlay: Overlay::new_edit(&query),
             candidate: candidate.clone(),
             full_list,
         },
@@ -66,7 +66,7 @@ pub async fn update_person_address_submit(
                 candidate,
                 form: form_data,
                 full_list,
-                overlay: Overlay::new(&query),
+                overlay: Overlay::new_edit(&query),
             },
             context,
         )

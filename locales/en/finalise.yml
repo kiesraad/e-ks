@@ -1,5 +1,5 @@
 collection:
-  gather_h9: Collect the signatures on the H 9 declarations of consent from all candidates. Also ensure that all copies of identity documents are included and legible.
+  gather_h9: Collect the signatures on the H\u00A09 declarations of consent from all candidates. Also ensure that all copies of identity documents are included and legible.
   pre_submission: "In the 2 weeks before nomination day, you can have the documents reviewed in advance by the central electoral committee, known as a 'pre-submission'. Please make an appointment for this."
   title: "Gather, review and sign"
 complete_list:
@@ -28,17 +28,17 @@ print:
   eml: "For each candidate list, an EML file of the candidate list is also included. EML is a file format that is processable with software. It is not required to submit this document."
   eml_title: EML210 Candidate list
   errors_warning: "Before you can print the documents, you must first resolve all errors in step 1."
-  h1_description: "With the H 1, as the submitter of the list of candidates, you nominate candidates for an election."
-  h1_title: H 1 List of candidates
-  h3_1_description: "With the H 3-1, the submitter of the list of candidates receives permission to place the appellation registered by your political group above the list of candidates. This permission can only be granted by a person authorised to do so by the political group."
-  h3_1_title: H 3-1 Authorisation to use appellation
-  h3_2_description: "With the H3-2, the submitter of the list of candidates receives permission to place the combined appellation above the list of candidates. This permission must be granted by a person authorised to do so by each of the political groups involved."
-  h3_2_title: H 3-2 Authorisation to use combined appellation
-  h4_description: "With the H 4, your political group collects declarations of support from eligible voters. This is required for political groups that are not currently represented in the relevant body or are participating with a blank list."
-  h4_title: H 4 Declarations of support
+  h1_description: "With the H\u00A01, as the submitter of the list of candidates, you nominate candidates for an election."
+  h1_title: H\u00A01 List of candidates
+  h3_1_description: "With the H\u00A03-1, the submitter of the list of candidates receives permission to place the appellation registered by your political group above the list of candidates. This permission can only be granted by a person authorised to do so by the political group."
+  h3_1_title: H\u00A03-1 Authorisation to use appellation
+  h3_2_description: "With the H\u00A03-2, the submitter of the list of candidates receives permission to place the combined appellation above the list of candidates. This permission must be granted by a person authorised to do so by each of the political groups involved."
+  h3_2_title: H\u00A03-2 Authorisation to use combined appellation
+  h4_description: "With the H\u00A04, your political group collects declarations of support from eligible voters. This is required for political groups that are not currently represented in the relevant body or are participating with a blank list."
+  h4_title: H\u00A04 Declarations of support
   h9_consent: "With this form, candidates agree to being placed on the list of candidates. They also agree to their position on the list."
-  h9_identity: "When submitting this H 9, a legible copy of the identity document must also be included."
-  h9_title: H 9 Declarations of consent
+  h9_identity: "When submitting this H\u00A09, a legible copy of the identity document must also be included."
+  h9_title: H\u00A09 Declarations of consent
   incomplete_warning: "Attention! You can print the documents, but they will be considered incomplete by the central electoral committee. Resolve the warnings in step 1 to complete the list."
   title: Print the documents
 verification:

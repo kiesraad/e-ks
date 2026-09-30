@@ -14,6 +14,10 @@
   {% endif %}
 {% endblock %}
 {% block page_sub_title %}
+  {% if political_group.mode.is_examination() && !list_problems.is_empty() %}
+    <div class="mt-sm"></div>
+    {{ restorations::problems(list_problems) }}
+  {% endif %}
   {% let election = "election"|election_value %}
   <div class="tags">
     <h5 class="tags-label">{{ "common.electoral_districts"|trans }}:</h5>
@@ -109,7 +113,14 @@
                 {% endif %}
               </td>
               {% if political_group.mode.is_examination() %}
-                <td>{{ brp_badge(candidate.brp, political_group.candidate_path(list_id, candidate.person.id) ) }}</td>
+                <td>
+                  <div class="icon-container">
+                    {{ brp_badge(candidate.brp, political_group.candidate_path(list_id, candidate.person.id) ) }}
+                    {% if let Some(severity) = PersonProblems::get_highest_severity_for_person(candidate_problems, *candidate.person.id) %}
+                      <span class="restoration-tag restoration-tag-{{ severity.class() }}">{{ "csb.group.problems_present"|trans }}</span>
+                    {% endif %}
+                  </div>
+                </td>
               {% endif %}
               <td>{{ omission_badge(candidate.restoration_status) }}</td>
               <td class="actions">

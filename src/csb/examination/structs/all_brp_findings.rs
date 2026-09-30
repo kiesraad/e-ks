@@ -6,7 +6,9 @@ use crate::{
     projection::WithCorrections,
     structs::{
         candidate_lists::CandidateListId,
+        common::PotentialProblems,
         persons::{Person, PersonId},
+        problems::AllProblems,
     },
 };
 
@@ -37,6 +39,67 @@ pub struct ListedCandidate {
     pub list_id: CandidateListId,
     pub position: usize,
     pub person: Person,
+}
+
+/// A candidate with BRP findings, validation problems, or both.
+pub struct ProblematicCandidate {
+    pub person: Person,
+    /// As [`CandidateFindings::path`].
+    pub path: Option<String>,
+    pub findings: Vec<BrpFindingTag>,
+    pub problems: Vec<PotentialProblems>,
+}
+
+impl ProblematicCandidate {
+    /// Whether nothing is left to act on: no problems, every finding handled.
+    pub fn is_all_handled(&self) -> bool {
+        self.problems.is_empty() && self.findings.iter().all(|finding| finding.handled)
+    }
+}
+
+impl AllBrpFindings {
+    /// The candidates with findings, followed by those with only problems,
+    /// which link to `path_for`.
+    pub fn with_problems(
+        self,
+        all_problems: &AllProblems,
+        path_for: impl Fn(&Person) -> Option<String>,
+    ) -> Vec<ProblematicCandidate> {
+        let problems_for = |person: &Person| {
+            all_problems
+                .candidates
+                .iter()
+                .find(|candidate| candidate.entity.id == person.id)
+                .map_or(Vec::new(), |candidate| candidate.problems.clone())
+        };
+
+        let mut candidates: Vec<ProblematicCandidate> = self
+            .candidates
+            .into_iter()
+            .map(|candidate| ProblematicCandidate {
+                problems: problems_for(&candidate.person),
+                person: candidate.person,
+                path: candidate.path,
+                findings: candidate.findings,
+            })
+            .collect();
+
+        for problematic in &all_problems.candidates {
+            if !candidates
+                .iter()
+                .any(|candidate| candidate.person.id == problematic.entity.id)
+            {
+                candidates.push(ProblematicCandidate {
+                    path: path_for(&problematic.entity),
+                    person: problematic.entity.clone(),
+                    findings: Vec::new(),
+                    problems: problematic.problems.clone(),
+                });
+            }
+        }
+
+        candidates
+    }
 }
 
 impl CsbStream {

@@ -4,10 +4,12 @@ use axum::{
     response::{IntoResponse, Response},
 };
 
+use crate::structs::common::HasSeverity;
+
 use crate::{
     AppError, AppRequestState, Context, CsbContext, HtmlTemplate,
     csb::{
-        examination::structs::{AllBrpFindings, BrpBadge, brp_incomplete_reason},
+        examination::structs::{BrpBadge, ProblematicCandidate, brp_incomplete_reason},
         import::{brp_sweep_running, do_brp_verification},
         pre_submission::{
             extractors::{PreSubmissionGroup, PreSubmissionStore},
@@ -15,6 +17,7 @@ use crate::{
         },
     },
     filters, redirect_success,
+    structs::problems::AllProblems,
 };
 
 #[derive(Template)]
@@ -27,7 +30,8 @@ struct PreSubmissionGroupTemplate {
     brp_incomplete: Option<String>,
     /// The badges of the BRP strip, derived from the state and `brp_running`.
     brp_badges: Vec<BrpBadge>,
-    all_findings: AllBrpFindings,
+    all_problems: AllProblems,
+    candidates: Vec<ProblematicCandidate>,
 }
 
 /// The BRP findings of one pre-submitted package, per candidate.
@@ -40,6 +44,11 @@ pub async fn group(
     let brp_running = brp_sweep_running(store.stream_id);
     let locale = context.session.locale;
 
+    let all_problems = store.get_all_problems(context.election)?;
+    let candidates = store
+        .get_unlinked_brp_findings(locale)
+        .with_problems(&all_problems, |_| None);
+
     Ok(HtmlTemplate(
         PreSubmissionGroupTemplate {
             brp_incomplete: brp_incomplete_reason(
@@ -48,8 +57,9 @@ pub async fn group(
                 brp_running,
                 locale,
             ),
-            all_findings: store.get_unlinked_brp_findings(locale),
             brp_badges: group.brp.strip_badges(brp_running),
+            all_problems,
+            candidates,
             group,
             brp_running,
         },
@@ -73,19 +83,25 @@ pub async fn start_brp_check<S: AppRequestState>(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use super::*;
     use axum::http::StatusCode;
 
     use crate::{
-        AppState, CsbAction, CsbStore,
+        AppState, CsbAction, CsbStore, ElectoralDistrict, PgEvent,
         structs::{
             brp::{BrpFinding, BrpFindingKind, BrpStatus, BrpValue},
-            candidate_lists::CandidateListId,
+            candidate_lists::{CandidateList, CandidateListId},
+            common::{Address, PreviousElectionResults, UtcDateTime},
+            list_designation::ListDesignation,
+            list_submitters::ListSubmitterId,
             persons::PersonId,
+            political_groups::PoliticalGroup,
         },
         test_utils::{
-            response_body_string, sample_candidate_list, sample_person_with_last_name,
-            sample_political_group,
+            response_body_string, sample_candidate_list, sample_list_submitter, sample_person,
+            sample_person_with_last_name, sample_political_group,
         },
     };
 
@@ -188,7 +204,30 @@ mod tests {
         let body = render(store).await;
 
         assert!(body.contains("No BRP errors"), "{body}");
-        assert!(body.contains("found no errors"));
+        assert!(body.contains("Problems</span>"));
+    }
+
+    #[tokio::test]
+    async fn a_candidate_with_findings_and_problems_is_listed_once() {
+        let store = PreSubmissionStore(CsbStore::new_for_test());
+        let mut person = sample_person_with_last_name(PersonId::new(), "Kandidaat");
+        person.personal_data.bsn = None;
+        let person_id = person.id;
+        let mut list = sample_candidate_list(CandidateListId::new());
+        list.candidates = vec![person_id];
+        store.add_person(person);
+        store.add_candidate_list(list);
+        finish_check(&store, person_id, vec![BrpFindingKind::NotDutch.into()]).await;
+
+        let body = render(store).await;
+
+        assert_eq!(
+            body.matches("Kandidaat, H.A.H.A.</h3>").count(),
+            1,
+            "{body}"
+        );
+        assert!(body.contains("no Dutch nationality"));
+        assert!(body.contains(">BSN</span>"));
     }
 
     #[tokio::test]
@@ -230,5 +269,116 @@ mod tests {
             store.get_brp_status(),
             BrpStatus::InProgress { .. }
         ));
+    }
+
+    #[tokio::test]
+    async fn general_problem_shows_up() {
+        let store = PreSubmissionStore(CsbStore::new_for_test());
+        store.set_political_group(PoliticalGroup {
+            appellation: None,
+            list_designation: Some(ListDesignation::Standalone),
+            previous_election_results: Some(PreviousElectionResults::ZeroSeats),
+        });
+
+        let body = render(store).await;
+
+        assert!(body.contains("General Information</h4>"));
+        assert!(body.contains(">Appellation</span>"));
+    }
+
+    #[tokio::test]
+    async fn list_submitter_problem_shows_up() {
+        let store = PreSubmissionStore(CsbStore::new_for_test());
+        let mut list_submitter = sample_list_submitter(ListSubmitterId::new());
+        list_submitter.name.initials = Some("A.".parse().expect("parse initials"));
+        list_submitter.name.last_name = "Nagelhout II".parse().expect("parse last name");
+        if let Address::Dutch(ref mut address) = list_submitter.address {
+            address.locality = None
+        } else {
+            panic!("expected Dutch Address")
+        }
+
+        store
+            .update(CsbAction::PaperCorrectedUpdate(Box::new(
+                PgEvent::UpdateListSubmitter(list_submitter),
+            )))
+            .await
+            .expect("Update list submitter");
+
+        let body = render(store).await;
+
+        assert!(body.contains("General Information</h4>"));
+        assert!(body.contains("Nagelhout II, A. (List submitter)</h3>"));
+        assert!(body.contains(">Address</span>"));
+    }
+
+    #[tokio::test]
+    async fn substitute_submitter_problem_shows_up() {
+        let store = PreSubmissionStore(CsbStore::new_for_test());
+        let mut list_submitter = sample_list_submitter(ListSubmitterId::new());
+        list_submitter.name.initials = Some("A.".parse().expect("parse initials"));
+        list_submitter.name.last_name = "Nagelhout III".parse().expect("parse last name");
+        if let Address::Dutch(ref mut address) = list_submitter.address {
+            address.locality = None
+        } else {
+            panic!("expected Dutch Address")
+        }
+
+        store
+            .update(CsbAction::PaperCorrectedUpdate(Box::new(
+                PgEvent::CreateSubstituteSubmitter(list_submitter),
+            )))
+            .await
+            .expect("Create substitute submitter");
+
+        let body = render(store).await;
+
+        assert!(body.contains("General Information</h4>"));
+        assert!(body.contains("Nagelhout III, A. (Substitute submitter)</h3>"));
+        assert!(body.contains(">Address</span>"));
+    }
+
+    #[tokio::test]
+    async fn list_problem_shows_up() {
+        let store = PreSubmissionStore(CsbStore::new_for_test());
+        let list_id = CandidateListId::new();
+
+        store.add_candidate_list(CandidateList {
+            id: list_id,
+            electoral_districts: BTreeSet::from([ElectoralDistrict::Flevoland]),
+            candidates: Vec::new(),
+            created_at: UtcDateTime::now(),
+        });
+
+        let body = render(store).await;
+
+        assert!(body.contains("Candidate lists</h4>"));
+        assert!(body.contains("Flevoland</h3>"));
+        assert!(body.contains(">No candidates</span>"));
+    }
+
+    #[tokio::test]
+    async fn candidate_problem_shows_up() {
+        let store = PreSubmissionStore(CsbStore::new_for_test());
+        let list_id = CandidateListId::new();
+        let person_id = PersonId::new();
+
+        let mut person = sample_person(person_id);
+        person.name.first_name = None;
+        person.name.initials = Some("A.".parse().expect("parse initials"));
+        person.name.last_name = "Nagelhout IV".parse().expect("parse last name");
+        person.personal_data.bsn = None;
+
+        let mut list = sample_candidate_list(list_id);
+        list.candidates.push(person_id);
+
+        store.add_person(person);
+        store.add_candidate_list(list);
+
+        let body = render(store).await;
+
+        assert!(body.contains("Candidates</h4>"));
+        assert!(body.contains("Nagelhout IV, A.</h3>"));
+        assert!(body.contains(">BSN</span>"));
     }
 }

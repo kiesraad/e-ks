@@ -226,7 +226,6 @@ pub trait AuthState: Clone + Send + Sync + 'static {
         &self,
         failure: AuthFailure,
         jar: CookieJar,
-        headers: &HeaderMap,
         end_session: bool,
     ) -> impl std::future::Future<Output = Response> + Send;
 

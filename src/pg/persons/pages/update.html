@@ -20,7 +20,10 @@
   </fieldset>
 {% endblock %}
 {% block overlay_actions %}
-  {% set submit_label = "action.next"|trans %}
+  {% let mut submit_label = "action.next"|trans %}
+  {% if overlay.redirects_to(crate::finalise::FinalisePath) %}
+    {% mut submit_label = "action.save"|trans %}
+  {% endif %}
   {% include "pg/common/components/submit.html" %}
 {% endblock %}
 {% block overlay_end %}

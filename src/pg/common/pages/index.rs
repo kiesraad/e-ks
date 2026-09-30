@@ -5,10 +5,10 @@ use crate::{
     AppResponse, Context, HtmlTemplate, PgStore,
     common::PgIndexPath,
     filters,
-    finalise::AllProblems,
     structs::{
         candidate_lists::CandidateListSummary,
         common::{PotentialProblems, Severity},
+        problems::AllProblems,
     },
 };
 

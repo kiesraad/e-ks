@@ -52,13 +52,40 @@
           </div>
         {% endif %}
       </div>
-      <div class="mb-lg">{{ restorations::brp_strip(group.brp, brp_badges, brp_incomplete.as_deref() ) }}</div>
-      {% if !all_findings.candidates.is_empty() %}
-        {% for candidate in all_findings.candidates %}
-          {{ restorations::brp_group(candidate) }}
-        {% endfor %}
+      <div class="mb-lg">{{ restorations::brp_strip(group.brp, brp_badges, brp_incomplete.as_deref() , all_problems) }}</div>
+      {% if !(candidates.is_empty() && all_problems.is_all_good()) %}
+        {% if !all_problems.general.flatten().is_empty() %}
+          <h4 class="mt-md">{{ "common.general_information"|trans }}</h4>
+          {% if !all_problems.general.general.is_empty() %}
+            {{ restorations::problems_group("", None::<String>, all_problems.general.general) }}
+          {% endif %}
+          {% for na in all_problems.general.name_authorisations %}
+            {{ restorations::problems_group(na.entity.display(locale) , None::<String>, na.problems.clone() ) }}
+          {% endfor %}
+          {% if let Some(ls) = all_problems.general.list_submitter %}
+            {{ restorations::problems_group(ls.entity.display(locale, false) , None::<String>, ls.problems.clone() ) }}
+          {% endif %}
+          {% for ss in all_problems.general.substitute_submitters %}
+            {{ restorations::problems_group(ss.entity.display(locale, true) , None::<String>, ss.problems.clone() ) }}
+          {% endfor %}
+        {% endif %}
+        {% if !all_problems.lists.is_empty() %}
+          <h4 class="mt-md">{{ "candidate_list.title_plural"|trans }}</h4>
+          {% if !all_problems.lists.general.is_empty() %}
+            {{ restorations::problems_group("" , None::<String>, all_problems.lists.general) }}
+          {% endif %}
+          {% for list in all_problems.lists.per_list %}
+            {{ restorations::problems_group(list.entity.districts_name() , None::<String>, list.problems.clone() ) }}
+          {% endfor %}
+        {% endif %}
+        {% if !candidates.is_empty() %}
+          <h4 class="mt-md">{{ "common.candidates"|trans }}</h4>
+          {% for candidate in candidates %}
+            {{ restorations::brp_group(candidate) }}
+          {% endfor %}
+        {% endif %}
       {% else if group.brp.is_correct() %}
-        <p class="font-italic">{{ "csb.all_brp_findings.none"|trans }}</p>
+        <p class="font-italic">{{ "csb.all_findings.none"|trans }}</p>
       {% endif %}
     </div>
   </div>

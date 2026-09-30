@@ -127,7 +127,7 @@ async fn establish_committee_session<S: AppRequestState>(
     };
     let election = state.config().default_election;
 
-    let mut session = Session::for_committee(user.clone(), election, Locale::from_headers(headers));
+    let mut session = Session::for_committee(user.clone(), election, Locale::default());
     session.set_user_agent_hash(user_agent_hash(headers));
 
     let store = state.csb_main_store(election).await?;

@@ -23,7 +23,7 @@ mod tests {
     use axum::{
         Router,
         body::Body,
-        http::{Request, StatusCode, header},
+        http::{Request, StatusCode},
         middleware,
         routing::get,
     };
@@ -97,7 +97,6 @@ mod tests {
             .oneshot({
                 let mut request = Request::builder()
                     .uri(format!("/candidate-lists/{list_id}/full"))
-                    .header(header::ACCEPT_LANGUAGE, "en")
                     .body(Body::empty())
                     .unwrap();
                 let session = crate::Session::new_test_with_locale(Locale::En);

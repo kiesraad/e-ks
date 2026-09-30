@@ -101,10 +101,10 @@
   }
 
   tr.highlighted {
-    background-color: var(--orange-100);
+    background-color: var(--blue-100);
 
     .position-badge {
-      background-color: var(--orange-200);
+      background-color: var(--blue-200);
     }
   }
 
@@ -176,10 +176,10 @@
      "added" state, so it stands out among any previously added rows. Placed
      after .remove-candidate to win at equal specificity while highlighted. */
   tr.highlighted {
-    background-color: var(--orange-100);
+    background-color: var(--blue-100);
 
     .position-badge {
-      background-color: var(--orange-200);
+      background-color: var(--blue-200);
     }
   }
 }

@@ -106,9 +106,9 @@ mod tests {
     async fn overview_always_offers_the_i4_downloads() {
         for groups in [vec![group(1, 3)], vec![group(0, 3)], vec![]] {
             let body = render(groups).await;
-            assert!(body.contains("Download I 4 (PDF)"));
+            assert!(body.contains("Download I\u{A0}4 (PDF)"));
             assert!(body.contains("/csb/examination/i4.pdf"));
-            assert!(body.contains("Download I 4 (Word)"));
+            assert!(body.contains("Download I\u{A0}4 (Word)"));
             assert!(body.contains("/csb/examination/i4.docx"));
         }
     }

@@ -6,7 +6,7 @@ use askama::Template;
 use auth_service::{AuthFailure, AuthServiceState, AuthState, RedirectTarget, handle_logout};
 use axum::{
     extract::{FromRef, State},
-    http::{HeaderMap, HeaderName, HeaderValue},
+    http::{HeaderName, HeaderValue},
     response::{IntoResponse, Response},
 };
 use axum_extra::extract::CookieJar;
@@ -44,11 +44,11 @@ struct AuthCancelledTemplate;
 struct AuthUnavailableTemplate;
 
 /// GET `/login`: DigiD start page with login button and flow explanation.
-pub async fn login_start(headers: HeaderMap) -> impl IntoResponse {
+pub async fn login_start() -> impl IntoResponse {
     HtmlTemplate(
         LoginStartTemplate,
         LocaleValues {
-            locale: Locale::from_headers(&headers),
+            locale: Locale::default(),
         },
     )
 }
@@ -89,11 +89,11 @@ where
 /// the user out of unrelated `kiesraad.nl` sites. `"cache"` is left out too: the
 /// cached assets hold no session data, and clearing them only makes browsers
 /// that honour it re-fetch the bundle right after signing out.
-pub async fn logged_out(_: LoggedOutPath, headers: HeaderMap) -> Response {
+pub async fn logged_out(_: LoggedOutPath) -> Response {
     let mut response = HtmlTemplate(
         LoggedOutTemplate,
         LocaleValues {
-            locale: Locale::from_headers(&headers),
+            locale: Locale::default(),
         },
     )
     .into_response();
@@ -122,7 +122,7 @@ mod tests {
     use auth_service::{LoggedOutSession, NameId, SubjectId};
     use axum::{
         body::Body,
-        http::{Request, StatusCode, header},
+        http::{HeaderMap, Request, StatusCode, header},
     };
     use axum_extra::extract::cookie::Cookie;
     use secrecy::SecretString;
@@ -139,7 +139,7 @@ mod tests {
 
     #[tokio::test]
     async fn login_start_shows_digid_button_and_explanation() {
-        let response = login_start(HeaderMap::new()).await.into_response();
+        let response = login_start().await.into_response();
         let body = response_body_string(response).await;
         assert!(body.contains("Inloggen"));
         // The button initiates SSO by POSTing back to /login.
@@ -150,7 +150,7 @@ mod tests {
 
     #[tokio::test]
     async fn logged_out_page_confirms_and_offers_login() {
-        let response = logged_out(LoggedOutPath, HeaderMap::new()).await;
+        let response = logged_out(LoggedOutPath).await;
         assert!(response.status().is_success());
         let body = response_body_string(response).await;
         assert!(body.contains("U bent uitgelogd"));
@@ -459,7 +459,7 @@ mod tests {
 
         let jar = CookieJar::new().add(Cookie::new(SESSION_COOKIE_NAME, token.clone()));
         let response = state
-            .on_authentication_failed(AuthFailure::Error, jar, &HeaderMap::new(), true)
+            .on_authentication_failed(AuthFailure::Error, jar, true)
             .await;
 
         assert!(
@@ -483,7 +483,7 @@ mod tests {
 
         let jar = CookieJar::new().add(Cookie::new(SESSION_COOKIE_NAME, token.clone()));
         let response = state
-            .on_authentication_failed(AuthFailure::Error, jar, &HeaderMap::new(), false)
+            .on_authentication_failed(AuthFailure::Error, jar, false)
             .await;
 
         assert!(

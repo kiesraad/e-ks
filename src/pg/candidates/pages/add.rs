@@ -4,7 +4,7 @@ use axum::response::{IntoResponse, Redirect, Response};
 use std::collections::HashMap;
 
 use crate::{
-    AppError, Context, Form, HtmlTemplate, Overlay, PgStore,
+    AppError, Context, Form, HtmlTemplate, Overlay, PgStore, QueryParamState,
     candidates::AddPersonForm,
     filters,
     form::FormData,
@@ -67,7 +67,7 @@ impl AddExistingPersonTemplate {
             close_action,
             show_add_all,
             allow_add,
-            overlay: Overlay::default(),
+            overlay: Overlay::new_create(&QueryParamState::default()),
             show_remove_all: !show_add_all && !candidate_ids.is_empty(),
             persons,
             added_candidates,

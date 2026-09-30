@@ -64,7 +64,7 @@ pub async fn update_candidate_position(
             candidate,
             full_list,
             form,
-            overlay: Overlay::new(&query),
+            overlay: Overlay::new_edit(&query),
         },
         context,
     ))
@@ -94,7 +94,7 @@ pub async fn update_candidate_position_submit(
                 candidate,
                 full_list,
                 form: form_data,
-                overlay: Overlay::new(&query),
+                overlay: Overlay::new_edit(&query),
             },
             context,
         )

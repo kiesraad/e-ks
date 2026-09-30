@@ -145,6 +145,7 @@
 /* The download call to action and its button(s) share one row */
 .download-card {
   --card-padding: var(--space-6);
+  border: none;
   align-items: center;
   flex-direction: row;
   gap: var(--space-8);
@@ -196,6 +197,7 @@
 
 .problems-card {
   --card-gap: var(--space-3);
+  border: none;
 
   h4:not(:first-child) {
     margin-top: var(--space-5);

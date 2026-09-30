@@ -97,17 +97,17 @@ where
              rejecting before resolving the artifact (possible login CSRF / forced login)"
         );
         let rejection = Rejection::Unanswered(AuthFailure::Error);
-        return fail(&state, rejection, jar, &headers).await;
+        return fail(&state, rejection, jar).await;
     };
 
     let claims = match resolve_artifact_to_claims(&auth_state, &params, &bound_authn_id).await {
         Ok(c) => c,
-        Err(rejection) => return fail(&state, rejection, jar, &headers).await,
+        Err(rejection) => return fail(&state, rejection, jar).await,
     };
 
     if !confirm_pending_request(&state, &bound_authn_id, &claims).await {
         let rejection = Rejection::Answered(AuthFailure::Error);
-        return fail(&state, rejection, jar, &headers).await;
+        return fail(&state, rejection, jar).await;
     }
 
     // SECURITY: never log decrypted SubjectID values; they are PII (BSN /
@@ -130,7 +130,7 @@ where
     let Some(subject_id) = claims.acting_subject_id else {
         warn!("[ACS] No acting SubjectID in validated assertion: treating as auth failure");
         let rejection = Rejection::Answered(AuthFailure::Error);
-        return fail(&state, rejection, jar, &headers).await;
+        return fail(&state, rejection, jar).await;
     };
     debug!("[ACS] Handing off to AuthState::on_authenticated");
     state
@@ -182,18 +182,13 @@ async fn confirm_pending_request<S: AuthState>(
 /// Render the failure page for a rejected callback. The embedding application
 /// draws the page and, for an answered flow, ends its local session (TVS L10).
 /// Cookie changes staged on `jar` (the one-shot flow-cookie clearing) ride along.
-async fn fail<S: AuthState>(
-    state: &S,
-    rejection: Rejection,
-    jar: CookieJar,
-    headers: &HeaderMap,
-) -> Response {
+async fn fail<S: AuthState>(state: &S, rejection: Rejection, jar: CookieJar) -> Response {
     let (failure, end_session) = match rejection {
         Rejection::Unanswered(failure) => (failure, false),
         Rejection::Answered(failure) => (failure, true),
     };
     let mut response = state
-        .on_authentication_failed(failure, jar, headers, end_session)
+        .on_authentication_failed(failure, jar, end_session)
         .await;
     harden_headers(response.headers_mut());
     response
@@ -754,13 +749,10 @@ mod tests {
     #[tokio::test]
     async fn answered_flow_ends_the_session() {
         let mock = MockAuthState::empty();
-        let headers = HeaderMap::new();
-
         let resp = fail(
             &mock,
             Rejection::Answered(AuthFailure::Cancelled),
             CookieJar::new(),
-            &headers,
         )
         .await;
         // MockAuthState renders Cancelled as 403.
@@ -771,12 +763,10 @@ mod tests {
     #[tokio::test]
     async fn unanswered_flow_does_not_end_the_session() {
         let mock = MockAuthState::empty();
-        let headers = HeaderMap::new();
         let resp = fail(
             &mock,
             Rejection::Unanswered(AuthFailure::Cancelled),
             CookieJar::new(),
-            &headers,
         )
         .await;
         assert_eq!(resp.status(), axum::http::StatusCode::FORBIDDEN);
@@ -962,16 +952,16 @@ mod tests {
         let recipient = dv_keys.encryption.first().expect("a DV encryption key");
         let key_name = recipient.key_name.as_str();
         let name_id = format!(
-            r#"<saml:NameID xmlns:saml="{NS_SAML}" 
-                            Format="{NAMEID_PERSISTENT}" 
+            r#"<saml:NameID xmlns:saml="{NS_SAML}"
+                            Format="{NAMEID_PERSISTENT}"
                             NameQualifier="urn:nl-eid-gdi:1.0:id:legacy-BSN">
                 {BSN}
             </saml:NameID>"#
         );
         let template = format!(
             r#"
-            <saml:EncryptedID xmlns:saml="{NS_SAML}" 
-                                 xmlns:xenc="http://www.w3.org/2001/04/xmlenc#" 
+            <saml:EncryptedID xmlns:saml="{NS_SAML}"
+                                 xmlns:xenc="http://www.w3.org/2001/04/xmlenc#"
                                  xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
               <xenc:EncryptedData Type="http://www.w3.org/2001/04/xmlenc#Element">
                 <xenc:EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes256-cbc"/>
@@ -1020,12 +1010,12 @@ mod tests {
                   transient-subject
                 </saml:NameID>
                 <saml:SubjectConfirmation Method="{SUBJECT_CONFIRMATION_BEARER}">
-                  <saml:SubjectConfirmationData NotOnOrAfter="{scd_expiry}" 
-                                                Recipient="{ACS}" 
+                  <saml:SubjectConfirmationData NotOnOrAfter="{scd_expiry}"
+                                                Recipient="{ACS}"
                                                 InResponseTo="{in_response_to}"/>
                 </saml:SubjectConfirmation>
               </saml:Subject>
-              <saml:Conditions NotBefore="{not_before}" 
+              <saml:Conditions NotBefore="{not_before}"
                                NotOnOrAfter="{not_on_or_after}">
                 <saml:AudienceRestriction>
                   <saml:Audience>{audience}</saml:Audience>
@@ -1061,10 +1051,10 @@ mod tests {
         let in_response_to = wire.response_in_response_to;
         let response = format!(
             r#"
-            <samlp:Response ID="_response1" 
+            <samlp:Response ID="_response1"
                                Version="2.0"
-                               IssueInstant="{issued}" 
-                               Destination="{ACS}" 
+                               IssueInstant="{issued}"
+                               Destination="{ACS}"
                                InResponseTo="{in_response_to}">
               <saml:Issuer>{RD}</saml:Issuer>
               {status}
@@ -1077,11 +1067,11 @@ mod tests {
         let resolve_id = wire.resolve_id;
         let artifact_response = format!(
             r#"
-            <samlp:ArtifactResponse xmlns:samlp="{NS_SAMLP}" 
-                                    xmlns:saml="{NS_SAML}" 
-                                    ID="_artifactresponse1" 
-                                    Version="2.0" 
-                                    IssueInstant="{issued}" 
+            <samlp:ArtifactResponse xmlns:samlp="{NS_SAMLP}"
+                                    xmlns:saml="{NS_SAML}"
+                                    ID="_artifactresponse1"
+                                    Version="2.0"
+                                    IssueInstant="{issued}"
                                     InResponseTo="{resolve_id}">
               <saml:Issuer>{RD}</saml:Issuer>
               {signature}

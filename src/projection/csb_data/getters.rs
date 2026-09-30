@@ -7,7 +7,7 @@ use parking_lot::{
 
 use super::Scrapped;
 use crate::{
-    AppError, CsbStream, ElectoralDistrict, Locale, PgStoreData,
+    AppError, CsbStream, ElectionConfig, ElectoralDistrict, Locale, PgStore, PgStoreData,
     structs::{
         brp::{BrpFinding, BrpStatus},
         candidate_lists::{CandidateList, CandidateListId},
@@ -17,6 +17,7 @@ use crate::{
         name_authorisations::NameAuthorisation,
         persons::{Person, PersonId},
         political_groups::PoliticalGroup,
+        problems::AllProblems,
     },
     trans,
 };
@@ -389,6 +390,17 @@ impl CsbStream {
         Some(person)
     }
 
+    /// Retrieve the first [CandidateList] (ordered on creation date) the person appears on,
+    /// or [None] if the person does not appear on any list
+    pub fn get_first_list(&self, person_id: PersonId) -> Option<CandidateList> {
+        let mut lists = self.get_candidate_lists(WithCorrections::All);
+        lists.sort_unstable_by_key(|list| list.created_at);
+        lists
+            .iter()
+            .find(|list| list.candidates.contains(&person_id))
+            .cloned()
+    }
+
     pub fn get_all_csb_corrected_persons(&self) -> Vec<PersonId> {
         self.data
             .read()
@@ -553,6 +565,31 @@ impl CsbStream {
             .next()
             .cloned()
             .expect("expected exactly one stored omission")
+    }
+
+    /// Collect all problems, excluding info problems
+    pub fn get_all_problems(&self, election: ElectionConfig) -> Result<AllProblems, AppError> {
+        let data = self.data.read();
+        // apply all corrections to the paper corrected projection
+        let mut pg_data = data.paper_corrected_data.clone();
+        if data.csb_corrected_appellation.is_some() {
+            pg_data.political_group.appellation = data.csb_corrected_appellation.clone();
+        }
+        for (person, correction) in &data.csb_corrected_persons {
+            pg_data
+                .persons
+                .entry(*person)
+                .and_modify(|p| correction.clone().apply(p));
+        }
+
+        // wrap paper corrected projection in a PgStore
+        let store = PgStore::new_for_temp_stream(election);
+        *store.data.write() = pg_data;
+
+        AllProblems::find_all(&store).map(|mut problems| {
+            problems.info_problems = Vec::new();
+            problems
+        })
     }
 }
 

@@ -196,6 +196,7 @@
 /* Errors and their absence carry no fill, and state the count before the icon
    rather than after it. */
 .restoration-tag-error,
+.restoration-tag-warning,
 .restoration-tag-ok {
   --restoration-tag-bg: var(--base-white);
   border-radius: var(--rounded-md);
@@ -205,6 +206,10 @@
 .restoration-tag-error {
   --restoration-tag-color: var(--red-700);
   --restoration-tag-icon: url("../icons/error.svg");
+}
+
+.restoration-tag-warning {
+  --restoration-tag-icon: url("../icons/warning.svg");
 }
 
 .restoration-tag-ok {
@@ -225,9 +230,9 @@
 }
 
 /* The BRP check has not run ("pending"), or did not cover every candidate
-   ("warning"): quiet grey either way in a strip. */
+   ("incomplete"): quiet grey either way in a strip. */
 .restoration-tag-pending,
-.restoration-tag-warning {
+.restoration-tag-incomplete {
   --restoration-tag-bg: var(--base-white);
   --restoration-tag-color: var(--gray-500);
   --restoration-tag-icon: url("../icons/info.svg");
@@ -425,4 +430,11 @@
     flex: 1 1 0;
     width: auto;
   }
+}
+
+.problem-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
 }

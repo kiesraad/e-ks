@@ -1,5 +1,5 @@
 collection:
-  gather_h9: Verzamel van alle kandidaten de handtekeningen op de H 9 instemmings\u00ADverklaringen. Zorg ook dat alle kopieën van identiteitsbewijzen meegeleverd worden en leesbaar zijn.
+  gather_h9: Verzamel van alle kandidaten de handtekeningen op de H\u00A09 instemmings\u00ADverklaringen. Zorg ook dat alle kopieën van identiteitsbewijzen meegeleverd worden en leesbaar zijn.
   pre_submission: "De 2 weken voor de dag van kandidaatstelling kunt u de documenten alvast laten controleren door het centraal stembureau, de zogeheten 'voorinlevering'. Maak hiervoor een afspraak."
   title: "Verzamelen, controleren en ondertekenen"
 complete_list:
@@ -28,17 +28,17 @@ print:
   eml: Per kandidatenlijst is ook een EML bestand van de kandidatenlijst aanwezig. EML is een bestandsformaat dat softwarematig verwerkbaar is. Dit document hoeft niet ingeleverd te worden.
   eml_title: EML210 Kandidatenlijst
   errors_warning: "Voordat u de documenten kunt printen, moet u eerst alle fouten in stap 1 oplossen."
-  h1_description: "Met de H 1 stelt u, als inleveraar van de kandidatenlijst, kandidaten verkiesbaar voor een verkiezing."
-  h1_title: H 1 Kandidatenlijst
-  h3_1_description: Met de H 3-1 krijgt de inleveraar van de kandidatenlijst toestemming om de aanduiding die door uw politieke groepering is geregistreerd boven de kandidatenlijst te plaatsen. Deze toestemming kan alleen worden gegeven door iemand die hiertoe gemachtigd is door de politieke groepering.
-  h3_1_title: H 3-1 Machtiging plaatsen van aanduiding
-  h3_2_description: Met de H 3-2 krijgt de inleveraar van de kandidatenlijst toestemming om de samengevoegde aanduiding boven de kandidatenlijst te plaatsen. Deze toestemming moet worden gegeven door iemand die hiertoe gemachtigd is van ieder van de betrokken politieke groeperingen.
-  h3_2_title: H 3-2 Machtiging plaatsen van samengevoegde aanduiding
-  h4_description: Met de H 4 verzamelt uw politieke groepering ondersteunings\u00ADverklaringen van kiesgerechtigde kiezers. Dit is vereist voor politieke groeperingen die niet reeds vertegenwoordigd zijn in het betreffende orgaan of deelnemen met een blanco lijst.
-  h4_title: H 4 Ondersteunings\u00ADverklaringen
+  h1_description: "Met de H\u00A01 stelt u, als inleveraar van de kandidatenlijst, kandidaten verkiesbaar voor een verkiezing."
+  h1_title: H\u00A01 Kandidatenlijst
+  h3_1_description: Met de H\u00A03-1 krijgt de inleveraar van de kandidatenlijst toestemming om de aanduiding die door uw politieke groepering is geregistreerd boven de kandidatenlijst te plaatsen. Deze toestemming kan alleen worden gegeven door iemand die hiertoe gemachtigd is door de politieke groepering.
+  h3_1_title: H\u00A03-1 Machtiging plaatsen van aanduiding
+  h3_2_description: Met de H\u00A03-2 krijgt de inleveraar van de kandidatenlijst toestemming om de samengevoegde aanduiding boven de kandidatenlijst te plaatsen. Deze toestemming moet worden gegeven door iemand die hiertoe gemachtigd is van ieder van de betrokken politieke groeperingen.
+  h3_2_title: H\u00A03-2 Machtiging plaatsen van samengevoegde aanduiding
+  h4_description: Met de H\u00A04 verzamelt uw politieke groepering ondersteunings\u00ADverklaringen van kiesgerechtigde kiezers. Dit is vereist voor politieke groeperingen die niet reeds vertegenwoordigd zijn in het betreffende orgaan of deelnemen met een blanco lijst.
+  h4_title: H\u00A04 Ondersteunings\u00ADverklaringen
   h9_consent: Met dit formulier stemmen kandidaten ermee in dat ze op de kandidatenlijst staan. Ook stemmen ze in met hun positie op de lijst.
-  h9_identity: Bij het inleveren van deze H 9 hoort ook een leesbare kopie van het identiteitsbewijs.
-  h9_title: H 9 Instemmings\u00ADverklaringen
+  h9_identity: Bij het inleveren van deze H\u00A09 hoort ook een leesbare kopie van het identiteitsbewijs.
+  h9_title: H\u00A09 Instemmings\u00ADverklaringen
   incomplete_warning: "Let op! U kunt de documenten wel printen, maar ze zullen als incompleet worden beschouwd door het centraal stembureau. Los de waarschuwingen in stap 1 op om de lijst compleet te maken."
   title: Print de documenten uit
 verification:

@@ -32,7 +32,7 @@
   mask-image: url("../icons/info.svg");
 }
 
-.tag.link a.warning::after {
+.tag.link a:is(.warning, .incomplete)::after {
   mask-image: url("../icons/warning.svg");
 }
 
@@ -77,8 +77,8 @@
     --tag-color: var(--blue-700);
   }
 
-  &:is(.warning),
-  &:has(.warning) {
+  &:is(.warning, .incomplete),
+  &:has(.warning, .incomplete) {
     --tag-border-color: var(--orange-600);
     --tag-color: var(--orange-700);
   }
@@ -120,8 +120,8 @@
       background-color: var(--blue-100);
     }
 
-    &:is(.warning),
-    &:has(.warning) {
+    &:is(.warning, .incomplete),
+    &:has(.warning, .incomplete) {
       --tag-border-color: var(--orange-700);
       background-color: var(--orange-100);
     }

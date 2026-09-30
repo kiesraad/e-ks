@@ -9,7 +9,7 @@ mod csb_candidate_list;
 mod paper_corrected;
 mod restoration_status;
 
-pub use all_brp_findings::AllBrpFindings;
+pub use all_brp_findings::ProblematicCandidate;
 pub use all_csb_corrections::AllCsbCorrections;
 pub use all_omissions::AllOmissions;
 pub use brp_check_state::{BrpBadge, BrpCheckState};

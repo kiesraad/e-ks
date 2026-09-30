@@ -11,3 +11,4 @@ pub mod list_submitters;
 pub mod name_authorisations;
 pub mod persons;
 pub mod political_groups;
+pub mod problems;

@@ -5,7 +5,6 @@
 use askama::Template;
 use axum::{
     extract::{Query, State},
-    http::HeaderMap,
     response::{IntoResponse, Redirect, Response},
 };
 use axum_extra::extract::CookieJar;
@@ -38,7 +37,6 @@ pub async fn login_start<S: AppRequestState>(
     _: CsbLoginPath,
     State(state): State<S>,
     Query(query): Query<CsbLoginQuery>,
-    headers: HeaderMap,
 ) -> Result<Response, AppError> {
     require_github_oauth(state.config())?;
     Ok(HtmlTemplate(
@@ -46,7 +44,7 @@ pub async fn login_start<S: AppRequestState>(
             show_error: query.error.is_some(),
         },
         LocaleValues {
-            locale: Locale::from_headers(&headers),
+            locale: Locale::default(),
         },
     )
     .into_response())
@@ -95,7 +93,7 @@ mod tests {
     async fn login_start_is_not_found_without_github_config() {
         let state = crate::AppState::new_for_tests().await;
 
-        let err = login_start(CsbLoginPath, State(state), query(None), HeaderMap::new())
+        let err = login_start(CsbLoginPath, State(state), query(None))
             .await
             .expect_err("404 without config");
 
@@ -120,7 +118,7 @@ mod tests {
         )
         .await;
 
-        let response = login_start(CsbLoginPath, State(state), query(None), HeaderMap::new())
+        let response = login_start(CsbLoginPath, State(state), query(None))
             .await
             .expect("page");
 
@@ -141,14 +139,9 @@ mod tests {
         )
         .await;
 
-        let response = login_start(
-            CsbLoginPath,
-            State(state),
-            query(Some("github")),
-            HeaderMap::new(),
-        )
-        .await
-        .expect("page");
+        let response = login_start(CsbLoginPath, State(state), query(Some("github")))
+            .await
+            .expect("page");
 
         let body = response_body_string(response).await;
         assert!(body.contains("alert-error"));
