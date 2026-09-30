@@ -731,7 +731,7 @@ mod tests {
         .await?
         .into_response();
 
-        // A successful creation redirects to the paper correction view (with a POST).
+        // A successful creation permanent (preserving HTTP method) redirects to the paper correction view.
         assert_eq!(response.status(), StatusCode::PERMANENT_REDIRECT);
 
         // A single CSB store is recorded carrying the CreateEmpty event.

@@ -137,6 +137,7 @@ group:
   finished: Examination finished
   instruction_group: Examine information about the political group
   instruction_submitter: Examine information about the list submitter(s)
+  omission_all: To all omissions
   problems_present: Problems
   toggle: Finish or reopen examination
   unfinished: Finish examination
