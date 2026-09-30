@@ -414,8 +414,8 @@ mod tests {
         Ok(())
     }
 
-    /// The final list order (recorded, then on votes, then by lot) sets each
-    /// affiliation's own list number, independent of the print order.
+    /// The final list order (recorded, then on votes, then by lot) sets both
+    /// each affiliation's own list number and the print order.
     #[tokio::test]
     async fn eml230b_files_numbers_by_the_final_list_order() -> Result<(), AppError> {
         let state = AppState::new_for_tests().await;
@@ -444,23 +444,21 @@ mod tests {
 
         let files = eml230b_files(state.csb_store_registry(), &main_store).await?;
 
-        // Printed in list-creation order: "Gezeteld" was created first.
+        // The recorded order puts "Loting" first, so it gets list number 1
+        // and prints first; "Gezeteld" is 2 and prints second.
         let xml = String::from_utf8(files[0].1.clone()).unwrap();
         let position = |needle: &str| xml.find(needle).expect("group in export");
-        assert!(position("Gezeteld") < position("Loting"));
-
-        // Yet each carries its own established list number from the
-        // recorded order: "Loting" is 1, "Gezeteld" is 2.
-        assert!(position(r#"<AffiliationIdentifier Id="2">"#) < position("Gezeteld"));
-        assert!(position("Gezeteld") < position(r#"<AffiliationIdentifier Id="1">"#));
         assert!(position(r#"<AffiliationIdentifier Id="1">"#) < position("Loting"));
+        assert!(position("Loting") < position(r#"<AffiliationIdentifier Id="2">"#));
+        assert!(position(r#"<AffiliationIdentifier Id="2">"#) < position("Gezeteld"));
 
         Ok(())
     }
 
-    /// The print order matches the I 4 report's "Geldige lijsten" section
+    /// The print order follows the established list number, not the order
+    /// the underlying lists were created in.
     #[tokio::test]
-    async fn eml230b_files_prints_in_the_same_order_as_i4() -> Result<(), AppError> {
+    async fn eml230b_files_prints_by_established_list_number() -> Result<(), AppError> {
         let state = AppState::new_for_tests().await;
         let all_districts = ElectionConfig::EK27.electoral_districts().to_vec();
         // Created first, but alphabetically (and so numbered) last.
@@ -479,7 +477,7 @@ mod tests {
 
         let xml = String::from_utf8(files[0].1.clone()).unwrap();
         let position = |needle: &str| xml.find(needle).expect("group in export");
-        assert!(position("Zebra Partij") < position("Andere Partij"));
+        assert!(position("Andere Partij") < position("Zebra Partij"));
 
         Ok(())
     }

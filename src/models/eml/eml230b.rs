@@ -111,7 +111,7 @@ pub fn eml230b(
             .then(|| store.get_appellation_with_scrapped(WithCorrections::All, &scrapped));
 
         affiliations.push((
-            list.created_at,
+            *position,
             affiliation(
                 *position,
                 appellation,
@@ -126,10 +126,8 @@ pub fn eml230b(
         return Ok(None);
     }
 
-    // Printed in list-creation order, like the "Geldige lijsten" section of
-    // the I 4 report; each affiliation still carries its own established,
-    // final list number, independent of this order.
-    affiliations.sort_by_key(|(created_at, _)| *created_at);
+    // Printed in the established list order, like the I 4 report's "Geldige lijsten" section
+    affiliations.sort_by_key(|(position, _)| *position);
     let affiliations: Vec<_> = affiliations.into_iter().map(|(_, a)| a).collect();
 
     let now = chrono::Utc::now();
