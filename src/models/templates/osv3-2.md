@@ -6,20 +6,35 @@ footer_right = "Pagina {page} van {total}"
 
 # Centraal Stembureau
 
-Kandidatenlijsten verkiezing van de leden van de {{ election_name }}
+Kandidatenlijsten verkiezing van de leden van *{{ election_name|line }}*
 
-De voorzitter van het centraal stembureau voor verkiezing van de leden van de Eerste Kamer der Staten-Generaal;
+De voorzitter van het centraal stembureau voor verkiezing van de leden van **{{ election_name|line }}**;
 
 gelet op artikel S 13 van de Kieswet;
 
-maakt bekend dat voor de op {{ election_date }} te houden verkiezing de volgende geldige kandidatenlijsten zijn ingeleverd:
+maakt bekend dat voor de op **{{ election_date|line }}** te houden verkiezing de volgende geldige kandidatenlijsten zijn ingeleverd:
 
-{# {% for district_lists in valid_lists %} #}
-{# ## {{ district_lists.electoral_district }} #}
+{% for district in valid_lists %}
+## Kieskring {{ district.electoral_district|line }}
 
-{# {% for list in district_lists.lists %} #}
-{# ### {{ list.appellation }} #}
+{% for numbered in district.lists %}
+{ numbered = false }
+### Lijst {{ numbered.number }}. {{ numbered.list.appellation|line }}
 
-{# {{ list.candidates.len() }} #}
-{# {% endfor %} #}
-{# {% endfor %} #}
+{ widths = "auto 2 1" }
+|  | naam | woonplaats |
+| --- | --- | --- |
+{%- for candidate in numbered.list.candidates %}
+| {{ candidate.position }} | {{ candidate.name|cell }} | {{ candidate.locality|cell }} |
+{%- endfor %}
+
+{% if !loop.last %}
+@pagebreak
+{% endif %}
+
+{% endfor %}
+
+{% if !loop.last %}
+@pagebreak
+{% endif %}
+{% endfor %}

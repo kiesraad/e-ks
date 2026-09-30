@@ -4,14 +4,46 @@
 
 use textris_pdf::build::Textris;
 
-use super::{Pdf, layout::markdown_document, markdown::model_template};
-use crate::{AppError, csb::examination::ListNumbering};
+use super::{
+    Pdf,
+    inputs::{DistrictLists, ValidList},
+    layout::markdown_document,
+    markdown::{filters, model_template},
+};
+use crate::{AppError, core::AnyLocale, structs::persons::Person};
 
 #[derive(Debug)]
 pub struct OSV3_2 {
     pub election_name: String,
     pub election_date: String,
-    pub list_numbering: ListNumbering,
+    /// Per district, the lists in list number order.
+    pub valid_lists: Vec<DistrictLists<NumberedList>>,
+}
+
+/// A valid list with the number it was given in the numbering.
+#[derive(Debug)]
+pub struct NumberedList {
+    pub number: usize,
+    pub list: ValidList<PublishedCandidate>,
+}
+
+/// A candidate row, with the name as printed on the candidate list.
+#[derive(Debug, Clone)]
+pub struct PublishedCandidate {
+    pub position: usize,
+    /// E.g. `Kierkegaard, G.J. (Geertruda Johanna) (v)`.
+    pub name: String,
+    pub locality: String,
+}
+
+impl PublishedCandidate {
+    pub fn new(position: usize, person: &Person) -> Self {
+        Self {
+            position,
+            name: person.name_as_printed_on_list(AnyLocale::Nl),
+            locality: person.personal_data.locality().unwrap_or_default(),
+        }
+    }
 }
 
 model_template!(OSV3_2Template, OSV3_2, "models/templates/osv3-2.md");

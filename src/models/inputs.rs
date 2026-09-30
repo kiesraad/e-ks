@@ -11,7 +11,7 @@ use tracing::error;
 use crate::{
     AppError, ElectionConfig,
     core::{
-        ElectionType, ModelLocale,
+        AnyLocale, ElectionType, ModelLocale,
         constants::{DEFAULT_DATE_FORMAT, DEFAULT_TIME_FORMAT},
         election,
     },
@@ -22,7 +22,7 @@ use crate::{
         csb::HearingDetails,
         list_submitters::ListSubmitter,
         name_authorisations::NameAuthorisation as AppNameAuthorisation,
-        persons::Representative,
+        persons::{Person as AppPerson, Representative},
     },
 };
 
@@ -303,19 +303,34 @@ pub struct DistrictLists<L> {
 }
 
 /// A valid candidate list with its candidates, as reproduced by the I 4 and
-/// OSV 3-2 models.
+/// OSV 3-2 models. `C` is the per-candidate row, e.g. [`ValidListCandidate`]
+/// or [`super::osv3_2::PublishedCandidate`]. This abstraction is necessary,
+/// because the former document lists initials separately, while the latter
+/// lists the name as displayed on the ballot.
 #[derive(Debug, Clone)]
-pub struct ValidList {
+pub struct ValidList<C = ValidListCandidate> {
     pub appellation: String,
-    pub candidates: Vec<ValidListCandidate>,
+    pub candidates: Vec<C>,
 }
 
+/// A candidate row of the I 4, with the name split over two columns (last name, initials).
 #[derive(Debug, Clone)]
 pub struct ValidListCandidate {
     pub last_name: String,
     pub initials: String,
     pub locality: String,
     pub position: usize,
+}
+
+impl ValidListCandidate {
+    pub fn new(position: usize, person: &AppPerson) -> Self {
+        Self {
+            last_name: person.name.last_name_with_prefix(),
+            initials: person.initials_as_printed_on_list(AnyLocale::Nl),
+            locality: person.personal_data.locality().unwrap_or_default(),
+            position,
+        }
+    }
 }
 
 #[cfg(test)]
