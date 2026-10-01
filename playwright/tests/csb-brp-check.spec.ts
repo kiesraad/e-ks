@@ -97,11 +97,12 @@ test.describe("check for BRP errors", async () => {
     };
 
     const expectedErrors = [
-        "Achternaam wijkt af van de BRP, waarin staat: Nagelhout",
+        "De achternaam mag volgens de BRP zijn: Nagelhout, Speelman, Nagelhout-Speelman, Speelman-Nagelhout",
         "Voorletters wijkt af van de BRP, waarin staat: H",
         "Geslacht wijkt af van de BRP, waarin staat: man",
         "Geboortedatum wijkt af van de BRP, waarin staat: 06-06-1975",
         "Woonplaats wijkt af van de BRP, waarin staat: Ede",
+        "Adres niet gevonden in de BAG",
         "Er is geen persoon in de BRP met dit burgerservicenummer",
         "Op de overige persoonsgegevens is precies één persoon in de BRP gevonden, met burgerservicenummer 999991929. De gegevens hieronder zijn met die persoon vergeleken.",
         "De BRP bevat geen Woonplaats voor deze kandidaat",
