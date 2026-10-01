@@ -5,6 +5,7 @@ use auth_service::AuthServiceState;
 use axum::extract::FromRef;
 use secrecy::ExposeSecret;
 
+use super::blocked_notification::BlockedNotificationThrottle;
 use crate::{
     AppError, AppRequestState, Config, CsbMainStore, CsbMainStoreData, CsbStoreData, CsbStream,
     DbHealth, ElectionConfig, IdDeriver, PendingRequestStore, PgStoreData, Scope, SessionStore,
@@ -45,6 +46,8 @@ pub struct AppState {
     pub auth_service_state: AuthServiceState,
     pub db_health: DbHealth,
     pub brp_client: BrpClient,
+    /// Per-user cap on CDN block notifications.
+    pub blocked_notifications: BlockedNotificationThrottle,
 }
 
 impl AppRequestState for AppState {
@@ -172,6 +175,7 @@ impl AppState {
             auth_service_state,
             db_health: DbHealth::default(),
             brp_client,
+            blocked_notifications: BlockedNotificationThrottle::default(),
         })
     }
 
@@ -290,6 +294,7 @@ impl AppState {
             auth_service_state,
             db_health: DbHealth::default(),
             brp_client,
+            blocked_notifications: BlockedNotificationThrottle::default(),
         }
     }
 }

@@ -81,7 +81,11 @@ pub fn create_with(state: AppState, csb_routes: WithCsbRoutes) -> Router<AppStat
     #[cfg(not(feature = "dev-features"))]
     let router = app_router;
 
-    let router = router.merge(public_router(csb_routes));
+    // Reads the session cookie itself and must not extend a session, so it
+    // sits with the public routes.
+    let router = router
+        .merge(public_router(csb_routes))
+        .merge(super::blocked_notification::router());
 
     let router = router
         .layer(middleware::from_fn_with_state(
@@ -347,6 +351,21 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
         assert!(body.contains("Kiesraad - Kandidaatstelling"));
+    }
+
+    /// Reachable without a session: `204`, not a login redirect.
+    #[tokio::test]
+    async fn blocked_notification_needs_no_session() {
+        let state = AppState::new_for_tests().await;
+        let app: Router = create(state.clone()).with_state(state);
+
+        let request = Request::builder()
+            .uri("/blocked-notification?kind=block&path=/")
+            .body(Body::empty())
+            .unwrap();
+        let response = app.oneshot(request).await.expect("response");
+
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
     }
 
     /// Insert a committee session and build a GET request for `uri` that

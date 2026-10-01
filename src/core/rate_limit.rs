@@ -1,9 +1,10 @@
-//! Per-stream rate limits, loaded from environment variables into
+//! Rate limits, loaded from environment variables into
 //! [`Config`](crate::Config).
 //!
-//! Counted from the stream's own event log in
+//! The per-stream limits are counted from the stream's own event log in
 //! [`PgStore::update`](crate::PgStore::update), so there is no extra state and
-//! the counts survive restarts.
+//! the counts survive restarts. The blocked-notification limit is counted in
+//! memory (see [`crate::app::blocked_notification`]).
 
 use std::env;
 
@@ -19,6 +20,9 @@ const DEFAULT_MAX_EVENTS: usize = 3_000;
 
 /// Absolute cap on the number of events in one stream.
 const DEFAULT_MAX_EVENTS_TOTAL: usize = 30_000;
+
+/// CDN block notifications logged per user per window.
+const DEFAULT_MAX_BLOCKED_NOTIFICATIONS: usize = 10;
 
 /// Default sliding window: one hour.
 const DEFAULT_WINDOW_SECS: u64 = 3_600;
@@ -56,7 +60,8 @@ impl RateLimit {
     }
 }
 
-/// The rate limits applied to a political group's own event stream.
+/// The configured rate limits: per political-group stream, plus the per-user
+/// cap on CDN block notifications.
 #[derive(Debug, Clone, Copy)]
 pub struct RateLimits {
     /// Document downloads per window.
@@ -65,6 +70,8 @@ pub struct RateLimits {
     pub events: RateLimit,
     /// Absolute cap on the number of events in one stream; `0` disables it.
     pub events_total: usize,
+    /// CDN block notifications logged per user per window.
+    pub blocked_notifications: RateLimit,
 }
 
 impl Default for RateLimits {
@@ -79,6 +86,10 @@ impl Default for RateLimits {
                 window: window_from_secs(DEFAULT_WINDOW_SECS),
             },
             events_total: DEFAULT_MAX_EVENTS_TOTAL,
+            blocked_notifications: RateLimit {
+                max: DEFAULT_MAX_BLOCKED_NOTIFICATIONS,
+                window: window_from_secs(DEFAULT_WINDOW_SECS),
+            },
         }
     }
 }
@@ -101,6 +112,14 @@ impl RateLimits {
                 window: window_from_env("RATE_LIMIT_EVENTS_WINDOW_SECS", lookup)?,
             },
             events_total: number("RATE_LIMIT_EVENTS_TOTAL", defaults.events_total, lookup)?,
+            blocked_notifications: RateLimit {
+                max: number(
+                    "RATE_LIMIT_BLOCKED_NOTIFICATIONS",
+                    defaults.blocked_notifications.max,
+                    lookup,
+                )?,
+                window: window_from_env("RATE_LIMIT_BLOCKED_NOTIFICATIONS_WINDOW_SECS", lookup)?,
+            },
         })
     }
 }
@@ -124,7 +143,17 @@ impl RateLimits {
                 window,
             },
             events_total,
+            blocked_notifications: RateLimit {
+                max: DEFAULT_MAX_BLOCKED_NOTIFICATIONS,
+                window,
+            },
         }
+    }
+
+    /// The limits with the blocked-notification cap replaced.
+    pub fn with_blocked_notifications(mut self, limit: RateLimit) -> Self {
+        self.blocked_notifications = limit;
+        self
     }
 }
 
@@ -217,6 +246,10 @@ mod tests {
         assert_eq!(limits.events.max, defaults.events.max);
         assert_eq!(limits.events_total, defaults.events_total);
         assert_eq!(limits.events.window, defaults.events.window);
+        assert_eq!(
+            limits.blocked_notifications.max,
+            defaults.blocked_notifications.max
+        );
     }
 
     #[test]
@@ -227,6 +260,8 @@ mod tests {
             ("RATE_LIMIT_EVENTS", "7"),
             ("RATE_LIMIT_EVENTS_WINDOW_SECS", "120"),
             ("RATE_LIMIT_EVENTS_TOTAL", "9"),
+            ("RATE_LIMIT_BLOCKED_NOTIFICATIONS", "2"),
+            ("RATE_LIMIT_BLOCKED_NOTIFICATIONS_WINDOW_SECS", "30"),
         ]));
 
         let limits = RateLimits::from_env_with(&mut lookup).expect("limits");
@@ -236,6 +271,8 @@ mod tests {
         assert_eq!(limits.events.max, 7);
         assert_eq!(limits.events.window, TimeDelta::seconds(120));
         assert_eq!(limits.events_total, 9);
+        assert_eq!(limits.blocked_notifications.max, 2);
+        assert_eq!(limits.blocked_notifications.window, TimeDelta::seconds(30));
     }
 
     /// A blank value is treated as unset, a garbage value stops startup.

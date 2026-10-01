@@ -565,6 +565,7 @@ Runtime configuration is read from environment variables once at startup into a
 | `RATE_LIMIT_DOWNLOADS` / `RATE_LIMIT_DOWNLOADS_WINDOW_SECS` | Document downloads allowed per stream per window (default 60 per 3600s). |
 | `RATE_LIMIT_EVENTS` / `RATE_LIMIT_EVENTS_WINDOW_SECS` | Events one stream may record per window (default 2000 per 3600s). |
 | `RATE_LIMIT_EVENTS_TOTAL` | Absolute cap on the number of events in one stream (default 20000). |
+| `RATE_LIMIT_BLOCKED_NOTIFICATIONS` / `RATE_LIMIT_BLOCKED_NOTIFICATIONS_WINDOW_SECS` | CDN block notifications logged per logged-in user per window (default 10 per 3600s); see [Blocked-user notifications](#blocked-user-notifications). |
 
 The binary itself only reads `env::var`, but the deployment can supply these
 variables from a file (e.g. systemd `EnvironmentFile=`, Docker `--env-file`,
@@ -607,6 +608,34 @@ corrections, is not rate limited.
 Every refused write logs a warning with `event="rate_limit.hit"`, the limit
 name (`downloads`, `events`, `events_total`) and the stream id; monitoring
 alerts on that marker.
+
+### Blocked-user notifications
+
+Bunny Shield, the CDN in front of the app, serves a custom page when it
+blocks a request. Blocked anonymous visitors are expected; a blocked logged-in
+user should raise an alert. The page's script therefore calls
+`GET /blocked-notification` with the page type (`block`, `challenge`,
+`rate_limit`), the blocked path, the referrer path and, where the browser
+exposes it, the response status. Bunny offers no template variables, so that
+is all the page can send.
+
+The handler (`src/app/blocked_notification.rs`) answers `204` to everyone and
+sits outside the session middleware: it reads the cookie itself, so anonymous
+calls are cheap and never logged, and a call is not session activity. For a
+logged-in user it logs a warning with `event="blocked_notification"`, the
+stream id (or committee member), the election, the page's fields and the
+headers Bunny adds to every proxied request: CDN request id, country code,
+bot classification and JA4 fingerprint. Client text is stripped of control
+characters and capped in length.
+
+It is a `GET` because the block page has no CSRF token and the handler
+changes nothing but a counter. That counter guards against flooding: each
+user is held to `RATE_LIMIT_BLOCKED_NOTIFICATIONS` per fixed window, per
+process. The first refusal logs `event="blocked_notification.throttled"`;
+the rest of the window is silent.
+
+A block on the client as a whole (IP block, rate limit) also blocks the
+notification, so those cases never reach the log.
 
 ### Cargo features
 
