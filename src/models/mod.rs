@@ -1,7 +1,7 @@
 //! The official election PDF models, rendered in-process with
 //! [`textris_pdf`].
 //!
-//! Each model lives in its own file (`h1`, `h3`, `h4`, `h9`, `i1`, `i4`, plus
+//! Each model lives in its own file (`h1`, `h3`, `h4`, `h9`, `i1`, `i4`, `osv3_2`, plus
 //! the omission letter in `omission_letter` and the pre-submission overview in
 //! `brp_overview`); H 3 covers both the H 3-1 and H 3-2 variants. The document text is authored as askama
 //! Markdown templates in `templates/` (one per locale and variant), written in
@@ -30,6 +30,7 @@ pub mod inputs;
 mod layout;
 mod markdown;
 pub mod omission_letter;
+pub mod osv3_2;
 
 pub use examples::{Example, examples};
 pub use fonts::fonts;
@@ -139,10 +140,10 @@ mod tests {
             .expect("render model")
     }
 
-    /// Every example input renders to a valid PDF. This drives all nine
-    /// document builders (`h1`, `h3-1`, `h3-2`, `h4`, `h9`, `i1`, `i4`, the
-    /// omission letter and the pre-submission overview) together with the
-    /// shared layout code, end to end.
+    /// Every example input renders to a valid PDF. This drives all ten
+    /// document builders (`h1`, `h3-1`, `h3-2`, `h4`, `h9`, `i1`, `i4`,
+    /// `osv3-2`, the omission letter and the pre-submission overview) together
+    /// with the shared layout code, end to end.
     #[test]
     fn renders_every_example_input() {
         let mut rendered = 0;
@@ -151,7 +152,7 @@ mod tests {
             assert_pdf(&example.render().expect("render example"), name);
             rendered += 1;
         }
-        assert_eq!(rendered, 23, "expected to render every example input");
+        assert_eq!(rendered, 24, "expected to render every example input");
     }
 
     /// Every example input also exports as a Word document, which exercises the

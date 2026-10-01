@@ -415,6 +415,7 @@ mod tests {
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             ),
             ("/csb/examination/i4.pdf", "application/pdf"),
+            ("/csb/examination/osv3-2.pdf", "application/pdf"),
             (
                 "/csb/examination/finish/verzuimbrieven.zip",
                 "application/zip",

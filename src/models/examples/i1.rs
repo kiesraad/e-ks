@@ -2,8 +2,8 @@
 
 use super::strings;
 use crate::models::{
-    i1::{DistrictLists, I1, SubmittedList},
-    i4::{OmissionGroup, PublicSession},
+    i1::{I1, SubmittedList},
+    inputs::{DistrictLists, OmissionGroup, PublicSession},
 };
 
 fn i1_session() -> PublicSession {
@@ -30,7 +30,7 @@ fn submitted_list(
 
 /// Two districts; "De Correcte Partij" submitted in both, the blank list only
 /// in Bonaire.
-fn i1_submitted_lists() -> Vec<DistrictLists> {
+fn i1_submitted_lists() -> Vec<DistrictLists<SubmittedList>> {
     let correcte_partij = || submitted_list("De Correcte Partij", "Akwasi, M. (Maria)", 30);
     let kiesraad_demo = || submitted_list("Kiesraad Demo", "Nagelhout, M. (Marieke)", 12);
 

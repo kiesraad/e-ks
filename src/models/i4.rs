@@ -6,17 +6,11 @@ use textris_pdf::build::Textris;
 
 use super::{
     Pdf,
+    inputs::{DistrictLists, OmissionGroup, PublicSession, ValidList},
     layout::markdown_document,
     markdown::{filters, model_template},
 };
-use crate::{
-    AppError,
-    core::{
-        constants::{DEFAULT_DATE_FORMAT, DEFAULT_TIME_FORMAT},
-        election,
-    },
-    structs::csb::HearingDetails,
-};
+use crate::AppError;
 
 #[derive(Debug)]
 pub struct I4 {
@@ -29,56 +23,12 @@ pub struct I4 {
     pub removed_candidates: Vec<RemovedCandidates>,
     pub removed_appellations: Vec<RemovedAppellation>,
     pub corrected_appellations: Vec<CorrectedAppellation>,
-    pub valid_lists: Vec<DistrictLists>,
+    pub valid_lists: Vec<DistrictLists<ValidList>>,
     pub numbered_based_on_votes: Vec<NumberedOnVotes>,
     pub numbered_based_on_districts: Vec<NumberedOnDistricts>,
     /// Empty: no objections raised.
     pub objections: Vec<String>,
     pub response_objections: Option<String>,
-}
-
-#[derive(Debug)]
-pub struct PublicSession {
-    pub location: String,
-    pub date: String,
-    pub time: String,
-    pub chair: String,
-    pub members: Vec<String>,
-}
-
-impl From<election::PublicSession> for PublicSession {
-    fn from(session: election::PublicSession) -> Self {
-        PublicSession {
-            location: session.location.to_string(),
-            date: session.formatted_date(),
-            time: session.formatted_time(),
-            chair: session.chair.to_string(),
-            members: session.members.iter().map(ToString::to_string).collect(),
-        }
-    }
-}
-
-impl PublicSession {
-    /// Override the moment and the signatories configured for the election with
-    /// the hearing details the committee entered. The location stays
-    /// configured: the form shows it read-only.
-    pub fn with_hearing_details(self, details: HearingDetails) -> Self {
-        Self {
-            date: details.date_time.format(DEFAULT_DATE_FORMAT).to_string(),
-            time: details.date_time.format(DEFAULT_TIME_FORMAT).to_string(),
-            chair: details.chair,
-            members: details.members,
-            ..self
-        }
-    }
-}
-
-/// Omissions for one list, identified by its appellation and district(s).
-#[derive(Debug)]
-pub struct OmissionGroup {
-    pub appellation: String,
-    pub electoral_district: String,
-    pub omission_descriptions: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -108,26 +58,6 @@ pub struct CorrectedAppellation {
     pub electoral_district: String,
     pub submitted_appellation: String,
     pub edited_appellation: String,
-}
-
-#[derive(Debug)]
-pub struct DistrictLists {
-    pub electoral_district: String,
-    pub lists: Vec<ValidList>,
-}
-
-#[derive(Debug, Clone)]
-pub struct ValidList {
-    pub appellation: String,
-    pub candidates: Vec<ValidListCandidate>,
-}
-
-#[derive(Debug, Clone)]
-pub struct ValidListCandidate {
-    pub last_name: String,
-    pub initials: String,
-    pub locality: String,
-    pub position: usize,
 }
 
 #[derive(Debug)]

@@ -1,10 +1,12 @@
 //! Example inputs for model I 4.
 
 use super::strings;
-use crate::models::i4::{
-    CorrectedAppellation, DistrictLists, I4, NumberedOnDistricts, NumberedOnVotes, OmissionGroup,
-    PublicSession, RemovedAppellation, RemovedCandidate, RemovedCandidates, ValidList,
-    ValidListCandidate,
+use crate::models::{
+    i4::{
+        CorrectedAppellation, I4, NumberedOnDistricts, NumberedOnVotes, RemovedAppellation,
+        RemovedCandidate, RemovedCandidates,
+    },
+    inputs::{DistrictLists, OmissionGroup, PublicSession, ValidList, ValidListCandidate},
 };
 
 fn omission_group(
@@ -156,7 +158,7 @@ fn i4_corrected_appellations() -> Vec<CorrectedAppellation> {
     }]
 }
 
-fn i4_valid_lists() -> Vec<DistrictLists> {
+fn i4_valid_lists() -> Vec<DistrictLists<ValidList>> {
     let correcte_partij = || ValidList {
         appellation: "De Correcte Partij".to_string(),
         candidates: vec![
