@@ -61,9 +61,15 @@
         <div>
           <p>{{ "candidate_list.actions.add_candidates"|trans }}:</p>
           <div class="buttons">
-            <a href="{{ full_list.list.add_candidate_path() }}"
-               class="button secondary icon-plus open-modal"
-               type="button">{{ "candidate_list.actions.add_existing"|trans }}</a>
+            {% if has_persons %}
+              {% if all_persons_added %}
+                <span class="button secondary icon-plus disabled" aria-disabled="true">{{ "candidate_list.actions.add_existing"|trans }}</span>
+              {% else %}
+                <a href="{{ full_list.list.add_candidate_path() }}"
+                   class="button secondary icon-plus open-modal"
+                   type="button">{{ "candidate_list.actions.add_existing"|trans }}</a>
+              {% endif %}
+            {% endif %}
             <a href="{{ full_list.list.create_candidate_path() }}"
                class="button secondary icon-plus open-modal"
                type="button">{{ "candidate_list.actions.add_new"|trans }}</a>
