@@ -85,7 +85,7 @@ urlencoding = "2.1.3" # 264M downloads (Kornel)
 
 # development tooling
 dotenvy = "0.15.7"
-saphyr = { version = "0.0.12", default-features = false }
+saphyr = { version = "0.1.0", default-features = false }
 serde-saphyr = { version = "1.0.0", default-features = false, features = ["deserialize"] }
 
 # tweedegolf
