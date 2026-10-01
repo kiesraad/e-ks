@@ -1,17 +1,19 @@
 pub(crate) mod eml110a;
 pub(crate) mod eml210;
+pub(crate) mod eml230b;
 
 use chrono::Datelike;
 use eks_utils::slugify_teletex;
 use eml_nl::{
-    common::ElectionDomain,
-    documents::ElectionIdentifierBuilder,
-    utils::{ElectionCategory, ElectionDomainId, ElectionId, ElectionSubcategory},
+    common::{CandidateIdentifier, CountryNameCode, ElectionDomain},
+    documents::{ElectionIdentifierBuilder, candidate_lists::QualifyingAddress},
+    utils::{CandidateId, ElectionCategory, ElectionDomainId, ElectionId, ElectionSubcategory},
 };
 
 use crate::{
     AppError, ElectionConfig,
     core::{ElectionType, ModelLocale},
+    structs::{common::Gender, persons::PersonalData},
 };
 
 impl From<ElectionType> for ElectionCategory {
@@ -23,12 +25,50 @@ impl From<ElectionType> for ElectionCategory {
             ElectionType::Ps => ElectionCategory::PS,
             ElectionType::Ws => ElectionCategory::AB,
             ElectionType::Ep => ElectionCategory::EP,
-            ElectionType::Kc | ElectionType::Kcni => {
-                todo!("Kiescolleges don't have an official code yet in EML-NL")
-            }
+            ElectionType::Kc | ElectionType::Kcni => ElectionCategory::KC,
             ElectionType::Er => ElectionCategory::ER,
         }
     }
+}
+
+impl From<&PersonalData> for eml_nl::utils::Gender {
+    fn from(data: &PersonalData) -> Self {
+        match data.gender {
+            None => eml_nl::utils::Gender::Unknown,
+            Some(Gender::Female) => eml_nl::utils::Gender::Female,
+            Some(Gender::Male) => eml_nl::utils::Gender::Male,
+        }
+    }
+}
+
+impl TryFrom<&PersonalData> for QualifyingAddress {
+    type Error = AppError;
+
+    fn try_from(data: &PersonalData) -> Result<Self, Self::Error> {
+        Ok(QualifyingAddress::new(
+            data.place_of_residence
+                .as_ref()
+                .ok_or(AppError::IncompleteData("missing place of residence"))?
+                .to_string(),
+            match data
+                .country
+                .as_ref()
+                .ok_or(AppError::IncompleteData("missing country"))?
+            {
+                country if country.is_nl() => None,
+                country => Some(CountryNameCode::new(country.to_string())),
+            },
+        ))
+    }
+}
+
+/// The [`CandidateIdentifier`] EML expects for a candidate's list position
+/// (1-based); shared by the 210 nomination and 230b candidate list exports.
+pub(crate) fn candidate_identifier(position: usize) -> Result<CandidateIdentifier, AppError> {
+    Ok(CandidateIdentifier::new(
+        CandidateId::from_u64(position as u64)
+            .map_err(|_| AppError::IncompleteData("candidate position is 0"))?,
+    ))
 }
 
 impl From<&ElectionConfig> for ElectionSubcategory {
@@ -58,9 +98,8 @@ impl From<&ElectionConfig> for ElectionSubcategory {
                 }
             }
             ElectionType::Ep => ElectionSubcategory::EP,
-            ElectionType::Kc | ElectionType::Kcni => {
-                todo!("Kiescolleges don't have an official code yet in EML-NL")
-            }
+            ElectionType::Kc => ElectionSubcategory::KCCN,
+            ElectionType::Kcni => ElectionSubcategory::KCNI,
             ElectionType::Er => ElectionSubcategory::ER1,
         }
     }
@@ -107,4 +146,17 @@ impl TryFrom<ElectionConfig> for ElectionIdentifierBuilder {
 
         Ok(election_id)
     }
+}
+
+/// Remove the variable fields from an EML string
+#[cfg(test)]
+pub(crate) fn remove_variable_fields(eml: &str) -> String {
+    let eml = regex::Regex::new(r"<IssueDate>.*?</IssueDate>")
+        .unwrap()
+        .replace(eml, "<IssueDate/>")
+        .into_owned();
+    regex::Regex::new(r"<kr:CreationDateTime>.*?</kr:CreationDateTime>")
+        .unwrap()
+        .replace(&eml, "<kr:CreationDateTime/>")
+        .into_owned()
 }

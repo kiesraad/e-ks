@@ -2,9 +2,8 @@
 
 use eml_nl::{
     common::{
-        AuthorityIdentifier, CandidateIdentifier, CountryNameCode, CreatedByAuthority, FirstName,
-        LastName, ListData, ListDataContest, ManagingAuthority, NameLineInitials, NamePrefix,
-        PersonName,
+        AuthorityIdentifier, CreatedByAuthority, FirstName, LastName, ListData, ListDataContest,
+        ManagingAuthority, NameLineInitials, NamePrefix, PersonName,
     },
     documents::{
         EML, ElectionIdentifierBuilder,
@@ -15,16 +14,17 @@ use eml_nl::{
         },
     },
     io::EMLWrite,
-    utils::{AffiliationType, AuthorityId, CandidateId, ContestId, StringValue},
+    utils::{AffiliationType, AuthorityId, ContestId, StringValue},
 };
 
 use crate::{
     AppError, ElectionConfig, PgStore,
     core::ModelLocale,
+    models::eml::candidate_identifier,
     structs::{
         candidate_lists::{CandidateList, CandidateListId, FullCandidateList},
         candidates::Candidate,
-        common::{Address, BsnOrNoneConfirmed, DutchAddress, FullName, Gender},
+        common::{Address, BsnOrNoneConfirmed, DutchAddress, FullName},
         list_submitters::ListSubmitter,
         persons::Representative,
         political_groups::PoliticalGroup,
@@ -108,10 +108,7 @@ impl TryInto<eml_nl::documents::nomination::NominationCandidate> for &Candidate 
 
     fn try_into(self) -> Result<eml_nl::documents::nomination::NominationCandidate, Self::Error> {
         Ok(eml_nl::documents::nomination::NominationCandidate {
-            identifier: CandidateIdentifier::new(
-                CandidateId::from_u64(self.position as u64)
-                    .map_err(|_| AppError::IncompleteData("candidate position is 0"))?,
-            ),
+            identifier: candidate_identifier(self.position)?,
             full_name: (&self.person.name).into(),
             date_of_birth: self
                 .person
@@ -119,29 +116,9 @@ impl TryInto<eml_nl::documents::nomination::NominationCandidate> for &Candidate 
                 .date_of_birth
                 .as_ref()
                 .map(|n| StringValue::from_value((**n).into())),
-            gender: StringValue::from_value(match self.person.personal_data.gender {
-                None => eml_nl::utils::Gender::Unknown,
-                Some(Gender::Female) => eml_nl::utils::Gender::Female,
-                Some(Gender::Male) => eml_nl::utils::Gender::Male,
-            }),
-            qualifying_address: QualifyingAddress::new(
-                self.person
-                    .personal_data
-                    .place_of_residence
-                    .as_ref()
-                    .ok_or(AppError::IncompleteData("missing place of residence"))?
-                    .to_string(),
-                match self
-                    .person
-                    .personal_data
-                    .country
-                    .as_ref()
-                    .ok_or(AppError::IncompleteData("missing country"))?
-                {
-                    country if country.is_nl() => None,
-                    country => Some(CountryNameCode::new(country.to_string())),
-                },
-            ),
+            gender: Some(StringValue::from_value((&self.person.personal_data).into())),
+            gender_annex: None,
+            qualifying_address: (&self.person.personal_data).try_into()?,
             contact: (!self.person.needs_representative())
                 .then(|| (&Address::Dutch(self.person.address.clone())).into()),
             agent: self
@@ -217,7 +194,7 @@ fn list_data(list: &CandidateList, locale: ModelLocale) -> Result<ListData, AppE
     })
 }
 
-/// Build the EML 2.10 candidate nomination XML for a candidate list
+/// Build the EML 210 candidate nomination XML for a candidate list
 pub fn eml210(
     store: &PgStore,
     election: &ElectionConfig,
@@ -282,11 +259,12 @@ pub fn eml210(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{collections::BTreeSet, str::FromStr};
+    use std::{assert_matches, collections::BTreeSet, str::FromStr};
 
     use crate::{
         AppError, Context, ElectoralDistrict, PgStore,
         core::ModelLocale,
+        models::eml::remove_variable_fields,
         structs::{
             candidate_lists::{CandidateListId, FullCandidateList},
             common::CountryCode,
@@ -340,14 +318,17 @@ mod tests {
     }
 
     async fn check_eml(response: &str, expected: &str) {
-        let stringify_nomination_data = |eml: eml_nl::documents::EML| {
-            format!("{:?}", eml.as_nomination_doc().unwrap().nomination_data)
-        };
+        // should parse
+        assert_matches!(response.parse().unwrap(), EML::Nomination(_));
+        assert_matches!(expected.parse().unwrap(), EML::Nomination(_));
 
-        let received = stringify_nomination_data(response.parse().unwrap());
-        let expected = stringify_nomination_data(expected.parse().unwrap());
-
-        assert_eq!(received, expected, "received XML:\n{}", response);
+        // should match the expected document, other than the variable fields
+        assert_eq!(
+            remove_variable_fields(response),
+            remove_variable_fields(expected),
+            "received XML:\n{}",
+            response
+        );
     }
 
     #[tokio::test]

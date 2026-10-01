@@ -13,9 +13,12 @@
 //!
 //! [`mod@documents`] collects the store data for a candidate list and streams
 //! the rendered models plus the [`mod@eml::eml210`] nomination export as a ZIP
-//! download.
+//! download. [`mod@csb_model_inputs`] collects the CSB store data the `i1`,
+//! `i4` and `omission_letter` models (and the [`mod@eml::eml230b`] export)
+//! need, from the live [`crate::CsbStream`]s.
 
 pub mod brp_overview;
+pub(crate) mod csb_model_inputs;
 pub(crate) mod documents;
 pub(crate) mod eml;
 pub mod examples;

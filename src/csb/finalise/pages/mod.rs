@@ -3,6 +3,7 @@ use axum_extra::routing::RouterExt;
 
 use crate::AppRequestState;
 
+mod eml230b;
 mod objection;
 mod order;
 mod overview;
@@ -16,4 +17,5 @@ pub fn router<S: AppRequestState>() -> Router<S> {
         .typed_get(objection::update_objection)
         .typed_post(objection::update_objection_submit)
         .typed_post(objection::delete_objection)
+        .typed_get(eml230b::download_eml230b::<S>)
 }
