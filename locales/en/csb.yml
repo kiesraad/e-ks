@@ -137,6 +137,7 @@ group:
   finished: Examination finished
   instruction_group: Examine information about the political group
   instruction_submitter: Examine information about the list submitter(s)
+  omission_all: To all omissions
   problems_present: Problems
   toggle: Finish or reopen examination
   unfinished: Finish examination
@@ -245,7 +246,8 @@ omission_letter:
   title: Letter of omission
 paper_corrections:
   added: Paper correction added
-  banner: "You are correcting {}. Only enter corrections that are handwritten on the submitted paper documents, nothing else."
+  banner: "You are correcting “{}”. Only enter corrections that are handwritten on the submitted paper documents, nothing else."
+  banner_no_name: "You are correcting a political group that doesn't have an appellation yet. Only enter corrections that are handwritten on the submitted paper documents, nothing else."
   instruction: Copy handwritten corrections from the submitted paper documents into the imported data
   none: No paper corrections have been taken over yet.
   start: Go to data

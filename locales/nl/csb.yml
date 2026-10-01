@@ -137,6 +137,7 @@ group:
   finished: Onderzoek afgerond
   instruction_group: Controleer de gegevens van de politieke groepering
   instruction_submitter: Controleer de gegevens van de lijstinleveraar(s)
+  omission_all: Naar alle verzuimen
   problems_present: Problemen
   toggle: Onderzoek afronden of heropenen
   unfinished: Onderzoek afronden
@@ -245,7 +246,8 @@ omission_letter:
   title: Verzuimbrief
 paper_corrections:
   added: Papieren correctie toegevoegd
-  banner: "U corrigeert {}. Neem alleen correcties over die met de hand op de ingeleverde papieren documenten zijn geschreven, verder niets."
+  banner: "U corrigeert “{}”. Neem alleen correcties over die met de hand op de ingeleverde papieren documenten zijn geschreven, verder niets."
+  banner_no_name: "U corrigeert een politieke groepering die nog geen aanduiding heeft. Neem alleen correcties over die met de hand op de ingeleverde papieren documenten zijn geschreven, verder niets."
   instruction: Neem handgeschreven correcties van de ingeleverde papieren documenten over in de geïmporteerde gegevens
   none: Er zijn nog geen papieren correcties overgenomen.
   start: Ga naar gegevens

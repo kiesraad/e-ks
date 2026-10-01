@@ -54,7 +54,7 @@ impl PoliticalGroup {
         if let Some(name) = &self.appellation {
             name.to_string()
         } else {
-            "???".to_string()
+            String::new()
         }
     }
 
@@ -178,7 +178,7 @@ mod tests {
             initials: Some(Initials::from_str("A.B.").unwrap()),
         };
         let cases = [
-            (None, "Test Partij", "Test Partij", "???", "???"),
+            (None, "Test Partij", "Test Partij", "", ""),
             (
                 Some(ListDesignation::Blank),
                 "Blanco (Nagelhout, A.B.)",
@@ -190,15 +190,15 @@ mod tests {
                 Some(ListDesignation::Combined),
                 "Test Partij",
                 "Test Partij",
-                "???",
-                "???",
+                "",
+                "",
             ),
             (
                 Some(ListDesignation::Standalone),
                 "Test Partij",
                 "Test Partij",
-                "???",
-                "???",
+                "",
+                "",
             ),
         ];
         for (
