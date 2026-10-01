@@ -116,7 +116,8 @@ impl TryInto<eml_nl::documents::nomination::NominationCandidate> for &Candidate 
                 .date_of_birth
                 .as_ref()
                 .map(|n| StringValue::from_value((**n).into())),
-            gender: StringValue::from_value((&self.person.personal_data).into()),
+            gender: Some(StringValue::from_value((&self.person.personal_data).into())),
+            gender_annex: None,
             qualifying_address: (&self.person.personal_data).try_into()?,
             contact: (!self.person.needs_representative())
                 .then(|| (&Address::Dutch(self.person.address.clone())).into()),
