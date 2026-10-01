@@ -211,7 +211,7 @@ impl CsbStream {
             .cloned()
             .collect();
 
-        omissions.sort_by_key(|omission| self.title_order(omission));
+        omissions.sort_by_cached_key(|omission| self.title_order(omission));
         omissions
     }
 
@@ -259,7 +259,7 @@ impl CsbStream {
             .cloned()
             .collect();
 
-        omissions.sort_by_key(|omission| self.title_order(omission));
+        omissions.sort_by_cached_key(|omission| self.title_order(omission));
         Ok(omissions)
     }
 
@@ -308,12 +308,12 @@ impl CsbStream {
             .cloned()
             .collect();
 
-        omissions.sort_by_key(|omission| self.title_order(omission));
+        omissions.sort_by_cached_key(|omission| self.title_order(omission));
         omissions
     }
 
-    /// Sort key putting omissions in the title order, then district, so the
-    /// parts of a split stay together and in place.
+    /// Sort key putting omissions in title order, then district order, so the
+    /// parts of a split stay together.
     pub(crate) fn title_order(&self, omission: &Omission) -> (OmissionTitle, usize) {
         let order = self.election.electoral_districts();
         let first_district = self

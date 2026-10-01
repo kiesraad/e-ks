@@ -9,12 +9,11 @@ use axum::{
     extract::State,
     response::{IntoResponse, Redirect, Response},
 };
-use axum_extra::routing::TypedPath;
 use serde::Deserialize;
 
 use crate::{
     AppError, AppRequestState, Context, CsbAction, CsbContext, CsbStore, CsbStoreData, CsbUser,
-    ElectionConfig, Form, HtmlTemplate, Locale, PgStoreData, QueryParamState, StreamId,
+    ElectionConfig, Form, HtmlTemplate, Locale, PgStoreData, StreamId,
     csb::examination::{
         CsbExaminationOverviewPath, CsbPoliticalGroupPath, extractors::CsbPoliticalGroup,
     },
@@ -271,11 +270,10 @@ pub async fn create_empty<S: AppRequestState>(
         context.user()?,
     );
     csb_store.update(CsbAction::CreateEmpty).await?;
-    // use a permanent redirect to preserve the HTTP method (POST)
-    Ok(Redirect::permanent(
+    // A temporary (307) redirect preserves the POST method and form body.
+    Ok(Redirect::temporary(
         &CsbPoliticalGroup::new_from_csb_store(&csb_store)
             .start_paper_corrections_path()
-            .with_query_params(QueryParamState::success())
             .to_string(),
     )
     .into_response())
@@ -731,8 +729,8 @@ mod tests {
         .await?
         .into_response();
 
-        // A successful creation permanent (preserving HTTP method) redirects to the paper correction view.
-        assert_eq!(response.status(), StatusCode::PERMANENT_REDIRECT);
+        // A successful creation redirects (preserving the POST method) to start paper corrections.
+        assert_eq!(response.status(), StatusCode::TEMPORARY_REDIRECT);
 
         // A single CSB store is recorded carrying the CreateEmpty event.
         let csb_stores = state.csb_store_registry().stores_by_scope().await?;
