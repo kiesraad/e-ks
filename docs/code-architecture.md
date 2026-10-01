@@ -565,6 +565,7 @@ Runtime configuration is read from environment variables once at startup into a
 | `RATE_LIMIT_DOWNLOADS` / `RATE_LIMIT_DOWNLOADS_WINDOW_SECS` | Document downloads allowed per stream per window (default 60 per 3600s). |
 | `RATE_LIMIT_EVENTS` / `RATE_LIMIT_EVENTS_WINDOW_SECS` | Events one stream may record per window (default 2000 per 3600s). |
 | `RATE_LIMIT_EVENTS_TOTAL` | Absolute cap on the number of events in one stream (default 20000). |
+| `STORE_CACHE_IDLE_MINUTES` | Evict cached political-group stores not used for this many minutes (default 1440, i.e. 24 hours); evicted streams reload from persistence on their next use. |
 
 The binary itself only reads `env::var`, but the deployment can supply these
 variables from a file (e.g. systemd `EnvironmentFile=`, Docker `--env-file`,
@@ -748,7 +749,12 @@ parameterized over a projection type `D`:
   persisted, and is used where a stream must already exist (the CSB
   extractors). Registry queries are scope-aware: `streams_by_scope` and
   `stream_metadata_by_scope` list only streams recorded with the projection's
-  own scope.
+  own scope. The political-group registry is bounded by idle eviction: a
+  sweeper task purges stores not handed out for `STORE_CACHE_IDLE_MINUTES`
+  (default 24 hours); evicted streams reload from persistence on their next
+  lookup. The CSB registries hold a handful of streams and are not swept. The
+  in-memory backend is exempt, since there the cached projection is the only
+  copy of the events.
 - **`PgStore`** (`src/pg/store_handle.rs`) is the handle the feature handlers
   actually work with: it pairs a `Store<PgStoreData>` projection (reads) with
   a *write target*. For a political group session the target is its own
