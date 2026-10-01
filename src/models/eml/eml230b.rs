@@ -222,7 +222,8 @@ fn managing_authority_name(election: &ElectionConfig) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{collections::BTreeSet, str::FromStr};
+    use crate::models::eml::remove_variable_fields;
+    use std::{assert_matches, collections::BTreeSet, str::FromStr};
 
     use crate::{
         Province, WaterCouncil,
@@ -231,14 +232,17 @@ mod tests {
     };
 
     fn check_eml(response: &str, expected: &str) {
-        let stringify_candidate_list = |eml: eml_nl::documents::EML| {
-            format!("{:?}", eml.as_candidate_lists_doc().unwrap().candidate_list)
-        };
+        // should parse
+        assert_matches!(response.parse().unwrap(), EML::CandidateLists(_));
+        assert_matches!(expected.parse().unwrap(), EML::CandidateLists(_));
 
-        let received = stringify_candidate_list(response.parse().unwrap());
-        let expected = stringify_candidate_list(expected.parse().unwrap());
-
-        assert_eq!(received, expected, "received XML:\n{}", response);
+        // should match the expected document, other than the variable fields
+        assert_eq!(
+            remove_variable_fields(response),
+            remove_variable_fields(expected),
+            "received XML:\n{}",
+            response
+        );
     }
 
     /// A list covering `districts`, for [`affiliation_type`] and

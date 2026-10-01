@@ -147,3 +147,16 @@ impl TryFrom<ElectionConfig> for ElectionIdentifierBuilder {
         Ok(election_id)
     }
 }
+
+/// Remove the variable fields from an EML string
+#[cfg(test)]
+pub(crate) fn remove_variable_fields(eml: &str) -> String {
+    let eml = regex::Regex::new(r"<IssueDate>.*?</IssueDate>")
+        .unwrap()
+        .replace(eml, "<IssueDate/>")
+        .into_owned();
+    regex::Regex::new(r"<kr:CreationDateTime>.*?</kr:CreationDateTime>")
+        .unwrap()
+        .replace(&eml, "<kr:CreationDateTime/>")
+        .into_owned()
+}

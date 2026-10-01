@@ -259,11 +259,12 @@ pub fn eml210(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{collections::BTreeSet, str::FromStr};
+    use std::{assert_matches, collections::BTreeSet, str::FromStr};
 
     use crate::{
         AppError, Context, ElectoralDistrict, PgStore,
         core::ModelLocale,
+        models::eml::remove_variable_fields,
         structs::{
             candidate_lists::{CandidateListId, FullCandidateList},
             common::CountryCode,
@@ -317,14 +318,17 @@ mod tests {
     }
 
     async fn check_eml(response: &str, expected: &str) {
-        let stringify_nomination_data = |eml: eml_nl::documents::EML| {
-            format!("{:?}", eml.as_nomination_doc().unwrap().nomination_data)
-        };
+        // should parse
+        assert_matches!(response.parse().unwrap(), EML::Nomination(_));
+        assert_matches!(expected.parse().unwrap(), EML::Nomination(_));
 
-        let received = stringify_nomination_data(response.parse().unwrap());
-        let expected = stringify_nomination_data(expected.parse().unwrap());
-
-        assert_eq!(received, expected, "received XML:\n{}", response);
+        // should match the expected document, other than the variable fields
+        assert_eq!(
+            remove_variable_fields(response),
+            remove_variable_fields(expected),
+            "received XML:\n{}",
+            response
+        );
     }
 
     #[tokio::test]
