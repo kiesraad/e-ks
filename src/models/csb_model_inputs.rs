@@ -4,7 +4,7 @@
 //! What the omissions scrap is read from the store's [`Scrapped`] state, so
 //! the models report the same outcome as the recovery pages.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 
 use crate::{
     AppError, CsbStoreData, CsbStream, ElectionConfig, ElectoralDistrict, StreamId,
@@ -233,11 +233,6 @@ pub async fn i4_inputs(
         found_omissions: found_omissions(registry, election).await?,
         ..Default::default()
     };
-    let position: HashMap<StreamId, usize> = stream_order
-        .iter()
-        .enumerate()
-        .map(|(index, stream_id)| (*stream_id, index))
-        .collect();
     let mut valid_by_district: BTreeMap<ElectoralDistrict, Vec<(usize, i4::ValidList)>> =
         BTreeMap::new();
 
@@ -269,9 +264,9 @@ pub async fn i4_inputs(
             .corrected_appellations
             .extend(corrected_appellation(&store, election, &scrapped));
 
-        let group_position = position
-            .get(&store.stream_id)
-            .copied()
+        let group_position = stream_order
+            .iter()
+            .position(|stream_id| *stream_id == store.stream_id)
             .unwrap_or(usize::MAX);
         for (district, list) in valid_lists(&store, &scrapped)? {
             valid_by_district
