@@ -1,14 +1,18 @@
 //! Application state container and request extractors.
 //! Holds, among others: configuration, store, and CSRF tokens for handlers.
 
+use std::net::IpAddr;
+
 use auth_service::AuthServiceState;
 use axum::extract::FromRef;
 use secrecy::ExposeSecret;
 
 use crate::{
     AppError, AppRequestState, Config, CsbMainStore, CsbMainStoreData, CsbStoreData, CsbStream,
-    DbHealth, ElectionConfig, IdDeriver, PendingRequestStore, PgStoreData, Scope, SessionStore,
-    StreamId,
+    CsbUser, DbHealth, ElectionConfig, IdDeriver, PendingRequestStore, PgStoreData, Scope,
+    SessionStore, StreamId,
+    constants::CSB_ALERT_HOURS_REPEAT_INTERVAL,
+    core::AlertThrottle,
     crypto::MasterKey,
     projection::CSB_MAIN_STREAM_ID,
     store::{Store, StoreRegistry},
@@ -45,6 +49,9 @@ pub struct AppState {
     pub auth_service_state: AuthServiceState,
     pub db_health: DbHealth,
     pub brp_client: BrpClient,
+    /// Keeps the `CSB_ALERT_HOURS` warning to one per committee user and peer
+    /// address per [`CSB_ALERT_HOURS_REPEAT_INTERVAL`].
+    pub csb_alert_throttle: AlertThrottle<(CsbUser, Option<IpAddr>)>,
 }
 
 impl AppRequestState for AppState {
@@ -172,6 +179,7 @@ impl AppState {
             auth_service_state,
             db_health: DbHealth::default(),
             brp_client,
+            csb_alert_throttle: AlertThrottle::new(CSB_ALERT_HOURS_REPEAT_INTERVAL),
         })
     }
 
@@ -290,6 +298,7 @@ impl AppState {
             auth_service_state,
             db_health: DbHealth::default(),
             brp_client,
+            csb_alert_throttle: AlertThrottle::new(CSB_ALERT_HOURS_REPEAT_INTERVAL),
         }
     }
 }

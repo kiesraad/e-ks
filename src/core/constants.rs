@@ -1,5 +1,7 @@
 //! Shared constants used across the app.
 
+use std::time::Duration;
+
 use chrono_tz::{Europe, Tz};
 
 /// Default date format
@@ -15,6 +17,10 @@ pub const DEFAULT_DATE_TIME_FORMAT: &str = "%d-%m-%Y %H:%M";
 pub const DATE_TIME_SECONDS_FORMAT: &str = "%d-%m-%Y %H:%M:%S";
 
 pub const DEFAULT_TIMEZONE: &Tz = &Europe::Amsterdam;
+
+/// A committee user active within `CSB_ALERT_HOURS` is reported at most once
+/// per peer address in this interval, not on every request.
+pub const CSB_ALERT_HOURS_REPEAT_INTERVAL: Duration = Duration::from_secs(30 * 60);
 
 pub const MAX_CANDIDATES: usize = 80;
 
