@@ -1,0 +1,41 @@
+.login-split {
+  --login-content-offset: 25vh;
+
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 42fr) minmax(0, 58fr);
+
+  > main {
+    padding: var(--login-content-offset) var(--space-24) var(--space-12);
+
+    p {
+      font-size: var(--font-size-sm);
+    }
+  }
+}
+
+.login-intro {
+  background-color: var(--base-brand-blue);
+  color: var(--base-white);
+  padding: var(--login-content-offset) var(--space-24) var(--space-12);
+  position: relative;
+
+  h1 {
+    color: var(--base-white);
+  }
+
+  p {
+    font-size: var(--font-size-sm);
+    margin-top: var(--space-6);
+    max-width: 42ch;
+  }
+}
+
+.login-kiesraad-logo {
+  background: url("../icons/kiesraad-white.svg") left / contain no-repeat;
+  width: 100%;
+  height: var(--font-size-xl);
+  left: var(--space-10);
+  top: var(--space-10);
+  position: absolute;
+}

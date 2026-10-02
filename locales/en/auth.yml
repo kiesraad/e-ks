@@ -1,5 +1,5 @@
 button:
-  digid: Inloggen
+  digid: Log in with DigiD
 cancelled:
   message: You cancelled the login. You are not logged in to Candidate Nomination of the Kiesraad. Log in again to continue.
   title: Login cancelled
@@ -15,8 +15,10 @@ signed_out:
   message: "You have been logged out. Close your browser to end the session completely, or log in again."
   title: You have been logged out
 start:
+  app_description: This application helps you generate the paper documents needed for the nomination day.
+  app_title: Candidate nomination
   intro: You log in first. After that you have access to the Candidate Nomination application of the Kiesraad. Click the button below to log in; you will be guided through the login process step by step.
-  title: Log in to Candidate Nomination
+  title: Log in
 unavailable:
   message: The login service is currently unavailable. Please try again in a few minutes.
   title: Login temporarily unavailable

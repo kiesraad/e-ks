@@ -1,11 +1,15 @@
 {% extends "pg/common/components/base.html" %}
 {% block body %}
-  {% include "pg/common/components/public_header.html" %}
-  <main>
-    <div class="container auth-container">
+  <div class="login-split">
+    <aside class="login-intro">
+      <span class="login-kiesraad-logo" role="img" aria-label="Kiesraad"></span>
+      <h1>{{ "auth.start.app_title"|trans }}</h1>
+      <p class="text-balance">{{ "auth.start.app_description"|trans }}</p>
+    </aside>
+    <main class="auth-container">
       <h2>{{ "auth.start.title"|trans }}</h2>
-      <p>{{ "auth.start.intro"|trans }}</p>
+      <p class="text-balance">{{ "auth.start.intro"|trans }}</p>
       {% include "pg/common/components/digid_login_button.html" %}
-    </div>
-  </main>
+    </main>
+  </div>
 {% endblock %}
