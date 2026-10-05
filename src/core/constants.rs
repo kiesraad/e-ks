@@ -1,6 +1,6 @@
 //! Shared constants used across the app.
 
-use std::time::Duration;
+use std::{num::NonZeroU64, time::Duration};
 
 use chrono_tz::{Europe, Tz};
 
@@ -30,3 +30,7 @@ pub(crate) const BRP_PERSONS_ENDPOINT: &str = "haalcentraal/api/brp/personen";
 
 /// Default request timeout (in seconds) for BRP lookups.
 pub(crate) const BRP_TIMEOUT: u64 = 30;
+
+/// Default idle time (in minutes) before a cached store projection is evicted.
+pub(crate) const STORE_CACHE_IDLE_MINUTES: NonZeroU64 =
+    NonZeroU64::new(24 * 60).expect("24 * 60 is non-zero");

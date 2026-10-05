@@ -7,16 +7,38 @@ use std::{
     collections::{HashMap, HashSet},
     future::Future,
     sync::Arc,
+    time::{Duration, Instant},
 };
 
-use parking_lot::RwLock;
+use parking_lot::{Mutex, RwLock};
 use serde::{Serialize, de::DeserializeOwned};
 
 use super::{Store, StoreData, StorePersistence, StreamMeta};
 use crate::{AppError, ElectionConfig, Scope, StreamId, crypto::MasterKey};
 
 type StoreKey = (StreamId, ElectionConfig);
-type StoreMap<D> = Arc<RwLock<HashMap<StoreKey, Store<D>>>>;
+type StoreMap<D> = Arc<RwLock<HashMap<StoreKey, CacheEntry<D>>>>;
+
+/// A cached store plus when it was last handed out, for idle eviction.
+struct CacheEntry<D> {
+    store: Store<D>,
+    last_used: Mutex<Instant>,
+}
+
+impl<D> CacheEntry<D> {
+    fn new(store: Store<D>) -> Self {
+        Self {
+            store,
+            last_used: Mutex::new(Instant::now()),
+        }
+    }
+
+    /// Hand out the store, marking the entry as just used.
+    fn get(&self) -> Store<D> {
+        *self.last_used.lock() = Instant::now();
+        self.store.clone()
+    }
+}
 
 /// Closure type for the init-less ([`StoreRegistry::get_store`]) path, so the
 /// `None` case has a concrete type to infer.
@@ -154,7 +176,7 @@ where
         let key = (stream_id, election);
 
         if let Some(existing) = self.inner.read().get(&key) {
-            return Ok(existing.clone());
+            return Ok(existing.get());
         }
 
         if init.is_none()
@@ -181,9 +203,9 @@ where
         }
 
         let mut stores = self.inner.write();
-        let entry = stores.entry(key).or_insert(store);
+        let entry = stores.entry(key).or_insert_with(|| CacheEntry::new(store));
 
-        Ok(entry.clone())
+        Ok(entry.get())
     }
 
     /// List every `(stream_id, election)` stream matching this registry's
@@ -201,7 +223,26 @@ where
     /// Return the store for `(stream_id, election)` only if it is already warm in
     /// the cache; never consults persistence and never loads.
     pub fn get_cached(&self, stream_id: StreamId, election: ElectionConfig) -> Option<Store<D>> {
-        self.inner.read().get(&(stream_id, election)).cloned()
+        self.inner
+            .read()
+            .get(&(stream_id, election))
+            .map(CacheEntry::get)
+    }
+
+    /// Evict cached stores that were not handed out for at least `max_idle`,
+    /// returning how many were dropped. Only the projection warmth is lost: a
+    /// later lookup reloads the stream from persistence. A no-op on the
+    /// in-memory backend, where the cached projection is the only copy of the
+    /// events.
+    pub fn purge_idle(&self, max_idle: Duration) -> usize {
+        if matches!(self.persistence, StorePersistence::Memory(_)) {
+            return 0;
+        }
+
+        let mut stores = self.inner.write();
+        let before = stores.len();
+        stores.retain(|_, entry| entry.last_used.lock().elapsed() < max_idle);
+        before - stores.len()
     }
 
     /// Fetch (or create and load) every store matching this registry's
@@ -237,8 +278,9 @@ where
             let cached = self.inner.read();
             cached
                 .iter()
-                .filter_map(|((id, election), store)| {
-                    (*id == stream_id && store.data.read().last_event_id() > 0).then_some(*election)
+                .filter_map(|((id, election), entry)| {
+                    (*id == stream_id && entry.store.data.read().last_event_id() > 0)
+                        .then_some(*election)
                 })
                 .collect()
         };
@@ -250,10 +292,28 @@ where
     }
 }
 
+/// Periodically evict cached store projections not handed out for `max_idle`.
+pub async fn run_store_cache_sweeper<D>(registry: StoreRegistry<D>, max_idle: Duration)
+where
+    D: StoreData,
+    D::Event: Serialize + DeserializeOwned,
+{
+    const SWEEP_INTERVAL: Duration = Duration::from_secs(5 * 60);
+
+    let mut ticker = tokio::time::interval(SWEEP_INTERVAL);
+    loop {
+        ticker.tick().await;
+        let evicted = registry.purge_idle(max_idle);
+        if evicted > 0 {
+            tracing::debug!(evicted, "evicted idle store projections");
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Config, CsbAction, CsbStoreData, CsbUser, ElectionConfig};
+    use crate::{Config, CsbAction, CsbStoreData, CsbUser, ElectionConfig, PgEvent, PgStoreData};
 
     /// Two registries over one projection and backend, under different scopes.
     async fn two_scopes() -> (StoreRegistry<CsbStoreData>, StoreRegistry<CsbStoreData>) {
@@ -279,6 +339,75 @@ mod tests {
         );
 
         assert_eq!(registry.scope(), CsbStoreData::scope());
+    }
+
+    /// Registry over the filesystem backend in a fresh temp directory. The
+    /// local backend only persists political-group streams, hence
+    /// [`PgStoreData`].
+    async fn local_registry() -> StoreRegistry<PgStoreData> {
+        let dir = std::env::temp_dir().join(format!("eks-registry-test-{}", StreamId::new()));
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        let config = Config::new_test();
+        StoreRegistry::new(
+            format!("local://{}", dir.display()),
+            MasterKey::new(&config.master_encryption_key),
+        )
+        .await
+        .expect("local registry")
+    }
+
+    #[tokio::test]
+    async fn purge_idle_evicts_untouched_stores_but_keeps_persisted_data() -> Result<(), AppError> {
+        let registry = local_registry().await;
+        let stream_id = StreamId::new();
+        registry
+            .get_or_create(stream_id, ElectionConfig::EK27)
+            .await?
+            .update(PgEvent::Login)
+            .await?;
+
+        // Recently used, so nothing is idle for an hour yet.
+        assert_eq!(registry.purge_idle(Duration::from_secs(3600)), 0);
+        assert!(
+            registry
+                .get_cached(stream_id, ElectionConfig::EK27)
+                .is_some()
+        );
+
+        assert_eq!(registry.purge_idle(Duration::ZERO), 1);
+        assert!(
+            registry
+                .get_cached(stream_id, ElectionConfig::EK27)
+                .is_none()
+        );
+
+        // The evicted stream reloads from persistence with its events intact.
+        let reloaded = registry.get_store(stream_id, ElectionConfig::EK27).await?;
+        assert_eq!(reloaded.current_event_id(), 1);
+
+        Ok(())
+    }
+
+    /// The in-memory backend keeps events only in the cached projections, so
+    /// purging there would destroy data and must be a no-op.
+    #[tokio::test]
+    async fn purge_idle_is_a_noop_on_the_memory_backend() -> Result<(), AppError> {
+        let (registry, _) = two_scopes().await;
+        let stream_id = StreamId::new();
+        registry
+            .get_or_create(stream_id, ElectionConfig::EK27)
+            .await?
+            .update(CsbAction::CreateEmpty.by(CsbUser::new_test()))
+            .await?;
+
+        assert_eq!(registry.purge_idle(Duration::ZERO), 0);
+
+        let store = registry
+            .get_cached(stream_id, ElectionConfig::EK27)
+            .expect("still cached");
+        assert_eq!(store.current_event_id(), 1);
+
+        Ok(())
     }
 
     #[tokio::test]

@@ -1,6 +1,6 @@
 use eks::{
     AppError, AppState, Config, logging, router, router::WithCsbRoutes, run_db_prober,
-    run_session_sweeper, server,
+    run_session_sweeper, run_store_cache_sweeper, server,
 };
 use tokio::net::TcpListener;
 
@@ -79,6 +79,13 @@ async fn run(
     // Periodically evict expired sessions (Postgres backend accumulates rows
     // otherwise).
     tokio::spawn(run_session_sweeper(state.sessions.clone()));
+
+    // Evict political-group stores no request touched for the configured
+    // idle time, so that cache does not grow with every stream ever visited.
+    tokio::spawn(run_store_cache_sweeper(
+        state.store_registry.clone(),
+        state.config.store_cache_idle_timeout,
+    ));
 
     // A second listener (from `CSB_BIND_ADDRESS`) serves the whole application:
     // a committee session correcting paper documents uses the political-group
