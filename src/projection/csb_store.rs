@@ -298,6 +298,7 @@ mod tests {
     async fn update_records_the_acting_user() -> Result<(), AppError> {
         let user = CsbUser::Github {
             user_id: "42".parse().expect("valid id"),
+            login: None,
         };
         let store = CsbStore::acting_as(CsbStream::new_for_test(), user.clone());
 

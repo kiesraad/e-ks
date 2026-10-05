@@ -204,7 +204,8 @@ mod tests {
         let mut agreed = 0;
         let mut kinds = BTreeSet::new();
         for batch in persons.chunks(BRP_BSN_BATCH_SIZE) {
-            for (_, findings) in client.verify_batch(batch).await.expect("the mock answers") {
+            let checked = client.verify_batch(batch).await;
+            for (_, findings) in checked.outcome.expect("the mock answers") {
                 if findings.is_empty() {
                     agreed += 1;
                 }

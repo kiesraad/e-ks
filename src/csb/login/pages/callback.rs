@@ -13,13 +13,14 @@ use serde::Deserialize;
 use tracing::{info, warn};
 
 use crate::{
-    AppError, AppRequestState, CsbMainAction, CsbUser, GithubOauthConfig, GithubUserId, Locale,
-    Session,
+    AppError, AppRequestState, CsbMainAction, CsbUser, GithubOauthConfig, Locale, Session,
     auth::session_extractor::{establish_session, user_agent_hash},
     csb::{
         index::CsbIndexPath,
         login::{
-            CsbLoginCallbackPath, CsbLoginPath, github, pending_state_id, require_github_oauth,
+            CsbLoginCallbackPath, CsbLoginPath,
+            github::{self, GithubIdentity},
+            pending_state_id, require_github_oauth,
             state_cookie::{STATE_COOKIE_NAME, build_state_removal_cookie},
         },
     },
@@ -47,15 +48,15 @@ pub async fn callback<S: AppRequestState>(
         return Ok(login_failed(jar));
     };
 
-    let github_user_id = match github::authenticated_user_id(config, &code).await {
-        Ok(id) => id,
+    let identity = match github::authenticated_user(config, &code).await {
+        Ok(identity) => identity,
         Err(err) => {
             warn!("GitHub OAuth code exchange failed: {err}");
             return Ok(login_failed(jar));
         }
     };
 
-    complete_login(&state, config, github_user_id, jar, &headers).await
+    complete_login(&state, config, identity, jar, &headers).await
 }
 
 /// Validates the `state` round-trip and returns the authorization code.
@@ -103,27 +104,29 @@ async fn nonce_is_valid<S: AppRequestState>(state: &S, nonce: &str, jar: &Cookie
 async fn complete_login<S: AppRequestState>(
     state: &S,
     config: &GithubOauthConfig,
-    github_user_id: GithubUserId,
+    identity: GithubIdentity,
     jar: CookieJar,
     headers: &HeaderMap,
 ) -> Result<Response, AppError> {
-    if !config.allowed_user_ids.contains(&github_user_id) {
-        warn!("GitHub user {github_user_id} is not on the CSB allowlist");
+    if !config.allowed_user_ids.contains(&identity.id) {
+        warn!("GitHub user {} is not on the CSB allowlist", identity.id);
         return Ok(login_failed(jar));
     }
-    establish_committee_session(state, github_user_id, jar, headers).await
+    establish_committee_session(state, identity, jar, headers).await
 }
 
 /// Creates the committee session for an allowlisted GitHub user and records
 /// the login on the shared CSB main stream for the audit log.
 async fn establish_committee_session<S: AppRequestState>(
     state: &S,
-    github_user_id: GithubUserId,
+    identity: GithubIdentity,
     jar: CookieJar,
     headers: &HeaderMap,
 ) -> Result<Response, AppError> {
+    let github_user_id = identity.id;
     let user = CsbUser::Github {
-        user_id: github_user_id,
+        user_id: identity.id,
+        login: identity.login,
     };
     let election = state.config().default_election;
 
@@ -166,6 +169,14 @@ mod tests {
     };
 
     const LOGIN_ERROR_LOCATION: &str = "/csb/login?error=github";
+
+    /// The allowlisted account, with the login GitHub returns for it.
+    fn allowed_identity() -> GithubIdentity {
+        GithubIdentity {
+            id: test_support::allowed_user_id(),
+            login: Some("octocat".parse().expect("valid login")),
+        }
+    }
 
     async fn github_test_state() -> AppState {
         AppState::new_for_tests_with_config(test_support::github_test_config()).await
@@ -318,7 +329,10 @@ mod tests {
     async fn complete_login_rejects_user_not_on_allowlist() {
         let state = github_test_state().await;
         let config = state.config.github_oauth.clone().expect("github config");
-        let intruder = "999".parse().expect("valid id");
+        let intruder = GithubIdentity {
+            id: "999".parse().expect("valid id"),
+            login: Some("intruder".parse().expect("valid login")),
+        };
 
         let response = complete_login(
             &state,
@@ -342,7 +356,7 @@ mod tests {
         let response = complete_login(
             &state,
             &config,
-            test_support::allowed_user_id(),
+            allowed_identity(),
             CookieJar::new(),
             &HeaderMap::new(),
         )
@@ -390,7 +404,7 @@ mod tests {
         let response = complete_login(
             &state,
             &config,
-            test_support::allowed_user_id(),
+            allowed_identity(),
             CookieJar::new(),
             &HeaderMap::new(),
         )
@@ -432,15 +446,9 @@ mod tests {
             old_token.clone(),
         ));
 
-        let _ = complete_login(
-            &state,
-            &config,
-            test_support::allowed_user_id(),
-            jar,
-            &HeaderMap::new(),
-        )
-        .await
-        .expect("response");
+        let _ = complete_login(&state, &config, allowed_identity(), jar, &HeaderMap::new())
+            .await
+            .expect("response");
 
         assert!(
             state
