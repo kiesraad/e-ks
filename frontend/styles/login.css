@@ -3,21 +3,21 @@
 
   display: grid;
   flex: 1;
-  grid-template-columns: minmax(0, 42fr) minmax(0, 58fr);
+  grid-template-columns: minmax(0, 4fr) minmax(0, 6fr);
 
-  > main {
-    padding: var(--login-content-offset) var(--space-24) var(--space-12);
+  aside,
+  main {
+    padding: var(--login-content-offset) 20% var(--space-12);
+  }
 
-    p {
-      font-size: var(--font-size-sm);
-    }
+  p {
+    font-size: var(--font-size-sm);
   }
 }
 
 .login-intro {
   background-color: var(--base-brand-blue);
   color: var(--base-white);
-  padding: var(--login-content-offset) var(--space-24) var(--space-12);
   position: relative;
 
   h1 {
@@ -25,7 +25,6 @@
   }
 
   p {
-    font-size: var(--font-size-sm);
     margin-top: var(--space-6);
     max-width: 42ch;
   }
