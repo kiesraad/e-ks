@@ -4,6 +4,7 @@
 use std::{
     env,
     net::{Ipv4Addr, SocketAddr},
+    num::NonZeroU64,
     path::PathBuf,
     time::Duration,
 };
@@ -299,20 +300,18 @@ fn store_cache_idle_from_env<F>(lookup: &mut F) -> Result<Duration, AppError>
 where
     F: FnMut(&'static str) -> Result<String, env::VarError>,
 {
-    let minutes: u64 = lookup("STORE_CACHE_IDLE_MINUTES")
+    let minutes: NonZeroU64 = lookup("STORE_CACHE_IDLE_MINUTES")
         .unwrap_or(STORE_CACHE_IDLE_MINUTES.to_string())
         .parse()
         .map_err(|_| {
             AppError::ConfigLoadError(
-                "Invalid STORE_CACHE_IDLE_MINUTES; please enter a number of minutes".to_string(),
+                "Invalid STORE_CACHE_IDLE_MINUTES; please enter a positive number of minutes"
+                    .to_string(),
             )
         })?;
-    if minutes == 0 {
-        return Err(AppError::ConfigLoadError(
-            "STORE_CACHE_IDLE_MINUTES must be at least 1".to_string(),
-        ));
-    }
-    Ok(Duration::from_secs(minutes * 60))
+
+    // Saturate rather than panic on an absurdly large number of minutes.
+    Ok(Duration::from_secs(minutes.get().saturating_mul(60)))
 }
 
 /// GitHub OAuth config from `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, and
@@ -469,7 +468,7 @@ impl Config {
             github_oauth: None,
             default_election: ElectionConfig::EK27,
             rate_limits: RateLimits::default(),
-            store_cache_idle_timeout: Duration::from_secs(STORE_CACHE_IDLE_MINUTES * 60),
+            store_cache_idle_timeout: Duration::from_secs(STORE_CACHE_IDLE_MINUTES.get() * 60),
         }
     }
 }
