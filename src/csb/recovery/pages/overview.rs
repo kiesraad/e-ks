@@ -4,9 +4,7 @@ use axum::response::{IntoResponse, Response};
 use crate::{
     AppError, Context, CsbContext, HtmlTemplate,
     csb::{
-        examination::{
-            extractors::{CsbPoliticalGroup, CsbPoliticalGroups},
-        },
+        examination::extractors::{CsbPoliticalGroup, CsbPoliticalGroups},
         recovery::paths::CsbRecoveryOverviewPath,
     },
     filters,

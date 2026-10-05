@@ -7,4 +7,4 @@ mod pages;
 mod paths;
 
 pub use pages::router;
-pub use paths::{CsbFinalisePath, CsbI4FinalDownloadPath, CsbI4FinalDocxDownloadPath};
+pub use paths::{CsbFinalisePath, CsbI4FinalDocxDownloadPath, CsbI4FinalDownloadPath};

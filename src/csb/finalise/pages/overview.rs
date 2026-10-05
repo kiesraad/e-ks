@@ -2,12 +2,13 @@ use askama::Template;
 use axum::response::{IntoResponse, Response};
 
 use crate::{
-    AppError, Context, CsbContext, CsbMainStore, HtmlTemplate, csb::{
-        examination::{
-            extractors::CsbPoliticalGroups,
-            numbering::ListNumbering,
-        }, finalise::{paths::{CsbEml230bDownloadPath, CsbFinalisePath, CsbListOrderPath}},
-    }, filters, structs::csb::Objection,
+    AppError, Context, CsbContext, CsbMainStore, HtmlTemplate,
+    csb::{
+        examination::{extractors::CsbPoliticalGroups, numbering::ListNumbering},
+        finalise::paths::{CsbEml230bDownloadPath, CsbFinalisePath, CsbListOrderPath},
+    },
+    filters,
+    structs::csb::Objection,
 };
 
 #[derive(Template)]
