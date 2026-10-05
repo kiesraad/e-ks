@@ -59,7 +59,7 @@ fn blanco_nagelhout(number: usize) -> NumberedList {
 pub fn osv3_2_example_1() -> OSV3_2 {
     OSV3_2 {
         election_name: "de Eerste Kamer der Staten-Generaal".to_string(),
-        election_date: "24 mei 2027".to_string(),
+        election_date: "24-05-2027".to_string(),
         valid_lists: vec![
             DistrictLists {
                 electoral_district: ElectoralDistrict::Groningen.title().to_string(),
@@ -72,7 +72,7 @@ pub fn osv3_2_example_1() -> OSV3_2 {
         ],
         public_session: PublicSession {
             location: String::with_capacity(0),
-            date: "3 mei 2027".to_string(),
+            date: "03-05-2027".to_string(),
             time: String::with_capacity(0),
             chair: "M.C. Voorzitter".to_string(),
             members: Vec::with_capacity(0),

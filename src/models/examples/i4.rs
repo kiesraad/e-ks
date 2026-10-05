@@ -38,7 +38,7 @@ fn valid_list_candidate(
 fn i4_public_session() -> PublicSession {
     PublicSession {
         location: "'s-Gravenhage".to_string(),
-        date: "3 mei 2027".to_string(),
+        date: "03-05-2027".to_string(),
         time: "17:00 uur".to_string(),
         chair: "M.C. Voorzitter".to_string(),
         members: strings(&["A. Lid", "B. Lid", "C. Lid", "D. Lid", "E. Lid", "F. Lid"]),
@@ -218,7 +218,7 @@ fn i4_example(
 ) -> I4 {
     I4 {
         election_name: "de Eerste Kamer der Staten-Generaal".to_string(),
-        election_date: "24 mei 2027".to_string(),
+        election_date: "24-05-2027".to_string(),
         public_session: i4_public_session(),
         found_omissions: i4_found_omissions(),
         recovered_omissions: i4_recovered_omissions(),
