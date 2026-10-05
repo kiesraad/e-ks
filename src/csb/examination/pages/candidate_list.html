@@ -1,6 +1,7 @@
 {% extends "csb/components/layout.html" %}
 {% import "csb/components/paper_corrected.html" as paper_corrected %}
 {% import "csb/components/restorations.html" as restorations %}
+{% import "csb/components/header_examination_actions.html" as header %}
 {% block breadcrumbs %}
   {{ breadcrumb(political_group.overview_path() , political_group.overview_title_key()) }}
   {{ breadcrumb(political_group.group_path() , political_group.csb_appellation(), is_translatable=false) }}
@@ -47,8 +48,7 @@
   </div>
 {% endblock %}
 {% block header_action %}
-  {% set back_url = political_group.group_path() %}
-  {% include "csb/components/header_examination_actions.html" %}
+  {{ header::header_actions(political_group, political_group.group_path() ) }}
 {% endblock %}
 {% block content %}
   <section class="general-information candidate-list">

@@ -1,6 +1,7 @@
 {% extends "csb/components/layout.html" %}
 {% import "pg/common/components/macros.html" as macros %}
 {% import "csb/components/restorations.html" as restorations %}
+{% import "csb/components/header_examination_actions.html" as header %}
 {% block breadcrumbs %}
   {{ breadcrumb(political_group.overview_path() , political_group.overview_title_key()) }}
   {{ breadcrumb(political_group.group_path() , political_group.csb_appellation(), is_translatable=false) }}
@@ -9,8 +10,7 @@
   {{ political_group.csb_appellation() }}
 {% endblock %}
 {% block header_action %}
-  {% set back_url = political_group.overview_path() %}
-  {% include "csb/components/header_examination_actions.html" %}
+  {{ header::header_actions(political_group, political_group.overview_path() , include_all_restorations=true) }}
 {% endblock %}
 {% block content %}
   {% let election = "election"|election_value %}

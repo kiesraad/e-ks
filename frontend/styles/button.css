@@ -77,6 +77,14 @@ span.button {
       border-color: var(--border-color-default);
       background-color: var(--button-color-secondary-active);
     }
+
+    &:disabled,
+    &.disabled {
+      color: var(--button-color-secondary-disabled);
+      border-color: var(--gray-100);
+      background: var(--button-color-secondary-bg-disabled);
+      cursor: default;
+    }
   }
 
   &.tertiary {

@@ -59,7 +59,13 @@
       {% let paper_corrections_group_name = "paper_corrections_group_name"|str_value %}
       <div class="paper-corrections-banner">
         <div class="alert alert-warning">
-          <div>{{ "csb.paper_corrections.banner"|trans(&paper_corrections_group_name) }}</div>
+          <div>
+            {% if paper_corrections_group_name.is_empty() %}
+              {{ "csb.paper_corrections.banner_no_name"|trans }}
+            {% else %}
+              {{ "csb.paper_corrections.banner"|trans(&paper_corrections_group_name) }}
+            {% endif %}
+          </div>
           <form method="post" action="{{ "paper_corrections_exit_path"|str_value }}">
             {{ macros::csrf_field() }}
             <button type="submit" class="button sm secondary">{{ "csb.paper_corrections.stop"|trans }}</button>

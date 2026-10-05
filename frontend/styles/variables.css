@@ -187,6 +187,8 @@
   --button-color-secondary-hover: var(--gray-100);
   --button-color-secondary-focus: var(--base-white);
   --button-color-secondary-active: var(--gray-200);
+  --button-color-secondary-disabled: var(--gray-400);
+  --button-color-secondary-bg-disabled: var(--gray-100);
   --button-color-disabled: var(--gray-300);
   --button-color-bg-disabled: var(--base-white);
   --button-border-width: 1px;

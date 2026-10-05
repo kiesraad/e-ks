@@ -4,12 +4,12 @@ use crate::{
     AppError, AppRequestState, CsbMainStore,
     core::{ModelLocale, constants::DEFAULT_DATE_FORMAT},
     csb::examination::{
-        model_inputs::{I4Inputs, i4_inputs},
         numbering::list_numbering,
         pages::{CsbI4DocxDownloadPath, CsbI4DownloadPath},
     },
     models::{
         Pdf,
+        csb_model_inputs::{I4Inputs, i4_inputs},
         i4::{I4, NumberedOnDistricts, NumberedOnVotes, PublicSession},
     },
     structs::csb::HearingModel,
@@ -19,6 +19,7 @@ use crate::{
 async fn i4_model<S: AppRequestState>(main_store: CsbMainStore, state: &S) -> Result<I4, AppError> {
     let election = main_store.election;
     let registry = state.csb_store_registry();
+    let numbering = list_numbering(registry, &main_store).await?;
     let I4Inputs {
         found_omissions,
         recovered_omissions,
@@ -27,8 +28,7 @@ async fn i4_model<S: AppRequestState>(main_store: CsbMainStore, state: &S) -> Re
         removed_appellations,
         corrected_appellations,
         valid_lists,
-    } = i4_inputs(registry, &election).await?;
-    let numbering = list_numbering(registry, &main_store).await?;
+    } = i4_inputs(registry, &election, &numbering.stream_ids()).await?;
 
     let mut public_session = PublicSession::from(election.public_session());
     if let Some(hearing_details) = main_store.get_hearing_details(HearingModel::I4) {

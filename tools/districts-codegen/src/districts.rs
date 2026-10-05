@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use eml_nl::{
+    EMLVersion,
     documents::master_election_tree::{MasterElectionTree, MetRegion},
     io::EMLRead,
     utils::RegionCategory,
@@ -33,8 +34,12 @@ pub(crate) struct Districts {
 impl Districts {
     pub(crate) fn parse_from_file(file: &Path) -> Self {
         let xml = std::fs::read_to_string(file).expect("Could not read MasterElectionTree.xml");
-        let tree = MasterElectionTree::parse_eml(&xml, eml_nl::io::EMLParsingMode::Strict)
-            .expect("Failed to parse MasterElectionTree.xml");
+        let tree = MasterElectionTree::parse_eml_fragment(
+            &xml,
+            eml_nl::io::EMLParsingMode::Strict,
+            EMLVersion::default(),
+        )
+        .expect("Failed to parse MasterElectionTree.xml");
 
         Districts::from(tree)
     }

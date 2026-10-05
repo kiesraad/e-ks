@@ -1,6 +1,7 @@
 {% extends "csb/components/layout.html" %}
 {% import "pg/common/components/macros.html" as macros %}
 {% import "csb/components/restorations.html" as restorations %}
+{% import "csb/components/header_examination_actions.html" as header %}
 {% block breadcrumbs %}
   {{ breadcrumb(crate::csb::examination::CsbExaminationOverviewPath, "csb.examination") }}
   {{ breadcrumb(political_group.group_path() , political_group.csb_appellation(), is_translatable=false) }}
@@ -13,8 +14,7 @@
   <span class="subtitle">{{ "csb.all_findings.explanation"|trans }}</span>
 {% endblock %}
 {% block header_action %}
-  {% set back_url = political_group.group_path() %}
-  {% include "csb/components/header_examination_actions.html" %}
+  {{ header::header_actions(political_group, political_group.group_path() , include_all_restorations=true) }}
 {% endblock %}
 {% block content %}
   {% set toggle_redirect_url = political_group.all_brp_findings_path() %}
