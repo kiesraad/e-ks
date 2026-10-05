@@ -1,0 +1,256 @@
+[
+  {
+    "candidate": "Abels, A. (Astrid)",
+    "person": "2eca253a-37a5-5e92-85f9-cf21a34deee5",
+    "findings": [
+      {
+        "Deceased": {
+          "date_of_death": "2020-06-06"
+        }
+      }
+    ]
+  },
+  {
+    "candidate": "voor in 't C, L. (Lisette)",
+    "person": "18b0f88b-2a8d-5c95-8052-a57d8cecd646",
+    "findings": [
+      {
+        "Mismatch": {
+          "brp_value": {
+            "Initials": "L.D.C.E.2.A.S.M.j.I.d.M.d.l.M.R.J.G.a D.R.S.L.E.L.d.A."
+          }
+        }
+      }
+    ]
+  },
+  {
+    "candidate": "Deutekom, C. (Christina)",
+    "person": "ab776829-8a35-50a4-a31f-64d1059e6143",
+    "findings": [
+      "ResidenceAbroad"
+    ]
+  },
+  {
+    "candidate": "Dijkstra, R. (Ruben)",
+    "person": "2063395a-71c1-5e31-af39-437b221388b7",
+    "findings": [
+      {
+        "MissingInBrp": {
+          "field": "LastName"
+        }
+      },
+      {
+        "MissingInBrp": {
+          "field": "Initials"
+        }
+      },
+      {
+        "MissingInBrp": {
+          "field": "PlaceOfResidence"
+        }
+      }
+    ]
+  },
+  {
+    "candidate": "van Duijn, J.R. (Jasper)",
+    "person": "f99b9cf9-fba3-587b-8f0b-2a2a6a30b262",
+    "findings": [
+      "ResidenceWithoutAddress"
+    ]
+  },
+  {
+    "candidate": "Ghezala, F. (Farid)",
+    "person": "a36f410c-fd74-548c-b395-b4c3c796758a",
+    "findings": [
+      {
+        "MissingInBrp": {
+          "field": "DateOfBirth"
+        }
+      },
+      "NotDutch"
+    ]
+  },
+  {
+    "candidate": "de Goede, Z. (Zoe)",
+    "person": "5808ac5c-522a-55ab-9100-a3256abeae0f",
+    "findings": [
+      {
+        "MissingInBrp": {
+          "field": "Gender"
+        }
+      }
+    ]
+  },
+  {
+    "candidate": "Hassanin, R. (Rami)",
+    "person": "283cb256-2f71-5482-b348-0f1073822b17",
+    "findings": [
+      "ResidenceUnknown",
+      "NotDutch"
+    ]
+  },
+  {
+    "candidate": "Jansses, J. (Joop)",
+    "person": "cdb6bd4b-31c6-50b7-893b-509a7181058d",
+    "findings": [
+      {
+        "Mismatch": {
+          "brp_value": {
+            "LastName": "Janssen"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "candidate": "Joosten, J. (Josephien)",
+    "person": "d58c7760-4cb0-5a65-9ba6-eaf647693f86",
+    "findings": [
+      {
+        "Mismatch": {
+          "brp_value": {
+            "Gender": "female"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "candidate": "Kierkegaard, G. (Gerarda)",
+    "person": "fb528fda-8ecb-5b20-ad22-0689ec01c142",
+    "findings": [
+      {
+        "Mismatch": {
+          "brp_value": {
+            "Initials": "G.J."
+          }
+        }
+      }
+    ]
+  },
+  {
+    "candidate": "Kierkegaard, Y.J. (Yvonne)",
+    "person": "66469cf0-6faa-5c10-9957-d7bf01ab39b6",
+    "findings": [
+      {
+        "MissingInBrp": {
+          "field": "PlaceOfResidence"
+        }
+      },
+      "ExcludedFromSuffrage"
+    ]
+  },
+  {
+    "candidate": "Klapwijk, K. (Kees)",
+    "person": "600548e5-b3f3-54ed-91a6-40b929a4ec6d",
+    "findings": [
+      {
+        "Mismatch": {
+          "brp_value": {
+            "DateOfBirth": "1985-11-10"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "candidate": "Leeuwen, L. (Laurentien)",
+    "person": "5c4dc339-3e28-5c7b-91bd-564a14f361f5",
+    "findings": [
+      {
+        "Mismatch": {
+          "brp_value": {
+            "LastNamePrefix": "van"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "candidate": "Leijtes, L. (Leroy)",
+    "person": "8a4b387b-763c-5c1c-a885-83bdf7a33b37",
+    "findings": [
+      {
+        "Mismatch": {
+          "brp_value": {
+            "LastName": "Leijten"
+          }
+        }
+      },
+      {
+        "Mismatch": {
+          "brp_value": {
+            "PlaceOfResidence": {
+              "Known": "'s-Gravenhage"
+            }
+          }
+        }
+      }
+    ]
+  },
+  {
+    "candidate": "Luiten, L. (Louis)",
+    "person": "7a796dc1-8b1f-54ea-9c7e-e0fd8b5dd921",
+    "findings": [
+      {
+        "Mismatch": {
+          "brp_value": {
+            "PlaceOfResidence": {
+              "Known": "'s-Gravenhage"
+            }
+          }
+        }
+      }
+    ]
+  },
+  {
+    "candidate": "Partyka, W. (Wojciech)",
+    "person": "a8e9c0d9-7e20-50de-b239-7b5c613a1a06",
+    "findings": [
+      "NotDutch"
+    ]
+  },
+  {
+    "candidate": "Precise, V. (Vladimir)",
+    "person": "0d3de1de-8ad8-53a7-aa82-39de29ee68e0",
+    "findings": [
+      "BsnNoneConfirmed",
+      "PersonalDetailsNotUnique"
+    ]
+  },
+  {
+    "candidate": "van Steenbergen, S. (Sjoerd)",
+    "person": "f20d23bf-7b89-573a-9270-2fcc034b0745",
+    "findings": [
+      "BsnUnknown",
+      {
+        "BsnMatchedByPersonalDetails": {
+          "bsn": "999970768"
+        }
+      }
+    ]
+  },
+  {
+    "candidate": "Streeveld, P. (Pietje)",
+    "person": "fface7f4-ba67-57be-931a-82e328d56612",
+    "findings": [
+      {
+        "MissingInBrp": {
+          "field": "PlaceOfResidence"
+        }
+      }
+    ]
+  },
+  {
+    "candidate": "van Tubbergen, T. (Tina)",
+    "person": "600a6c25-9a1e-5352-bef9-7614060b7001",
+    "findings": [
+      "BsnMissing",
+      {
+        "BsnMatchedByPersonalDetails": {
+          "bsn": "999970987"
+        }
+      }
+    ]
+  }
+]

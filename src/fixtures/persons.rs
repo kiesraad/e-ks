@@ -179,8 +179,11 @@ mod tests {
     /// Four out of five candidates are expected to match the mock exactly; the
     /// rest carry a mistake, together covering every [`BrpFinding`] the check
     /// can produce -- except `BsnNotUnique`, which the mock cannot serve
-    /// because it keys its records on the burgerservicenummer, and
-    /// `LastNameNotAllowed`, which needs a partner in the mock's record.
+    /// because it keys its records on the burgerservicenummer,
+    /// `LastNameNotAllowed`, which needs a partner in the mock's record, and
+    /// `Unparsable`: the one value the mock holds in an unusual shape, a
+    /// `voorletters` of 53 initials with a digit among them, is one
+    /// [`Initials`] accepts, so it is reported as a difference.
     ///
     /// Run with `docker compose up -d personen-mock` and
     /// `cargo test -- --ignored brp`.
@@ -209,7 +212,7 @@ mod tests {
                     agreed += 1;
                 }
                 kinds.extend(findings.iter().map(|finding| {
-                    let debug = format!("{finding:?}");
+                    let debug = format!("{:?}", finding.kind);
                     debug
                         .split([' ', '('])
                         .next()
@@ -241,7 +244,6 @@ mod tests {
                 "ResidenceAbroad",
                 "ResidenceUnknown",
                 "ResidenceWithoutAddress",
-                "Unparsable",
             ]
         );
     }
