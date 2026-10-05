@@ -11,7 +11,7 @@ use std::{
 
 use secrecy::SecretString;
 
-use super::rate_limit::RateLimits;
+use super::{CsbAlertHours, CsbIpAllowList, RateLimits};
 use crate::{
     AppError, ElectionConfig, GithubUserId,
     constants::{BRP_PERSONS_ENDPOINT, BRP_TIMEOUT, STORE_CACHE_IDLE_MINUTES},
@@ -118,6 +118,13 @@ pub struct Config {
     /// Domain the CSB listener is published on; with ACME it gets a
     /// certificate of its own. Set via `CSB_DOMAIN`.
     pub csb_domain: Option<String>,
+    /// Peer addresses allowed to reach the CSB listener; any other peer is
+    /// refused with `403` and reported. Requires `csb_bind_address`, since
+    /// only that listener is gated. Set via `CSB_IP_ALLOW_LIST`.
+    pub csb_ip_allow_list: Option<CsbIpAllowList>,
+    /// Local hours in which committee activity is reported (not blocked). Set
+    /// via `CSB_ALERT_HOURS`, e.g. `22:00-06:00`.
+    pub csb_alert_hours: Option<CsbAlertHours>,
     /// When true, opts this instance out of the live auth-service (so
     /// `AuthServiceState::new_empty` is used instead of
     /// `AuthServiceState::new_from_env`, skipping the startup IdP-metadata
@@ -314,6 +321,30 @@ where
     Ok(Duration::from_secs(minutes.get().saturating_mul(60)))
 }
 
+/// BRP client config; only the base URL and API key are mandatory.
+fn brp_from_env<F>(lookup: &mut F) -> Result<BrpConfig, AppError>
+where
+    F: FnMut(&'static str) -> Result<String, env::VarError>,
+{
+    let base_url = get_env_with("BRP_BASE_URL", lookup)?;
+    let api_key = SecretString::from(get_env_with("BRP_API_KEY", lookup)?);
+
+    let timeout: u64 = lookup("BRP_TIMEOUT")
+        .unwrap_or(BRP_TIMEOUT.to_string())
+        .parse()
+        .map_err(|_| {
+            AppError::ConfigLoadError("Invalid BRP_TIMEOUT; please enter a number".to_string())
+        })?;
+
+    Ok(BrpConfig {
+        base_url,
+        api_key,
+        persons_endpoint: lookup("BRP_PERSONS_ENDPOINT")
+            .unwrap_or(BRP_PERSONS_ENDPOINT.to_string()),
+        timeout: Duration::from_secs(timeout),
+    })
+}
+
 /// GitHub OAuth config from `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, and
 /// `GITHUB_ALLOWED_USER_IDS` (comma-separated numeric account ids); all three
 /// or none must be set.
@@ -343,6 +374,43 @@ where
     }
 }
 
+/// An optional setting: unset or blank is `None`, anything else is parsed.
+fn parse_optional_env_with<T, F>(
+    name: &'static str,
+    lookup: &mut F,
+    parse: impl FnOnce(&str) -> Result<T, AppError>,
+) -> Result<Option<T>, AppError>
+where
+    F: FnMut(&'static str) -> Result<String, env::VarError>,
+{
+    lookup(name)
+        .ok()
+        .map(|raw| raw.trim().to_string())
+        .filter(|raw| !raw.is_empty())
+        .map(|raw| parse(&raw))
+        .transpose()
+}
+
+/// `CSB_IP_ALLOW_LIST`, which gates the dedicated CSB listener only and so is
+/// refused without `CSB_BIND_ADDRESS` rather than silently gating nothing.
+fn csb_ip_allow_list_from_env<F>(
+    lookup: &mut F,
+    csb_bind_address: Option<SocketAddr>,
+) -> Result<Option<CsbIpAllowList>, AppError>
+where
+    F: FnMut(&'static str) -> Result<String, env::VarError>,
+{
+    let allow_list = parse_optional_env_with("CSB_IP_ALLOW_LIST", lookup, CsbIpAllowList::parse)?;
+    if allow_list.is_some() && csb_bind_address.is_none() {
+        return Err(AppError::ConfigLoadError(
+            "CSB_IP_ALLOW_LIST requires CSB_BIND_ADDRESS: the allow list gates the dedicated \
+             CSB listener only"
+                .to_string(),
+        ));
+    }
+    Ok(allow_list)
+}
+
 impl Config {
     pub fn from_env() -> Result<Self, AppError> {
         Self::from_env_with(env::var)
@@ -369,13 +437,12 @@ impl Config {
             .filter(|s| !s.is_empty())
             .map(SecretString::from);
 
-        let csb_bind_address = lookup("CSB_BIND_ADDRESS")
-            .ok()
-            .map(|raw| raw.trim().to_string())
-            .filter(|raw| !raw.is_empty())
-            .map(|raw| parse_csb_bind_address(&raw))
-            .transpose()?;
+        let csb_bind_address =
+            parse_optional_env_with("CSB_BIND_ADDRESS", &mut lookup, parse_csb_bind_address)?;
         let csb_domain = lookup("CSB_DOMAIN").ok().filter(|s| !s.is_empty());
+        let csb_ip_allow_list = csb_ip_allow_list_from_env(&mut lookup, csb_bind_address)?;
+        let csb_alert_hours =
+            parse_optional_env_with("CSB_ALERT_HOURS", &mut lookup, CsbAlertHours::parse)?;
 
         let disable_auth_service = lookup("DISABLE_AUTH_SERVICE").is_ok_and(|value| {
             matches!(
@@ -384,23 +451,7 @@ impl Config {
             )
         });
 
-        let base_url = get_env_with("BRP_BASE_URL", &mut lookup)?;
-        let api_key = SecretString::from(get_env_with("BRP_API_KEY", &mut lookup)?);
-
-        let timeout: u64 = lookup("BRP_TIMEOUT")
-            .unwrap_or(BRP_TIMEOUT.to_string())
-            .parse()
-            .map_err(|_| {
-                AppError::ConfigLoadError("Invalid BRP_TIMEOUT; please enter a number".to_string())
-            })?;
-
-        let brp_client = BrpConfig {
-            base_url,
-            api_key,
-            persons_endpoint: lookup("BRP_PERSONS_ENDPOINT")
-                .unwrap_or(BRP_PERSONS_ENDPOINT.to_string()),
-            timeout: Duration::from_secs(timeout),
-        };
+        let brp_client = brp_from_env(&mut lookup)?;
 
         let rate_limits = RateLimits::from_env_with(&mut lookup)?;
         let store_cache_idle_timeout = store_cache_idle_from_env(&mut lookup)?;
@@ -415,6 +466,8 @@ impl Config {
             eks_key,
             csb_bind_address,
             csb_domain,
+            csb_ip_allow_list,
+            csb_alert_hours,
             disable_auth_service,
             brp_client,
             github_oauth,
@@ -458,6 +511,8 @@ impl Config {
             eks_key: None,
             csb_bind_address: None,
             csb_domain: None,
+            csb_ip_allow_list: None,
+            csb_alert_hours: None,
             disable_auth_service: false,
             brp_client: BrpConfig {
                 base_url: "http://localhost:5010".to_string(),
@@ -864,6 +919,68 @@ mod tests {
             assert!(
                 matches!(err, AppError::ConfigLoadError(_)),
                 "{raw:?} must be rejected"
+            );
+        }
+    }
+
+    /// Unset or blank leaves both CSB guards off.
+    #[test]
+    fn from_env_returns_no_csb_guards_when_unset_or_blank() {
+        for map in [
+            config_env([]),
+            config_env([("CSB_IP_ALLOW_LIST", " "), ("CSB_ALERT_HOURS", "")]),
+        ] {
+            let config = Config::from_env_with(lookup_from(&map)).expect("config");
+
+            assert!(config.csb_ip_allow_list.is_none());
+            assert!(config.csb_alert_hours.is_none());
+        }
+    }
+
+    #[test]
+    fn from_env_reads_csb_guards() {
+        let map = config_env([
+            ("CSB_BIND_ADDRESS", "8081"),
+            ("CSB_IP_ALLOW_LIST", "203.0.113.7, 10.0.0.0/8"),
+            ("CSB_ALERT_HOURS", "22:00-06:00"),
+        ]);
+
+        let config = Config::from_env_with(lookup_from(&map)).expect("config");
+
+        let allow_list = config.csb_ip_allow_list.expect("allow list");
+        assert!(allow_list.allows("10.1.2.3".parse().unwrap()));
+        assert!(!allow_list.allows("203.0.113.8".parse().unwrap()));
+        let hours = config.csb_alert_hours.expect("hours");
+        assert!(hours.contains(chrono::NaiveTime::from_hms_opt(2, 0, 0).unwrap()));
+        assert!(!hours.contains(chrono::NaiveTime::from_hms_opt(12, 0, 0).unwrap()));
+    }
+
+    /// An allow list without a dedicated listener would gate nothing, so it
+    /// is refused rather than silently ignored.
+    #[test]
+    fn from_env_rejects_an_ip_allow_list_without_csb_bind_address() {
+        let map = config_env([("CSB_IP_ALLOW_LIST", "203.0.113.7")]);
+
+        let err = Config::from_env_with(lookup_from(&map)).expect_err("err");
+
+        assert!(
+            matches!(err, AppError::ConfigLoadError(ref msg) if msg.contains("CSB_BIND_ADDRESS"))
+        );
+    }
+
+    #[test]
+    fn from_env_rejects_malformed_csb_guards() {
+        for entry in [
+            ("CSB_IP_ALLOW_LIST", "office"),
+            ("CSB_ALERT_HOURS", "night"),
+        ] {
+            let map = config_env([("CSB_BIND_ADDRESS", "8081"), entry]);
+
+            let err = Config::from_env_with(lookup_from(&map)).expect_err("err");
+
+            assert!(
+                matches!(err, AppError::ConfigLoadError(_)),
+                "{entry:?} must be rejected"
             );
         }
     }

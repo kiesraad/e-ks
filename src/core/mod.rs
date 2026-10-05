@@ -1,4 +1,5 @@
 mod config;
+mod csb_access;
 mod csv;
 mod github_user_id;
 
@@ -21,6 +22,7 @@ pub use config::AcmeConfig;
 #[cfg(feature = "tls")]
 pub use config::TlsConfig;
 pub use config::{Config, GithubOauthConfig};
+pub use csb_access::{AlertThrottle, CsbAlertHours, CsbIpAllowList};
 pub use csv::{Csv, CsvError, reader_from_bytes};
 pub use election::{ElectionConfig, ElectionType, ElectoralDistrict, Province, WaterCouncil};
 pub use github_user_id::GithubUserId;

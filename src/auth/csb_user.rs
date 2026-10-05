@@ -10,7 +10,7 @@ use crate::{GithubUserId, Locale, trans};
 /// Deliberately an enum over login methods rather than a single id: future
 /// login methods add a variant here, and the events referencing the user
 /// stay unchanged.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum CsbUser {
     /// Dev-login bypass, with no identity beyond the login method itself.
     #[cfg(any(feature = "dev-features", test))]
