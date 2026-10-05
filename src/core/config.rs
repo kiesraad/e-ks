@@ -10,6 +10,7 @@ use std::{
 };
 
 use secrecy::SecretString;
+use url::Url;
 
 use super::{CsbAlertHours, CsbIpAllowList, RateLimits};
 use crate::{
@@ -33,6 +34,7 @@ mod dev_defaults {
     pub(super) const BRP_API_KEY: &str = "";
     pub(super) const BRP_BASE_URL: &str = "http://localhost:5010";
     pub(super) const DEFAULT_ELECTION: &str = "EK27";
+    pub(super) const CSB_PASSKEY_ORIGIN: &str = "http://localhost:3000";
 
     pub(super) fn lookup(name: &'static str) -> Result<String, std::env::VarError> {
         std::collections::HashMap::from([
@@ -95,6 +97,17 @@ pub struct GithubOauthConfig {
     pub allowed_user_ids: Vec<GithubUserId>,
 }
 
+/// Passkey (WebAuthn) login for CSB users. The relying party id is the host
+/// of the origin the committee's browsers see, so credentials bind to the CSB
+/// domain and nothing else.
+#[derive(Debug, Clone)]
+pub struct CsbPasskeyConfig {
+    /// WebAuthn relying party id: the host of `origin`.
+    pub rp_id: String,
+    /// The origin the browser reports in the ceremony; must match exactly.
+    pub origin: Url,
+}
+
 /// Runtime configuration loaded from environment variables.
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -137,6 +150,10 @@ pub struct Config {
     /// GitHub OAuth login for CSB users; the `/csb/login` routes answer 404
     /// when unset.
     pub github_oauth: Option<GithubOauthConfig>,
+    /// Passkey login for CSB users; the `/csb/login/passkey/*` and
+    /// `/csb/passkeys` routes answer 404 when unset. Set via
+    /// `CSB_PASSKEY_ORIGIN`.
+    pub csb_passkey: Option<CsbPasskeyConfig>,
     /// Election a login lands on when the flow has no election selection of
     /// its own (CSB logins, dev logins). Set via `DEFAULT_ELECTION` as the
     /// election code, with the election domain appended after a colon where
@@ -374,6 +391,65 @@ where
     }
 }
 
+/// Passkey login config from `CSB_PASSKEY_ORIGIN`: the origin (scheme, host
+/// and optionally a port) the committee's browsers see. Unset disables the
+/// passkey login; dev builds default to the dev server's origin. With
+/// `CSB_DOMAIN` set, the origin's host must be that domain, since every
+/// ceremony would otherwise fail on the origin check.
+fn csb_passkey_from_env<F>(
+    lookup: &mut F,
+    csb_domain: Option<&str>,
+) -> Result<Option<CsbPasskeyConfig>, AppError>
+where
+    F: FnMut(&'static str) -> Result<String, env::VarError>,
+{
+    let value = lookup("CSB_PASSKEY_ORIGIN").ok().filter(|s| !s.is_empty());
+    #[cfg(feature = "dev-features")]
+    let value = value.or_else(|| Some(dev_defaults::CSB_PASSKEY_ORIGIN.to_string()));
+
+    let Some(value) = value else {
+        return Ok(None);
+    };
+    let config = parse_passkey_origin(&value)?;
+    if let Some(domain) = csb_domain
+        && domain != config.rp_id
+    {
+        return Err(AppError::ConfigLoadError(format!(
+            "CSB_PASSKEY_ORIGIN host {:?} must be the CSB_DOMAIN {domain:?}",
+            config.rp_id
+        )));
+    }
+    Ok(Some(config))
+}
+
+/// An origin is a URL with nothing but a scheme, a host and perhaps a port.
+fn parse_passkey_origin(value: &str) -> Result<CsbPasskeyConfig, AppError> {
+    let invalid = |reason: &str| {
+        AppError::ConfigLoadError(format!(
+            "CSB_PASSKEY_ORIGIN must be an origin like https://csb.example.nl ({reason}): {value:?}"
+        ))
+    };
+    let origin = Url::parse(value).map_err(|_| invalid("not a URL"))?;
+    if !matches!(origin.scheme(), "http" | "https") {
+        return Err(invalid("scheme must be http or https"));
+    }
+    let Some(host) = origin.host_str() else {
+        return Err(invalid("missing host"));
+    };
+    if origin.path() != "/"
+        || origin.query().is_some()
+        || origin.fragment().is_some()
+        || !origin.username().is_empty()
+        || origin.password().is_some()
+    {
+        return Err(invalid("only scheme, host and port are allowed"));
+    }
+    Ok(CsbPasskeyConfig {
+        rp_id: host.to_string(),
+        origin,
+    })
+}
+
 /// An optional setting: unset or blank is `None`, anything else is parsed.
 fn parse_optional_env_with<T, F>(
     name: &'static str,
@@ -440,6 +516,7 @@ impl Config {
         let csb_bind_address =
             parse_optional_env_with("CSB_BIND_ADDRESS", &mut lookup, parse_csb_bind_address)?;
         let csb_domain = lookup("CSB_DOMAIN").ok().filter(|s| !s.is_empty());
+        let csb_passkey = csb_passkey_from_env(&mut lookup, csb_domain.as_deref())?;
         let csb_ip_allow_list = csb_ip_allow_list_from_env(&mut lookup, csb_bind_address)?;
         let csb_alert_hours =
             parse_optional_env_with("CSB_ALERT_HOURS", &mut lookup, CsbAlertHours::parse)?;
@@ -466,6 +543,7 @@ impl Config {
             eks_key,
             csb_bind_address,
             csb_domain,
+            csb_passkey,
             csb_ip_allow_list,
             csb_alert_hours,
             disable_auth_service,
@@ -521,6 +599,7 @@ impl Config {
                 timeout: Duration::from_secs(5),
             },
             github_oauth: None,
+            csb_passkey: None,
             default_election: ElectionConfig::EK27,
             rate_limits: RateLimits::default(),
             store_cache_idle_timeout: Duration::from_secs(STORE_CACHE_IDLE_MINUTES.get() * 60),
@@ -561,6 +640,63 @@ mod tests {
         entries: impl IntoIterator<Item = (&'static str, &'static str)>,
     ) -> HashMap<&'static str, &'static str> {
         REQUIRED_ENV.into_iter().chain(entries).collect()
+    }
+
+    #[test]
+    fn passkey_origin_unset_disables_the_login_outside_dev() {
+        let map = config_env([]);
+        let mut lookup = lookup_from(&map);
+
+        let config = csb_passkey_from_env(&mut lookup, None).expect("config");
+
+        #[cfg(feature = "dev-features")]
+        assert_eq!(
+            config.expect("dev default").origin.as_str(),
+            "http://localhost:3000/"
+        );
+        #[cfg(not(feature = "dev-features"))]
+        assert!(config.is_none());
+    }
+
+    #[test]
+    fn passkey_origin_sets_rp_id_to_its_host() {
+        let map = config_env([("CSB_PASSKEY_ORIGIN", "https://csb.example.nl")]);
+        let mut lookup = lookup_from(&map);
+
+        let config = csb_passkey_from_env(&mut lookup, Some("csb.example.nl"))
+            .expect("config")
+            .expect("configured");
+
+        assert_eq!(config.rp_id, "csb.example.nl");
+        assert_eq!(config.origin.as_str(), "https://csb.example.nl/");
+    }
+
+    #[test]
+    fn passkey_origin_rejects_anything_but_an_origin() {
+        for value in [
+            "csb.example.nl",
+            "ftp://csb.example.nl",
+            "https://csb.example.nl/csb",
+            "https://csb.example.nl?x=1",
+            "https://csb.example.nl#top",
+            "https://user@csb.example.nl",
+        ] {
+            let map = config_env([("CSB_PASSKEY_ORIGIN", value)]);
+            let mut lookup = lookup_from(&map);
+            let err = csb_passkey_from_env(&mut lookup, None).expect_err(value);
+            assert!(matches!(err, AppError::ConfigLoadError(_)), "{value}");
+        }
+    }
+
+    #[test]
+    fn passkey_origin_must_match_the_csb_domain() {
+        let map = config_env([("CSB_PASSKEY_ORIGIN", "https://csb.example.nl")]);
+        let mut lookup = lookup_from(&map);
+
+        let err =
+            csb_passkey_from_env(&mut lookup, Some("other.example.nl")).expect_err("mismatch");
+
+        assert!(matches!(err, AppError::ConfigLoadError(_)));
     }
 
     #[test]

@@ -17,10 +17,15 @@ all_restorations:
 auth:
   button:
     github: Sign in with GitHub
+    passkey: Sign in with passkey
   error:
     message: Signing in did not succeed. Check that you have been granted access and try again.
+  or: or
+  passkey:
+    js_required: Signing in with a passkey requires JavaScript.
+    name_label: Account name
   start:
-    intro: You sign in with your GitHub account. Only accounts that have been granted access in advance can sign in to the central electoral committee.
+    intro: "You sign in with a passkey registered for you, or with your GitHub account. Only accounts that have been granted access in advance can sign in to the central electoral committee."
     title: Sign in to the central electoral committee
 brp:
   check_candidate: Check this candidate against the BRP
@@ -254,6 +259,29 @@ paper_corrections:
   start: Go to data
   stop: Back to examination
   title: Paper corrections
+passkeys:
+  account_full: This account already holds the maximum number of passkeys.
+  account_name: Account name
+  account_name_help: "The name you type when signing in, for example your own name."
+  confirm_delete_account: "Revoke the account {} and its {} passkey(s)? Whoever uses it can no longer sign in with a passkey."
+  confirm_delete_passkey: "Revoke the passkey {} of {}? It can no longer be used to sign in."
+  created_at: Registered on
+  created_by: Registered by
+  delete_account: Revoke account
+  delete_passkey: Revoke passkey
+  error:
+    failed: Registering the passkey did not succeed. Try again.
+    last_passkey: "This is the only passkey of the account, so revoke the account instead."
+    name_taken: This account name is already in use. Sign in with that account to add a passkey to it.
+  intro: "With a passkey, committee members sign in without GitHub. Register a passkey for yourself here; any committee member can revoke it when a device is lost."
+  js_required: Registering a passkey requires JavaScript.
+  label: Passkey name
+  label_help: "For example \"YubiKey\" or \"Work laptop\", so the right one can be revoked later."
+  none: No passkeys have been registered yet.
+  own_account_warning: You are signed in with this account. Your current session stays active until it expires.
+  register: Register passkey
+  register_for_account: "The new passkey is added to your account {}."
+  title: Passkeys
 pre_submission:
   download_title: Overview for the political group
   explanation: "Check the candidate lists political groups hand in ahead of nomination day against the BRP, so they can correct errors before the official submission."

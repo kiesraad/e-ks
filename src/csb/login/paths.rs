@@ -1,4 +1,4 @@
-//! Typed paths for the CSB GitHub login flow.
+//! Typed paths for the CSB login flows.
 
 use axum_extra::routing::TypedPath;
 
@@ -18,3 +18,15 @@ pub struct CsbLoginStartPath;
 #[derive(TypedPath)]
 #[typed_path("/csb/login/callback", rejection(AppError))]
 pub struct CsbLoginCallbackPath;
+
+/// Starts a passkey login ceremony: a JSON POST from the login page's script
+/// with the account name, answered with the WebAuthn request options.
+#[derive(TypedPath)]
+#[typed_path("/csb/login/passkey/start", rejection(AppError))]
+pub struct CsbPasskeyLoginStartPath;
+
+/// Finishes a passkey login ceremony: a JSON POST with the browser's
+/// assertion, answered with `204` once the session is established.
+#[derive(TypedPath)]
+#[typed_path("/csb/login/passkey/finish", rejection(AppError))]
+pub struct CsbPasskeyLoginFinishPath;

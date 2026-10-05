@@ -62,6 +62,8 @@ event:
   delete_name_authorisation: Statutaire naam en gemachtigde verwijderd
   delete_objection: Bezwaar verwijderd
   delete_omission: Verzuim verwijderd
+  delete_passkey: Passkey ingetrokken
+  delete_passkey_account: Passkey-account ingetrokken
   delete_person: Persoon verwijderd
   delete_registered_political_group: Geregistreerde politieke groepering verwijderd
   delete_substitute_submitter: Vervanger herstel verzuim verwijderd
@@ -75,6 +77,7 @@ event:
   login: Ingelogd
   logout: Uitgelogd
   paper_correction: Papieren correcties
+  register_passkey: Passkey geregistreerd
   remove_candidate_from_list: Kandidaat van lijst verwijderd
   set_brp_finding_handled: BRP-fout afgehandeld gezet
   set_brp_validation_state: BRP validatie status gezet
@@ -118,6 +121,7 @@ filter:
     objection: Bezwaar
     omission: Verzuim
     paper_correction: Papieren correcties
+    passkey: Passkeys
     person: Persoon
     political_group: Politieke groepering
     registered_political_group: Geregistreerde politieke groeperingen
@@ -135,3 +139,4 @@ title: Logboek
 user:
   developer: Ontwikkelaar
   github: GitHub-gebruiker
+  passkey: Passkey-account

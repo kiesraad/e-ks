@@ -164,7 +164,7 @@ modules:
 | `src/csb/` | Central voting bureau (CSB) section: import, examination, monitoring, audit log, and its own event stores (see [The CSB section](#the-csb-section-srccsb)). |
 | `src/structs/` | Shared domain model structs (persons, political groups, candidate lists, common value types) used by both `src/pg/` and `src/csb/`. |
 | `src/models/` | The official PDF models (H 1, H 3-1, H 3-2, H 4, H 9, I 1, I 4) rendered with `textris-pdf`, plus the embedded fonts and the JSON example inputs. |
-| `src/auth/` | Authentication: the session model and token handling, session/pending-request storage, id derivation, and the session cookie helpers + `Session` extractor. The session/store middleware and the development login endpoint live in `src/middleware/`. |
+| `src/auth/` | Authentication: the session model and token handling, session/pending-request storage, id derivation, the session cookie helpers + `Session` extractor, and the CSB passkey login (`src/auth/passkey/`: identities, credential store, ceremony-state cookie, relying party). The session/store middleware and the development login endpoint live in `src/middleware/`. |
 | `src/core/` | Cross-cutting infrastructure: `Config`, server startup, logging/tracing, election configuration, Askama rendering, CSV, ZIP, locales. |
 | `src/store/` | The generic event store: persistence backends (memory/file/Postgres), at-rest encryption, the event hash chain, and the per-stream `StoreRegistry`. |
 | `src/error/` | `AppError`, the application-wide error type. Its mapping to a response lives in `src/view/`, the page layouts in `src/pg/` and `src/csb/`. |
@@ -266,6 +266,26 @@ existing session: the storage layer refuses cross-role updates, so an
 escalation always means a new session through that same helper. (The
 development login can create either kind of session; the TVS login flow
 currently creates political-group sessions only.)
+
+Committee members log in through `src/csb/login/` with GitHub OAuth, with a
+passkey, or either, depending on which of `GITHUB_*` and `CSB_PASSKEY_ORIGIN`
+is configured. The passkey login exists so that a GitHub outage on the day of
+candidate submission cannot lock the committee out: it depends on nothing
+outside this application. Passkeys are registered on `/csb/passkeys`
+(`src/csb/passkeys/`) from an existing committee session, so the first one
+rides on a GitHub login and no admin tooling or enrollment code is needed. A
+passkey is registered under a passkey *account*, the name the member types at
+login (username-first: the server returns that account's credential ids, so
+hardware keys without resident storage work too). A GitHub or dev session
+creates a new account; a passkey session adds to its own account only, so
+nobody can plant a credential on a colleague's account. Any member may revoke
+any passkey or account, since a lost device must not depend on its owner, and
+every registration and revocation is an event on the CSB main stream. The
+`CsbUser` recorded on CSB events names the login method (`Github` or
+`Passkey`), so the audit log shows how each session was obtained. In-flight
+ceremony state travels in an encrypted cookie bound to the browser, together
+with a one-shot nonce in the pending-request store, the same construction as
+the OAuth `state` cookie.
 
 #### CSB stores
 
@@ -567,6 +587,7 @@ Runtime configuration is read from environment variables once at startup into a
 | `SERVER_NAME` | Short server identifier shown in the page footer. |
 | `EKS_KEY` | Optional shared secret for the `x-eks-key` request gate. |
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` / `GITHUB_ALLOWED_USER_IDS` | Enable the CSB GitHub OAuth login (`/csb/login`): the GitHub OAuth app's credentials and the comma-separated numeric GitHub account ids allowed to log in; all three or none. The client secret is a secret like the master keys. |
+| `CSB_PASSKEY_ORIGIN` | Enable the CSB passkey (WebAuthn) login (`/csb/login`, `/csb/passkeys`): the origin the committee's browsers see, e.g. `https://csb.example.nl`; scheme, host and optionally a port, nothing else. Its host becomes the WebAuthn relying-party id, so it must be the exact public origin (TLS-terminating proxies included) and, when `CSB_DOMAIN` is set, that domain. Dev builds default to `http://localhost:3000`. No secret involved: the passkeys are public keys in the database. |
 | `DEFAULT_ELECTION` | Election a login lands on when the flow has no election selection of its own (CSB logins, dev logins): the election code, with the election domain appended after a colon where the type needs one (e.g. `EK27`, `PS27:prov1`). Dev builds default to `EK27`. |
 | `BIND_ADDRESS` | Address the server binds to (also accepted as a CLI argument). |
 | `CSB_BIND_ADDRESS` | Serve the CSB section on a second listener, so it can be published on a domain of its own: a port number (bound on `0.0.0.0`) or an `address:port` with a numeric address. `/csb` is then unreachable on `BIND_ADDRESS`. The second listener serves the whole application, since a committee session correcting paper documents uses the political-group routes as well. It is not behind the `EKS_KEY` gate. |
@@ -593,7 +614,8 @@ wins) from the repository root and hands the variables to the processes it
 starts; a variable already set in the surrounding shell is left alone. Both
 files are optional. `.env.local` is gitignored, so it is where the credentials
 that must not be committed belong, in particular the GitHub OAuth ones that
-have no development default:
+have no development default (the passkey login needs none and defaults to the
+dev server's origin):
 
 ```sh
 GITHUB_CLIENT_ID=Ov23li...

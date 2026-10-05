@@ -17,10 +17,15 @@ all_restorations:
 auth:
   button:
     github: Inloggen met GitHub
+    passkey: Inloggen met passkey
   error:
     message: Inloggen is niet gelukt. Controleer of u toegang heeft en probeer het opnieuw.
+  or: of
+  passkey:
+    js_required: Inloggen met een passkey vereist JavaScript.
+    name_label: Accountnaam
   start:
-    intro: U logt in met uw GitHub-account. Alleen accounts die vooraf toegang hebben gekregen kunnen inloggen bij het centraal stembureau.
+    intro: U logt in met een voor u geregistreerde passkey of met uw GitHub-account. Alleen accounts die vooraf toegang hebben gekregen kunnen inloggen bij het centraal stembureau.
     title: Inloggen bij het centraal stembureau
 brp:
   check_candidate: Deze kandidaat controleren met de BRP
@@ -254,6 +259,29 @@ paper_corrections:
   start: Ga naar gegevens
   stop: Terug naar onderzoek
   title: Papieren correcties
+passkeys:
+  account_full: Dit account heeft al het maximale aantal passkeys.
+  account_name: Accountnaam
+  account_name_help: "De naam die u intypt bij het inloggen, bijvoorbeeld uw eigen naam."
+  confirm_delete_account: "Account {} met {} passkey(s) intrekken? Wie dit account gebruikt kan daarna niet meer met een passkey inloggen."
+  confirm_delete_passkey: "Passkey {} van {} intrekken? Deze kan daarna niet meer worden gebruikt om in te loggen."
+  created_at: Geregistreerd op
+  created_by: Geregistreerd door
+  delete_account: Account intrekken
+  delete_passkey: Passkey intrekken
+  error:
+    failed: Het registreren van de passkey is niet gelukt. Probeer het opnieuw.
+    last_passkey: Dit is de enige passkey van het account; trek in plaats daarvan het account in.
+    name_taken: Deze accountnaam is al in gebruik. Log in met dat account om er een passkey aan toe te voegen.
+  intro: Met een passkey loggen leden van het centraal stembureau in zonder GitHub. Registreer hier een passkey voor uzelf; elk lid kan een passkey intrekken als een apparaat kwijt is.
+  js_required: Het registreren van een passkey vereist JavaScript.
+  label: Naam van de passkey
+  label_help: "Bijvoorbeeld \"YubiKey\" of \"Werklaptop\", zodat later de juiste kan worden ingetrokken."
+  none: Er zijn nog geen passkeys geregistreerd.
+  own_account_warning: U bent met dit account ingelogd. Uw huidige sessie blijft actief totdat deze verloopt.
+  register: Passkey registreren
+  register_for_account: "De nieuwe passkey wordt toegevoegd aan uw account {}."
+  title: Passkeys
 pre_submission:
   download_title: Overzicht voor de politieke groepering
   explanation: "Controleer de kandidatenlijsten die politieke groeperingen vóór de dag van kandidaatstelling aanleveren tegen de BRP, zodat zij fouten vóór de officiële inlevering kunnen herstellen."

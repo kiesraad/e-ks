@@ -1,7 +1,8 @@
 //! Contract the request extractors and handlers expect from the router state.
 
 use crate::{
-    AppError, Config, ElectionConfig, IdDeriver, PendingRequestStore, SessionStore, StreamId,
+    AppError, Config, ElectionConfig, IdDeriver, PasskeyLogin, PendingRequestStore, SessionStore,
+    StreamId,
     projection::{CsbMainStore, CsbMainStoreData, CsbStoreData, CsbStream, PgStoreData},
     store::{Store, StoreRegistry},
     structs::brp::BrpClient,
@@ -20,8 +21,12 @@ pub trait AppRequestState: Clone + Send + Sync + 'static {
     /// Derives the per-user stream id from an authenticated identity.
     fn id_deriver(&self) -> &IdDeriver;
 
-    /// One-shot request ids with a TTL (SAML `InResponseTo`, OAuth `state`).
+    /// One-shot request ids with a TTL (SAML `InResponseTo`, OAuth `state`,
+    /// passkey ceremonies).
     fn pending_requests(&self) -> &PendingRequestStore;
+
+    /// The CSB passkey login, when `CSB_PASSKEY_ORIGIN` is configured.
+    fn passkeys(&self) -> Option<&PasskeyLogin>;
 
     /// Registry for the per-import CSB stores.
     fn csb_store_registry(&self) -> &StoreRegistry<CsbStoreData>;

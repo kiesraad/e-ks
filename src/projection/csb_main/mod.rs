@@ -38,7 +38,11 @@ impl StoreData for CsbMainStoreData {
     fn apply(&mut self, event: StoreEvent<CsbMainEvent>) {
         self.events.push(event.clone());
         match event.payload.action {
-            CsbMainAction::Login | CsbMainAction::Logout => {}
+            CsbMainAction::Login
+            | CsbMainAction::Logout
+            | CsbMainAction::RegisterPasskey { .. }
+            | CsbMainAction::DeletePasskey { .. }
+            | CsbMainAction::DeletePasskeyAccount { .. } => {}
             CsbMainAction::CreateRegisteredPoliticalGroup(group) => {
                 self.registered_political_groups.push(group);
             }

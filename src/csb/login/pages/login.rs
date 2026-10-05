@@ -13,8 +13,8 @@ use serde::Deserialize;
 use crate::{
     AppError, AppRequestState, Context, HtmlTemplate, Locale, LocaleValues,
     csb::login::{
-        CsbLoginPath, CsbLoginStartPath, github, pending_state_id, require_github_oauth,
-        state_cookie::build_state_cookie,
+        CsbLoginPath, CsbLoginStartPath, github, pending_state_id, require_csb_login,
+        require_github_oauth, state_cookie::build_state_cookie,
     },
     filters,
     form::generate_csrf_token,
@@ -25,6 +25,8 @@ use crate::{
 struct CsbLoginTemplate {
     /// Shows the generic login-failed message (set after a failed callback).
     show_error: bool,
+    show_github: bool,
+    show_passkey: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -32,16 +34,18 @@ pub struct CsbLoginQuery {
     error: Option<String>,
 }
 
-/// GET `/csb/login`: start page with the GitHub login button.
+/// GET `/csb/login`: start page with the configured login methods.
 pub async fn login_start<S: AppRequestState>(
     _: CsbLoginPath,
     State(state): State<S>,
     Query(query): Query<CsbLoginQuery>,
 ) -> Result<Response, AppError> {
-    require_github_oauth(state.config())?;
+    let methods = require_csb_login(state.config())?;
     Ok(HtmlTemplate(
         CsbLoginTemplate {
             show_error: query.error.is_some(),
+            show_github: methods.github,
+            show_passkey: methods.passkey,
         },
         LocaleValues {
             locale: Locale::default(),
@@ -90,7 +94,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn login_start_is_not_found_without_github_config() {
+    async fn login_start_is_not_found_without_any_login_config() {
         let state = crate::AppState::new_for_tests().await;
 
         let err = login_start(CsbLoginPath, State(state), query(None))
@@ -129,7 +133,43 @@ mod tests {
         assert!(body.contains("href=\"/csb/login/start\""));
         assert!(!body.contains("<form"));
         assert!(body.contains("GitHub"));
+        assert!(!body.contains("data-passkey-login-start"));
         assert!(!body.contains("alert-error"));
+    }
+
+    #[tokio::test]
+    async fn login_start_shows_passkey_form_without_github() {
+        let state = crate::AppState::new_for_tests_with_config(
+            crate::csb::login::test_support::passkey_test_config(),
+        )
+        .await;
+
+        let response = login_start(CsbLoginPath, State(state), query(None))
+            .await
+            .expect("page");
+
+        let body = response_body_string(response).await;
+        assert!(body.contains("data-passkey-login-start=\"/csb/login/passkey/start\""));
+        assert!(body.contains("data-passkey-login-finish=\"/csb/login/passkey/finish\""));
+        assert!(body.contains("data-passkey-redirect=\"/csb\""));
+        assert!(body.contains("autocomplete=\"username webauthn\""));
+        assert!(!body.contains("href=\"/csb/login/start\""));
+    }
+
+    #[tokio::test]
+    async fn login_start_shows_both_methods_when_both_are_configured() {
+        let state = crate::AppState::new_for_tests_with_config(
+            crate::csb::login::test_support::both_test_config(),
+        )
+        .await;
+
+        let response = login_start(CsbLoginPath, State(state), query(None))
+            .await
+            .expect("page");
+
+        let body = response_body_string(response).await;
+        assert!(body.contains("data-passkey-login-start"));
+        assert!(body.contains("href=\"/csb/login/start\""));
     }
 
     #[tokio::test]

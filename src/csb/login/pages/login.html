@@ -6,7 +6,33 @@
       <h2>{{ "csb.auth.start.title"|trans }}</h2>
       {% if show_error %}<div class="alert alert-error">{{ "csb.auth.error.message"|trans }}</div>{% endif %}
       <p>{{ "csb.auth.start.intro"|trans }}</p>
-      <a href="{{ crate::csb::login::CsbLoginStartPath }}" class="button">{{ "csb.auth.button.github"|trans }}</a>
+      {% if show_passkey %}
+        <form class="form passkey-form"
+              data-passkey-login-start="{{ crate::csb::login::CsbPasskeyLoginStartPath }}"
+              data-passkey-login-finish="{{ crate::csb::login::CsbPasskeyLoginFinishPath }}"
+              data-passkey-redirect="{{ crate::csb::index::CsbIndexPath }}">
+          <p class="form-field form-field-lg">
+            <label for="name">{{ "csb.auth.passkey.name_label"|trans }}</label>
+            <input type="text"
+                   name="name"
+                   id="name"
+                   autocomplete="username webauthn"
+                   required />
+          </p>
+          <p class="alert alert-error hidden" data-passkey-error>{{ "csb.auth.error.message"|trans }}</p>
+          <noscript>
+            <p class="alert alert-error">{{ "csb.auth.passkey.js_required"|trans }}</p>
+          </noscript>
+          <button type="submit" class="button">{{ "csb.auth.button.passkey"|trans }}</button>
+        </form>
+      {% endif %}
+      {% if show_github %}
+        {% if show_passkey %}
+          <p class="auth-or">{{ "csb.auth.or"|trans }}</p>
+        {% endif %}
+        <a href="{{ crate::csb::login::CsbLoginStartPath }}"
+           class="button {% if show_passkey %}secondary{% endif %}">{{ "csb.auth.button.github"|trans }}</a>
+      {% endif %}
     </div>
   </main>
 {% endblock %}

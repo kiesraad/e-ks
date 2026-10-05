@@ -13,13 +13,12 @@ use serde::Deserialize;
 use tracing::{info, warn};
 
 use crate::{
-    AppError, AppRequestState, CsbMainAction, CsbUser, GithubOauthConfig, GithubUserId, Locale,
-    Session,
-    auth::session_extractor::{establish_session, user_agent_hash},
+    AppError, AppRequestState, CsbUser, GithubOauthConfig, GithubUserId,
     csb::{
         index::CsbIndexPath,
         login::{
-            CsbLoginCallbackPath, CsbLoginPath, github, pending_state_id, require_github_oauth,
+            CsbLoginCallbackPath, CsbLoginPath, establish_committee_session, github,
+            pending_state_id, require_github_oauth,
             state_cookie::{STATE_COOKIE_NAME, build_state_removal_cookie},
         },
     },
@@ -111,29 +110,11 @@ async fn complete_login<S: AppRequestState>(
         warn!("GitHub user {github_user_id} is not on the CSB allowlist");
         return Ok(login_failed(jar));
     }
-    establish_committee_session(state, github_user_id, jar, headers).await
-}
 
-/// Creates the committee session for an allowlisted GitHub user and records
-/// the login on the shared CSB main stream for the audit log.
-async fn establish_committee_session<S: AppRequestState>(
-    state: &S,
-    github_user_id: GithubUserId,
-    jar: CookieJar,
-    headers: &HeaderMap,
-) -> Result<Response, AppError> {
     let user = CsbUser::Github {
         user_id: github_user_id,
     };
-    let election = state.config().default_election;
-
-    let mut session = Session::for_committee(user.clone(), election, Locale::default());
-    session.set_user_agent_hash(user_agent_hash(headers));
-
-    let store = state.csb_main_store(election).await?;
-    store.update(CsbMainAction::Login.by(user)).await?;
-
-    let jar = establish_session(state.sessions(), jar, session).await;
+    let jar = establish_committee_session(state, user, jar, headers).await?;
 
     info!("GitHub user {github_user_id} logged in to the CSB");
     Ok((
@@ -160,7 +141,7 @@ mod tests {
     use axum::http::{StatusCode, header};
 
     use crate::{
-        AppState,
+        AppState, CsbMainAction, Session,
         csb::login::{state_cookie::build_state_cookie, test_support},
         store::StoreEvent,
     };

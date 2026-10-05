@@ -1,0 +1,100 @@
+{% extends "csb/components/layout.html" %}
+{% block breadcrumbs %}
+  {{ breadcrumb(crate::csb::passkeys::CsbPasskeysPath, "csb.passkeys.title") }}
+{% endblock %}
+{% block page_title %}
+  {{ "csb.passkeys.title"|trans }}
+{% endblock %}
+{% block header_action %}
+  <div class="header-buttons">
+    <a href="{{ crate::csb::index::CsbIndexPath }}" class="button secondary">{{ "action.back"|trans }}</a>
+  </div>
+{% endblock %}
+{% block content %}
+  {% let locale = "locale"|locale_value %}
+  <div class="examination-main card card-plain">
+    <p>{{ "csb.passkeys.intro"|trans }}</p>
+    <form class="form passkey-form mb-xl"
+          data-passkey-register-start="{{ register_start_path }}"
+          data-passkey-register-finish="{{ register_finish_path }}"
+          data-passkey-redirect="{{ crate::csb::passkeys::CsbPasskeysPath }}?success=true">
+      <fieldset>
+        {% if let Some(account) = own_account %}
+          <p>{{ "csb.passkeys.register_for_account"|trans(account.name.as_str() ) }}</p>
+          {% if own_account_full %}
+            <p class="alert alert-info">{{ "csb.passkeys.account_full"|trans }}</p>
+          {% endif %}
+        {% else %}
+          <div class="form-row">
+            <p class="form-field form-field-lg">
+              <label for="name">{{ "csb.passkeys.account_name"|trans }}</label>
+              <input type="text"
+                     name="name"
+                     id="name"
+                     autocomplete="off"
+                     required
+                     minlength="2"
+                     maxlength="64" />
+              <span>{{ "csb.passkeys.account_name_help"|trans }}</span>
+            </p>
+          </div>
+        {% endif %}
+        <div class="form-row">
+          <p class="form-field form-field-lg">
+            <label for="label">{{ "csb.passkeys.label"|trans }}</label>
+            <input type="text"
+                   name="label"
+                   id="label"
+                   autocomplete="off"
+                   required
+                   maxlength="64" />
+            <span>{{ "csb.passkeys.label_help"|trans }}</span>
+          </p>
+        </div>
+      </fieldset>
+      <p class="alert alert-error hidden" data-passkey-error>{{ "csb.passkeys.error.failed"|trans }}</p>
+      <p class="alert alert-error hidden" data-passkey-error-conflict>{{ "csb.passkeys.error.name_taken"|trans }}</p>
+      <noscript>
+        <p class="alert alert-error">{{ "csb.passkeys.js_required"|trans }}</p>
+      </noscript>
+      <div class="form-actions">
+        <button type="submit"
+                class="button icon-plus"
+                {% if own_account_full %}disabled{% endif %}>{{ "csb.passkeys.register"|trans }}</button>
+      </div>
+    </form>
+    {% if accounts.is_empty() %}
+      <p class="font-italic">{{ "csb.passkeys.none"|trans }}</p>
+    {% else %}
+      {% for (account, passkeys) in accounts %}
+        <h3 class="mt-md">{{ account.name }}</h3>
+        <p>
+          {{ "csb.passkeys.created_by"|trans }} {{ account.created_by.describe(*locale) }}, {{ account.created_at|datetime }}
+        </p>
+        <table class="mb-md">
+          <thead>
+            <tr>
+              <th>{{ "csb.passkeys.label"|trans }}</th>
+              <th>{{ "csb.passkeys.created_at"|trans }}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for passkey in passkeys %}
+              <tr>
+                <td>{{ passkey.label }}</td>
+                <td>{{ passkey.created_at|datetime }}</td>
+                <td>
+                  <a href="{{ passkey.delete_path() }}"
+                     class="button sm tertiary-destructive icon-trash">{{ "csb.passkeys.delete_passkey"|trans }}</a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <a href="{{ account.delete_path() }}"
+           class="button sm tertiary-destructive icon-trash">{{ "csb.passkeys.delete_account"|trans }}</a>
+      {% endfor %}
+    {% endif %}
+  </div>
+{% endblock %}

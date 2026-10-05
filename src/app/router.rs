@@ -176,6 +176,7 @@ fn csb_router(state: &AppState) -> Router<AppState> {
         .merge(csb::registered_political_groups::router())
         .merge(csb::import::router())
         .merge(csb::monitoring::router())
+        .merge(csb::passkeys::router())
         .layer(middleware::from_fn_with_state(
             state.clone(),
             csb::render_csb_error_pages,
@@ -207,7 +208,8 @@ fn app_feature_router() -> Router<AppState> {
 /// and in the W3C feature registry
 /// (<https://github.com/w3c/webappsec-permissions-policy/blob/main/features.md>).
 /// Unknown directives are ignored, so naming retired and proposed features
-/// costs nothing.
+/// costs nothing. The two `publickey-credentials-*` features are the one
+/// exception, allowed for this origin only: the CSB passkey login needs them.
 const PERMISSIONS_POLICY: &str = concat!(
     "accelerometer=(), ambient-light-sensor=(), attribution-reporting=(), autoplay=(), ",
     "battery=(), bluetooth=(), browsing-topics=(), camera=(), captured-surface-control=(), ",
@@ -218,7 +220,7 @@ const PERMISSIONS_POLICY: &str = concat!(
     "join-ad-interest-group=(), keyboard-map=(), local-fonts=(), magnetometer=(), microphone=(), ",
     "midi=(), otp-credentials=(), payment=(), picture-in-picture=(), private-aggregation=(), ",
     "private-state-token-issuance=(), private-state-token-redemption=(), ",
-    "publickey-credentials-create=(), publickey-credentials-get=(), run-ad-auction=(), ",
+    "publickey-credentials-create=(self), publickey-credentials-get=(self), run-ad-auction=(), ",
     "screen-wake-lock=(), serial=(), speaker-selection=(), storage-access=(), sync-xhr=(), ",
     "unload=(), usb=(), web-share=(), window-management=(), xr-spatial-tracking=()",
 );
@@ -741,6 +743,34 @@ mod tests {
                 "Permissions-Policy must deny `{feature}`: {permissions}"
             );
         }
+    }
+
+    /// The passkey login needs WebAuthn, for this origin only; everything
+    /// else in the policy stays denied.
+    #[tokio::test]
+    async fn permissions_policy_allows_webauthn_for_this_origin_only() {
+        let state = AppState::new_for_tests().await;
+        let app: Router = create(state.clone()).with_state(state);
+
+        let request = Request::builder().uri("/").body(Body::empty()).unwrap();
+        let response = app.oneshot(request).await.expect("response");
+        let permissions = response
+            .headers()
+            .get("permissions-policy")
+            .expect("permissions policy")
+            .to_str()
+            .unwrap();
+
+        for feature in [
+            "publickey-credentials-create=(self)",
+            "publickey-credentials-get=(self)",
+        ] {
+            assert!(
+                permissions.contains(feature),
+                "Permissions-Policy must allow `{feature}`: {permissions}"
+            );
+        }
+        assert!(!permissions.contains("=*"), "{permissions}");
     }
 
     /// Pages hold personal data, so no cache may keep them; the cache-busted

@@ -12,6 +12,7 @@ pub mod import;
 pub mod index;
 pub mod login;
 pub mod monitoring;
+pub mod passkeys;
 pub mod pre_submission;
 pub mod recovery;
 pub mod registered_political_groups;

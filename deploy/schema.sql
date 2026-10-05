@@ -1,5 +1,6 @@
 -- Full application database schema. Mirrors the runtime migration in
--- src/store/database.rs plus the ACME challenge storage.
+-- src/store/database.rs (streams, events, sessions, pending requests, passkey
+-- accounts and passkeys) plus the ACME challenge storage.
 
 -- Event stream bookkeeping: one row per (stream, election) pair.
 CREATE TABLE IF NOT EXISTS streams (
@@ -45,6 +46,31 @@ CREATE TABLE IF NOT EXISTS pending_requests (
 );
 CREATE INDEX IF NOT EXISTS pending_requests_created_at_idx
   ON pending_requests(created_at);
+
+-- Passkey accounts for the CSB login: the WebAuthn user handle, the name a
+-- committee member types at login (unique ignoring case) and who created it
+-- (a serialized `CsbUser`).
+CREATE TABLE IF NOT EXISTS csb_passkey_accounts (
+  id UUID PRIMARY KEY,
+  name TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_by JSONB NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS csb_passkey_accounts_name_idx
+  ON csb_passkey_accounts (lower(name));
+
+-- Registered passkeys: the webauthn-rs credential (public key, counter and
+-- backup flags) as JSON, under a member-chosen label. Go with their account.
+CREATE TABLE IF NOT EXISTS csb_passkeys (
+  id UUID PRIMARY KEY,
+  account_id UUID NOT NULL REFERENCES csb_passkey_accounts(id) ON DELETE CASCADE,
+  credential_id BYTEA NOT NULL UNIQUE,
+  label TEXT NOT NULL,
+  passkey JSONB NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS csb_passkeys_account_id_idx
+  ON csb_passkeys (account_id);
 
 -- http-01 challenge tokens, shared so any instance can answer a validation
 -- request. The key authorization is public by protocol.

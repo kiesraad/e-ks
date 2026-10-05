@@ -51,6 +51,7 @@ pub async fn migrate(pool: &sqlx::PgPool) -> Result<(), AppError> {
         create_events_table(&mut conn).await?;
         create_sessions_table(&mut conn).await?;
         create_pending_requests_table(&mut conn).await?;
+        create_passkey_tables(&mut conn).await?;
         Ok::<(), AppError>(())
     }
     .await
@@ -165,16 +166,67 @@ async fn create_pending_requests_table(conn: &mut sqlx::PgConnection) -> Result<
     Ok(())
 }
 
+/// Passkey accounts and their registered passkeys for the CSB login. The
+/// account name is unique ignoring case; passkeys go with their account.
+#[cfg(feature = "migrations")]
+async fn create_passkey_tables(conn: &mut sqlx::PgConnection) -> Result<(), AppError> {
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS csb_passkey_accounts (
+          id UUID PRIMARY KEY,
+          name TEXT NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+          created_by JSONB NOT NULL
+        )
+        "#,
+    )
+    .execute(&mut *conn)
+    .await?;
+
+    sqlx::query(
+        r#"CREATE UNIQUE INDEX IF NOT EXISTS csb_passkey_accounts_name_idx
+           ON csb_passkey_accounts (lower(name))"#,
+    )
+    .execute(&mut *conn)
+    .await?;
+
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS csb_passkeys (
+          id UUID PRIMARY KEY,
+          account_id UUID NOT NULL REFERENCES csb_passkey_accounts(id) ON DELETE CASCADE,
+          credential_id BYTEA NOT NULL UNIQUE,
+          label TEXT NOT NULL,
+          passkey JSONB NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+        "#,
+    )
+    .execute(&mut *conn)
+    .await?;
+
+    sqlx::query(
+        r#"CREATE INDEX IF NOT EXISTS csb_passkeys_account_id_idx
+           ON csb_passkeys (account_id)"#,
+    )
+    .execute(&mut *conn)
+    .await?;
+
+    Ok(())
+}
+
 /// Probe every table the application depends on, so a missing or broken schema
 /// (for example a dropped `sessions` table) surfaces as an error rather than a
 /// confusing per-request failure later
 pub async fn verify_schema(pool: &sqlx::PgPool) -> Result<(), AppError> {
     // `LIMIT 0` checks each table exists and is readable without scanning rows.
-    const TABLE_PROBES: [&str; 4] = [
+    const TABLE_PROBES: [&str; 6] = [
         "SELECT 1 FROM streams LIMIT 0",
         "SELECT 1 FROM events LIMIT 0",
         "SELECT 1 FROM sessions LIMIT 0",
         "SELECT 1 FROM pending_requests LIMIT 0",
+        "SELECT 1 FROM csb_passkey_accounts LIMIT 0",
+        "SELECT 1 FROM csb_passkeys LIMIT 0",
     ];
 
     for probe in TABLE_PROBES {

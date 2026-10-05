@@ -1,0 +1,15 @@
+{% extends "csb/components/overlay.html" %}
+{% block overlay_title %}{{ "csb.passkeys.delete_account"|trans }}: {{ account.name }}{% endblock %}
+{% block overlay_form %}
+  <fieldset>
+    <p>{{ "csb.passkeys.confirm_delete_account"|trans(account.name.as_str() , passkey_count.as_str()) }}</p>
+    {% if own_account %}
+      <p class="alert alert-info">{{ "csb.passkeys.own_account_warning"|trans }}</p>
+    {% endif %}
+  </fieldset>
+{% endblock %}
+{% block overlay_actions %}
+  <div class="form-actions">
+    <button type="submit" class="button tertiary-destructive icon-trash">{{ "csb.passkeys.delete_account"|trans }}</button>
+  </div>
+{% endblock %}

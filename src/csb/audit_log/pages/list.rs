@@ -32,6 +32,7 @@ const PER_PAGE: usize = 20;
 /// trans!("audit_log.filter.category.registered_political_group", _)
 /// trans!("audit_log.filter.category.numbering", _)
 /// trans!("audit_log.filter.category.objection", _)
+/// trans!("audit_log.filter.category.passkey", _)
 ///
 /// Event type option labels (referenced dynamically in the template):
 /// trans!("audit_log.event.paper_correction", _)
@@ -76,6 +77,14 @@ pub const EVENT_TYPES_BY_CATEGORY: &[EventTypeCategory] = &[
     EventTypeCategory {
         key: "objection",
         event_types: &["add_objection", "update_objection", "delete_objection"],
+    },
+    EventTypeCategory {
+        key: "passkey",
+        event_types: &[
+            "register_passkey",
+            "delete_passkey",
+            "delete_passkey_account",
+        ],
     },
     EventTypeCategory {
         key: "system",

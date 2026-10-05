@@ -21,6 +21,7 @@ allow = [
     "BSD-2-Clause",
     "CC0-1.0",
     "CDLA-Permissive-2.0",
+    "MPL-2.0",
 ]
 
 [[licenses.clarify]]
@@ -38,7 +39,7 @@ multiple-versions = "allow"
 
 [advisories]
 ignore = [
-    { id = "RUSTSEC-2023-0071", reason = "rsa 0.9 pulled transitively by bergshamra-crypto (XML-DSig/XML-Enc); no patched release available upstream (rsa 0.10 is still a release candidate). The only private-key operation is RSA-OAEP unwrapping of an EncryptedID, which is reached only after the RD signature on the ArtifactResponse has been verified, so a chosen-ciphertext timing oracle is not reachable. Revisit when bergshamra publishes a release on a constant-time rsa." },
+    { id = "RUSTSEC-2023-0071", reason = "rsa 0.9 pulled transitively by bergshamra-crypto (XML-DSig/XML-Enc); no patched release available upstream (rsa 0.10 is still a release candidate). The only private-key operation is RSA-OAEP unwrapping of an EncryptedID, which is reached only after the RD signature on the ArtifactResponse has been verified, so a chosen-ciphertext timing oracle is not reachable. The same rsa 0.9 is reached through crypto-glue by webauthn-rs, which only verifies RSA-signed WebAuthn attestations and assertions (public-key operations). Revisit when bergshamra publishes a release on a constant-time rsa." },
 ]
 
 [sources]

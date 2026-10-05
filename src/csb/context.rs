@@ -24,6 +24,9 @@ pub struct CsbContext {
     pub show_success_alert: bool,
     /// Whether the page is part of an already-open overlay (suppresses animation).
     pub overlay_active: bool,
+    /// Whether this deployment has the passkey login, so the layout can
+    /// offer the passkey management page.
+    pub passkeys_enabled: bool,
 }
 
 impl CsbContext {
@@ -34,6 +37,7 @@ impl CsbContext {
             server_name: None,
             show_success_alert: false,
             overlay_active: false,
+            passkeys_enabled: false,
         }
     }
 
@@ -58,6 +62,7 @@ impl askama::Values for CsbContext {
             "server_name" => Some(&self.server_name as &dyn std::any::Any),
             "show_success_alert" => Some(&self.show_success_alert as &dyn std::any::Any),
             "overlay_active" => Some(&self.overlay_active as &dyn std::any::Any),
+            "passkeys_enabled" => Some(&self.passkeys_enabled as &dyn std::any::Any),
             _ => None,
         }
     }
@@ -72,6 +77,7 @@ impl<S: AppRequestState> FromRequestParts<S> for CsbContext {
         let mut context = CsbContext::new(session, election);
 
         context.server_name = state.config().server_name.as_deref();
+        context.passkeys_enabled = state.passkeys().is_some();
 
         context.show_success_alert = crate::success_alert_requested(parts);
         context.overlay_active = crate::overlay_active(parts);

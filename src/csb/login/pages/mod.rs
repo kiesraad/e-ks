@@ -5,14 +5,19 @@ use crate::AppRequestState;
 
 mod callback;
 mod login;
+mod passkey;
 
 /// Routes mounted outside the session middleware: they all run before a
-/// session exists. Every one is a GET, so the whole flow is plain navigation.
+/// session exists. The GitHub flow is plain GET navigation; the passkey
+/// ceremony is two JSON POSTs from the login page's script, guarded by the
+/// global fetch-metadata layer and the browser-bound ceremony cookie.
 pub fn public_router<S: AppRequestState>() -> Router<S> {
     Router::new()
         .typed_get(login::login_start::<S>)
         .typed_get(login::login_redirect::<S>)
         .typed_get(callback::callback::<S>)
+        .typed_post(passkey::start::<S>)
+        .typed_post(passkey::finish::<S>)
 }
 
 #[cfg(test)]
@@ -80,6 +85,48 @@ mod tests {
 
             assert_eq!(response.status(), StatusCode::NOT_FOUND, "{uri}");
         }
+        for uri in ["/csb/login/passkey/start", "/csb/login/passkey/finish"] {
+            let request = Request::builder()
+                .method("POST")
+                .uri(uri)
+                .header(header::CONTENT_TYPE, "application/json")
+                .header("sec-fetch-site", "same-origin")
+                .body(Body::from("{}"))
+                .expect("valid request");
+            let response = app.clone().oneshot(request).await.expect("response");
+
+            assert_eq!(response.status(), StatusCode::NOT_FOUND, "{uri}");
+        }
+    }
+
+    /// The passkey start is reachable without a session and, like the rest
+    /// of the public login, sits behind the fetch-metadata CSRF layer.
+    #[tokio::test]
+    async fn passkey_start_is_public_but_refuses_cross_site_posts() {
+        let state = AppState::new_for_tests_with_config(test_support::passkey_test_config()).await;
+        let app = crate::app::router::create(state.clone()).with_state(state);
+
+        let request = |site: &str| {
+            Request::builder()
+                .method("POST")
+                .uri("/csb/login/passkey/start")
+                .header(header::CONTENT_TYPE, "application/json")
+                .header("sec-fetch-site", site)
+                .body(Body::from(r#"{"name":"Nobody"}"#))
+                .expect("valid request")
+        };
+
+        let response = app
+            .clone()
+            .oneshot(request("same-origin"))
+            .await
+            .expect("response");
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response_body_string(response).await;
+        assert!(body.contains("allowCredentials"));
+
+        let response = app.oneshot(request("cross-site")).await.expect("response");
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
     }
 
     /// Following the login link mints a nonce that is registered server-side,

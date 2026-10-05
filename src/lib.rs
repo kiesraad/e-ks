@@ -126,6 +126,10 @@ pub use auth::session_extractor::SESSION_COOKIE_NAME;
 pub(crate) use auth::{
     csb_user::{CsbUser, HasCsbUser},
     derive_id::IdDeriver,
+    passkey::{
+        CsbPasskeyStore, PasskeyAccount, PasskeyAccountId, PasskeyAccountName, PasskeyId,
+        PasskeyLabel, PasskeyLogin, StoredPasskey,
+    },
     pending_request_store::PendingRequestStore,
     session::Session,
     session_store::SessionStore,
@@ -134,9 +138,9 @@ pub(crate) use auth::{
 #[cfg(feature = "tls")]
 pub(crate) use core::TlsConfig;
 pub(crate) use core::{
-    AnyLocale, ElectionConfig, ElectionType, ElectoralDistrict, GithubOauthConfig, GithubUserId,
-    HtmlTemplate, Locale, LocaleValues, Province, RateLimit, RateLimits, Scope, SessionPageValues,
-    WaterCouncil,
+    AnyLocale, CsbPasskeyConfig, ElectionConfig, ElectionType, ElectoralDistrict,
+    GithubOauthConfig, GithubUserId, HtmlTemplate, Locale, LocaleValues, Province, RateLimit,
+    RateLimits, Scope, SessionPageValues, WaterCouncil,
     constants::{self, MAX_CANDIDATES},
     http_trace, translate,
 };

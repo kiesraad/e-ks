@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    CsbUser, Event, HasCsbUser, StreamId,
+    CsbUser, Event, HasCsbUser, PasskeyAccountName, PasskeyLabel, StreamId,
     core::constants::DEFAULT_DATE_TIME_FORMAT,
     structs::csb::{
         HearingDetails, HearingModel, Objection, ObjectionId, RegisteredPoliticalGroup,
@@ -39,6 +39,20 @@ pub enum CsbMainAction {
     AddObjection(Objection),
     UpdateObjection(Objection),
     DeleteObjection(ObjectionId),
+    /// A committee member registered a passkey under a passkey account.
+    RegisterPasskey {
+        account_name: PasskeyAccountName,
+        label: PasskeyLabel,
+    },
+    /// A committee member revoked one passkey of an account.
+    DeletePasskey {
+        account_name: PasskeyAccountName,
+        label: PasskeyLabel,
+    },
+    /// A committee member revoked a passkey account with all its passkeys.
+    DeletePasskeyAccount {
+        account_name: PasskeyAccountName,
+    },
 }
 
 impl CsbMainAction {
@@ -66,6 +80,9 @@ impl Event for CsbMainEvent {
             CsbMainAction::AddObjection(_)
             | CsbMainAction::UpdateObjection(_)
             | CsbMainAction::DeleteObjection(_) => "objection",
+            CsbMainAction::RegisterPasskey { .. }
+            | CsbMainAction::DeletePasskey { .. }
+            | CsbMainAction::DeletePasskeyAccount { .. } => "passkey",
         }
     }
 
@@ -81,6 +98,9 @@ impl Event for CsbMainEvent {
             CsbMainAction::AddObjection(_) => "add_objection",
             CsbMainAction::UpdateObjection(_) => "update_objection",
             CsbMainAction::DeleteObjection(_) => "delete_objection",
+            CsbMainAction::RegisterPasskey { .. } => "register_passkey",
+            CsbMainAction::DeletePasskey { .. } => "delete_passkey",
+            CsbMainAction::DeletePasskeyAccount { .. } => "delete_passkey_account",
         }
     }
 
@@ -106,6 +126,13 @@ impl Event for CsbMainEvent {
             CsbMainAction::AddObjection(_) => trans!("audit_log.event.add_objection", locale),
             CsbMainAction::UpdateObjection(_) => trans!("audit_log.event.update_objection", locale),
             CsbMainAction::DeleteObjection(_) => trans!("audit_log.event.delete_objection", locale),
+            CsbMainAction::RegisterPasskey { .. } => {
+                trans!("audit_log.event.register_passkey", locale)
+            }
+            CsbMainAction::DeletePasskey { .. } => trans!("audit_log.event.delete_passkey", locale),
+            CsbMainAction::DeletePasskeyAccount { .. } => {
+                trans!("audit_log.event.delete_passkey_account", locale)
+            }
         }
     }
 
@@ -134,6 +161,15 @@ impl Event for CsbMainEvent {
                 format!("{}: {}", objection.id, objection.objection_text)
             }
             CsbMainAction::DeleteObjection(id) => id.to_string(),
+            CsbMainAction::RegisterPasskey {
+                account_name,
+                label,
+            }
+            | CsbMainAction::DeletePasskey {
+                account_name,
+                label,
+            } => format!("{account_name}: {label}"),
+            CsbMainAction::DeletePasskeyAccount { account_name } => account_name.to_string(),
         }
     }
 }
@@ -162,6 +198,34 @@ mod tests {
         assert_eq!(create.description(Locale::En), "Registered political group");
         assert_eq!(create.details(), "Test Partij: 1234 votes, 2 seats");
         assert_eq!(delete.details(), group.id.to_string());
+    }
+
+    #[test]
+    fn passkey_events_share_a_category_and_name_the_account() {
+        let account_name: PasskeyAccountName = "Jan de Vries".parse().unwrap();
+        let label: PasskeyLabel = "YubiKey".parse().unwrap();
+        let register = CsbMainAction::RegisterPasskey {
+            account_name: account_name.clone(),
+            label: label.clone(),
+        }
+        .by(CsbUser::new_test());
+        let delete = CsbMainAction::DeletePasskey {
+            account_name: account_name.clone(),
+            label,
+        }
+        .by(CsbUser::new_test());
+        let delete_account =
+            CsbMainAction::DeletePasskeyAccount { account_name }.by(CsbUser::new_test());
+
+        for event in [&register, &delete, &delete_account] {
+            assert_eq!(event.category(), "passkey");
+        }
+        assert_eq!(register.key(), "register_passkey");
+        assert_eq!(delete.key(), "delete_passkey");
+        assert_eq!(delete_account.key(), "delete_passkey_account");
+        assert_eq!(register.description(Locale::En), "Registered passkey");
+        assert_eq!(register.details(), "Jan de Vries: YubiKey");
+        assert_eq!(delete_account.details(), "Jan de Vries");
     }
 
     #[test]

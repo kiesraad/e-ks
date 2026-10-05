@@ -21,7 +21,7 @@ pub mod translate;
 pub use config::AcmeConfig;
 #[cfg(feature = "tls")]
 pub use config::TlsConfig;
-pub use config::{Config, GithubOauthConfig};
+pub use config::{Config, CsbPasskeyConfig, GithubOauthConfig};
 pub use csb_access::{AlertThrottle, CsbAlertHours, CsbIpAllowList};
 pub use csv::{Csv, CsvError, reader_from_bytes};
 pub use election::{ElectionConfig, ElectionType, ElectoralDistrict, Province, WaterCouncil};

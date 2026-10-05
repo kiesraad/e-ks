@@ -32,3 +32,7 @@ pub mod csrf_guard;
 
 /// Session cookie helpers and request extraction.
 pub mod session_extractor;
+
+/// Passkey (WebAuthn) login for committee members: identities, credential
+/// store, ceremony state and the configured relying party.
+pub mod passkey;

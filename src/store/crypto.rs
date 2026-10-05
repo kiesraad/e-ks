@@ -208,6 +208,14 @@ pub struct EventCipher {
 }
 
 impl EventCipher {
+    /// A cipher over a caller-derived key, for payloads that are not stream
+    /// events (the passkey ceremony state).
+    pub fn from_key(key: &[u8; KEY_LEN]) -> Self {
+        Self {
+            cipher: Aes256Gcm::new_from_slice(key).expect("32 bytes is a valid AES-256 key length"),
+        }
+    }
+
     /// Serialize `event` as CBOR and encrypt, binding `aad` into the
     /// authentication tag (see [`crate::store::event_aad`]).
     ///

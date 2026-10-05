@@ -56,6 +56,11 @@
           {% endblock %}
         </ul>
         <ul>
+          {% if "passkeys_enabled"|value_true %}
+            <li>
+              <a href="{{ crate::csb::passkeys::CsbPasskeysPath }}">{{ "csb.passkeys.title"|trans }}</a>
+            </li>
+          {% endif %}
           <li>
             <a href="{{ crate::csb::audit_log::CsbAuditLogPath{}.to_string() }}">{{ "audit_log.title"|trans }}</a>
           </li>
@@ -91,7 +96,8 @@
         <h1>{% block page_title %}{{ "common.title"|trans }}{% endblock %}</h1>
         {% block page_sub_title %}{% endblock %}
       </div>
-      {% block header_action %}{% endblock %}
+      {% block header_action %}
+      {% endblock %}
     </div>
   </header>
   <main class="{% block main_class %}{% endblock %}">

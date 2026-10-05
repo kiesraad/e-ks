@@ -8,9 +8,9 @@ use axum::extract::FromRef;
 use secrecy::ExposeSecret;
 
 use crate::{
-    AppError, AppRequestState, Config, CsbMainStore, CsbMainStoreData, CsbStoreData, CsbStream,
-    CsbUser, DbHealth, ElectionConfig, IdDeriver, PendingRequestStore, PgStoreData, Scope,
-    SessionStore, StreamId,
+    AppError, AppRequestState, Config, CsbMainStore, CsbMainStoreData, CsbPasskeyStore,
+    CsbStoreData, CsbStream, CsbUser, DbHealth, ElectionConfig, IdDeriver, PasskeyLogin,
+    PendingRequestStore, PgStoreData, Scope, SessionStore, StreamId,
     constants::CSB_ALERT_HOURS_REPEAT_INTERVAL,
     core::AlertThrottle,
     crypto::MasterKey,
@@ -42,6 +42,10 @@ pub struct AppState {
     /// (eID §9.7), backed by the configured storage so they survive restarts
     /// and are shared across instances.
     pub pending_requests: PendingRequestStore,
+    /// The passkey login: relying party, credential store and ceremony-state
+    /// cipher; `None` when `CSB_PASSKEY_ORIGIN` is unset.
+    #[from_ref(skip)]
+    pub passkeys: Option<PasskeyLogin>,
     /// ACME challenge tokens, shared across instances.
     #[cfg(feature = "acme")]
     pub acme_store: crate::AcmeStore,
@@ -69,6 +73,10 @@ impl AppRequestState for AppState {
 
     fn pending_requests(&self) -> &PendingRequestStore {
         &self.pending_requests
+    }
+
+    fn passkeys(&self) -> Option<&PasskeyLogin> {
+        self.passkeys.as_ref()
     }
 
     fn csb_store_registry(&self) -> &StoreRegistry<CsbStoreData> {
@@ -147,6 +155,7 @@ impl AppState {
         let sessions = SessionStore::from_storage_url(config.storage_url.expose_secret())?;
         let pending_requests =
             PendingRequestStore::from_storage_url(config.storage_url.expose_secret())?;
+        let passkeys = passkey_login(&config)?;
         let id_deriver = IdDeriver::new(&config.id_derivation_key);
 
         let auth_service_state = if config.disable_auth_service {
@@ -173,6 +182,7 @@ impl AppState {
             csb_main_store_registry,
             sessions,
             pending_requests,
+            passkeys,
             #[cfg(feature = "acme")]
             acme_store,
             id_deriver,
@@ -255,6 +265,7 @@ impl AppState {
         let pending_requests =
             PendingRequestStore::from_storage_url(config.storage_url.expose_secret())
                 .expect("test PendingRequestStore must initialize");
+        let passkeys = passkey_login(&config).expect("test PasskeyLogin must initialize");
         let auth_service_state = AuthServiceState::new_empty();
 
         let store_registry = StoreRegistry::new(
@@ -292,6 +303,7 @@ impl AppState {
             config: Box::leak(Box::new(config)),
             sessions,
             pending_requests,
+            passkeys,
             #[cfg(feature = "acme")]
             acme_store,
             id_deriver,
@@ -301,6 +313,19 @@ impl AppState {
             csb_alert_throttle: AlertThrottle::new(CSB_ALERT_HOURS_REPEAT_INTERVAL),
         }
     }
+}
+
+/// The passkey login for the configured relying party, with its credential
+/// store on the same storage as the sessions.
+fn passkey_login(config: &Config) -> Result<Option<PasskeyLogin>, AppError> {
+    config
+        .csb_passkey
+        .as_ref()
+        .map(|passkey_config| {
+            let store = CsbPasskeyStore::from_storage_url(config.storage_url.expose_secret())?;
+            PasskeyLogin::new(passkey_config, store, &config.master_encryption_key)
+        })
+        .transpose()
 }
 
 #[cfg(test)]
