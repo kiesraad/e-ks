@@ -1,5 +1,5 @@
 button:
-  digid: Inloggen met DigiD
+  digid: Inloggen
 cancelled:
   message: U heeft het inloggen afgebroken. U bent niet ingelogd bij Kandidaatstelling van de Kiesraad. Log opnieuw in om verder te gaan.
   title: Inloggen geannuleerd
