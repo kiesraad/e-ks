@@ -15,7 +15,8 @@ use crate::{
             extractors::CsbPoliticalGroup,
             pages::{CsbBrpCheckPath, CsbPoliticalGroupPath, CsbPoliticalGroupToggleFinishPath},
             structs::{
-                BrpBadge, BrpCheckState, CsbCandidateList, RestorationStatus, brp_incomplete_reason,
+                BrpBadge, BrpCheckState, CsbCandidateList, RestorationStatus, ScrappedOverview,
+                brp_incomplete_reason,
             },
         },
         import::{brp_sweep_running, do_brp_verification},
@@ -43,7 +44,9 @@ struct CsbPoliticalGroupTemplate {
     political_group_status: RestorationStatus,
     declarations_of_support_omissions: Vec<Omission>,
     has_paper_corrections: bool,
-    scrapped_districts: Vec<crate::ElectoralDistrict>,
+    /// What the unresolved omissions scrapped; only in the recovery phase,
+    /// where omissions are decided.
+    scrapped: Option<ScrappedOverview>,
     all_problems: AllProblems,
 }
 
@@ -114,7 +117,9 @@ pub(in crate::csb) async fn render(
         context.session.locale,
     );
     let political_group_status = RestorationStatus::for_political_group(&store);
-    let scrapped_districts = political_group.scrapped.districts(&store.election);
+    let scrapped = mode
+        .is_recovery()
+        .then(|| store.get_scrapped_overview(&political_group));
     let all_problems = store.get_all_problems(context.election)?;
     Ok(HtmlTemplate(
         CsbPoliticalGroupTemplate {
@@ -127,7 +132,7 @@ pub(in crate::csb) async fn render(
             political_group_status,
             declarations_of_support_omissions: store.get_all_declarations_of_support_omissions(),
             has_paper_corrections: store.has_paper_corrections(),
-            scrapped_districts,
+            scrapped,
             all_problems,
         },
         context,
@@ -380,6 +385,18 @@ mod tests {
             store.get_brp_status(),
             BrpStatus::InProgress { .. }
         ));
+    }
+
+    /// Omissions are decided in the recovery phase, so only that phase has
+    /// anything scrapped to show.
+    #[tokio::test]
+    async fn the_examination_page_has_no_scrapped_panel() {
+        let (store, _) = store_with_a_candidate();
+
+        let body = examination_body(store).await;
+
+        assert!(!body.contains("<h2 class=\"h3\">Scrapped</h2>"), "{body}");
+        assert!(!body.contains("Nothing has been scrapped."));
     }
 
     #[tokio::test]

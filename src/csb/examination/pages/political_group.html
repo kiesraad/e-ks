@@ -91,22 +91,82 @@
             {% endfor %}
           </ul>
         {% endif %}
-        {% if !scrapped_districts.is_empty() %}
-          <div class="examination-panel-header">
-            <h3>{{ "csb.recovery.scrapped"|trans }}</h3>
-          </div>
-          <div class="restoration-strip restoration-strip-error">
-            <ul class="restoration-tags">
-              {% for district in scrapped_districts %}
-                <li>
-                  <span class="restoration-tag restoration-tag-scrapped">{{ district|district_name }}</span>
-                </li>
-              {% endfor %}
-            </ul>
-          </div>
-        {% endif %}
       {% endif %}
     </div>
+    {% if let Some(scrapped) = scrapped %}
+      <div class="examination-panel">
+        <div class="examination-panel-header">
+          <div>
+            <h2 class="h3">{{ "csb.recovery.scrapped"|trans }}</h2>
+          </div>
+        </div>
+        {% if scrapped.is_empty() %}
+          <div class="restoration-strip">
+            <span class="restoration-strip-empty">{{ "csb.recovery.nothing_scrapped"|trans }}</span>
+          </div>
+        {% else %}
+          {% if let Some(appellation) = scrapped.appellation %}
+            <h3 class="examination-panel-group">{{ "political_group.appellation"|trans }}</h3>
+            <div class="restoration-strip restoration-strip-error">
+              <ul class="restoration-tags">
+                <li>
+                  <a class="restoration-tag restoration-tag-scrapped"
+                     href="{{ appellation.path }}">{{ appellation.appellation }}</a>
+                </li>
+              </ul>
+            </div>
+          {% endif %}
+          {% if !scrapped.districts.is_empty() %}
+            <h3 class="examination-panel-group">{{ "common.electoral_districts"|trans }}</h3>
+            <div class="restoration-strip restoration-strip-error">
+              <ul class="restoration-tags">
+                {% for item in scrapped.districts %}
+                  <li>
+                    {% if let Some(path) = item.path %}
+                      <a class="restoration-tag restoration-tag-scrapped" href="{{ path }}">{{ item.district|district_name }}</a>
+                    {% else %}
+                      <span class="restoration-tag restoration-tag-scrapped">{{ item.district|district_name }}</span>
+                    {% endif %}
+                  </li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% endif %}
+          {% if !scrapped.lists.is_empty() %}
+            <h3 class="examination-panel-group">{{ "candidate_list.title_plural"|trans }}</h3>
+            <div class="restoration-strip restoration-strip-error">
+              <ul class="restoration-tags">
+                {% for item in scrapped.lists %}
+                  <li>
+                    <a class="restoration-tag restoration-tag-scrapped"
+                       href="{{ item.path }}">
+                      {{ "candidate_list.title_single"|trans }}
+                      {% if !election.has_only_one_district() %}{{ item.districts_label() }}{% endif %}
+                    </a>
+                  </li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% endif %}
+          {% if !scrapped.candidates.is_empty() %}
+            <h3 class="examination-panel-group">{{ "common.candidates"|trans }}</h3>
+            <div class="restoration-strip restoration-strip-error">
+              <ul class="restoration-tags">
+                {% for item in scrapped.candidates %}
+                  <li>
+                    <a class="restoration-tag restoration-tag-scrapped"
+                       href="{{ item.path }}">
+                      {{ item.person.name.display() }}
+                      {% if political_group.has_multiple_candidate_lists() %}({{ item.list_districts_label() }}){% endif %}
+                    </a>
+                  </li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% endif %}
+        {% endif %}
+      </div>
+    {% endif %}
     <div class="examination-panel">
       <h2 class="h3">{{ "csb.examination"|trans }}</h2>
       <div class="cards cards-candidate-lists">
