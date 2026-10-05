@@ -10,7 +10,7 @@ use super::{
     layout::markdown_document,
     markdown::{filters, model_template},
 };
-use crate::{AppError, core::AnyLocale, structs::persons::Person};
+use crate::{AppError, core::AnyLocale, models::inputs::PublicSession, structs::persons::Person};
 
 #[derive(Debug)]
 pub struct OSV3_2 {
@@ -18,6 +18,7 @@ pub struct OSV3_2 {
     pub election_date: String,
     /// Per district, the lists in list number order.
     pub valid_lists: Vec<DistrictLists<NumberedList>>,
+    pub public_session: PublicSession,
 }
 
 /// A valid list with its number in the district: the lists of a district

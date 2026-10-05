@@ -7,7 +7,8 @@ use crate::{
         numbering::list_numbering,
         pages::{CsbOsv3_2DocxDownloadPath, CsbOsv3_2DownloadPath},
     },
-    models::{Pdf, csb_model_inputs::published_lists, osv3_2::OSV3_2},
+    models::{Pdf, csb_model_inputs::published_lists, inputs::PublicSession, osv3_2::OSV3_2},
+    structs::csb::HearingModel,
 };
 
 /// Collect the store data the OSV 3-2 model needs.
@@ -18,6 +19,10 @@ async fn osv3_2_model<S: AppRequestState>(
     let election = main_store.election;
     let registry = state.csb_store_registry();
     let numbering = list_numbering(registry, &main_store).await?;
+    let mut public_session = PublicSession::from(election.public_session());
+    if let Some(hearing_details) = main_store.get_hearing_details(HearingModel::I4) {
+        public_session = public_session.with_hearing_details(hearing_details);
+    }
 
     Ok(OSV3_2 {
         election_name: election.formal_title(ModelLocale::Nl),
@@ -26,6 +31,7 @@ async fn osv3_2_model<S: AppRequestState>(
             .format(DEFAULT_DATE_FORMAT)
             .to_string(),
         valid_lists: published_lists(registry, &election, &numbering).await?,
+        public_session,
     })
 }
 

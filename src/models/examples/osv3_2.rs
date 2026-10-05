@@ -3,7 +3,7 @@
 use crate::{
     ElectoralDistrict,
     models::{
-        inputs::{DistrictLists, ValidList},
+        inputs::{DistrictLists, PublicSession, ValidList},
         osv3_2::{NumberedList, OSV3_2, PublishedCandidate},
     },
 };
@@ -70,5 +70,12 @@ pub fn osv3_2_example_1() -> OSV3_2 {
                 lists: vec![kiesraad_demo(1), blanco_nagelhout(2)],
             },
         ],
+        public_session: PublicSession {
+            location: String::with_capacity(0),
+            date: "3 mei 2027".to_string(),
+            time: String::with_capacity(0),
+            chair: "M.C. Voorzitter".to_string(),
+            members: Vec::with_capacity(0),
+        },
     }
 }
