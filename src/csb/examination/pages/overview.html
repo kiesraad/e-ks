@@ -3,6 +3,11 @@
   {{ breadcrumb(crate::csb::examination::CsbExaminationOverviewPath, "csb.examination") }}
 {% endblock %}
 {% block page_title %}{{ "csb.examination"|trans }}{% endblock %}
+{% block header_action %}
+  <div class="header-buttons">
+    <a href="{{ crate::csb::index::CsbIndexPath }}" class="button secondary">{{ "action.back"|trans }}</a>
+  </div>
+{% endblock %}
 {% block content %}
   <div class="examination">
     <div class="examination-side">

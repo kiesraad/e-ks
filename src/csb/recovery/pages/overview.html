@@ -8,6 +8,11 @@
 {% block page_sub_title %}
   <span class="subtitle">{{ "csb.recovery.explanation"|trans }}</span>
 {% endblock %}
+{% block header_action %}
+  <div class="header-buttons">
+    <a href="{{ crate::csb::index::CsbIndexPath }}" class="button secondary">{{ "action.back"|trans }}</a>
+  </div>
+{% endblock %}
 {% block content %}
   <div class="examination">
     <div class="examination-side">
