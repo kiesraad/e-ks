@@ -7,7 +7,6 @@ mod paths;
 pub(in crate::csb) mod structs;
 
 pub use forms::OmissionForm;
-pub use numbering::ListNumbering;
 pub use pages::router;
 pub use paths::{
     CsbExaminationOverviewPath, CsbFinishExaminationPath, CsbHearingDetailsPath,

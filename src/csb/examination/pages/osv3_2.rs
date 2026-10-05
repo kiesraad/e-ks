@@ -19,6 +19,15 @@ async fn osv3_2_model<S: AppRequestState>(
     let election = main_store.election;
     let registry = state.csb_store_registry();
     let numbering = list_numbering(registry, &main_store).await?;
+    if numbering
+        .groups
+        .iter()
+        .any(|group| group.position.is_none())
+    {
+        // TODO: https://github.com/kiesraad/e-ks/issues/1319
+        return Err(AppError::IncompleteData("List order not recorded"));
+    }
+
     let mut public_session = PublicSession::from(election.public_session());
     if let Some(hearing_details) = main_store.get_hearing_details(HearingModel::I4) {
         public_session = public_session.with_hearing_details(hearing_details);
@@ -30,7 +39,7 @@ async fn osv3_2_model<S: AppRequestState>(
             .election_date()
             .format(DEFAULT_DATE_FORMAT)
             .to_string(),
-        valid_lists: published_lists(registry, &election, &numbering).await?,
+        valid_lists: published_lists(registry, &election, &numbering.stream_ids()).await?,
         public_session,
     })
 }

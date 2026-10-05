@@ -9,7 +9,6 @@ use std::collections::BTreeMap;
 use crate::{
     AppError, CsbStoreData, CsbStream, ElectionConfig, ElectoralDistrict, StreamId,
     core::AnyLocale,
-    csb::examination::ListNumbering,
     models::{
         i1, i4,
         inputs::{DistrictLists, OmissionGroup, ValidList, ValidListCandidate},
@@ -298,30 +297,21 @@ pub async fn i4_inputs(
 
 /// The OSV 3-2 lists: per district, the valid lists in list order, numbered
 /// on within the district. A district without a group's list, never
-/// submitted or scrapped there, numbers on without a gap. Fails while the
-/// order drawn by lot is not recorded.
+/// submitted or scrapped there, numbers on without a gap. `stream_order` is
+/// the list order of the groups.
 pub async fn published_lists(
     registry: &StoreRegistry<CsbStoreData>,
     election: &ElectionConfig,
-    numbering: &ListNumbering,
+    stream_order: &[StreamId],
 ) -> Result<Vec<DistrictLists<NumberedList>>, AppError> {
-    if numbering
-        .groups
-        .iter()
-        .any(|group| group.position.is_none())
-    {
-        // TODO: https://github.com/kiesraad/e-ks/issues/1319
-        return Err(AppError::IncompleteData("List order not recorded"));
-    }
-
     let stores = examined_stores(registry, election).await?;
     let mut by_district: BTreeMap<ElectoralDistrict, Vec<ValidList<PublishedCandidate>>> =
         BTreeMap::new();
 
-    for group in &numbering.groups {
+    for stream_id in stream_order {
         let store = stores
             .iter()
-            .find(|store| store.stream_id == group.stream_id)
+            .find(|store| store.stream_id == *stream_id)
             .ok_or(AppError::Conflict)?;
 
         for (district, list) in valid_lists(store, &store.get_scrapped(), PublishedCandidate::new)?
