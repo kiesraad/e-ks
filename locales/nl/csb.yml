@@ -83,7 +83,7 @@ examination: Onderzoek
 finalise:
   add_objection: Bezwaar toevoegen
   district_count: Kieskringen
-  download_eml230b: EML230b downloaden
+  download_eml230b: Download EML230b
   i4_note: Proces-verbaal over geldigheid en nummering kandidatenlijsten. Maak het document aan van het verslag van de openbare zitting.
   i4_title: I\u00A04 Proces-verbaal
   no_lists: Er zijn geen lijsten om te nummeren.
@@ -93,6 +93,8 @@ finalise:
   order_title: Partij volgorde
   position: Positie
   title: Vaststellen kandidatenlijsten
+  draft_title: Concept versie
+  final_title: Definitieve versie
 finish_examination:
   download_note: Download hier alle verzuimbrieven als Word en PDF in één ZIP
   download_pdf: Download PDF

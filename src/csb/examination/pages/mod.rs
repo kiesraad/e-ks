@@ -8,11 +8,11 @@ use super::paths::{
     CsbAppellationCorrectionPath, CsbBrpCheckPath, CsbCandidateBrpCheckPath,
     CsbCandidateBrpFindingHandledPath, CsbCandidateListPath, CsbCandidatePath,
     CsbDeleteOmissionPath, CsbExaminationOverviewPath, CsbFinishExaminationPath,
-    CsbGeneralInformationPath, CsbI1DocxDownloadPath, CsbI1DownloadPath, CsbI4DocxDownloadPath,
-    CsbI4DownloadPath, CsbOmissionLetterDocxDownloadPath, CsbOmissionLetterDownloadPath,
-    CsbOmissionLetterPath, CsbOmissionLettersDownloadPath, CsbOmissionOverviewPath,
-    CsbPaperCorrectionsStartPath, CsbPaperCorrectionsStopPath, CsbPersonCorrectionPath,
-    CsbPoliticalGroupPath, CsbPoliticalGroupToggleFinishPath, OmissionListQuery, PgIndexPath,
+    CsbGeneralInformationPath, CsbI1DocxDownloadPath, CsbI1DownloadPath,
+    CsbOmissionLetterDocxDownloadPath, CsbOmissionLetterDownloadPath, CsbOmissionLetterPath,
+    CsbOmissionLettersDownloadPath, CsbOmissionOverviewPath, CsbPaperCorrectionsStartPath,
+    CsbPaperCorrectionsStopPath, CsbPersonCorrectionPath, CsbPoliticalGroupPath,
+    CsbPoliticalGroupToggleFinishPath, OmissionListQuery, PgIndexPath,
 };
 
 mod all_brp_findings;
@@ -25,7 +25,6 @@ pub(in crate::csb) mod finish_examination;
 pub(in crate::csb) mod general_information;
 pub(in crate::csb) mod hearing_details;
 mod i1;
-mod i4;
 mod omission;
 mod omission_letter;
 mod overview;
@@ -37,8 +36,6 @@ pub fn router<S: AppRequestState>() -> Router<S> {
         .typed_get(overview::overview)
         .typed_get(i1::gen_i1::<S>)
         .typed_get(i1::gen_i1_docx::<S>)
-        .typed_get(i4::gen_i4::<S>)
-        .typed_get(i4::gen_i4_docx::<S>)
         .typed_get(omission_letter::overview)
         .typed_get(omission_letter::gen_omission_letter)
         .typed_get(omission_letter::gen_omission_letter_docx)

@@ -35,6 +35,7 @@ pub struct I4 {
     /// Empty: no objections raised.
     pub objections: Vec<String>,
     pub response_objections: Option<String>,
+    pub is_draft: bool,
 }
 
 #[derive(Debug)]
@@ -154,6 +155,11 @@ impl Pdf for I4 {
     }
 
     fn filename(&self) -> String {
-        "i4-proces-verbaal.pdf".to_string()
+        if self.is_draft {
+            "i4-proces-verbaal (concept).pdf"
+        } else {
+            "i4-proces-verbaal.pdf"
+        }
+        .to_string()
     }
 }

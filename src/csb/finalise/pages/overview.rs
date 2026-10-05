@@ -2,16 +2,12 @@ use askama::Template;
 use axum::response::{IntoResponse, Response};
 
 use crate::{
-    AppError, Context, CsbContext, CsbMainStore, HtmlTemplate,
-    csb::{
+    AppError, Context, CsbContext, CsbMainStore, HtmlTemplate, csb::{
         examination::{
-            CsbI4DocxDownloadPath, CsbI4DownloadPath, extractors::CsbPoliticalGroups,
+            extractors::CsbPoliticalGroups,
             numbering::ListNumbering,
-        },
-        finalise::paths::{CsbEml230bDownloadPath, CsbFinalisePath, CsbListOrderPath},
-    },
-    filters,
-    structs::csb::Objection,
+        }, finalise::{paths::{CsbEml230bDownloadPath, CsbFinalisePath, CsbListOrderPath}},
+    }, filters, structs::csb::Objection,
 };
 
 #[derive(Template)]

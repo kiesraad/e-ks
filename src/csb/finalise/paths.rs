@@ -47,3 +47,11 @@ impl Objection {
 #[derive(TypedPath)]
 #[typed_path("/csb/finalise/eml230b.zip", rejection(AppError))]
 pub struct CsbEml230bDownloadPath;
+
+#[derive(TypedPath)]
+#[typed_path("/csb/finalise/i4.pdf", rejection(AppError))]
+pub struct CsbI4FinalDownloadPath;
+
+#[derive(TypedPath)]
+#[typed_path("/csb/finalise/i4.docx", rejection(AppError))]
+pub struct CsbI4FinalDocxDownloadPath;

@@ -213,6 +213,7 @@ fn i4_example(
     numbered_based_on_districts: Vec<NumberedOnDistricts>,
     objections: Vec<String>,
     response_objections: Option<String>,
+    is_draft: bool,
 ) -> I4 {
     I4 {
         election_name: "de Eerste Kamer der Staten-Generaal".to_string(),
@@ -229,6 +230,7 @@ fn i4_example(
         numbered_based_on_districts,
         objections,
         response_objections,
+        is_draft,
     }
 }
 
@@ -252,7 +254,7 @@ pub fn i4_example_1() -> I4 {
             "Namens De Herstelde Partij wordt de Kiesraad bedankt voor al het werk en de hulp bij het proces. De partij heeft dat als zeer prettig ervaren, maar het zou fijn zijn als het systeem wordt aangepast.",
         ]),
         Some("Reactie van de Kiesraad op de bezwaren:\nWat betreft de opmerkingen die door een aantal bezwaarmakers zijn gemaakt over het proces van het verkrijgen van ondersteuningsverklaringen stelt de Kiesraad dit ook heel vervelend te vinden. Het gaat hier over een proces onder de verantwoordelijkheid van de gemeenten. De Kiesraad geeft gemeenten informatie en instrueert hen.".to_string()),
-    )
+    false)
 }
 
 pub fn i4_example_2() -> I4 {
@@ -271,5 +273,6 @@ pub fn i4_example_2() -> I4 {
         ],
         Vec::new(),
         None,
+        true,
     )
 }
