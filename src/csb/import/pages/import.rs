@@ -7,14 +7,16 @@ use std::{
 use askama::Template;
 use axum::{
     extract::State,
-    response::{IntoResponse, Response},
+    response::{IntoResponse, Redirect, Response},
 };
 use serde::Deserialize;
 
 use crate::{
     AppError, AppRequestState, Context, CsbAction, CsbContext, CsbStore, CsbStoreData, CsbUser,
     ElectionConfig, Form, HtmlTemplate, Locale, PgStoreData, StreamId,
-    csb::examination::{CsbExaminationOverviewPath, CsbPoliticalGroupPath},
+    csb::examination::{
+        CsbExaminationOverviewPath, CsbPoliticalGroupPath, extractors::CsbPoliticalGroup,
+    },
     filters,
     projection::WithCorrections,
     redirect_success,
@@ -268,9 +270,13 @@ pub async fn create_empty<S: AppRequestState>(
         context.user()?,
     );
     csb_store.update(CsbAction::CreateEmpty).await?;
-    Ok(redirect_success(CsbPoliticalGroupPath {
-        stream_id: csb_store.stream_id,
-    }))
+    // A temporary (307) redirect preserves the POST method and form body.
+    Ok(Redirect::temporary(
+        &CsbPoliticalGroup::new_from_csb_store(&csb_store)
+            .start_paper_corrections_path()
+            .to_string(),
+    )
+    .into_response())
 }
 
 /// The streams this process is sweeping right now.
@@ -723,8 +729,8 @@ mod tests {
         .await?
         .into_response();
 
-        // A successful creation redirects to the political group examination page.
-        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        // A successful creation redirects (preserving the POST method) to start paper corrections.
+        assert_eq!(response.status(), StatusCode::TEMPORARY_REDIRECT);
 
         // A single CSB store is recorded carrying the CreateEmpty event.
         let csb_stores = state.csb_store_registry().stores_by_scope().await?;

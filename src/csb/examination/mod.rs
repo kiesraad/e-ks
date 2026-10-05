@@ -1,8 +1,7 @@
 mod actions;
 pub(in crate::csb) mod extractors;
 mod forms;
-mod model_inputs;
-pub mod numbering;
+pub(in crate::csb) mod numbering;
 pub(in crate::csb) mod pages;
 mod paths;
 pub(in crate::csb) mod structs;

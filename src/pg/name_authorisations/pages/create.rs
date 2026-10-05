@@ -26,7 +26,7 @@ pub async fn create_name_authorisation(
     Ok(HtmlTemplate(
         NameAuthorisationCreateTemplate {
             form: FormData::new(),
-            overlay: Overlay::new(&query),
+            overlay: Overlay::new_create(&query),
         },
         context,
     ))
@@ -43,7 +43,7 @@ pub async fn create_name_authorisation_submit(
         Err(form_data) => Ok(HtmlTemplate(
             NameAuthorisationCreateTemplate {
                 form: form_data,
-                overlay: Overlay::new(&query),
+                overlay: Overlay::new_create(&query),
             },
             context,
         )

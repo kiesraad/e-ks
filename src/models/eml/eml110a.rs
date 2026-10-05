@@ -108,22 +108,25 @@ pub fn eml110a(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::assert_matches;
+
     use crate::{
-        ElectionConfig, Province, WaterCouncil, structs::csb::sample_registered_political_group,
+        ElectionConfig, Province, WaterCouncil, models::eml::remove_variable_fields,
+        structs::csb::sample_registered_political_group,
     };
 
     fn check_eml(response: &str, expected: &str) {
-        let stringify_election_event = |eml: EML| {
-            format!(
-                "{:?}",
-                eml.as_election_definition_doc().unwrap().election_event
-            )
-        };
+        // should parse
+        assert_matches!(response.parse().unwrap(), EML::ElectionDefinition(_));
+        assert_matches!(expected.parse().unwrap(), EML::ElectionDefinition(_));
 
-        let received = stringify_election_event(response.parse().unwrap());
-        let expected = stringify_election_event(expected.parse().unwrap());
-
-        assert_eq!(received, expected, "received XML:\n{}", response);
+        // should match the expected document, other than the variable fields
+        assert_eq!(
+            remove_variable_fields(response),
+            remove_variable_fields(expected),
+            "received XML:\n{}",
+            response
+        );
     }
 
     #[test]

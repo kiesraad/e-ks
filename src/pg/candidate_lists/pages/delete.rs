@@ -25,7 +25,7 @@ pub async fn delete_candidate_list_confirm(
 ) -> AppResponse<impl IntoResponse> {
     Ok(HtmlTemplate(
         DeleteCandidateListTemplate {
-            overlay: Overlay::new(&query),
+            overlay: Overlay::new_edit(&query),
             candidate_list,
         },
         context,

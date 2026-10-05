@@ -406,7 +406,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn political_group_falls_back_to_placeholder_when_unnamed() {
+    async fn political_group_title_is_empty_when_unnamed() {
         // A fresh store has no imported political group, so the name is unknown.
         let store = CsbStore::new_for_test();
         let stream_id = store.stream_id;
@@ -421,8 +421,14 @@ mod tests {
         .into_response();
 
         assert_eq!(response.status(), StatusCode::OK);
+        // The appellation is used as the page title, so it is left empty.
         let body = response_body_string(response).await;
-        assert!(body.contains("???"));
+        let title = body
+            .split_once("<h1>")
+            .and_then(|(_, rest)| rest.split_once("</h1>"))
+            .map(|(title, _)| title.trim())
+            .expect("page has a title");
+        assert_eq!(title, "");
     }
 
     #[tokio::test]

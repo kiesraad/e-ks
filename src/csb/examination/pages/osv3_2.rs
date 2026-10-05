@@ -4,11 +4,10 @@ use crate::{
     AppError, AppRequestState, CsbMainStore,
     core::{ModelLocale, constants::DEFAULT_DATE_FORMAT},
     csb::examination::{
-        model_inputs::published_lists,
         numbering::list_numbering,
         pages::{CsbOsv3_2DocxDownloadPath, CsbOsv3_2DownloadPath},
     },
-    models::{Pdf, osv3_2::OSV3_2},
+    models::{Pdf, csb_model_inputs::published_lists, osv3_2::OSV3_2},
 };
 
 /// Collect the store data the OSV 3-2 model needs.
@@ -215,6 +214,7 @@ mod tests {
 
         let result = osv3_2_model(CsbMainStore::new_for_test(), &state).await;
 
+        // TODO: https://github.com/kiesraad/e-ks/issues/1319
         assert!(matches!(result, Err(AppError::IncompleteData(_))));
     }
 

@@ -8,7 +8,7 @@ export class CandidateListsOverviewPage {
 
   constructor(protected readonly page: Page) {
     this.buttonAddList = this.page.getByRole("link", {
-      name: "Lijst aanmaken",
+      name: "Lijst toevoegen",
     });
     this.linkCandidateList = this.page.getByRole("link", {
       name: "Kandidatenlijst beheren",

@@ -8,7 +8,7 @@ use crate::{
             CsbI4DocxDownloadPath, CsbI4DownloadPath, extractors::CsbPoliticalGroups,
             numbering::ListNumbering,
         },
-        finalise::paths::{CsbFinalisePath, CsbListOrderPath},
+        finalise::paths::{CsbEml230bDownloadPath, CsbFinalisePath, CsbListOrderPath},
     },
     filters,
     structs::csb::Objection,

@@ -5,18 +5,34 @@ use axum_extra::routing::TypedPath;
 use super::QueryParamState;
 
 /// Navigation context for an overlay, carrying an optional `redirect_to` URL
-#[derive(Default)]
 pub struct Overlay {
     redirect_to: Option<String>,
     initial: bool,
+    create: bool,
 }
 
 impl Overlay {
-    pub fn new(query: &QueryParamState) -> Self {
+    /// An overlay that creates a new entity, skipped on browser history
+    /// navigation so it cannot accidentally be submitted twice
+    pub fn new_create(query: &QueryParamState) -> Self {
+        Self::new(query, true)
+    }
+
+    /// An overlay that edits, deletes or shows existing data
+    pub fn new_edit(query: &QueryParamState) -> Self {
+        Self::new(query, false)
+    }
+
+    fn new(query: &QueryParamState, create: bool) -> Self {
         Self {
             redirect_to: query.redirect_url().map(str::to_string),
             initial: query.is_initial(),
+            create,
         }
+    }
+
+    pub fn is_create(&self) -> bool {
+        self.create
     }
 
     /// Returns `redirect_to` if set, otherwise the given default path, keeping
@@ -72,7 +88,7 @@ mod tests {
     #[test]
     fn forward_preserves_initial() {
         let query = QueryParamState::initial();
-        let overlay = Overlay::new(&query);
+        let overlay = Overlay::new_edit(&query);
 
         assert_eq!(overlay.forward(FooPath), "/foo?&initial=true&overlay=true");
     }
@@ -80,7 +96,7 @@ mod tests {
     #[test]
     fn forward_without_initial_does_not_add_it() {
         let query = QueryParamState::default();
-        let overlay = Overlay::new(&query);
+        let overlay = Overlay::new_edit(&query);
 
         assert_eq!(overlay.forward(FooPath), "/foo?&overlay=true");
     }
@@ -88,7 +104,7 @@ mod tests {
     #[test]
     fn close_url_preserves_initial() {
         let query = QueryParamState::initial();
-        let overlay = Overlay::new(&query);
+        let overlay = Overlay::new_edit(&query);
 
         assert_eq!(overlay.close_url("/persons"), "/persons?initial=true");
         assert_eq!(
@@ -104,7 +120,7 @@ mod tests {
     #[test]
     fn close_url_without_initial() {
         let query = QueryParamState::default();
-        let overlay = Overlay::new(&query);
+        let overlay = Overlay::new_edit(&query);
 
         assert_eq!(overlay.close_url("/persons"), "/persons");
     }
@@ -113,7 +129,7 @@ mod tests {
     fn close_url_redirect_preserves_initial() {
         let query: QueryParamState =
             serde_urlencoded::from_str("initial=true&redirect_to=%2Ffoo").expect("query params");
-        let overlay = Overlay::new(&query);
+        let overlay = Overlay::new_edit(&query);
 
         assert_eq!(overlay.close_url("/persons"), "/foo?initial=true");
     }
@@ -121,21 +137,21 @@ mod tests {
     #[test]
     fn close_url_redirect_without_initial() {
         let query: QueryParamState = QueryParamState::redirect_to("/foo".into());
-        let overlay = Overlay::new(&query);
+        let overlay = Overlay::new_edit(&query);
 
         assert_eq!(overlay.close_url("/persons"), "/foo");
     }
 
     #[test]
     fn redirects_to_matches_path() {
-        let query: QueryParamState = QueryParamState::redirect_to("/foo".into());
-        let overlay = Overlay::new(&query);
+        let query = QueryParamState::redirect_to("/foo".into());
+        let overlay = Overlay::new_edit(&query);
         assert!(overlay.redirects_to(FooPath));
 
-        let query: QueryParamState = QueryParamState::redirect_to("/some_other_path".into());
-        let overlay = Overlay::new(&query);
+        let query = QueryParamState::redirect_to("/some_other_path".into());
+        let overlay = Overlay::new_edit(&query);
         assert!(!overlay.redirects_to(FooPath));
 
-        assert!(!Overlay::default().redirects_to(FooPath));
+        assert!(!Overlay::new_edit(&QueryParamState::default()).redirects_to(FooPath));
     }
 }

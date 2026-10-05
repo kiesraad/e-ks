@@ -60,6 +60,7 @@ commands:
       - --locked
       - cargo-dylint
       - dylint-link
-      # Must match `dylint_linting` in the lint libraries' Cargo.toml.
       - --version
+      # Must match `dylint_linting` in the lint libraries listed in
+      # dylint.toml, see https://github.com/tweedegolf/dylint-module-cycles.
       - "6.0.3"

@@ -162,7 +162,7 @@ fn render_correction(
 ) -> Response {
     HtmlTemplate(
         CsbCorrectionTemplate {
-            overlay: Overlay::new(&query),
+            overlay: Overlay::new_edit(&query),
             close_action,
             label: display.label,
             imported_value: display.imported_value,

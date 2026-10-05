@@ -37,7 +37,7 @@ pub async fn update_candidate_list(
         CandidateListUpdateTemplate {
             form: FormData::new_with_data(CandidateListForm::from(candidate_list.clone())),
             should_warn: query.should_warn(),
-            overlay: Overlay::new(&query),
+            overlay: Overlay::new_edit(&query),
             candidate_list,
             available_districts,
             districts_on_other_lists,
@@ -69,7 +69,7 @@ pub async fn update_candidate_list_submit(
             CandidateListUpdateTemplate {
                 should_warn: query.should_warn(),
                 form: form_data,
-                overlay: Overlay::new(&query),
+                overlay: Overlay::new_edit(&query),
                 candidate_list,
                 available_districts,
                 districts_on_other_lists,

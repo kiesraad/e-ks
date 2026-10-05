@@ -85,7 +85,7 @@ urlencoding = "2.1.3" # 264M downloads (Kornel)
 
 # development tooling
 dotenvy = "0.15.7"
-saphyr = { version = "0.0.12", default-features = false }
+saphyr = { version = "0.1.0", default-features = false }
 serde-saphyr = { version = "1.0.0", default-features = false, features = ["deserialize"] }
 
 # tweedegolf
@@ -94,7 +94,7 @@ textris-pdf = { version = "0.11.0" , features = ["docx"] }
 bagatel = "0.8.3"
 
 # kiesraad
-eml-nl = { git = "https://github.com/kiesraad/rust-eml-nl", rev = "e9fcd7e90aebba463a36d7bbf7cd418f2032ed26" }
+eml-nl = "0.8.0"
 
 # dev-dependencies
 futures-lite = { version = "2.1.0", default-features = false, features = ["std"] }
