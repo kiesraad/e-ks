@@ -4,6 +4,7 @@
 use std::{
     env,
     net::{Ipv4Addr, SocketAddr},
+    num::NonZeroU64,
     path::PathBuf,
     time::Duration,
 };
@@ -13,7 +14,7 @@ use secrecy::SecretString;
 use super::rate_limit::RateLimits;
 use crate::{
     AppError, ElectionConfig, GithubUserId,
-    constants::{BRP_PERSONS_ENDPOINT, BRP_TIMEOUT},
+    constants::{BRP_PERSONS_ENDPOINT, BRP_TIMEOUT, STORE_CACHE_IDLE_MINUTES},
 };
 
 #[cfg(feature = "dev-features")]
@@ -137,6 +138,9 @@ pub struct Config {
     /// Per-stream rate limits guarding against denial of service through the
     /// regular interface; see [`RateLimits`].
     pub rate_limits: RateLimits,
+    /// Evict cached political-group stores not used for this long. Set via
+    /// `STORE_CACHE_IDLE_MINUTES` (default 24 hours).
+    pub store_cache_idle_timeout: Duration,
 }
 
 fn get_env_with<F>(name: &'static str, lookup: &mut F) -> Result<String, AppError>
@@ -290,6 +294,26 @@ fn parse_github_allowlist(raw: &str) -> Result<Vec<GithubUserId>, AppError> {
     Ok(ids)
 }
 
+/// Idle time before a cached store projection is evicted, from
+/// `STORE_CACHE_IDLE_MINUTES` (default 24 hours).
+fn store_cache_idle_from_env<F>(lookup: &mut F) -> Result<Duration, AppError>
+where
+    F: FnMut(&'static str) -> Result<String, env::VarError>,
+{
+    let minutes: NonZeroU64 = lookup("STORE_CACHE_IDLE_MINUTES")
+        .unwrap_or(STORE_CACHE_IDLE_MINUTES.to_string())
+        .parse()
+        .map_err(|_| {
+            AppError::ConfigLoadError(
+                "Invalid STORE_CACHE_IDLE_MINUTES; please enter a positive number of minutes"
+                    .to_string(),
+            )
+        })?;
+
+    // Saturate rather than panic on an absurdly large number of minutes.
+    Ok(Duration::from_secs(minutes.get().saturating_mul(60)))
+}
+
 /// GitHub OAuth config from `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, and
 /// `GITHUB_ALLOWED_USER_IDS` (comma-separated numeric account ids); all three
 /// or none must be set.
@@ -379,6 +403,7 @@ impl Config {
         };
 
         let rate_limits = RateLimits::from_env_with(&mut lookup)?;
+        let store_cache_idle_timeout = store_cache_idle_from_env(&mut lookup)?;
 
         Ok(Self {
             storage_url: SecretString::from(storage_url),
@@ -395,6 +420,7 @@ impl Config {
             github_oauth,
             default_election,
             rate_limits,
+            store_cache_idle_timeout,
         })
     }
 
@@ -442,6 +468,7 @@ impl Config {
             github_oauth: None,
             default_election: ElectionConfig::EK27,
             rate_limits: RateLimits::default(),
+            store_cache_idle_timeout: Duration::from_secs(STORE_CACHE_IDLE_MINUTES.get() * 60),
         }
     }
 }
@@ -831,6 +858,42 @@ mod tests {
     fn from_env_rejects_a_malformed_csb_bind_address() {
         for raw in ["localhost:3001", "0.0.0.0", "99999", "3001:0.0.0.0"] {
             let map = config_env([("CSB_BIND_ADDRESS", raw)]);
+
+            let err = Config::from_env_with(lookup_from(&map)).expect_err("err");
+
+            assert!(
+                matches!(err, AppError::ConfigLoadError(_)),
+                "{raw:?} must be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn from_env_defaults_store_cache_idle_to_24_hours() {
+        let map = config_env([]);
+        let config = Config::from_env_with(lookup_from(&map)).expect("config");
+
+        assert_eq!(
+            config.store_cache_idle_timeout,
+            Duration::from_secs(24 * 60 * 60)
+        );
+    }
+
+    #[test]
+    fn from_env_reads_store_cache_idle_minutes() {
+        let map = config_env([("STORE_CACHE_IDLE_MINUTES", "90")]);
+        let config = Config::from_env_with(lookup_from(&map)).expect("config");
+
+        assert_eq!(
+            config.store_cache_idle_timeout,
+            Duration::from_secs(90 * 60)
+        );
+    }
+
+    #[test]
+    fn from_env_rejects_malformed_store_cache_idle_minutes() {
+        for raw in ["", "soon", "-5", "0"] {
+            let map = config_env([("STORE_CACHE_IDLE_MINUTES", raw)]);
 
             let err = Config::from_env_with(lookup_from(&map)).expect_err("err");
 
