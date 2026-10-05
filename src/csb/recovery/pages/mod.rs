@@ -1,7 +1,9 @@
 use axum::{Router, response::Response};
 use axum_extra::routing::RouterExt;
 
-use crate::{AppError, AppRequestState, CsbContext, CsbStore, structs::csb::CsbPhase};
+use crate::{
+    AppError, AppRequestState, CsbContext, CsbMainStore, CsbStore, structs::csb::CsbPhase,
+};
 
 use super::paths::{
     CsbRecoveryCandidateListPath, CsbRecoveryCandidatePath, CsbRecoveryGeneralInformationPath,
@@ -30,9 +32,15 @@ async fn political_group(
     _: CsbRecoveryPoliticalGroupPath,
     context: CsbContext,
     store: CsbStore,
+    main_store: CsbMainStore,
 ) -> Result<Response, AppError> {
-    crate::csb::examination::pages::political_group::render(context, store, CsbPhase::Recovery)
-        .await
+    crate::csb::examination::pages::political_group::render(
+        context,
+        store,
+        main_store,
+        CsbPhase::Recovery,
+    )
+    .await
 }
 
 async fn general_information(
@@ -109,6 +117,7 @@ mod tests {
             CsbRecoveryPoliticalGroupPath { stream_id },
             CsbContext::new_test(),
             store,
+            CsbMainStore::new_for_test(),
         )
         .await
         .unwrap()
@@ -153,6 +162,7 @@ mod tests {
             CsbRecoveryPoliticalGroupPath { stream_id },
             CsbContext::new_test(),
             store,
+            CsbMainStore::new_for_test(),
         )
         .await
         .unwrap()

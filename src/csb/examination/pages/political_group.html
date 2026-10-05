@@ -66,33 +66,35 @@
         {{ restorations::brp_strip(brp, brp_badges, brp_incomplete.as_deref() , all_problems) }}
       </div>
     {% endif %}
-    <div class="examination-panel">
-      <div class="examination-panel-header">
-        <div>
-          <h2 class="h3">{{ "csb.declarations_of_support.title"|trans }}</h2>
-          <p>{{ "csb.declarations_of_support.instruction"|trans }}</p>
+    {% if !previously_seated || !declarations_of_support_omissions.is_empty() %}
+      <div class="examination-panel">
+        <div class="examination-panel-header">
+          <div>
+            <h2 class="h3">{{ "csb.declarations_of_support.title"|trans }}</h2>
+            <p>{{ "csb.declarations_of_support.instruction"|trans }}</p>
+          </div>
+          {% if political_group.mode.is_examination() %}
+            <a class="button secondary icon-plus-end"
+               href="{{ political_group.add_declarations_of_support_omission_path() }}">{{ "csb.omission.action.add"|trans }}</a>
+          {% endif %}
         </div>
         {% if political_group.mode.is_examination() %}
-          <a class="button secondary icon-plus-end"
-             href="{{ political_group.add_declarations_of_support_omission_path() }}">{{ "csb.omission.action.add"|trans }}</a>
+          {{ restorations::omission_strip(political_group.manage_declarations_of_support_omissions_path() , declarations_of_support_omissions.as_slice()) }}
+        {% else %}
+          {% if declarations_of_support_omissions.is_empty() %}
+            <div class="restoration-strip restoration-strip-omission">
+              <span class="restoration-strip-empty">{{ "csb.omission.overview.no_omissions"|trans }}</span>
+            </div>
+          {% else %}
+            <ul class="omission-status-list">
+              {% for omission in declarations_of_support_omissions %}
+                {{ restorations::status_row(political_group, omission, "", political_group.group_path() ) }}
+              {% endfor %}
+            </ul>
+          {% endif %}
         {% endif %}
       </div>
-      {% if political_group.mode.is_examination() %}
-        {{ restorations::omission_strip(political_group.manage_declarations_of_support_omissions_path() , declarations_of_support_omissions.as_slice()) }}
-      {% else %}
-        {% if declarations_of_support_omissions.is_empty() %}
-          <div class="restoration-strip restoration-strip-omission">
-            <span class="restoration-strip-empty">{{ "csb.omission.overview.no_omissions"|trans }}</span>
-          </div>
-        {% else %}
-          <ul class="omission-status-list">
-            {% for omission in declarations_of_support_omissions %}
-              {{ restorations::status_row(political_group, omission, "", political_group.group_path() ) }}
-            {% endfor %}
-          </ul>
-        {% endif %}
-      {% endif %}
-    </div>
+    {% endif %}
     {% if let Some(scrapped) = scrapped %}
       <div class="examination-panel">
         <div class="examination-panel-header">

@@ -9,7 +9,7 @@ use crate::{
     structs::{
         candidate_lists::CandidateListId,
         common::{Appellation, FullName},
-        csb::{CsbPhase, RecoveryProgress},
+        csb::{CsbPhase, RecoveryProgress, RegisteredPoliticalGroup},
         list_designation::ListDesignation,
         political_groups::PoliticalGroup,
     },
@@ -125,6 +125,25 @@ impl CsbPoliticalGroup {
             return None;
         }
         self.political_group.appellation.as_ref()
+    }
+
+    /// The registration matching the group's appellation, if any.
+    pub fn registration<'a>(
+        &self,
+        registered: &'a [RegisteredPoliticalGroup],
+    ) -> Option<&'a RegisteredPoliticalGroup> {
+        let appellation = self.registered_appellation()?;
+        registered
+            .iter()
+            .find(|registration| registration.has_appellation(appellation))
+    }
+
+    /// Whether the group obtained a seat at the previous election according to
+    /// its registration; such a group needs no declarations of support
+    /// (Kieswet Art. H 4).
+    pub fn was_previously_seated(&self, registered: &[RegisteredPoliticalGroup]) -> bool {
+        self.registration(registered)
+            .is_some_and(RegisteredPoliticalGroup::was_previously_seated)
     }
 
     /// The districts in which the group still has a valid list.
