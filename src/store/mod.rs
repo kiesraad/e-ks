@@ -19,7 +19,7 @@ pub use event::{Event, EventHash, GENESIS_HASH, StoreEvent};
 pub use event_hash_prefix::EventHashPrefix;
 pub use health::{DbHealth, run_db_prober};
 pub use persistence::StorePersistence;
-pub use registry::StoreRegistry;
+pub use registry::{StoreRegistry, run_store_cache_sweeper};
 pub use store_handle::Store;
 #[cfg(test)]
 pub(crate) use store_handle::StoreBackend;
