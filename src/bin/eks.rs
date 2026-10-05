@@ -92,7 +92,8 @@ async fn run(
     // routes too, and its host-scoped session cookie never reaches the other
     // listener. Both routers get clones of the one `AppState`, so the stores,
     // sessions and caches behind it are shared, not duplicated. Only its config
-    // differs: without `eks_key`, so the `x-eks-key` gate is off there.
+    // differs: without `eks_key`, so the `x-eks-key` gate is off there; the
+    // CSB IP allow list gates the whole listener instead.
     let csb = csb_listener.map(|listener| {
         let mut csb_state = state.clone();
         csb_state.config = Box::leak(Box::new(Config {
@@ -316,6 +317,37 @@ mod tests {
         assert_eq!(status, StatusCode::UNAUTHORIZED);
 
         server.abort();
+    }
+
+    /// The CSB listener refuses peers off `CSB_IP_ALLOW_LIST` with the real
+    /// TCP peer address, except for the load-balancer probe.
+    #[cfg_attr(not(feature = "net-tests"), ignore = "requires network")]
+    #[tokio::test]
+    async fn csb_listener_refuses_peers_off_the_ip_allow_list() {
+        for (allow_list, expected) in [
+            ("203.0.113.7", StatusCode::FORBIDDEN),
+            ("127.0.0.0/8", StatusCode::OK),
+        ] {
+            let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let csb_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let csb_addr = csb_listener.local_addr().unwrap();
+
+            let mut config = Config::from_env().expect("config");
+            config.csb_bind_address = Some(csb_addr);
+            config.csb_ip_allow_list =
+                Some(eks::CsbIpAllowList::parse(allow_list).expect("allow list"));
+
+            let server =
+                tokio::spawn(
+                    async move { run(listener, Some(csb_listener), config).await.unwrap() },
+                );
+            wait_until_ready(&format!("http://{csb_addr}/lb-health")).await;
+
+            let (status, _) = fetch_with_cookie(&format!("http://{csb_addr}/robots.txt"), "").await;
+            assert_eq!(status, expected, "{allow_list}");
+
+            server.abort();
+        }
     }
 
     #[cfg_attr(not(feature = "net-tests"), ignore = "requires network")]

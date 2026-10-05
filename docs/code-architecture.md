@@ -385,6 +385,13 @@ order on an incoming request is:
    key is unset this layer is a no-op. Intended for gating the app behind a
    known upstream. The separate CSB listener (`CSB_BIND_ADDRESS`) is never
    gated.
+   **CSB IP allow list.** If `CSB_IP_ALLOW_LIST` is configured, requests to
+   the separate CSB listener from a peer address off the list are rejected
+   with `403` and reported, before any session lookup. The gate covers every
+   path on that listener bar `/lb-health` and the ACME challenge, and is not
+   applied to the main listener at all: a committee session correcting paper
+   documents uses the political-group routes too, so there is no `/csb` path
+   prefix to gate by.
 2. **Tracing and security headers.** HTTP tracing is opened, and the security
    response headers (CSP, `X-Frame-Options`, etc.) are scheduled. They are
    written by a layer rather than by handlers, so no handler can weaken them,
@@ -395,6 +402,8 @@ order on an incoming request is:
    session up in the `SessionStore`. A missing or invalid session redirects to
    `/login`. Otherwise the session's `last_activity` is refreshed and the
    `Session` is placed in the request extensions.
+   A committee session active within `CSB_ALERT_HOURS` is reported here too
+   (never blocked).
 4. **Store middleware.** App (political group) routes get `store_middleware`;
    CSB routes get `csb_store_middleware` instead. Both resolve a store from
    the matching registry, call `store.load()` so the projection catches up
@@ -562,6 +571,8 @@ Runtime configuration is read from environment variables once at startup into a
 | `BIND_ADDRESS` | Address the server binds to (also accepted as a CLI argument). |
 | `CSB_BIND_ADDRESS` | Serve the CSB section on a second listener, so it can be published on a domain of its own: a port number (bound on `0.0.0.0`) or an `address:port` with a numeric address. `/csb` is then unreachable on `BIND_ADDRESS`. The second listener serves the whole application, since a committee session correcting paper documents uses the political-group routes as well. It is not behind the `EKS_KEY` gate. |
 | `CSB_DOMAIN` | Domain the CSB listener is published on. With ACME it gets a certificate of its own, stored next to the `TLS_CERT_PATH` / `TLS_KEY_PATH` files with a `csb-` name prefix; without it the CSB listener presents the certificate ordered for `ACME_DOMAIN`. |
+| `CSB_IP_ALLOW_LIST` | Comma-separated IP addresses and CIDR ranges (IPv4 or IPv6) allowed to reach the CSB section. Any other peer gets a `403` and a warning with `event="csb.ip_denied"`. Gates the whole CSB listener except `/lb-health` and the ACME challenge, and therefore requires `CSB_BIND_ADDRESS` (startup fails without it). Matched against the TCP peer address, so a proxy in front must not sit between the listener and the committee. Unset leaves the section open. |
+| `CSB_ALERT_HOURS` | Local (Europe/Amsterdam) time range, `HH:MM-HH:MM` (e.g. `22:00-06:00`, wrapping midnight), in which committee activity is unexpected. A committee session active in that window logs a warning with `event="csb.alert_hours_activity"`, at most once per user and peer address per 30 minutes; nothing is blocked. Unset disables the check. |
 | `RATE_LIMIT_DOWNLOADS` / `RATE_LIMIT_DOWNLOADS_WINDOW_SECS` | Document downloads allowed per stream per window (default 60 per 3600s). |
 | `RATE_LIMIT_EVENTS` / `RATE_LIMIT_EVENTS_WINDOW_SECS` | Events one stream may record per window (default 2000 per 3600s). |
 | `RATE_LIMIT_EVENTS_TOTAL` | Absolute cap on the number of events in one stream (default 20000). |
@@ -608,6 +619,20 @@ corrections, is not rate limited.
 Every refused write logs a warning with `event="rate_limit.hit"`, the limit
 name (`downloads`, `events`, `events_total`) and the stream id; monitoring
 alerts on that marker.
+
+### CSB access alerts
+
+Two further markers guard the CSB section, both off until configured (see
+`CSB_IP_ALLOW_LIST` and `CSB_ALERT_HOURS` above):
+
+- `event="csb.ip_denied"`: a request to the CSB listener from a peer address
+  off the allow list, refused with `403`. Carries the peer address (`unknown`
+  when the server recorded none, which is refused as well), method and path.
+- `event="csb.alert_hours_activity"`: a committee session active within the
+  alert hours, raised at most once per user and peer address per 30 minutes
+  (`CSB_ALERT_HOURS_REPEAT_INTERVAL`) so a working session reports once, not
+  on every request. Carries the committee user, peer address, method, path
+  and the local time. The request itself is served as usual.
 
 ### Cargo features
 
