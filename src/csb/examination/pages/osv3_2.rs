@@ -24,7 +24,7 @@ async fn osv3_2_model<S: AppRequestState>(
         .iter()
         .any(|group| group.position.is_none())
     {
-        // TODO: https://github.com/kiesraad/e-ks/issues/1319
+        // TODO: should not result in error, see #1319
         return Err(AppError::IncompleteData("List order not recorded"));
     }
 
@@ -229,7 +229,7 @@ mod tests {
 
         let result = osv3_2_model(CsbMainStore::new_for_test(), &state).await;
 
-        // TODO: https://github.com/kiesraad/e-ks/issues/1319
+        // TODO: should not result in error, see: #1319
         assert!(matches!(result, Err(AppError::IncompleteData(_))));
     }
 

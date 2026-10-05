@@ -23,7 +23,7 @@ volgende geldige kandidatenlijsten zijn ingeleverd:
 ### Lijst {{ numbered.number }}. {{ numbered.list.appellation|line }}
 
 { widths = "auto 2 1" }
-|  | naam | woonplaats |
+| Nr | naam | woonplaats |
 | --- | --- | --- |
 {%- for candidate in numbered.list.candidates %}
 | {{ candidate.position }} | {{ candidate.name|cell }} | {{ candidate.locality|cell }} |
