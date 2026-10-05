@@ -14,6 +14,7 @@ export class CsbPoliticalGroupPage {
   readonly buttonDeleteConfirm: Locator;
   readonly buttonBRPCheck: Locator;
   readonly linkRefresh: Locator;
+  readonly buttonHome: Locator;
 
   constructor(protected readonly page: Page) {
     this.switchFinalize = this.page.getByLabel(
@@ -52,6 +53,9 @@ export class CsbPoliticalGroupPage {
     });
     this.linkRefresh = this.page.getByRole("link", {
       name: "Pagina verversen",
+    });
+    this.buttonHome = this.page.getByLabel("Start", {
+      exact: true
     });
   }
 

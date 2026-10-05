@@ -15,8 +15,20 @@ import { CsbPoliticalGroupPage } from "./pages/csb/csbPoliticalGroupPage.ts";
 import { CsbOmissionsDeclarationsOfSupportPage } from "./pages/csb/csbOmissionsDeclarationsOfSupport.ts";
 import { CsbOmissionLetterPage } from "./pages/csb/csbOmissionLetterPage.ts";
 import { CsbFinalizeCandidateListsPage } from "./pages/csb/csbFinalizeCandidateListsPage.ts";
+import { CsbOverviewPage } from "./pages/csb/csbOverviewPage.ts";
 
 test.describe("create documents", async () => {
+
+  test ("Election definition", async ({ csbLogin }) => {
+    const { page } = csbLogin;
+    const overviewPage = new CsbOverviewPage(page);
+    await expect(overviewPage.headerElection).toBeVisible();
+    const downloadPromise = page.waitForEvent("download");
+    await overviewPage.linkElectionDefinition.click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toMatch(/eml110a\.eml\.xml/);
+    expect((await stat(await download.path())).size).toBeGreaterThan(1024);
+  });
 
    test("I 1", async ({ csbImport }) => {
     const { page, groupName } = csbImport;
