@@ -10,7 +10,8 @@ use crate::{
     models::{
         Pdf,
         csb_model_inputs::{I4Inputs, i4_inputs},
-        i4::{I4, NumberedOnDistricts, NumberedOnVotes, PublicSession},
+        i4::{I4, NumberedOnDistricts, NumberedOnVotes},
+        inputs::PublicSession,
     },
     structs::csb::HearingModel,
 };

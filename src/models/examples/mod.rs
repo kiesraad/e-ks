@@ -10,6 +10,7 @@ mod h9;
 mod i1;
 mod i4;
 mod omission_letter;
+mod osv3_2;
 
 pub use brp_overview::{brp_overview_example_1, brp_overview_example_2};
 pub use h1::{h1_example_1, h1_example_2, h1_example_3};
@@ -21,6 +22,7 @@ pub use h9::{h9_example_1, h9_example_2, h9_example_3};
 pub use i1::{i1_example_1, i1_example_2};
 pub use i4::{i4_example_1, i4_example_2};
 pub use omission_letter::{omission_letter_example_1, omission_letter_example_2};
+pub use osv3_2::osv3_2_example_1;
 
 use textris_pdf::build::Textris;
 
@@ -84,6 +86,7 @@ pub fn examples() -> Vec<Example> {
         example("model-i1-example-2", i1_example_2()),
         example("model-i4-example-1", i4_example_1()),
         example("model-i4-example-2", i4_example_2()),
+        example("model-osv3-2-example-1", osv3_2_example_1()),
         example("verzuimbrief-example-1", omission_letter_example_1()),
         example("verzuimbrief-example-2", omission_letter_example_2()),
         example("brp-overzicht-example-1", brp_overview_example_1()),
