@@ -95,9 +95,9 @@ mod fixtures;
 pub use acme::{create_acme_account, parse_acme_account_credentials, start_acme_renewal};
 pub use app::AppState;
 pub use auth::session_store::run_session_sweeper;
-pub use core::{Config, logging, server};
+pub use core::{Config, CsbIpAllowList, logging, server};
 pub use error::AppError;
-pub use store::run_db_prober;
+pub use store::{run_db_prober, run_store_cache_sweeper};
 
 #[cfg(feature = "acme")]
 pub(crate) use acme::AcmeStore;
@@ -105,8 +105,8 @@ pub(crate) use acme::AcmeStore;
 pub(crate) use core::AcmeConfig;
 
 pub(crate) use app::middleware::{
-    csb_store_middleware, db_gate_middleware, eks_key_middleware, health_router, lb_health_router,
-    session_middleware, store_middleware,
+    csb_ip_allow_list_middleware, csb_store_middleware, db_gate_middleware, eks_key_middleware,
+    health_router, lb_health_router, session_middleware, store_middleware,
 };
 pub(crate) use pg::{
     audit_log, candidate_lists, candidates, common, csrf_rejection_response, finalise,
