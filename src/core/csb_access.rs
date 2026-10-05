@@ -24,17 +24,19 @@ use crate::AppError;
 pub struct CsbIpAllowList(Vec<IpNet>);
 
 impl CsbIpAllowList {
-    /// Whether `ip` falls in one of the listed ranges. An IPv4 peer on a
-    /// dual-stack listener arrives as a v4-mapped IPv6 address, so it is also
-    /// matched as plain IPv4.
+    /// Whether `ip` falls in one of the listed ranges. The address is always
+    /// matched as given; an IPv4 peer on a dual-stack listener additionally
+    /// arrives as a v4-mapped IPv6 address (`::ffff:a.b.c.d`) and is then
+    /// matched as plain IPv4 too. Only that exact `::ffff:0:0/96` prefix
+    /// unmaps, so no other IPv6 address can reach an IPv4 entry.
     pub fn allows(&self, ip: IpAddr) -> bool {
-        let unmapped = match ip {
+        let also_as_v4 = match ip {
             IpAddr::V6(v6) => v6.to_ipv4_mapped().map(IpAddr::V4),
             IpAddr::V4(_) => None,
         };
         self.0
             .iter()
-            .any(|net| net.contains(&ip) || unmapped.is_some_and(|ip| net.contains(&ip)))
+            .any(|net| net.contains(&ip) || also_as_v4.is_some_and(|v4| net.contains(&v4)))
     }
 
     /// Parses the comma-separated list. Strict: one malformed entry rejects the
@@ -169,12 +171,17 @@ mod tests {
     }
 
     /// An IPv4 peer on a dual-stack listener shows up as `::ffff:a.b.c.d`.
+    /// Only that prefix unmaps: an IPv6 address merely carrying the same low
+    /// 32 bits stays outside an IPv4 entry.
     #[test]
     fn allow_list_matches_v4_mapped_peers_against_v4_entries() {
         let list = CsbIpAllowList::parse("10.0.0.0/8").expect("list");
 
         assert!(list.allows(ip("::ffff:10.1.2.3")));
         assert!(!list.allows(ip("::ffff:11.1.2.3")));
+        for denied in ["2001:db8::a01:203", "::10.1.2.3", "::ffff:0:10.1.2.3"] {
+            assert!(!list.allows(ip(denied)), "{denied}");
+        }
     }
 
     #[test]

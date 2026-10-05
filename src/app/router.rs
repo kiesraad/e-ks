@@ -535,10 +535,13 @@ mod tests {
         let app = ip_gated_app(WithCsbRoutes::Included).await;
 
         for uri in ["/login", "/robots.txt", csb::login::CsbLoginStartPath::PATH] {
+            // The unlisted peer never reaches the route.
             let request = request_from_peer(uri, "203.0.113.8:4000");
             let response = app.clone().oneshot(request).await.expect("response");
             assert_eq!(response.status(), StatusCode::FORBIDDEN, "{uri}");
 
+            // The listed peer passes the gate; what the route answers beyond
+            // that is not this middleware's concern.
             let request = request_from_peer(uri, "203.0.113.7:4000");
             let response = app.clone().oneshot(request).await.expect("response");
             assert_ne!(response.status(), StatusCode::FORBIDDEN, "{uri}");

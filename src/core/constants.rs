@@ -20,7 +20,7 @@ pub const DEFAULT_TIMEZONE: &Tz = &Europe::Amsterdam;
 
 /// A committee user active within `CSB_ALERT_HOURS` is reported at most once
 /// per peer address in this interval, not on every request.
-pub const CSB_ALERT_HOURS_REPEAT_INTERVAL: Duration = Duration::from_secs(30 * 60);
+pub const CSB_ALERT_HOURS_REPEAT_INTERVAL: Duration = Duration::from_mins(30);
 
 pub const MAX_CANDIDATES: usize = 80;
 
