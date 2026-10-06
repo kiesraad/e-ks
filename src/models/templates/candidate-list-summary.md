@@ -18,7 +18,7 @@ De voorzitter van het centraal stembureau voor de verkiezing van de leden van **
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 {% for (political_group, district_batches) in lists -%}
   | {{ loop.index }} | {{ political_group }} | X | X | X |
-  {%- if let Some(active_districts) = self.active_districts(&political_group) %}
+  {%- let active_districts = self.active_districts(&political_group) %}
     {%- for district in electoral_districts -%}
       {%- if active_districts.contains(&district) -%}
         X |
@@ -26,9 +26,6 @@ De voorzitter van het centraal stembureau voor de verkiezing van de leden van **
         |
       {%- endif -%}
     {%- endfor %}
-  {%- else %}
-    {{" |".repeat(electoral_districts.len())}}
-  {%- endif %}
 {% endfor %}
 
 
@@ -36,3 +33,14 @@ Kieskringen en gemeente of openbaar lichaam waar hoofdstembureau is gevestigd:
 {% for district in electoral_districts %}
 {{ district.region_number() }}. {{ district.title() }}
 {%- endfor %}
+
+{% for (political_group, district_batches) in lists %}
+#### {{ loop.index }}. {{ political_group }}
+
+{ widths = "1 8"}
+| Stel | Kieskringen |
+| --- | --- |
+{% for (number, districts) in self.batched_districts(political_group) -%}
+| {{ number | assigned_or("") }} | {{ districts }} |
+{% endfor %}
+{% endfor %}
