@@ -1,11 +1,16 @@
 pub(crate) mod eml110a;
 pub(crate) mod eml210;
 pub(crate) mod eml230b;
+pub(crate) mod eml230c;
 
 use chrono::Datelike;
 use eks_utils::slugify_teletex;
 use eml_nl::{
-    common::{CandidateIdentifier, CountryNameCode, ElectionDomain, QualifyingAddress},
+    common::{
+        Agent, AgentIdentifier, CandidateIdentifier, Contact, CountryNameCode, ElectionDomain,
+        FirstName, LastName, LivingAddress, MailingAddress, NameLineInitials, NamePrefix,
+        PersonName, PersonNameStructure, QualifyingAddress, QualifyingAddressLocality,
+    },
     documents::ElectionIdentifierBuilder,
     utils::{CandidateId, ElectionCategory, ElectionDomainId, ElectionId, ElectionSubcategory},
 };
@@ -13,8 +18,79 @@ use eml_nl::{
 use crate::{
     AppError, ElectionConfig,
     core::{ElectionType, ModelLocale},
-    structs::{common::Gender, persons::PersonalData},
+    structs::{
+        common::{Address, DutchAddress, FullName, Gender},
+        persons::{Person, PersonalData, Representative},
+    },
 };
+
+impl From<&FullName> for PersonNameStructure {
+    fn from(val: &FullName) -> Self {
+        PersonNameStructure::new(PersonName {
+            name_line_initials: val
+                .initials
+                .as_ref()
+                .map(|initials| NameLineInitials::new(initials.to_string())),
+            first_name: val
+                .first_name
+                .as_ref()
+                .map(|n| FirstName::new(n.to_string())),
+            name_prefix: val
+                .last_name_prefix
+                .as_ref()
+                .map(|n| NamePrefix::new(n.to_string())),
+            last_name: LastName::new(val.last_name.to_string()),
+            person_name_type: None,
+            code: None,
+            name_details_key_ref: None,
+        })
+    }
+}
+
+impl From<&Address> for QualifyingAddress {
+    fn from(address: &Address) -> QualifyingAddress {
+        let locality = QualifyingAddressLocality::new(
+            address
+                .locality()
+                .as_ref()
+                .map(ToString::to_string)
+                .unwrap_or_default(),
+        )
+        .with_postal_code_option(address.postal_code())
+        .with_address_line_option(address.address_line_1());
+
+        QualifyingAddress::Locality(locality)
+    }
+}
+
+impl From<&DutchAddress> for LivingAddress {
+    fn from(address: &DutchAddress) -> LivingAddress {
+        LivingAddress::new(
+            address
+                .locality
+                .as_ref()
+                .map(ToString::to_string)
+                .unwrap_or_default(),
+        )
+    }
+}
+
+impl From<&Address> for Contact {
+    fn from(address: &Address) -> Contact {
+        Contact::new(MailingAddress::new(QualifyingAddress::from(address)))
+    }
+}
+
+impl From<&Representative> for Agent {
+    fn from(representative: &Representative) -> Agent {
+        Agent {
+            role: Some("H10".to_string()),
+            agent_identifier: AgentIdentifier::new(&representative.name),
+            contact: Some((&Address::Dutch(representative.address.clone())).into()),
+            living_address: (&representative.address).into(),
+        }
+    }
+}
 
 impl From<ElectionType> for ElectionCategory {
     fn from(value: ElectionType) -> Self {
@@ -62,13 +138,31 @@ impl TryFrom<&PersonalData> for QualifyingAddress {
     }
 }
 
+/// The [`CandidateId`] EML expects for a candidate's list position (1-based)
+pub(crate) fn candidate_id(position: usize) -> Result<CandidateId, AppError> {
+    CandidateId::from_u64(position as u64)
+        .map_err(|_| AppError::IncompleteData("candidate position is 0"))
+}
+
 /// The [`CandidateIdentifier`] EML expects for a candidate's list position
-/// (1-based); shared by the 210 nomination and 230b candidate list exports.
+/// (1-based); shared by the 210 nomination and 230b/230c candidate list exports.
 pub(crate) fn candidate_identifier(position: usize) -> Result<CandidateIdentifier, AppError> {
-    Ok(CandidateIdentifier::new(
-        CandidateId::from_u64(position as u64)
-            .map_err(|_| AppError::IncompleteData("candidate position is 0"))?,
-    ))
+    Ok(CandidateIdentifier::new(candidate_id(position)?))
+}
+
+impl From<&Person> for Option<Contact> {
+    fn from(person: &Person) -> Self {
+        (!person.needs_representative()).then(|| (&Address::Dutch(person.address.clone())).into())
+    }
+}
+
+impl From<&Person> for Option<Agent> {
+    fn from(person: &Person) -> Self {
+        person
+            .needs_representative()
+            .then(|| person.representative.as_ref().map(Into::into))
+            .flatten()
+    }
 }
 
 impl From<&ElectionConfig> for ElectionSubcategory {
@@ -105,10 +199,8 @@ impl From<&ElectionConfig> for ElectionSubcategory {
     }
 }
 
-impl TryFrom<ElectionConfig> for ElectionIdentifierBuilder {
-    type Error = AppError;
-
-    fn try_from(value: ElectionConfig) -> Result<Self, Self::Error> {
+impl From<ElectionConfig> for ElectionId {
+    fn from(value: ElectionConfig) -> Self {
         let category = ElectionCategory::from(value.election_type());
         let year = value.election_date().year();
 
@@ -123,8 +215,18 @@ impl TryFrom<ElectionConfig> for ElectionIdentifierBuilder {
             format!("{}{}", category.to_eml_value(), year)
         };
 
+        ElectionId::new(id).expect("election ID should follow the expected format")
+    }
+}
+
+impl TryFrom<ElectionConfig> for ElectionIdentifierBuilder {
+    type Error = AppError;
+
+    fn try_from(value: ElectionConfig) -> Result<Self, Self::Error> {
+        let category = ElectionCategory::from(value.election_type());
+
         let mut election_id = ElectionIdentifierBuilder::new()
-            .id(ElectionId::new(id)?)
+            .id(ElectionId::from(value))
             .name(value.full_formal_title(ModelLocale::Nl))
             .category(category)
             .subcategory(&value)

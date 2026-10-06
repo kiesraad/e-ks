@@ -8,13 +8,13 @@ use eml_nl::{
         EML, ElectionIdentifierBuilder,
         candidate_lists::{
             CandidateLists, CandidateListsAffiliation, CandidateListsCandidate,
-            CandidateListsContest, CandidateListsType,
+            CandidateListsCandidateBuilder, CandidateListsContest, CandidateListsType,
         },
     },
     io::EMLWrite,
     utils::{
-        AffiliationId, AffiliationType, AuthorityId, CommitteeCategory, ElectionCategory,
-        PublicationLanguage,
+        AffiliationId, AffiliationType, AuthorityId, CommitteeCategory, ContestId,
+        ElectionCategory, PublicationLanguage,
     },
 };
 
@@ -80,6 +80,27 @@ fn shared_list_set_number(
     NonZeroU64::new(position as u64 + 1)
 }
 
+/// The contests of `election`: a single `geen` contest when it has only one
+/// district, otherwise one contest per district
+pub fn contests(
+    election: &ElectionConfig,
+) -> Result<Vec<(ContestIdentifier, Option<ElectoralDistrict>)>, AppError> {
+    if election.has_only_one_district() {
+        return Ok(vec![(ContestIdentifier::geen(), None)]);
+    }
+
+    election
+        .electoral_districts()
+        .iter()
+        .map(|district| {
+            let identifier =
+                ContestIdentifier::new(ContestId::new(district.region_number().to_string())?)
+                    .with_name(district.title());
+            Ok((identifier, Some(*district)))
+        })
+        .collect()
+}
+
 /// Build the EML 230b established candidate lists XML for one contest
 ///
 /// `Ok(None)` when no group qualifies
@@ -89,6 +110,39 @@ pub fn eml230b(
     district: Option<ElectoralDistrict>,
     numbered_groups: &[(NonZeroU64, &CsbStream)],
 ) -> Result<Option<Vec<u8>>, AppError> {
+    let affiliations = contest_affiliations(district, numbered_groups, |_, position, person| {
+        candidate(position, person)
+    })?;
+
+    if affiliations.is_empty() {
+        return Ok(None);
+    }
+
+    let contest = CandidateListsContest::builder()
+        .identifier(contest_identifier)
+        .affiliations(affiliations)
+        .build()?;
+
+    Ok(Some(candidate_lists_document(
+        election,
+        CandidateListsType::Single,
+        vec![contest],
+    )?))
+}
+
+/// The affiliations of the groups with a valid list in `district` (or in the
+/// only district, when `None`), in the established list order, like the I 4
+/// report's "Geldige lijsten" section
+///
+/// `candidate` is called in document order.
+pub(super) fn contest_affiliations(
+    district: Option<ElectoralDistrict>,
+    numbered_groups: &[(NonZeroU64, &CsbStream)],
+    mut candidate: impl FnMut(&CsbStream, usize, &Person) -> Result<CandidateListsCandidate, AppError>,
+) -> Result<Vec<CandidateListsAffiliation>, AppError> {
+    let mut numbered_groups = numbered_groups.to_vec();
+    numbered_groups.sort_by_key(|(position, _)| *position);
+
     let mut affiliations = Vec::new();
     for (position, store) in numbered_groups {
         let scrapped = store.get_scrapped();
@@ -110,29 +164,32 @@ pub fn eml230b(
         let appellation = (!is_blank)
             .then(|| store.get_appellation_with_scrapped(WithCorrections::All, &scrapped));
 
-        affiliations.push((
-            *position,
-            affiliation(
-                *position,
-                appellation,
-                &candidates,
-                affiliation_type(&valid_lists, list.id),
-                shared_list_set_number(&valid_lists, list.id),
-            )?,
-        ));
+        let candidates = candidates
+            .iter()
+            .map(|(position, person)| candidate(store, *position, person))
+            .collect::<Result<Vec<_>, AppError>>()?;
+
+        affiliations.push(affiliation(
+            position,
+            appellation,
+            candidates,
+            affiliation_type(&valid_lists, list.id),
+            shared_list_set_number(&valid_lists, list.id),
+        )?);
     }
 
-    if affiliations.is_empty() {
-        return Ok(None);
-    }
+    Ok(affiliations)
+}
 
-    // Printed in the established list order, like the I 4 report's "Geldige lijsten" section
-    affiliations.sort_by_key(|(position, _)| *position);
-    let affiliations: Vec<_> = affiliations.into_iter().map(|(_, a)| a).collect();
-
+/// Serialize the established candidate lists of `contests` as a 230b or 230c
+pub(super) fn candidate_lists_document(
+    election: &ElectionConfig,
+    lists_type: CandidateListsType,
+    contests: Vec<CandidateListsContest>,
+) -> Result<Vec<u8>, AppError> {
     let now = chrono::Utc::now();
     let candidate_lists = CandidateLists::builder()
-        .lists_type(CandidateListsType::Single)
+        .lists_type(lists_type)
         .transaction_id(1)
         .managing_authority(ManagingAuthority::new(
             AuthorityIdentifier::new(AuthorityId::new("CSB")?)
@@ -143,23 +200,16 @@ pub fn eml230b(
         .election_identifier(
             ElectionIdentifierBuilder::try_from(*election)?.build_for_candidate_lists()?,
         )
-        .push_contest(
-            CandidateListsContest::builder()
-                .identifier(contest_identifier)
-                .affiliations(affiliations)
-                .build()?,
-        )
+        .contests(contests)
         .build()?;
 
-    Ok(Some(
-        EML::from_candidate_lists_doc(candidate_lists).write_eml_root(true, true)?,
-    ))
+    Ok(EML::from_candidate_lists_doc(candidate_lists).write_eml_root(true, true)?)
 }
 
 fn affiliation(
     position: NonZeroU64,
     appellation: Option<String>,
-    candidates: &[(usize, Person)],
+    candidates: Vec<CandidateListsCandidate>,
     affiliation_type: AffiliationType,
     belongs_to_set: Option<NonZeroU64>,
 ) -> Result<CandidateListsAffiliation, AppError> {
@@ -167,7 +217,8 @@ fn affiliation(
         .id(AffiliationId::new(position))
         .affiliation_type(affiliation_type)
         .publish_gender(true)
-        .publication_language(PublicationLanguage::Dutch);
+        .publication_language(PublicationLanguage::Dutch)
+        .candidates(candidates);
 
     if let Some(appellation) = appellation {
         builder = builder.registered_name(appellation);
@@ -177,16 +228,20 @@ fn affiliation(
         builder = builder.belongs_to_set(belongs_to_set);
     }
 
-    for (position, person) in candidates {
-        builder = builder.push_candidate(candidate(*position, person)?);
-    }
-
     Ok(builder.build()?)
 }
 
 fn candidate(position: usize, person: &Person) -> Result<CandidateListsCandidate, AppError> {
-    let mut builder = CandidateListsCandidate::builder()
-        .identifier(candidate_identifier(position)?)
+    let builder = CandidateListsCandidate::builder().identifier(candidate_identifier(position)?);
+    Ok(public_candidate_details(builder, person)?.build()?)
+}
+
+/// The candidate's details as published in the 230b, which the 230c extends
+pub(super) fn public_candidate_details(
+    builder: CandidateListsCandidateBuilder,
+    person: &Person,
+) -> Result<CandidateListsCandidateBuilder, AppError> {
+    let mut builder = builder
         .full_name(&person.name)
         .gender(&person.personal_data)
         .qualifying_address(QualifyingAddress::try_from(&person.personal_data)?);
@@ -195,7 +250,7 @@ fn candidate(position: usize, person: &Person) -> Result<CandidateListsCandidate
         builder = builder.date_of_birth(**date_of_birth);
     }
 
-    Ok(builder.build()?)
+    Ok(builder)
 }
 
 /// The name the Kiesraad publishes for the CSB of this election
