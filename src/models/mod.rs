@@ -17,6 +17,7 @@
 //! need, from the live [`crate::CsbStream`]s.
 
 pub mod brp_overview;
+pub mod candidate_list_summary;
 pub(crate) mod csb_model_inputs;
 pub(crate) mod documents;
 pub(crate) mod eml;
@@ -33,7 +34,6 @@ mod layout;
 mod markdown;
 pub mod omission_letter;
 pub mod osv3_2;
-
 pub use examples::{Example, examples};
 pub use fonts::fonts;
 
