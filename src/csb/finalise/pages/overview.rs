@@ -5,7 +5,7 @@ use crate::{
     AppError, Context, CsbContext, CsbMainStore, HtmlTemplate,
     csb::{
         examination::{extractors::CsbPoliticalGroups, numbering::ListNumbering},
-        finalise::paths::{CsbEml230bDownloadPath, CsbFinalisePath, CsbListOrderPath},
+        finalise::paths::{CsbFinalisePath, CsbListOrderPath},
     },
     filters,
     structs::csb::Objection,

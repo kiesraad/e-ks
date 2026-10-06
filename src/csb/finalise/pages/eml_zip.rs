@@ -17,7 +17,7 @@ use crate::{
     core::ZipResponseWriter,
     csb::{
         examination::{extractors::CsbPoliticalGroup, numbering::ListNumbering},
-        finalise::paths::CsbEml230bDownloadPath,
+        finalise::paths::CsbEmlZipDownloadPath,
     },
     models::{
         documents::ZIP_CONTENT_TYPE,
@@ -32,8 +32,8 @@ use crate::{
 
 /// The established candidate lists per electoral district ("kieskring"):
 /// 1 EML 230b file per district plus 1 EML 230c file with all districts
-pub async fn download_eml230b<S: AppRequestState>(
-    _: CsbEml230bDownloadPath,
+pub async fn download_eml_zip<S: AppRequestState>(
+    _: CsbEmlZipDownloadPath,
     main_store: CsbMainStore,
     State(state): State<S>,
 ) -> Result<Response, AppError> {
@@ -41,7 +41,7 @@ pub async fn download_eml230b<S: AppRequestState>(
 
     let files = eml230_files(state.csb_store_registry(), &main_store).await?;
 
-    let filename = format!("eml230b-{}.zip", election.filename_slug());
+    let filename = format!("eml-{}.zip", election.filename_slug());
     let headers = no_cache_headers::generate_attachment_headers(
         &filename,
         HeaderValue::from_static(ZIP_CONTENT_TYPE),
@@ -51,16 +51,16 @@ pub async fn download_eml230b<S: AppRequestState>(
     let body = Body::from_stream(ReaderStream::new(reader));
 
     tokio::spawn(async move {
-        if let Err(err) = write_eml230b_zip(files, writer).await {
-            tracing::error!(error = ?err, "failed to stream eml230b zip");
+        if let Err(err) = write_eml_zip(files, writer).await {
+            tracing::error!(error = ?err, "failed to stream EML zip");
         }
     });
 
     Ok((headers, body).into_response())
 }
 
-// Temporary EML230b zip: eventually these should be combined with all the other exported documents
-async fn write_eml230b_zip(
+// Temporary EML zip: eventually these should be combined with all the other exported documents
+async fn write_eml_zip(
     files: Vec<(String, Vec<u8>)>,
     writer: DuplexStream,
 ) -> Result<(), AppError> {
@@ -387,7 +387,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn download_eml230b_returns_zip_response() -> Result<(), AppError> {
+    async fn download_eml_zip_returns_zip_response() -> Result<(), AppError> {
         let state = AppState::new_for_tests().await;
         sample_group(
             &state,
@@ -398,7 +398,7 @@ mod tests {
         .await;
         let main_store = CsbMainStore::new_for_test();
 
-        let response = download_eml230b(CsbEml230bDownloadPath, main_store, State(state))
+        let response = download_eml_zip(CsbEmlZipDownloadPath, main_store, State(state))
             .await?
             .into_response();
 
@@ -414,7 +414,7 @@ mod tests {
             headers
                 .get(axum::http::header::CONTENT_DISPOSITION)
                 .expect("content disposition"),
-            "attachment; filename=\"eml230b-ek27.zip\""
+            "attachment; filename=\"eml-ek27.zip\""
         );
 
         let body = to_bytes(response.into_body(), usize::MAX)
@@ -426,7 +426,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn download_eml230b_skips_groups_without_valid_candidates() -> Result<(), AppError> {
+    async fn download_eml_zip_skips_groups_without_valid_candidates() -> Result<(), AppError> {
         let state = AppState::new_for_tests().await;
         let stream_id = StreamId::new();
         let store = state
