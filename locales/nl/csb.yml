@@ -275,6 +275,7 @@ recovery:
   finish_title: Afronden herstel
   no_omissions: Geen verzuimen
   not_recovered: Niet hersteld
+  nothing_scrapped: Er is niets geschrapt.
   omissions_explanation: Leg per verzuim vast of het is hersteld.
   omissions_title: Verzuimen herstellen
   recovered: Hersteld

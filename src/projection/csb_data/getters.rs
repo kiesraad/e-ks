@@ -360,6 +360,23 @@ impl CsbStream {
             .collect()
     }
 
+    /// The candidate lists in the order the pages show them: by their lowest
+    /// district number.
+    pub fn get_candidate_lists_in_page_order(
+        &self,
+        corrections: WithCorrections,
+    ) -> Vec<CandidateList> {
+        let mut lists = self.get_candidate_lists(corrections);
+        lists.sort_by_key(|list| {
+            list.electoral_districts
+                .iter()
+                .map(ElectoralDistrict::region_number)
+                .min()
+                .unwrap_or_default()
+        });
+        lists
+    }
+
     /// The candidate list with this id, if any.
     pub fn get_candidate_list(
         &self,

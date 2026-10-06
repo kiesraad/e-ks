@@ -7,6 +7,12 @@ mod candidate_list;
 mod persons;
 mod political_groups;
 
+/// Only read by the CSB fixture import, which needs `dev-features`.
+#[cfg(feature = "dev-features")]
+mod brp_findings;
+#[cfg(feature = "dev-features")]
+pub use brp_findings::brp_findings;
+
 /// Load the fixtures into an empty store as the demo political group, named
 /// `appellation` when given.
 pub async fn load(store: &PgStore, appellation: Option<Appellation>) -> Result<(), AppError> {
