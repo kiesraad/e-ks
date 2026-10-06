@@ -1642,8 +1642,7 @@ dependencies = [
 [[package]]
 name = "eml-nl"
 version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9d3921300ed9c9195ce5f2446299f1b3f3d92ac85b15ff078da9a532e0034e4b"
+source = "git+https://github.com/kiesraad/rust-eml-nl?branch=shortcode-refs#f0667175f2807e75b075bee9d3c3d33f0027a282"
 dependencies = [
  "chrono",
  "quick-xml",

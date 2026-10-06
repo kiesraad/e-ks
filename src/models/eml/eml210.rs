@@ -2,15 +2,14 @@
 
 use eml_nl::{
     common::{
-        AuthorityIdentifier, CreatedByAuthority, FirstName, LastName, ListData, ListDataContest,
-        ManagingAuthority, NameLineInitials, NamePrefix, PersonName,
+        Agent, AgentIdentifier, AuthorityIdentifier, Contact, CreatedByAuthority, FirstName,
+        LastName, ListData, ListDataContest, LivingAddress, MailingAddress, ManagingAuthority,
+        NameLineInitials, NamePrefix, PersonName, QualifyingAddress, QualifyingAddressLocality,
     },
     documents::{
         EML, ElectionIdentifierBuilder,
-        candidate_lists::QualifyingAddress,
         nomination::{
-            AgentIdentifier, Nomination, NominationAffiliation, NominationContestIdentifier,
-            NominationNominate,
+            Nomination, NominationAffiliation, NominationContestIdentifier, NominationNominate,
         },
     },
     io::EMLWrite,
@@ -56,7 +55,7 @@ impl From<&FullName> for eml_nl::common::PersonNameStructure {
 
 impl From<&Address> for QualifyingAddress {
     fn from(address: &Address) -> QualifyingAddress {
-        let locality = eml_nl::documents::candidate_lists::QualifyingAddressLocality::new(
+        let locality = QualifyingAddressLocality::new(
             address
                 .locality()
                 .as_ref()
@@ -70,9 +69,9 @@ impl From<&Address> for QualifyingAddress {
     }
 }
 
-impl From<&DutchAddress> for eml_nl::documents::nomination::LivingAddress {
-    fn from(address: &DutchAddress) -> eml_nl::documents::nomination::LivingAddress {
-        eml_nl::documents::nomination::LivingAddress::new(
+impl From<&DutchAddress> for LivingAddress {
+    fn from(address: &DutchAddress) -> LivingAddress {
+        LivingAddress::new(
             address
                 .locality
                 .as_ref()
@@ -82,19 +81,15 @@ impl From<&DutchAddress> for eml_nl::documents::nomination::LivingAddress {
     }
 }
 
-impl From<&Address> for eml_nl::documents::nomination::NominationContact {
-    fn from(address: &Address) -> eml_nl::documents::nomination::NominationContact {
-        eml_nl::documents::nomination::NominationContact {
-            mailing_address: eml_nl::documents::nomination::MailingAddress {
-                address: address.into(),
-            },
-        }
+impl From<&Address> for Contact {
+    fn from(address: &Address) -> Contact {
+        Contact::new(MailingAddress::new(QualifyingAddress::from(address)))
     }
 }
 
-impl From<&Representative> for eml_nl::documents::nomination::NominationAgent {
-    fn from(representative: &Representative) -> eml_nl::documents::nomination::NominationAgent {
-        eml_nl::documents::nomination::NominationAgent {
+impl From<&Representative> for Agent {
+    fn from(representative: &Representative) -> Agent {
+        Agent {
             role: Some("H10".to_string()),
             agent_identifier: AgentIdentifier::new(&representative.name),
             contact: Some((&Address::Dutch(representative.address.clone())).into()),

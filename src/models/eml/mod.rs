@@ -5,8 +5,8 @@ pub(crate) mod eml230b;
 use chrono::Datelike;
 use eks_utils::slugify_teletex;
 use eml_nl::{
-    common::{CandidateIdentifier, CountryNameCode, ElectionDomain},
-    documents::{ElectionIdentifierBuilder, candidate_lists::QualifyingAddress},
+    common::{CandidateIdentifier, CountryNameCode, ElectionDomain, QualifyingAddress},
+    documents::ElectionIdentifierBuilder,
     utils::{CandidateId, ElectionCategory, ElectionDomainId, ElectionId, ElectionSubcategory},
 };
 

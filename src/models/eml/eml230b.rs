@@ -3,12 +3,12 @@
 use std::{collections::HashSet, num::NonZeroU64};
 
 use eml_nl::{
-    common::{AuthorityIdentifier, ContestIdentifier, ManagingAuthority},
+    common::{AuthorityIdentifier, ContestIdentifier, ManagingAuthority, QualifyingAddress},
     documents::{
         EML, ElectionIdentifierBuilder,
         candidate_lists::{
             CandidateLists, CandidateListsAffiliation, CandidateListsCandidate,
-            CandidateListsContest, CandidateListsType, QualifyingAddress,
+            CandidateListsContest, CandidateListsType,
         },
     },
     io::EMLWrite,
