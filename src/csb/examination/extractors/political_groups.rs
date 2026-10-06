@@ -9,7 +9,7 @@ use crate::{
     structs::{
         candidate_lists::CandidateListId,
         common::{Appellation, FullName},
-        csb::{CsbPhase, RecoveryProgress},
+        csb::{CsbPhase, RecoveryProgress, RegisteredPoliticalGroup},
         list_designation::ListDesignation,
         political_groups::PoliticalGroup,
     },
@@ -34,6 +34,10 @@ pub struct CsbPoliticalGroup {
     pub recovery: RecoveryProgress,
     pub first_candidate_name: Option<FullName>,
     pub first_non_scrapped_candidate_name: Option<FullName>,
+    /// Whether the group obtained a seat at the previous election according to
+    /// its registration; such a group needs no declarations of support
+    /// (Kieswet Art. H 4). Set by [`Self::with_registrations`].
+    pub previously_seated: bool,
     /// The electoral districts of each candidate list, which is how the
     /// shared templates name a list (see [`Self::candidate_list_districts`]).
     pub candidate_list_districts: HashMap<CandidateListId, BTreeSet<ElectoralDistrict>>,
@@ -55,6 +59,7 @@ impl CsbPoliticalGroup {
             first_candidate_name: store.get_first_candidate_name(WithCorrections::All, None),
             first_non_scrapped_candidate_name: store
                 .get_first_candidate_name(WithCorrections::All, Some(&scrapped)),
+            previously_seated: false,
             scrapped,
             candidate_list_districts: store
                 .get_candidate_lists(WithCorrections::All)
@@ -66,6 +71,15 @@ impl CsbPoliticalGroup {
 
     pub fn with_mode(mut self, mode: CsbPhase) -> Self {
         self.mode = mode;
+        self
+    }
+
+    /// Look the group up among the committee's registrations, which decide
+    /// whether it was previously seated.
+    pub fn with_registrations(mut self, registered: &[RegisteredPoliticalGroup]) -> Self {
+        self.previously_seated = self
+            .registration(registered)
+            .is_some_and(RegisteredPoliticalGroup::was_previously_seated);
         self
     }
 
@@ -127,6 +141,17 @@ impl CsbPoliticalGroup {
         self.political_group.appellation.as_ref()
     }
 
+    /// The registration matching the group's appellation, if any.
+    pub fn registration<'a>(
+        &self,
+        registered: &'a [RegisteredPoliticalGroup],
+    ) -> Option<&'a RegisteredPoliticalGroup> {
+        let appellation = self.registered_appellation()?;
+        registered
+            .iter()
+            .find(|registration| registration.has_appellation(appellation))
+    }
+
     /// The districts in which the group still has a valid list.
     pub fn valid_districts(&self) -> Vec<ElectoralDistrict> {
         let mut districts = Vec::new();
@@ -169,6 +194,7 @@ impl CsbPoliticalGroup {
             recovery: Default::default(),
             first_candidate_name: None,
             first_non_scrapped_candidate_name: None,
+            previously_seated: false,
             candidate_list_districts: HashMap::from([(
                 CandidateListId::new(),
                 BTreeSet::from([ElectoralDistrict::Groningen]),

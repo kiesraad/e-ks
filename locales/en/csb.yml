@@ -273,6 +273,7 @@ recovery:
   finish_title: Finish recovery
   no_omissions: No omissions
   not_recovered: Not recovered
+  nothing_scrapped: Nothing has been scrapped.
   omissions_explanation: Record per omission whether it was recovered.
   omissions_title: Recover omissions
   recovered: Recovered

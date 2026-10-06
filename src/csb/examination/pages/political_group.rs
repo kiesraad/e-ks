@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use askama::Template;
 use axum::{
     extract::{Query, State},
@@ -9,20 +11,23 @@ use crate::structs::common::HasSeverity;
 use crate::{
     AppError, AppRequestState, Context,
     CsbAction::{self},
-    CsbContext, CsbStore, ElectoralDistrict, HtmlTemplate, Overlay, QueryParamState,
+    CsbContext, CsbMainStore, CsbStore, HtmlTemplate, Overlay, QueryParamState,
     csb::{
         examination::{
             extractors::CsbPoliticalGroup,
             pages::{CsbBrpCheckPath, CsbPoliticalGroupPath, CsbPoliticalGroupToggleFinishPath},
             structs::{
-                BrpBadge, BrpCheckState, CsbCandidateList, RestorationStatus, brp_incomplete_reason,
+                BrpBadge, BrpCheckState, CsbCandidateList, RestorationStatus, ScrappedOverview,
+                brp_incomplete_reason,
             },
         },
         import::{brp_sweep_running, do_brp_verification},
     },
     filters, redirect_success,
     structs::{
+        brp::BrpFinding,
         csb::{CsbPhase, Omission},
+        persons::PersonId,
         problems::AllProblems,
     },
 };
@@ -43,7 +48,9 @@ struct CsbPoliticalGroupTemplate {
     political_group_status: RestorationStatus,
     declarations_of_support_omissions: Vec<Omission>,
     has_paper_corrections: bool,
-    scrapped_districts: Vec<crate::ElectoralDistrict>,
+    /// What the unresolved omissions scrapped; only shown in the recovery
+    /// phase, where omissions are decided.
+    scrapped: ScrappedOverview,
     all_problems: AllProblems,
 }
 
@@ -60,8 +67,9 @@ pub async fn overview(
     _: CsbPoliticalGroupPath,
     context: CsbContext,
     store: CsbStore,
+    main_store: CsbMainStore,
 ) -> Result<Response, AppError> {
-    render(context, store, CsbPhase::Examination).await
+    render(context, store, main_store, CsbPhase::Examination).await
 }
 
 /// The political group page, shared between the examination and the recovery
@@ -69,42 +77,21 @@ pub async fn overview(
 pub(in crate::csb) async fn render(
     context: CsbContext,
     store: CsbStore,
+    main_store: CsbMainStore,
     mode: CsbPhase,
 ) -> Result<Response, AppError> {
-    let political_group = CsbPoliticalGroup::new_from_csb_store(&store).with_mode(mode);
+    let political_group = CsbPoliticalGroup::new_from_csb_store(&store)
+        .with_mode(mode)
+        .with_registrations(&main_store.registered_political_groups());
 
-    let imported_lists = store.get_candidate_lists(crate::projection::WithCorrections::None);
     let brp_findings = store.get_brp_findings();
-    let mut candidate_lists = Vec::new();
-    let mut all_candidates = Vec::new();
-    for list in store.get_candidate_lists(crate::projection::WithCorrections::All) {
-        let brp = BrpCheckState::for_candidates(&brp_findings, list.candidates.iter().copied());
-        all_candidates.extend(list.candidates.iter().copied());
-
-        let from_original_import = imported_lists.iter().any(|l| l.id == list.id);
-        candidate_lists.push(CsbCandidateList {
-            restoration_status: RestorationStatus::for_candidate_list(&store, list.id)?,
-            is_scrapped: political_group.scrapped.is_list_scrapped(list.id),
-            scrapped_districts: political_group.scrapped.list_districts(list.id).to_vec(),
-            list,
-            brp,
-            is_paper_added: !from_original_import,
-        });
-    }
-
-    // Sort lists by minimal district region number
-    candidate_lists.sort_by_key(|csb_list| {
-        csb_list
-            .list
-            .electoral_districts
-            .iter()
-            .map(ElectoralDistrict::region_number)
-            .min()
-            .unwrap_or_default()
-    });
+    let candidate_lists = candidate_lists(&store, &political_group, &brp_findings)?;
 
     // Over the candidates rather than over everyone the sweep touched: the
     // snapshot also holds people who stand on no list at all.
+    let all_candidates = candidate_lists
+        .iter()
+        .flat_map(|csb_list| csb_list.list.candidates.iter().copied());
     let brp = BrpCheckState::for_candidates(&brp_findings, all_candidates);
     let brp_running = brp_sweep_running(store.stream_id);
     let brp_incomplete = brp_incomplete_reason(
@@ -114,7 +101,7 @@ pub(in crate::csb) async fn render(
         context.session.locale,
     );
     let political_group_status = RestorationStatus::for_political_group(&store);
-    let scrapped_districts = political_group.scrapped.districts(&store.election);
+    let scrapped = store.get_scrapped_overview(&political_group);
     let all_problems = store.get_all_problems(context.election)?;
     Ok(HtmlTemplate(
         CsbPoliticalGroupTemplate {
@@ -127,12 +114,35 @@ pub(in crate::csb) async fn render(
             political_group_status,
             declarations_of_support_omissions: store.get_all_declarations_of_support_omissions(),
             has_paper_corrections: store.has_paper_corrections(),
-            scrapped_districts,
+            scrapped,
             all_problems,
         },
         context,
     )
     .into_response())
+}
+
+/// The group's candidate lists as the page shows them.
+fn candidate_lists(
+    store: &CsbStore,
+    political_group: &CsbPoliticalGroup,
+    brp_findings: &HashMap<PersonId, Vec<BrpFinding>>,
+) -> Result<Vec<CsbCandidateList>, AppError> {
+    let imported_lists = store.get_candidate_lists(crate::projection::WithCorrections::None);
+    let mut candidate_lists = Vec::new();
+    for list in store.get_candidate_lists_in_page_order(crate::projection::WithCorrections::All) {
+        let brp = BrpCheckState::for_candidates(brp_findings, list.candidates.iter().copied());
+        let from_original_import = imported_lists.iter().any(|l| l.id == list.id);
+        candidate_lists.push(CsbCandidateList {
+            restoration_status: RestorationStatus::for_candidate_list(store, list.id)?,
+            is_scrapped: political_group.scrapped.is_list_scrapped(list.id),
+            scrapped_districts: political_group.scrapped.list_districts(list.id).to_vec(),
+            list,
+            brp,
+            is_paper_added: !from_original_import,
+        });
+    }
+    Ok(candidate_lists)
 }
 
 /// Start the BRP check for this stream, for a group that was imported without
@@ -167,13 +177,13 @@ mod tests {
     use axum::http::StatusCode;
 
     use crate::{
-        AppState, ElectoralDistrict, PgEvent,
+        AppState, CsbMainAction, CsbUser, ElectoralDistrict, PgEvent,
         csb::import::claim_sweep_for_test,
         structs::{
             brp::{BrpFindingKind, BrpStatus},
             candidate_lists::{CandidateList, CandidateListId},
             common::{Address, PreviousElectionResults, UtcDateTime},
-            csb::{Omission, OmissionCategory},
+            csb::{Omission, OmissionCategory, sample_registered_political_group},
             list_designation::ListDesignation,
             list_submitters::ListSubmitterId,
             persons::PersonId,
@@ -205,6 +215,7 @@ mod tests {
             CsbPoliticalGroupPath { stream_id },
             CsbContext::new_test(),
             store,
+            CsbMainStore::new_for_test(),
         )
         .await
         .unwrap()
@@ -382,6 +393,18 @@ mod tests {
         ));
     }
 
+    /// Omissions are decided in the recovery phase, so only that phase has
+    /// anything scrapped to show.
+    #[tokio::test]
+    async fn the_examination_page_has_no_scrapped_panel() {
+        let (store, _) = store_with_a_candidate();
+
+        let body = examination_body(store).await;
+
+        assert!(!body.contains("Scrapped</h2>"), "{body}");
+        assert!(!body.contains("Nothing has been scrapped."));
+    }
+
     #[tokio::test]
     async fn political_group_renders_imported_appellation() {
         let store = CsbStore::new_for_test();
@@ -392,6 +415,7 @@ mod tests {
             CsbPoliticalGroupPath { stream_id },
             CsbContext::new_test(),
             store,
+            CsbMainStore::new_for_test(),
         )
         .await
         .unwrap()
@@ -415,6 +439,7 @@ mod tests {
             CsbPoliticalGroupPath { stream_id },
             CsbContext::new_test(),
             store,
+            CsbMainStore::new_for_test(),
         )
         .await
         .unwrap()
@@ -444,6 +469,7 @@ mod tests {
             CsbPoliticalGroupPath { stream_id },
             CsbContext::new_test(),
             store,
+            CsbMainStore::new_for_test(),
         )
         .await
         .unwrap()
@@ -474,6 +500,7 @@ mod tests {
             CsbPoliticalGroupPath { stream_id },
             CsbContext::new_test(),
             store,
+            CsbMainStore::new_for_test(),
         )
         .await
         .unwrap()
@@ -503,6 +530,7 @@ mod tests {
             CsbPoliticalGroupPath { stream_id },
             CsbContext::new_test(),
             store,
+            CsbMainStore::new_for_test(),
         )
         .await
         .unwrap()
@@ -536,6 +564,7 @@ mod tests {
             CsbPoliticalGroupPath { stream_id },
             CsbContext::new_test(),
             store,
+            CsbMainStore::new_for_test(),
         )
         .await
         .unwrap()
@@ -565,6 +594,7 @@ mod tests {
             CsbPoliticalGroupPath { stream_id },
             CsbContext::new_test(),
             store,
+            CsbMainStore::new_for_test(),
         )
         .await
         .unwrap()
@@ -583,10 +613,15 @@ mod tests {
         store.set_political_group(sample_political_group());
         store.add_candidate_list(sample_candidate_list(CandidateListId::new()));
 
-        let response = render(CsbContext::new_test(), store, CsbPhase::Recovery)
-            .await
-            .unwrap()
-            .into_response();
+        let response = render(
+            CsbContext::new_test(),
+            store,
+            CsbMainStore::new_for_test(),
+            CsbPhase::Recovery,
+        )
+        .await
+        .unwrap()
+        .into_response();
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
@@ -605,6 +640,7 @@ mod tests {
             CsbPoliticalGroupPath { stream_id },
             CsbContext::new_test(),
             store,
+            CsbMainStore::new_for_test(),
         )
         .await
         .unwrap()
@@ -636,15 +672,127 @@ mod tests {
         .await
         .unwrap();
 
-        let response = render(CsbContext::new_test(), store, CsbPhase::Recovery)
-            .await
-            .unwrap()
-            .into_response();
+        let response = render(
+            CsbContext::new_test(),
+            store,
+            CsbMainStore::new_for_test(),
+            CsbPhase::Recovery,
+        )
+        .await
+        .unwrap()
+        .into_response();
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
         assert!(body.contains("Groningen"));
         assert!(body.contains("Frysl"));
+    }
+
+    /// A main store registering the sample group with `seats` at the previous
+    /// election.
+    async fn main_store_registering_sample_group(seats: u32) -> CsbMainStore {
+        let main_store = CsbMainStore::new_for_test();
+        main_store
+            .update(
+                CsbMainAction::CreateRegisteredPoliticalGroup(sample_registered_political_group(
+                    "Kiesraad Demo",
+                    1000,
+                    seats,
+                ))
+                .by(CsbUser::new_test()),
+            )
+            .await
+            .unwrap();
+        main_store
+    }
+
+    /// The page's body for the sample group, given the main store.
+    async fn body_with_main_store(main_store: CsbMainStore, mode: CsbPhase) -> String {
+        let store = CsbStore::new_for_test();
+        store.set_political_group(sample_political_group());
+        let response = render(CsbContext::new_test(), store, main_store, mode)
+            .await
+            .unwrap()
+            .into_response();
+        assert_eq!(response.status(), StatusCode::OK);
+        response_body_string(response).await
+    }
+
+    #[tokio::test]
+    async fn a_previously_seated_group_has_no_declarations_of_support_block() {
+        let main_store = main_store_registering_sample_group(3).await;
+
+        let body = body_with_main_store(main_store.clone(), CsbPhase::Examination).await;
+        assert!(!body.contains("Declarations of support"), "{body}");
+
+        let body = body_with_main_store(main_store, CsbPhase::Recovery).await;
+        assert!(!body.contains("Declarations of support"), "{body}");
+    }
+
+    #[tokio::test]
+    async fn a_group_without_a_previous_seat_has_the_declarations_of_support_block() {
+        let main_store = main_store_registering_sample_group(0).await;
+        let body = body_with_main_store(main_store, CsbPhase::Examination).await;
+        assert!(body.contains("Declarations of support"), "{body}");
+    }
+
+    #[tokio::test]
+    async fn an_unregistered_group_has_the_declarations_of_support_block() {
+        let body = body_with_main_store(CsbMainStore::new_for_test(), CsbPhase::Examination).await;
+        assert!(body.contains("Declarations of support"), "{body}");
+    }
+
+    /// Only the registration counts, not what the group says about itself.
+    #[tokio::test]
+    async fn an_unregistered_group_claiming_a_seat_has_the_declarations_of_support_block() {
+        let store = CsbStore::new_for_test();
+        store.set_political_group(PoliticalGroup {
+            previous_election_results: Some(PreviousElectionResults::OneToFifteenSeats),
+            ..sample_political_group()
+        });
+
+        let response = render(
+            CsbContext::new_test(),
+            store,
+            CsbMainStore::new_for_test(),
+            CsbPhase::Examination,
+        )
+        .await
+        .unwrap()
+        .into_response();
+        let body = response_body_string(response).await;
+        assert!(body.contains("Declarations of support"), "{body}");
+    }
+
+    /// Omissions recorded before the registration was known stay visible.
+    #[tokio::test]
+    async fn a_seated_group_still_shows_its_recorded_declarations_of_support_omissions() {
+        let main_store = main_store_registering_sample_group(3).await;
+        let store = CsbStore::new_for_test();
+        store.set_political_group(sample_political_group());
+        Omission::new(
+            OmissionCategory::DeclarationsOfSupport(vec![ElectoralDistrict::Groningen]),
+            "Declarations of support missing".parse().unwrap(),
+            "Too few declarations of support were handed in."
+                .parse()
+                .unwrap(),
+            None,
+        )
+        .create(&store)
+        .await
+        .unwrap();
+
+        let response = render(
+            CsbContext::new_test(),
+            store,
+            main_store,
+            CsbPhase::Examination,
+        )
+        .await
+        .unwrap()
+        .into_response();
+        let body = response_body_string(response).await;
+        assert!(body.contains("Declarations of support"), "{body}");
     }
 
     #[tokio::test]
@@ -741,6 +889,7 @@ mod tests {
             CsbPoliticalGroupPath { stream_id },
             CsbContext::new_test(),
             store,
+            CsbMainStore::new_for_test(),
         )
         .await
         .unwrap()
@@ -776,6 +925,7 @@ mod tests {
             CsbPoliticalGroupPath { stream_id },
             CsbContext::new_test(),
             store,
+            CsbMainStore::new_for_test(),
         )
         .await
         .unwrap()
@@ -811,6 +961,7 @@ mod tests {
             CsbPoliticalGroupPath { stream_id },
             CsbContext::new_test(),
             store,
+            CsbMainStore::new_for_test(),
         )
         .await
         .unwrap()
@@ -839,6 +990,7 @@ mod tests {
             CsbPoliticalGroupPath { stream_id },
             CsbContext::new_test(),
             store,
+            CsbMainStore::new_for_test(),
         )
         .await
         .unwrap()
@@ -876,6 +1028,7 @@ mod tests {
             CsbPoliticalGroupPath { stream_id },
             CsbContext::new_test(),
             store,
+            CsbMainStore::new_for_test(),
         )
         .await
         .unwrap()
