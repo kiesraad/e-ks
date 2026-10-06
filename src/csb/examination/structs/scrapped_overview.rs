@@ -1,8 +1,6 @@
 use crate::{
-    CsbStream, ElectoralDistrict,
-    csb::examination::extractors::CsbPoliticalGroup,
-    projection::WithCorrections,
-    structs::{candidate_lists::CandidateList, persons::Person},
+    CsbStream, ElectoralDistrict, csb::examination::extractors::CsbPoliticalGroup,
+    projection::WithCorrections, structs::persons::Person,
 };
 
 /// Everything the unresolved omissions scrapped from one political group,
@@ -30,7 +28,7 @@ pub struct ScrappedAppellation {
 pub struct ScrappedDistrict {
     pub district: ElectoralDistrict,
     /// The page of the list submitted in this district; `None` when no list
-    /// was.
+    /// was submitted there.
     pub path: Option<String>,
 }
 
@@ -73,10 +71,14 @@ impl ScrappedCandidate {
 
 impl ScrappedOverview {
     pub fn is_empty(&self) -> bool {
-        self.appellation.is_none()
-            && self.districts.is_empty()
-            && self.lists.is_empty()
-            && self.candidates.is_empty()
+        // Destructured so that a new field cannot be left out here.
+        let Self {
+            appellation,
+            districts,
+            lists,
+            candidates,
+        } = self;
+        appellation.is_none() && districts.is_empty() && lists.is_empty() && candidates.is_empty()
     }
 }
 
@@ -85,7 +87,7 @@ impl CsbStream {
     /// the lists the committee examines.
     pub fn get_scrapped_overview(&self, political_group: &CsbPoliticalGroup) -> ScrappedOverview {
         let scrapped = &political_group.scrapped;
-        let lists = self.lists_in_page_order();
+        let lists = self.get_candidate_lists_in_page_order(WithCorrections::All);
 
         let appellation = scrapped
             .is_appellation_scrapped()
@@ -142,20 +144,6 @@ impl CsbStream {
             lists: scrapped_lists,
             candidates,
         }
-    }
-
-    /// The corrected lists in the order the group page shows them: by their
-    /// lowest district number.
-    fn lists_in_page_order(&self) -> Vec<CandidateList> {
-        let mut lists = self.get_candidate_lists(WithCorrections::All);
-        lists.sort_by_key(|list| {
-            list.electoral_districts
-                .iter()
-                .map(ElectoralDistrict::region_number)
-                .min()
-                .unwrap_or_default()
-        });
-        lists
     }
 }
 

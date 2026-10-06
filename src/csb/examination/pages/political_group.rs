@@ -11,7 +11,7 @@ use crate::structs::common::HasSeverity;
 use crate::{
     AppError, AppRequestState, Context,
     CsbAction::{self},
-    CsbContext, CsbMainStore, CsbStore, ElectoralDistrict, HtmlTemplate, Overlay, QueryParamState,
+    CsbContext, CsbMainStore, CsbStore, HtmlTemplate, Overlay, QueryParamState,
     csb::{
         examination::{
             extractors::CsbPoliticalGroup,
@@ -47,13 +47,10 @@ struct CsbPoliticalGroupTemplate {
     candidate_lists: Vec<CsbCandidateList>,
     political_group_status: RestorationStatus,
     declarations_of_support_omissions: Vec<Omission>,
-    /// A group with a seat at the previous election hands in no declarations
-    /// of support, so the block is hidden unless an omission was recorded.
-    previously_seated: bool,
     has_paper_corrections: bool,
-    /// What the unresolved omissions scrapped; only in the recovery phase,
-    /// where omissions are decided.
-    scrapped: Option<ScrappedOverview>,
+    /// What the unresolved omissions scrapped; only shown in the recovery
+    /// phase, where omissions are decided.
+    scrapped: ScrappedOverview,
     all_problems: AllProblems,
 }
 
@@ -83,7 +80,9 @@ pub(in crate::csb) async fn render(
     main_store: CsbMainStore,
     mode: CsbPhase,
 ) -> Result<Response, AppError> {
-    let political_group = CsbPoliticalGroup::new_from_csb_store(&store).with_mode(mode);
+    let political_group = CsbPoliticalGroup::new_from_csb_store(&store)
+        .with_mode(mode)
+        .with_registrations(&main_store.registered_political_groups());
 
     let brp_findings = store.get_brp_findings();
     let candidate_lists = candidate_lists(&store, &political_group, &brp_findings)?;
@@ -102,12 +101,8 @@ pub(in crate::csb) async fn render(
         context.session.locale,
     );
     let political_group_status = RestorationStatus::for_political_group(&store);
-    let scrapped = mode
-        .is_recovery()
-        .then(|| store.get_scrapped_overview(&political_group));
+    let scrapped = store.get_scrapped_overview(&political_group);
     let all_problems = store.get_all_problems(context.election)?;
-    let previously_seated =
-        political_group.was_previously_seated(&main_store.registered_political_groups());
     Ok(HtmlTemplate(
         CsbPoliticalGroupTemplate {
             political_group,
@@ -118,7 +113,6 @@ pub(in crate::csb) async fn render(
             candidate_lists,
             political_group_status,
             declarations_of_support_omissions: store.get_all_declarations_of_support_omissions(),
-            previously_seated,
             has_paper_corrections: store.has_paper_corrections(),
             scrapped,
             all_problems,
@@ -128,8 +122,7 @@ pub(in crate::csb) async fn render(
     .into_response())
 }
 
-/// The group's candidate lists as the page shows them, sorted by their lowest
-/// district region number.
+/// The group's candidate lists as the page shows them.
 fn candidate_lists(
     store: &CsbStore,
     political_group: &CsbPoliticalGroup,
@@ -137,7 +130,7 @@ fn candidate_lists(
 ) -> Result<Vec<CsbCandidateList>, AppError> {
     let imported_lists = store.get_candidate_lists(crate::projection::WithCorrections::None);
     let mut candidate_lists = Vec::new();
-    for list in store.get_candidate_lists(crate::projection::WithCorrections::All) {
+    for list in store.get_candidate_lists_in_page_order(crate::projection::WithCorrections::All) {
         let brp = BrpCheckState::for_candidates(brp_findings, list.candidates.iter().copied());
         let from_original_import = imported_lists.iter().any(|l| l.id == list.id);
         candidate_lists.push(CsbCandidateList {
@@ -149,16 +142,6 @@ fn candidate_lists(
             is_paper_added: !from_original_import,
         });
     }
-
-    candidate_lists.sort_by_key(|csb_list| {
-        csb_list
-            .list
-            .electoral_districts
-            .iter()
-            .map(ElectoralDistrict::region_number)
-            .min()
-            .unwrap_or_default()
-    });
     Ok(candidate_lists)
 }
 
@@ -418,7 +401,7 @@ mod tests {
 
         let body = examination_body(store).await;
 
-        assert!(!body.contains("<h2 class=\"h3\">Scrapped</h2>"), "{body}");
+        assert!(!body.contains("Scrapped</h2>"), "{body}");
         assert!(!body.contains("Nothing has been scrapped."));
     }
 
@@ -756,6 +739,28 @@ mod tests {
     #[tokio::test]
     async fn an_unregistered_group_has_the_declarations_of_support_block() {
         let body = body_with_main_store(CsbMainStore::new_for_test(), CsbPhase::Examination).await;
+        assert!(body.contains("Declarations of support"), "{body}");
+    }
+
+    /// Only the registration counts, not what the group says about itself.
+    #[tokio::test]
+    async fn an_unregistered_group_claiming_a_seat_has_the_declarations_of_support_block() {
+        let store = CsbStore::new_for_test();
+        store.set_political_group(PoliticalGroup {
+            previous_election_results: Some(PreviousElectionResults::OneToFifteenSeats),
+            ..sample_political_group()
+        });
+
+        let response = render(
+            CsbContext::new_test(),
+            store,
+            CsbMainStore::new_for_test(),
+            CsbPhase::Examination,
+        )
+        .await
+        .unwrap()
+        .into_response();
+        let body = response_body_string(response).await;
         assert!(body.contains("Declarations of support"), "{body}");
     }
 
