@@ -34,7 +34,6 @@ test.describe("recover omissions", async () => {
         await omissionsPage.buttonAddAndClose.click();
         await politicalGroupPage.buttonHome.click();
         
-    
         // recover omission for one electoral district and do not recover for other district, verify that unrecovered list is scrapped
         await overviewPage.linkRecoveredLists.click();
         await expect(recoveredListsPage.headerRecoveredLists).toBeVisible();

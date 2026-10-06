@@ -37,6 +37,10 @@ async addObjection(objectionText: string) {
 async deleteObjection(objectionText: string) {
   const objectionLink = this.page.getByRole("link", { name: objectionText });
   await objectionLink.click();
+  await this.page
+    .locator(".animation")
+    .evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
   await this.buttonDeleteObjection.click();
 }
+
 }
