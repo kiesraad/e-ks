@@ -1513,6 +1513,7 @@ dependencies = [
  "http-body-util",
  "hyper-util",
  "instant-acme",
+ "ipnet",
  "memory-serve",
  "parking_lot",
  "phf 0.14.0",
@@ -1630,8 +1631,9 @@ dependencies = [
 
 [[package]]
 name = "eml-nl"
-version = "0.7.0"
-source = "git+https://github.com/kiesraad/rust-eml-nl?rev=e9fcd7e90aebba463a36d7bbf7cd418f2032ed26#e9fcd7e90aebba463a36d7bbf7cd418f2032ed26"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9d3921300ed9c9195ce5f2446299f1b3f3d92ac85b15ff078da9a532e0034e4b"
 dependencies = [
  "chrono",
  "quick-xml",

@@ -84,6 +84,8 @@ mod tests {
         assert!(!body.contains(&format!("/csb/examination/{stream_id}")));
         // The progress column shows assessed vs. assessable omissions.
         assert!(body.contains("2 of 3 assessed"));
+        // The page leads back to the CSB overview.
+        assert!(body.contains(r#"href="/csb" class="button secondary">Back<"#));
     }
 
     async fn render(groups: Vec<CsbPoliticalGroup>) -> String {

@@ -3,11 +3,13 @@ use axum::{extract::State, response::Response};
 use crate::{
     AppError, AppRequestState, CsbMainStore,
     core::{ModelLocale, constants::DEFAULT_DATE_FORMAT},
-    csb::examination::{
-        model_inputs::{found_omissions, submitted_lists},
-        pages::{CsbI1DocxDownloadPath, CsbI1DownloadPath},
+    csb::examination::pages::{CsbI1DocxDownloadPath, CsbI1DownloadPath},
+    models::{
+        Pdf,
+        csb_model_inputs::{found_omissions, submitted_lists},
+        i1::I1,
+        inputs::PublicSession,
     },
-    models::{Pdf, i1::I1, i4::PublicSession},
     structs::csb::HearingModel,
 };
 

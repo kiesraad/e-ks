@@ -12,7 +12,7 @@ use crate::{
         common::{Address, PreviousElectionResults},
         csb::{Omission, OmissionCategory, OmissionType, RegisteredPoliticalGroup},
         list_designation::ListDesignation,
-        persons::PersonId,
+        persons::{Person, PersonId},
         political_groups::PoliticalGroup,
     },
 };
@@ -32,6 +32,8 @@ enum Handling {
     /// Imported with the paper documents differing from the package, and no
     /// omissions.
     WithPaperCorrections,
+    /// Imported with the BRP check done, as the BRP answered it.
+    WithBrpFindings,
 }
 
 /// A political group of the CSB fixture: its registration with the committee
@@ -73,7 +75,7 @@ const FIXTURE_GROUPS: [FixtureGroup; 6] = [
     FixtureGroup {
         appellation: "Kiesvereniging Bijna Gekozen",
         registration: Some((98_765, 0)),
-        handling: Handling::Imported,
+        handling: Handling::WithBrpFindings,
     },
     FixtureGroup {
         appellation: "Actiegroep Laatste Moment",
@@ -163,7 +165,10 @@ async fn import_examination_fixture<S: AppRequestState>(
 
         let store = match group.handling {
             Handling::NotHandedIn => continue,
-            Handling::Imported | Handling::WithOmissions | Handling::WithPaperCorrections => {
+            Handling::Imported
+            | Handling::WithOmissions
+            | Handling::WithPaperCorrections
+            | Handling::WithBrpFindings => {
                 import_fixture_group(
                     state,
                     state.csb_store_registry(),
@@ -182,6 +187,7 @@ async fn import_examination_fixture<S: AppRequestState>(
                 }
             }
             Handling::WithPaperCorrections => fixture_paper_corrections(&store).await?,
+            Handling::WithBrpFindings => recorded_brp_check(&store).await?,
             Handling::NotHandedIn | Handling::Imported => {}
         }
     }
@@ -264,6 +270,18 @@ async fn import_fixture_group<S: AppRequestState>(
     Ok(store)
 }
 
+/// The BRP check over the whole package as the BRP really answered it, from
+/// the findings the `personen-mock` produced for the fixture candidates (see
+/// `src/fixtures/brp_findings.json`).
+async fn recorded_brp_check(store: &CsbStore) -> Result<(), AppError> {
+    let findings = crate::fixtures::brp_findings();
+
+    record_brp_check(store, |person| {
+        findings.get(&person.id).cloned().unwrap_or_default()
+    })
+    .await
+}
+
 /// The outcome of a BRP check over the whole package, recorded rather than
 /// looked up so the fixture needs no BRP to be reachable: the first four
 /// candidates on the first list have discrepancies, one of them on two fields,
@@ -297,19 +315,31 @@ async fn fixture_brp_check(store: &CsbStore) -> Result<(), AppError> {
         }
     };
 
-    for person in store.get_persons(WithCorrections::All) {
-        let findings = flagged
+    record_brp_check(store, |person| {
+        flagged
             .iter()
             .position(|flagged| *flagged == person.id)
             .map(findings_at)
-            .unwrap_or_default();
+            .unwrap_or_default()
+    })
+    .await
+}
+
+/// Record a finished BRP check over every candidate in the package, with
+/// `findings_for` saying what the check found per candidate.
+async fn record_brp_check(
+    store: &CsbStore,
+    findings_for: impl Fn(&Person) -> Vec<BrpFinding>,
+) -> Result<(), AppError> {
+    for person in store.get_persons(WithCorrections::All) {
         store
             .update(CsbAction::BrpPersonChecked {
                 person: person.id,
-                findings,
+                findings: findings_for(&person),
             })
             .await?;
     }
+
     store
         .update(CsbAction::SetBrpStatus(BrpStatus::Finished))
         .await
@@ -552,6 +582,8 @@ fn district_names(districts: &[ElectoralDistrict]) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use super::*;
     use crate::{
         AppState,
@@ -599,6 +631,20 @@ mod tests {
         fixture_store_named(&state, "Beweging Losse Eindjes").await
     }
 
+    /// The appellation of the one fixture group handled this way.
+    fn group_handled(handling: Handling) -> &'static str {
+        let mut groups = FIXTURE_GROUPS
+            .iter()
+            .filter(|group| group.handling == handling);
+        let group = groups.next().expect("a fixture group handled this way");
+        assert!(
+            groups.next().is_none(),
+            "only one group is handled this way"
+        );
+
+        group.appellation
+    }
+
     /// The streams imported for the pre-submission check.
     async fn pre_submission_stores(state: &AppState) -> Vec<CsbStream> {
         state
@@ -641,6 +687,60 @@ mod tests {
             REGISTERED_GROUP_COUNT,
             "a second fixture import should register nothing"
         );
+    }
+
+    /// The BRP fixture is the mock's own answer about the fixture candidates,
+    /// recorded for one group and for no other.
+    #[tokio::test]
+    async fn one_examination_fixture_group_carries_the_findings_the_brp_returned()
+    -> Result<(), AppError> {
+        let state = fixture_state(ElectionConfig::EK27).await;
+        let checked = group_handled(Handling::WithBrpFindings);
+        let store = fixture_store_named(&state, checked).await;
+
+        assert!(matches!(store.get_brp_status(), BrpStatus::Finished));
+
+        // Nothing was recorded that the BRP did not return, and every
+        // candidate was checked, findings or not.
+        let generated = crate::fixtures::brp_findings();
+        let recorded = store.get_brp_findings();
+        assert_eq!(
+            recorded.len(),
+            store.get_persons(WithCorrections::All).len()
+        );
+        for (person, findings) in &recorded {
+            assert_eq!(findings, generated.get(person).unwrap_or(&Vec::new()));
+        }
+
+        // The candidates on its lists carry the findings the file holds for
+        // them.
+        let candidates: BTreeSet<PersonId> = store
+            .get_candidate_lists(WithCorrections::All)
+            .into_iter()
+            .flat_map(|list| list.candidates)
+            .collect();
+        let errors: usize = candidates
+            .iter()
+            .filter_map(|person| generated.get(person))
+            .map(Vec::len)
+            .sum();
+        assert!(errors > 0, "the BRP fixture group has nothing to show");
+        assert_eq!(
+            BrpCheckState::for_political_group(&store),
+            BrpCheckState::Errors { errors, handled: 0 }
+        );
+
+        for store in fixture_stores(&state).await {
+            if store.get_appellation(WithCorrections::None) != checked {
+                assert_eq!(
+                    BrpCheckState::for_political_group(&store),
+                    BrpCheckState::NotChecked,
+                    "only one examination fixture group is checked"
+                );
+            }
+        }
+
+        Ok(())
     }
 
     #[tokio::test]

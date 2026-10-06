@@ -1,21 +1,27 @@
 //! Model I 1 and I 4 inputs, collected over every imported political group,
-//! plus the omission letter inputs of a single group. What the omissions
-//! scrap is read from the store's [`Scrapped`] state, so the models report
-//! the same outcome as the recovery pages.
+//! plus the omission letter inputs of a single group and the established
+//! lists/candidates the EML 230b export ([`super::eml::eml230b`]) needs.
+//! What the omissions scrap is read from the store's [`Scrapped`] state, so
+//! the models report the same outcome as the recovery pages.
 
 use std::collections::BTreeMap;
 
 use crate::{
-    AppError, CsbStoreData, CsbStream, ElectionConfig, ElectoralDistrict,
+    AppError, CsbStoreData, CsbStream, ElectionConfig, ElectoralDistrict, StreamId,
     core::AnyLocale,
-    models::{i1, i4, omission_letter},
+    models::{
+        i1, i4,
+        inputs::{DistrictLists, OmissionGroup, ValidList, ValidListCandidate},
+        omission_letter,
+        osv3_2::{NumberedList, PublishedCandidate},
+    },
     projection::{Scrapped, WithCorrections},
     store::StoreRegistry,
     structs::{
         candidate_lists::{CandidateList, CandidateListId},
         common::UtcDateTime,
         csb::{Omission, OmissionCategory, OmissionId},
-        persons::PersonId,
+        persons::{Person, PersonId},
     },
 };
 
@@ -39,7 +45,7 @@ async fn examined_stores(
 pub async fn submitted_lists(
     registry: &StoreRegistry<CsbStoreData>,
     election: &ElectionConfig,
-) -> Result<Vec<i1::DistrictLists>, AppError> {
+) -> Result<Vec<DistrictLists<i1::SubmittedList>>, AppError> {
     let mut by_district: BTreeMap<ElectoralDistrict, Vec<i1::SubmittedList>> = BTreeMap::new();
     for store in examined_stores(registry, election).await? {
         for (district, list) in store_submitted_lists(&store) {
@@ -49,7 +55,7 @@ pub async fn submitted_lists(
 
     Ok(by_district
         .into_iter()
-        .map(|(district, lists)| i1::DistrictLists {
+        .map(|(district, lists)| DistrictLists {
             electoral_district: district_label(district, election),
             lists,
         })
@@ -86,7 +92,7 @@ fn store_submitted_lists(store: &CsbStream) -> Vec<(ElectoralDistrict, i1::Submi
 pub async fn found_omissions(
     registry: &StoreRegistry<CsbStoreData>,
     election: &ElectionConfig,
-) -> Result<Vec<i4::OmissionGroup>, AppError> {
+) -> Result<Vec<OmissionGroup>, AppError> {
     let mut found = Vec::new();
     for store in examined_stores(registry, election).await? {
         let omissions = sorted_omissions(&store);
@@ -214,24 +220,26 @@ impl SectionOmissions {
 /// and objections are recorded during the public session.
 #[derive(Debug, Default)]
 pub struct I4Inputs {
-    pub found_omissions: Vec<i4::OmissionGroup>,
-    pub recovered_omissions: Vec<i4::OmissionGroup>,
-    pub invalid_lists: Vec<i4::OmissionGroup>,
+    pub found_omissions: Vec<OmissionGroup>,
+    pub recovered_omissions: Vec<OmissionGroup>,
+    pub invalid_lists: Vec<OmissionGroup>,
     pub removed_candidates: Vec<i4::RemovedCandidates>,
     pub removed_appellations: Vec<i4::RemovedAppellation>,
     pub corrected_appellations: Vec<i4::CorrectedAppellation>,
-    pub valid_lists: Vec<i4::DistrictLists>,
+    pub valid_lists: Vec<DistrictLists<ValidList>>,
 }
 
 pub async fn i4_inputs(
     registry: &StoreRegistry<CsbStoreData>,
     election: &ElectionConfig,
+    stream_order: &[StreamId],
 ) -> Result<I4Inputs, AppError> {
     let mut inputs = I4Inputs {
         found_omissions: found_omissions(registry, election).await?,
         ..Default::default()
     };
-    let mut valid_by_district: BTreeMap<ElectoralDistrict, Vec<i4::ValidList>> = BTreeMap::new();
+    let mut valid_by_district: BTreeMap<ElectoralDistrict, Vec<(usize, ValidList)>> =
+        BTreeMap::new();
 
     for store in examined_stores(registry, election).await? {
         let omissions = sorted_omissions(&store);
@@ -260,20 +268,69 @@ pub async fn i4_inputs(
         inputs
             .corrected_appellations
             .extend(corrected_appellation(&store, election, &scrapped));
-        for (district, list) in valid_lists(&store, &scrapped)? {
-            valid_by_district.entry(district).or_default().push(list);
+
+        let group_position = stream_order
+            .iter()
+            .position(|stream_id| *stream_id == store.stream_id)
+            .unwrap_or(usize::MAX);
+        for (district, list) in valid_lists(&store, &scrapped, ValidListCandidate::new)? {
+            valid_by_district
+                .entry(district)
+                .or_default()
+                .push((group_position, list));
         }
     }
 
     inputs.valid_lists = valid_by_district
         .into_iter()
-        .map(|(district, lists)| i4::DistrictLists {
-            electoral_district: district_label(district, election),
-            lists,
+        .map(|(district, mut lists)| {
+            lists.sort_by_key(|(position, _)| *position);
+            DistrictLists {
+                electoral_district: district_label(district, election),
+                lists: lists.into_iter().map(|(_, list)| list).collect(),
+            }
         })
         .collect();
 
     Ok(inputs)
+}
+
+/// The OSV 3-2 lists: per district, the valid lists in list order, numbered
+/// on within the district. A district without a group's list, never
+/// submitted or scrapped there, numbers on without a gap. `stream_order` is
+/// the list order of the groups.
+pub async fn published_lists(
+    registry: &StoreRegistry<CsbStoreData>,
+    election: &ElectionConfig,
+    stream_order: &[StreamId],
+) -> Result<Vec<DistrictLists<NumberedList>>, AppError> {
+    let stores = examined_stores(registry, election).await?;
+    let mut by_district: BTreeMap<ElectoralDistrict, Vec<ValidList<PublishedCandidate>>> =
+        BTreeMap::new();
+
+    for stream_id in stream_order {
+        let store = stores
+            .iter()
+            .find(|store| store.stream_id == *stream_id)
+            .ok_or(AppError::Conflict)?;
+
+        for (district, list) in valid_lists(store, &store.get_scrapped(), PublishedCandidate::new)?
+        {
+            by_district.entry(district).or_default().push(list);
+        }
+    }
+
+    Ok(by_district
+        .into_iter()
+        .map(|(district, lists)| DistrictLists {
+            electoral_district: district.title().to_string(),
+            lists: lists
+                .into_iter()
+                .zip(1..)
+                .map(|(list, number)| NumberedList { number, list })
+                .collect(),
+        })
+        .collect())
 }
 
 /// Whether a scrapping omission of this category is reported under the
@@ -321,7 +378,7 @@ fn omission_groups<'a>(
     store: &CsbStream,
     election: &ElectionConfig,
     omissions: impl IntoIterator<Item = &'a Omission>,
-) -> Result<Vec<i4::OmissionGroup>, AppError> {
+) -> Result<Vec<OmissionGroup>, AppError> {
     let mut by_district: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for omission in omissions {
         let district = omission.category.electoral_district(store, election)?;
@@ -335,7 +392,7 @@ fn omission_groups<'a>(
     Ok(by_district
         .into_iter()
         .map(
-            |(electoral_district, omission_descriptions)| i4::OmissionGroup {
+            |(electoral_district, omission_descriptions)| OmissionGroup {
                 appellation: appellation.clone(),
                 electoral_district,
                 omission_descriptions,
@@ -452,41 +509,59 @@ fn corrected_appellation(
     })
 }
 
-/// The lists that are not scrapped, per district that is not scrapped.
-fn valid_lists(
+/// The lists that are not scrapped, per district that is not scrapped, with
+/// each remaining candidate made into a row by `candidate`.
+fn valid_lists<C>(
     store: &CsbStream,
     scrapped: &Scrapped,
-) -> Result<Vec<(ElectoralDistrict, i4::ValidList)>, AppError> {
+    candidate: impl Fn(usize, &Person) -> C,
+) -> Result<Vec<(ElectoralDistrict, ValidList<C>)>, AppError> {
     let appellation = store.get_appellation_with_scrapped(WithCorrections::All, scrapped);
 
+    valid_lists_by_district(store, scrapped)
+        .into_iter()
+        .map(|(district, list)| {
+            let candidates = valid_candidates(store, scrapped, &list)?
+                .into_iter()
+                .map(|(position, person)| candidate(position, &person))
+                .collect();
+            Ok((
+                district,
+                ValidList {
+                    appellation: appellation.clone(),
+                    candidates,
+                },
+            ))
+        })
+        .collect()
+}
+
+/// The lists that are not scrapped, per district that is not scrapped for I 4 / EML 230b
+pub fn valid_lists_by_district(
+    store: &CsbStream,
+    scrapped: &Scrapped,
+) -> Vec<(ElectoralDistrict, CandidateList)> {
     let mut valid = Vec::new();
     for list in lists_by_creation(store) {
         if scrapped.is_list_scrapped(list.id) {
             continue;
         }
-        let candidates = valid_candidates(store, scrapped, &list)?;
         for district in &list.electoral_districts {
             if !scrapped.is_district_scrapped(*district) {
-                valid.push((
-                    *district,
-                    i4::ValidList {
-                        appellation: appellation.clone(),
-                        candidates: candidates.clone(),
-                    },
-                ));
+                valid.push((*district, list.clone()));
             }
         }
     }
 
-    Ok(valid)
+    valid
 }
 
-/// The candidates that are not scrapped, renumbered.
-fn valid_candidates(
+/// The candidates that are not scrapped, renumbered for I 4 / EML 230b
+pub fn valid_candidates(
     store: &CsbStream,
     scrapped: &Scrapped,
     list: &CandidateList,
-) -> Result<Vec<i4::ValidListCandidate>, AppError> {
+) -> Result<Vec<(usize, Person)>, AppError> {
     list.candidates
         .iter()
         .filter(|person| !scrapped.is_candidate_scrapped(list.id, **person))
@@ -495,18 +570,11 @@ fn valid_candidates(
             let person = store
                 .get_person(*person, WithCorrections::All)
                 .ok_or(AppError::GenericNotFound)?;
-            Ok(i4::ValidListCandidate {
-                position: index + 1,
-                last_name: person.name.last_name_with_prefix(),
-                initials: person.initials_as_printed_on_list(AnyLocale::Nl),
-                locality: person.personal_data.locality().unwrap_or_default(),
-            })
+            Ok((index + 1, person))
         })
         .collect()
 }
 
-// TODO: sort by the list numbering once it is implemented, falling back to
-// creation order for the draft I 4 that predates the numbering.
 fn lists_by_creation(store: &CsbStream) -> Vec<CandidateList> {
     let mut lists = store.get_candidate_lists(WithCorrections::All);
     lists.sort_unstable_by_key(|list| list.created_at);
@@ -741,7 +809,7 @@ mod tests {
         omission
     }
 
-    fn last_names(list: &i4::ValidList) -> Vec<(usize, String)> {
+    fn last_names(list: &ValidList) -> Vec<(usize, String)> {
         list.candidates
             .iter()
             .map(|candidate| (candidate.position, candidate.last_name.clone()))
@@ -1121,7 +1189,7 @@ mod tests {
         let registry = state.csb_store_registry();
         assert!(submitted_lists(registry, &EK).await.unwrap().is_empty());
         assert!(found_omissions(registry, &EK).await.unwrap().is_empty());
-        let inputs = i4_inputs(registry, &EK).await.unwrap();
+        let inputs = i4_inputs(registry, &EK, &[]).await.unwrap();
         assert!(inputs.found_omissions.is_empty());
         assert!(inputs.valid_lists.is_empty());
     }
@@ -1204,7 +1272,9 @@ mod tests {
     async fn i4_inputs_is_empty_when_nothing_was_imported() {
         let state = AppState::new_for_tests().await;
 
-        let inputs = i4_inputs(state.csb_store_registry(), &EK).await.unwrap();
+        let inputs = i4_inputs(state.csb_store_registry(), &EK, &[])
+            .await
+            .unwrap();
 
         assert!(inputs.found_omissions.is_empty());
         assert!(inputs.recovered_omissions.is_empty());
@@ -1236,7 +1306,9 @@ mod tests {
         create_irreparable_omission(&store, OmissionCategory::PoliticalGroup, "Onherstelbaar")
             .await;
 
-        let inputs = i4_inputs(state.csb_store_registry(), &EK).await.unwrap();
+        let inputs = i4_inputs(state.csb_store_registry(), &EK, &[])
+            .await
+            .unwrap();
 
         // Irreparable omissions are not "found"; the status does not matter here.
         assert_eq!(inputs.found_omissions.len(), 1);
@@ -1277,7 +1349,9 @@ mod tests {
         )
         .await;
 
-        let inputs = i4_inputs(state.csb_store_registry(), &EK).await.unwrap();
+        let inputs = i4_inputs(state.csb_store_registry(), &EK, &[])
+            .await
+            .unwrap();
 
         assert_eq!(inputs.invalid_lists.len(), 1);
         assert_eq!(inputs.invalid_lists[0].appellation, "De Ongeldige Partij");
@@ -1303,7 +1377,9 @@ mod tests {
         )
         .await;
 
-        let inputs = i4_inputs(state.csb_store_registry(), &EK).await.unwrap();
+        let inputs = i4_inputs(state.csb_store_registry(), &EK, &[])
+            .await
+            .unwrap();
 
         assert!(inputs.found_omissions.is_empty());
         assert_eq!(inputs.invalid_lists.len(), 1);
@@ -1336,7 +1412,9 @@ mod tests {
         )
         .await;
 
-        let inputs = i4_inputs(state.csb_store_registry(), &EK).await.unwrap();
+        let inputs = i4_inputs(state.csb_store_registry(), &EK, &[])
+            .await
+            .unwrap();
 
         assert_eq!(inputs.invalid_lists.len(), 1);
         assert_eq!(
@@ -1384,7 +1462,9 @@ mod tests {
         create_omission_with_status(&store, candidate(0), "Hersteld", OmissionStatus::Recovered)
             .await;
 
-        let inputs = i4_inputs(state.csb_store_registry(), &EK).await.unwrap();
+        let inputs = i4_inputs(state.csb_store_registry(), &EK, &[])
+            .await
+            .unwrap();
 
         assert_eq!(inputs.removed_candidates.len(), 1);
         let removed = &inputs.removed_candidates[0];
@@ -1417,12 +1497,41 @@ mod tests {
         let state = AppState::new_for_tests().await;
         let (_, _, persons) = seed_group_with_list(&state, "De Correcte Partij").await;
 
-        let inputs = i4_inputs(state.csb_store_registry(), &EK).await.unwrap();
+        let inputs = i4_inputs(state.csb_store_registry(), &EK, &[])
+            .await
+            .unwrap();
 
         let candidate = &inputs.valid_lists[0].lists[0].candidates[1];
         assert_eq!(candidate.position, 2);
         assert_eq!(candidate.last_name, "de Boer");
         assert_eq!(candidate.initials, "B. (Bas) (v)");
+        assert_eq!(
+            candidate.locality,
+            persons[1].personal_data.locality().unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn valid_lists_can_publish_the_candidates_under_their_full_name() {
+        let state = AppState::new_for_tests().await;
+        let (store, list, persons) = seed_group_with_list(&state, "De Publieke Partij").await;
+        create_omission_with_status(
+            &store,
+            OmissionCategory::Candidate {
+                person: persons[0].id,
+                lists: vec![list.id],
+            },
+            "Kandidaatverzuim",
+            OmissionStatus::NotRecovered,
+        )
+        .await;
+
+        let lists = valid_lists(&store, &store.get_scrapped(), PublishedCandidate::new).unwrap();
+
+        // Aarts is scrapped, so de Boer moves up to the first position.
+        let candidate = &lists[0].1.candidates[0];
+        assert_eq!(candidate.position, 1);
+        assert_eq!(candidate.name, "de Boer, B. (Bas) (v)");
         assert_eq!(
             candidate.locality,
             persons[1].personal_data.locality().unwrap()
@@ -1451,7 +1560,9 @@ mod tests {
         )
         .await;
 
-        let inputs = i4_inputs(state.csb_store_registry(), &EK).await.unwrap();
+        let inputs = i4_inputs(state.csb_store_registry(), &EK, &[])
+            .await
+            .unwrap();
 
         assert_eq!(inputs.invalid_lists.len(), 1);
         assert!(inputs.removed_candidates.is_empty());
@@ -1469,7 +1580,9 @@ mod tests {
         )
         .await;
 
-        let inputs = i4_inputs(state.csb_store_registry(), &EK).await.unwrap();
+        let inputs = i4_inputs(state.csb_store_registry(), &EK, &[])
+            .await
+            .unwrap();
 
         assert_eq!(inputs.removed_appellations.len(), 1);
         let removed = &inputs.removed_appellations[0];
@@ -1500,7 +1613,9 @@ mod tests {
             .await
             .unwrap();
 
-        let inputs = i4_inputs(state.csb_store_registry(), &EK).await.unwrap();
+        let inputs = i4_inputs(state.csb_store_registry(), &EK, &[])
+            .await
+            .unwrap();
 
         assert_eq!(inputs.corrected_appellations.len(), 1);
         let corrected = &inputs.corrected_appellations[0];
@@ -1537,7 +1652,9 @@ mod tests {
         .await;
         seed_group_with_list(&state, "Twee Kieskringen").await;
 
-        let inputs = i4_inputs(state.csb_store_registry(), &EK).await.unwrap();
+        let inputs = i4_inputs(state.csb_store_registry(), &EK, &[])
+            .await
+            .unwrap();
 
         assert_eq!(inputs.valid_lists.len(), 2);
         assert_eq!(inputs.valid_lists[0].electoral_district, "1 (Groningen)");
@@ -1555,6 +1672,49 @@ mod tests {
         assert_eq!(appellations.len(), 2);
         assert!(appellations.contains(&"Alleen Bonaire"));
         assert!(appellations.contains(&"Twee Kieskringen"));
+    }
+
+    #[tokio::test]
+    async fn i4_valid_lists_follow_the_established_list_order() {
+        let state = AppState::new_for_tests().await;
+        let person1 = sample_person(PersonId::new());
+        let first_created = seed_csb_store(
+            &state,
+            named_group("Eerst Aangemaakt"),
+            vec![person1.clone()],
+            vec![CandidateList {
+                electoral_districts: BTreeSet::from([ElectoralDistrict::Groningen]),
+                candidates: vec![person1.id],
+                ..Default::default()
+            }],
+        )
+        .await;
+        let person2 = sample_person(PersonId::new());
+        let second_created = seed_csb_store(
+            &state,
+            named_group("Later Aangemaakt"),
+            vec![person2.clone()],
+            vec![CandidateList {
+                electoral_districts: BTreeSet::from([ElectoralDistrict::Groningen]),
+                candidates: vec![person2.id],
+                ..Default::default()
+            }],
+        )
+        .await;
+
+        // The later created group comes first in the order
+        let stream_order = [second_created.stream_id, first_created.stream_id];
+        let inputs = i4_inputs(state.csb_store_registry(), &EK, &stream_order)
+            .await
+            .unwrap();
+
+        assert_eq!(inputs.valid_lists.len(), 1);
+        let appellations: Vec<&str> = inputs.valid_lists[0]
+            .lists
+            .iter()
+            .map(|list| list.appellation.as_str())
+            .collect();
+        assert_eq!(appellations, ["Later Aangemaakt", "Eerst Aangemaakt"]);
     }
 
     #[tokio::test]

@@ -1,6 +1,8 @@
 //! Application state container and request extractors.
 //! Holds, among others: configuration, store, and CSRF tokens for handlers.
 
+use std::net::IpAddr;
+
 use auth_service::AuthServiceState;
 use axum::extract::FromRef;
 use secrecy::ExposeSecret;
@@ -8,8 +10,10 @@ use secrecy::ExposeSecret;
 use super::blocked_notification::BlockedNotificationThrottle;
 use crate::{
     AppError, AppRequestState, Config, CsbMainStore, CsbMainStoreData, CsbStoreData, CsbStream,
-    DbHealth, ElectionConfig, IdDeriver, PendingRequestStore, PgStoreData, Scope, SessionStore,
-    StreamId,
+    CsbUser, DbHealth, ElectionConfig, IdDeriver, PendingRequestStore, PgStoreData, Scope,
+    SessionStore, StreamId,
+    constants::CSB_ALERT_HOURS_REPEAT_INTERVAL,
+    core::AlertThrottle,
     crypto::MasterKey,
     projection::CSB_MAIN_STREAM_ID,
     store::{Store, StoreRegistry},
@@ -48,6 +52,9 @@ pub struct AppState {
     pub brp_client: BrpClient,
     /// Per-user cap on CDN block notifications.
     pub blocked_notifications: BlockedNotificationThrottle,
+    /// Keeps the `CSB_ALERT_HOURS` warning to one per committee user and peer
+    /// address per [`CSB_ALERT_HOURS_REPEAT_INTERVAL`].
+    pub csb_alert_throttle: AlertThrottle<(CsbUser, Option<IpAddr>)>,
 }
 
 impl AppRequestState for AppState {
@@ -176,6 +183,7 @@ impl AppState {
             db_health: DbHealth::default(),
             brp_client,
             blocked_notifications: BlockedNotificationThrottle::default(),
+            csb_alert_throttle: AlertThrottle::new(CSB_ALERT_HOURS_REPEAT_INTERVAL),
         })
     }
 
@@ -295,6 +303,7 @@ impl AppState {
             db_health: DbHealth::default(),
             brp_client,
             blocked_notifications: BlockedNotificationThrottle::default(),
+            csb_alert_throttle: AlertThrottle::new(CSB_ALERT_HOURS_REPEAT_INTERVAL),
         }
     }
 }

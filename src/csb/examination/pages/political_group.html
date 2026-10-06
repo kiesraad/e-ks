@@ -1,6 +1,7 @@
 {% extends "csb/components/layout.html" %}
 {% import "pg/common/components/macros.html" as macros %}
 {% import "csb/components/restorations.html" as restorations %}
+{% import "csb/components/header_examination_actions.html" as header %}
 {% block breadcrumbs %}
   {{ breadcrumb(political_group.overview_path() , political_group.overview_title_key()) }}
   {{ breadcrumb(political_group.group_path() , political_group.csb_appellation(), is_translatable=false) }}
@@ -9,8 +10,7 @@
   {{ political_group.csb_appellation() }}
 {% endblock %}
 {% block header_action %}
-  {% set back_url = political_group.overview_path() %}
-  {% include "csb/components/header_examination_actions.html" %}
+  {{ header::header_actions(political_group, political_group.overview_path() , include_all_restorations=true) }}
 {% endblock %}
 {% block content %}
   {% let election = "election"|election_value %}
@@ -66,47 +66,109 @@
         {{ restorations::brp_strip(brp, brp_badges, brp_incomplete.as_deref() , all_problems) }}
       </div>
     {% endif %}
-    <div class="examination-panel">
-      <div class="examination-panel-header">
-        <div>
-          <h2 class="h3">{{ "csb.declarations_of_support.title"|trans }}</h2>
-          <p>{{ "csb.declarations_of_support.instruction"|trans }}</p>
+    {% if !political_group.previously_seated || !declarations_of_support_omissions.is_empty() %}
+      <div class="examination-panel">
+        <div class="examination-panel-header">
+          <div>
+            <h2 class="h3">{{ "csb.declarations_of_support.title"|trans }}</h2>
+            <p>{{ "csb.declarations_of_support.instruction"|trans }}</p>
+          </div>
+          {% if political_group.mode.is_examination() %}
+            <a class="button secondary icon-plus-end"
+               href="{{ political_group.add_declarations_of_support_omission_path() }}">{{ "csb.omission.action.add"|trans }}</a>
+          {% endif %}
         </div>
         {% if political_group.mode.is_examination() %}
-          <a class="button secondary icon-plus-end"
-             href="{{ political_group.add_declarations_of_support_omission_path() }}">{{ "csb.omission.action.add"|trans }}</a>
-        {% endif %}
-      </div>
-      {% if political_group.mode.is_examination() %}
-        {{ restorations::omission_strip(political_group.manage_declarations_of_support_omissions_path() , declarations_of_support_omissions.as_slice()) }}
-      {% else %}
-        {% if declarations_of_support_omissions.is_empty() %}
-          <div class="restoration-strip restoration-strip-omission">
-            <span class="restoration-strip-empty">{{ "csb.omission.overview.no_omissions"|trans }}</span>
-          </div>
+          {{ restorations::omission_strip(political_group.manage_declarations_of_support_omissions_path() , declarations_of_support_omissions.as_slice()) }}
         {% else %}
-          <ul class="omission-status-list">
-            {% for omission in declarations_of_support_omissions %}
-              {{ restorations::status_row(political_group, omission, "", political_group.group_path() ) }}
-            {% endfor %}
-          </ul>
-        {% endif %}
-        {% if !scrapped_districts.is_empty() %}
-          <div class="examination-panel-header">
-            <h3>{{ "csb.recovery.scrapped"|trans }}</h3>
-          </div>
-          <div class="restoration-strip restoration-strip-error">
-            <ul class="restoration-tags">
-              {% for district in scrapped_districts %}
-                <li>
-                  <span class="restoration-tag restoration-tag-scrapped">{{ district|district_name }}</span>
-                </li>
+          {% if declarations_of_support_omissions.is_empty() %}
+            <div class="restoration-strip restoration-strip-omission">
+              <span class="restoration-strip-empty">{{ "csb.omission.overview.no_omissions"|trans }}</span>
+            </div>
+          {% else %}
+            <ul class="omission-status-list">
+              {% for omission in declarations_of_support_omissions %}
+                {{ restorations::status_row(political_group, omission, "", political_group.group_path() ) }}
               {% endfor %}
             </ul>
-          </div>
+          {% endif %}
         {% endif %}
-      {% endif %}
-    </div>
+      </div>
+    {% endif %}
+    {% if political_group.mode.is_recovery() %}
+      <div class="examination-panel">
+        <div class="examination-panel-header">
+          <div>
+            <h2 class="h3">{{ "csb.recovery.scrapped"|trans }}</h2>
+          </div>
+        </div>
+        {% if scrapped.is_empty() %}
+          <div class="restoration-strip">
+            <span class="restoration-strip-empty">{{ "csb.recovery.nothing_scrapped"|trans }}</span>
+          </div>
+        {% else %}
+          {% if let Some(appellation) = scrapped.appellation %}
+            <h3 class="examination-panel-group">{{ "political_group.appellation"|trans }}</h3>
+            <div class="restoration-strip restoration-strip-error">
+              <ul class="restoration-tags">
+                <li>
+                  <a class="restoration-tag restoration-tag-scrapped"
+                     href="{{ appellation.path }}">{{ appellation.appellation }}</a>
+                </li>
+              </ul>
+            </div>
+          {% endif %}
+          {% if !scrapped.districts.is_empty() %}
+            <h3 class="examination-panel-group">{{ "common.electoral_districts"|trans }}</h3>
+            <div class="restoration-strip restoration-strip-error">
+              <ul class="restoration-tags">
+                {% for item in scrapped.districts %}
+                  <li>
+                    {% if let Some(path) = item.path %}
+                      <a class="restoration-tag restoration-tag-scrapped" href="{{ path }}">{{ item.district|district_name }}</a>
+                    {% else %}
+                      <span class="restoration-tag restoration-tag-scrapped">{{ item.district|district_name }}</span>
+                    {% endif %}
+                  </li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% endif %}
+          {% if !scrapped.lists.is_empty() %}
+            <h3 class="examination-panel-group">{{ "candidate_list.title_plural"|trans }}</h3>
+            <div class="restoration-strip restoration-strip-error">
+              <ul class="restoration-tags">
+                {% for item in scrapped.lists %}
+                  <li>
+                    <a class="restoration-tag restoration-tag-scrapped"
+                       href="{{ item.path }}">
+                      {{ "candidate_list.title_single"|trans }}
+                      {% if !election.has_only_one_district() %}{{ item.districts_label() }}{% endif %}
+                    </a>
+                  </li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% endif %}
+          {% if !scrapped.candidates.is_empty() %}
+            <h3 class="examination-panel-group">{{ "common.candidates"|trans }}</h3>
+            <div class="restoration-strip restoration-strip-error">
+              <ul class="restoration-tags">
+                {% for item in scrapped.candidates %}
+                  <li>
+                    <a class="restoration-tag restoration-tag-scrapped"
+                       href="{{ item.path }}">
+                      {{ item.person.name.display() }}
+                      {% if political_group.has_multiple_candidate_lists() %}({{ item.list_districts_label() }}){% endif %}
+                    </a>
+                  </li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% endif %}
+        {% endif %}
+      </div>
+    {% endif %}
     <div class="examination-panel">
       <h2 class="h3">{{ "csb.examination"|trans }}</h2>
       <div class="cards cards-candidate-lists">

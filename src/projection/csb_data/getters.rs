@@ -11,7 +11,7 @@ use crate::{
     structs::{
         brp::{BrpFinding, BrpStatus},
         candidate_lists::{CandidateList, CandidateListId},
-        csb::{Omission, OmissionCategory, OmissionId, RecoveryProgress},
+        csb::{Omission, OmissionCategory, OmissionId, OmissionTitle, RecoveryProgress},
         list_designation::ListDesignation,
         list_submitters::ListSubmitter,
         name_authorisations::NameAuthorisation,
@@ -211,7 +211,7 @@ impl CsbStream {
             .cloned()
             .collect();
 
-        omissions.sort_by_key(|omission| self.district_order(omission));
+        omissions.sort_by_cached_key(|omission| self.title_order(omission));
         omissions
     }
 
@@ -259,7 +259,7 @@ impl CsbStream {
             .cloned()
             .collect();
 
-        omissions.sort_by_key(|omission| self.district_order(omission));
+        omissions.sort_by_cached_key(|omission| self.title_order(omission));
         Ok(omissions)
     }
 
@@ -308,21 +308,21 @@ impl CsbStream {
             .cloned()
             .collect();
 
-        omissions.sort_by_key(|omission| self.district_order(omission));
+        omissions.sort_by_cached_key(|omission| self.title_order(omission));
         omissions
     }
 
-    /// Sort key putting omissions in the election's district order, so the
-    /// parts of a split stay together and in place.
-    pub(crate) fn district_order(&self, omission: &Omission) -> (usize, OmissionId) {
+    /// Sort key putting omissions in title order, then district order, so the
+    /// parts of a split stay together.
+    pub(crate) fn title_order(&self, omission: &Omission) -> (OmissionTitle, usize) {
         let order = self.election.electoral_districts();
-        let first = self
+        let first_district = self
             .omission_districts(omission)
             .first()
             .and_then(|district| order.iter().position(|d| d == district))
             .unwrap_or(usize::MAX);
 
-        (first, omission.id)
+        (omission.title.to_owned(), first_district)
     }
 
     /// The districts an omission touches, directly or through its lists.
@@ -358,6 +358,23 @@ impl CsbStream {
             .values()
             .cloned()
             .collect()
+    }
+
+    /// The candidate lists in the order the pages show them: by their lowest
+    /// district number.
+    pub fn get_candidate_lists_in_page_order(
+        &self,
+        corrections: WithCorrections,
+    ) -> Vec<CandidateList> {
+        let mut lists = self.get_candidate_lists(corrections);
+        lists.sort_by_key(|list| {
+            list.electoral_districts
+                .iter()
+                .map(ElectoralDistrict::region_number)
+                .min()
+                .unwrap_or_default()
+        });
+        lists
     }
 
     /// The candidate list with this id, if any.

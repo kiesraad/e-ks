@@ -12,11 +12,11 @@ use axum_extra::routing::TypedPath;
 use tower_http::{csrf::CsrfLayer, set_header::SetResponseHeaderLayer};
 
 use crate::{
-    AppState, audit_log, candidate_lists, candidates, common, csb, csb_store_middleware,
-    db_gate_middleware, eks_key_middleware, finalise, health_router, http_trace, lb_health_router,
-    list_designation, list_submitters, name_authorisations, persons, political_groups,
-    render_error_pages, session_middleware, store_middleware, substitute_list_submitters,
-    utils::bag,
+    AppState, audit_log, candidate_lists, candidates, common, csb, csb_ip_allow_list_middleware,
+    csb_store_middleware, db_gate_middleware, eks_key_middleware, finalise, health_router,
+    http_trace, lb_health_router, list_designation, list_submitters, name_authorisations, persons,
+    political_groups, render_error_pages, session_middleware, store_middleware,
+    substitute_list_submitters, utils::bag,
 };
 
 /// Whether a router serves the CSB section. The listener configured through
@@ -35,45 +35,13 @@ pub fn create(state: AppState) -> Router<AppState> {
 }
 
 pub fn create_with(state: AppState, csb_routes: WithCsbRoutes) -> Router<AppState> {
-    let app_router = app_feature_router();
+    let app_router = session_router(&state, csb_routes);
 
     #[cfg(feature = "dev-features")]
     let dev_router = Router::new().route(
         crate::app::middleware::dev_login::DEV_LOGIN_PATH,
         get(crate::app::middleware::dev_login::dev_login),
     );
-
-    let app_router = app_router
-        .fallback(get(common::not_found))
-        .layer(middleware::from_fn_with_state(
-            state.clone(),
-            render_error_pages,
-        ))
-        .layer(middleware::from_fn_with_state(
-            state.clone(),
-            store_middleware,
-        ));
-
-    // These routes need a session but NOT store middleware: select-election runs
-    // before a stream_id is chosen, and /language must stay reachable for CSB
-    // (committee) sessions that store_middleware redirects off app routes.
-    // `bag::router()` joins them: scanning the embedded BAG database is too
-    // expensive to expose anonymously, and it is only called from a logged-in
-    // form. The session middleware also verifies the CSRF token of every mutating
-    // request (see `auth::csrf_guard`), so no handler can forget the check.
-    let app_router = app_router
-        .merge(common::session_only_router())
-        .merge(bag::router());
-
-    let app_router = match csb_routes {
-        WithCsbRoutes::Included => app_router.merge(csb_router(&state)),
-        WithCsbRoutes::Excluded => app_router,
-    };
-
-    let app_router = app_router.layer(middleware::from_fn_with_state(
-        state.clone(),
-        session_middleware,
-    ));
 
     #[cfg(feature = "dev-features")]
     let router = Router::new().merge(dev_router).merge(app_router);
@@ -110,16 +78,67 @@ pub fn create_with(state: AppState, csb_routes: WithCsbRoutes) -> Router<AppStat
             eks_key_middleware,
         ));
 
+    // The CSB IP allow list sits outside the session middleware, so an
+    // unlisted peer is refused rather than redirected to login. `Config` only
+    // accepts the list together with `CSB_BIND_ADDRESS`, so the router that
+    // includes the CSB routes is the dedicated committee listener, and the
+    // whole of it is gated: a committee session correcting paper documents
+    // uses the political-group routes too, so there is no path to gate by.
+    let router = match csb_routes {
+        WithCsbRoutes::Included => router.layer(middleware::from_fn_with_state(
+            state.clone(),
+            csb_ip_allow_list_middleware,
+        )),
+        WithCsbRoutes::Excluded => router,
+    };
+
     // The load balancer only checks that this process is up, and holds no
-    // `x-eks-key`: its probe is merged last so it sits outside that gate.
+    // `x-eks-key`: its probe is merged last so it sits outside that gate and
+    // the CSB IP gate.
     let router = router.merge(lb_health_router());
 
     // The CA's http-01 validators hold no `x-eks-key` either: merged outside
-    // that gate the same way.
+    // both gates the same way.
     #[cfg(feature = "acme")]
     let router = router.merge(crate::acme::acme_challenge_router());
 
     apply_security_headers(router)
+}
+
+/// Routes behind the session middleware: the feature routes with their store
+/// middleware, the session-only routes and, when included, the CSB section.
+fn session_router(state: &AppState, csb_routes: WithCsbRoutes) -> Router<AppState> {
+    let app_router = app_feature_router()
+        .fallback(get(common::not_found))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            render_error_pages,
+        ))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            store_middleware,
+        ));
+
+    // These routes need a session but NOT store middleware: select-election runs
+    // before a stream_id is chosen, and /language must stay reachable for CSB
+    // (committee) sessions that store_middleware redirects off app routes.
+    // `bag::router()` joins them: scanning the embedded BAG database is too
+    // expensive to expose anonymously, and it is only called from a logged-in
+    // form. The session middleware also verifies the CSRF token of every mutating
+    // request (see `auth::csrf_guard`), so no handler can forget the check.
+    let app_router = app_router
+        .merge(common::session_only_router())
+        .merge(bag::router());
+
+    let app_router = match csb_routes {
+        WithCsbRoutes::Included => app_router.merge(csb_router(state)),
+        WithCsbRoutes::Excluded => app_router,
+    };
+
+    app_router.layer(middleware::from_fn_with_state(
+        state.clone(),
+        session_middleware,
+    ))
 }
 
 /// Global fetch-metadata CSRF protection, backstopping the session
@@ -434,6 +453,7 @@ mod tests {
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             ),
             ("/csb/examination/i4.pdf", "application/pdf"),
+            ("/csb/examination/osv3-2.pdf", "application/pdf"),
             (
                 "/csb/examination/finish/verzuimbrieven.zip",
                 "application/zip",
@@ -498,6 +518,63 @@ mod tests {
             .uri("/login")
             .body(Body::empty())
             .unwrap();
+        let response = app.oneshot(request).await.expect("response");
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    /// A router with `CSB_IP_ALLOW_LIST` set to `203.0.113.7` only.
+    async fn ip_gated_app(csb_routes: WithCsbRoutes) -> Router {
+        let mut config = crate::csb::login::test_support::github_test_config();
+        config.csb_ip_allow_list =
+            Some(crate::core::CsbIpAllowList::parse("203.0.113.7").expect("list"));
+        let state = AppState::new_for_tests_with_config(config).await;
+        create_with(state.clone(), csb_routes).with_state(state)
+    }
+
+    /// A request for `uri` arriving from the `peer` socket address.
+    fn request_from_peer(uri: &str, peer: &str) -> Request<Body> {
+        let mut request = Request::builder().uri(uri).body(Body::empty()).unwrap();
+        let peer: std::net::SocketAddr = peer.parse().expect("socket address");
+        request
+            .extensions_mut()
+            .insert(axum::extract::ConnectInfo(peer));
+        request
+    }
+
+    /// The main listener next to a dedicated CSB listener is not gated by the
+    /// allow list.
+    #[tokio::test]
+    async fn ip_allow_list_leaves_the_main_router_alone() {
+        let app = ip_gated_app(WithCsbRoutes::Excluded).await;
+
+        let request = request_from_peer("/login", "203.0.113.8:4000");
+        let response = app.oneshot(request).await.expect("response");
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    /// The router serving the CSB routes is the dedicated listener; the allow
+    /// list gates everything on it except the load-balancer probe.
+    #[tokio::test]
+    async fn ip_allow_list_gates_the_router_with_csb_routes() {
+        let app = ip_gated_app(WithCsbRoutes::Included).await;
+
+        for uri in ["/login", "/robots.txt", csb::login::CsbLoginStartPath::PATH] {
+            // The unlisted peer never reaches the route.
+            let request = request_from_peer(uri, "203.0.113.8:4000");
+            let response = app.clone().oneshot(request).await.expect("response");
+            assert_eq!(response.status(), StatusCode::FORBIDDEN, "{uri}");
+
+            // The listed peer passes the gate; what the route answers beyond
+            // that is not this middleware's concern.
+            let request = request_from_peer(uri, "203.0.113.7:4000");
+            let response = app.clone().oneshot(request).await.expect("response");
+            assert_ne!(response.status(), StatusCode::FORBIDDEN, "{uri}");
+        }
+
+        let request = request_from_peer(
+            crate::app::middleware::health::LbHealthPath::PATH,
+            "203.0.113.8:4000",
+        );
         let response = app.oneshot(request).await.expect("response");
         assert_eq!(response.status(), StatusCode::OK);
     }

@@ -1,17 +1,21 @@
-<div class="header-buttons">
-  <a class="button secondary icon-restoration"
-     href="{{ political_group.all_restorations_path() }}">
-    {% if political_group.mode.is_recovery() %}
-      {{ "csb.recovery.omissions_title"|trans }}
-      {% if political_group.recovery.pending > 0 %}
-        <span class="restoration_count">{{ political_group.recovery.pending }}</span>
-      {% endif %}
-    {% else %}
-      {{ "csb.all_restorations.title"|trans }}
-      {% if political_group.restoration_count > 0 %}
-        <span class="restoration_count">{{ political_group.restoration_count }}</span>
-      {% endif %}
+{% macro header_actions(political_group, back_url, include_all_restorations=false, back_text="action.back"|trans) %}
+  <div class="header-buttons">
+    {% if include_all_restorations %}
+      <a class="button secondary icon-restoration"
+         href="{{ political_group.all_restorations_path() }}">
+        {% if political_group.mode.is_recovery() %}
+          {{ "csb.recovery.omissions_title"|trans }}
+          {% if political_group.recovery.pending > 0 %}
+            <span class="restoration_count">{{ political_group.recovery.pending }}</span>
+          {% endif %}
+        {% else %}
+          {{ "csb.all_restorations.title"|trans }}
+          {% if political_group.restoration_count > 0 %}
+            <span class="restoration_count">{{ political_group.restoration_count }}</span>
+          {% endif %}
+        {% endif %}
+      </a>
     {% endif %}
-  </a>
-  <a href="{{ back_url }}" class="button secondary">{{ "action.back"|trans }}</a>
-</div>
+    <a href="{{ back_url }}" class="button secondary">{{ back_text }}</a>
+  </div>
+{% endmacro header_actions %}

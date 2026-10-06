@@ -78,6 +78,8 @@ mod tests {
         // The seeded group's appellation is rendered in the "added" table.
         let body = response_body_string(response).await;
         assert!(body.contains("Kiesraad Demo"));
+        // The page leads back to the CSB overview.
+        assert!(body.contains(r#"href="/csb" class="button secondary">Back<"#));
     }
 
     #[tokio::test]

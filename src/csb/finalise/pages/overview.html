@@ -3,6 +3,11 @@
   {{ breadcrumb(crate::csb::finalise::CsbFinalisePath, "csb.finalise.title") }}
 {% endblock %}
 {% block page_title %}{{ "csb.finalise.title"|trans }}{% endblock %}
+{% block header_action %}
+  <div class="header-buttons">
+    <a href="{{ crate::csb::index::CsbIndexPath }}" class="button secondary">{{ "action.back"|trans }}</a>
+  </div>
+{% endblock %}
 {% block content %}
   <div class="examination-panels">
     <div class="examination-panel">
@@ -18,6 +23,8 @@
         <a href="{{ CsbI4DocxDownloadPath }}"
            class="button secondary icon-download">{{ "csb.finish_examination.download_word"|trans }}</a>
         <a href="{{ CsbI4DownloadPath }}" class="button primary icon-download">{{ "csb.finish_examination.download_pdf"|trans }}</a>
+        <a href="{{ CsbEml230bDownloadPath }}"
+           class="button secondary icon-download">{{ "csb.finalise.download_eml230b"|trans }}</a>
       </div>
     </div>
     <div class="examination-panel">

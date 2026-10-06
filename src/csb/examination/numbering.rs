@@ -53,7 +53,7 @@ impl ListNumbering {
                 if district_count == 0 {
                     return None;
                 }
-                let registration = registration(group, registered);
+                let registration = group.registration(registered);
                 Some((
                     registration,
                     NumberedGroup {
@@ -121,17 +121,6 @@ impl ListNumbering {
     pub fn stream_ids(&self) -> Vec<StreamId> {
         self.groups.iter().map(|group| group.stream_id).collect()
     }
-}
-
-/// The registration matching the group's appellation, if any.
-fn registration<'a>(
-    group: &CsbPoliticalGroup,
-    registered: &'a [RegisteredPoliticalGroup],
-) -> Option<&'a RegisteredPoliticalGroup> {
-    let appellation = group.registered_appellation()?;
-    registered
-        .iter()
-        .find(|registration| registration.has_appellation(appellation))
 }
 
 /// The numbering of the election's imported groups, as recorded on the main

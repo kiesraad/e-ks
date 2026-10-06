@@ -26,7 +26,7 @@ candidate_list_description:
 districts:
   all: All
   duplicate_warning: You have selected electoral district(s) that are on multiple candidate lists
-  select_hint: Select the areas for which this list is being submitted. In these areas, voters can vote for the political group in the elections of the Senate.
+  select_hint: "Select the areas for which this list is being submitted. In these areas, voters can vote for the political group in the elections of the Senate."
 edit_position: Position on the list
 errors:
   candidate_set_changed: Reordering can only change the order of the current candidates.

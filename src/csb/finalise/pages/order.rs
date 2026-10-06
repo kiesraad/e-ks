@@ -50,11 +50,9 @@ fn is_permutation(given: &[StreamId], expected: &[StreamId]) -> bool {
 
     given
         .iter()
-        .map(ToString::to_string)
         .for_each(|s_id| *counts.entry(s_id).or_insert(0) += 1);
     expected
         .iter()
-        .map(ToString::to_string)
         .for_each(|s_id| *counts.entry(s_id).or_insert(0) -= 1);
 
     counts.values().all(|&v| v == 0)
