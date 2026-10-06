@@ -40,15 +40,15 @@ type:
   appellation_combined_hint: "A combined appellation consists of several registered appellations, separated by a “-” or “/”. It is permitted to abbreviate appellations. The combined appellation consists of no more than 35 characters, excluding punctuation marks, hyphens, parentheses, and spaces. It is not permitted to add letters or other characters that are not part of the appellations."
   appellation_hint: The name of the political group that is registered with the central electoral committee. This name will be displayed above the list on the ballot paper.
   blank_name: Blank list
-  blank_name_hint: There is no appellation.
+  blank_name_hint: The party is not registered with the central electoral committee.
   legal_name_hint: The name registered in the notarial deed and with the Chamber of Commerce.
   name_combination: Combination of multiple registered names
   name_combination_hint: "The party has formed an alliance with one or more other registered parties. Together, they nominate all candidates for the candidate list."
   one_to_fifteen_seats: 1 to 15 seats
   previous_election_results_combined: "In the previous {}, the combination of appellations, or one of the parties individually, obtained:"
-  previous_election_results_combined_hint: "If the parties participated as separate lists in the previous election, select the highest number of seats obtained by any one of the parties. The seats won by the parties separately must not be added together."
-  previous_election_results_hint: The number of seats obtained in the previous election determines whether you must submit declarations of support. It also determines whether the maximum number of candidates allowed on the list is 50 or 80.
+  previous_election_results_combined_hint: "Did the parties participate separately in the previous election? If so, do not add the seats won by the individual parties together. Instead, use the highest number of seats won by any one of the parties."
+  previous_election_results_hint: "If your party did not win any seats in the previous election, you must submit declarations of support. The number of seats also determines the maximum number of candidates you can place on the list: either 50 or 80."
   registered_name: Standalone registered name
-  registered_name_hint: The party participates in the election with a registered name.
+  registered_name_hint: The party is registered with the central electoral committee.
   sixteen_or_more_seats: 16 or more seats
   zero_seats: "0 seats, or did not participate"

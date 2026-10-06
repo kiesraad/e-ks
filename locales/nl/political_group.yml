@@ -40,15 +40,15 @@ type:
   appellation_combined_hint: "Een samengevoegde aanduiding bestaat uit de geregistreerde aanduidingen, gescheiden door een “-“ of “/”. Het is toegestaan om aanduidingen af te korten. De samengevoegde aanduiding bestaat uit maximaal 35 tekens (exclusief leestekens, verbindings\u00ADstreepjes, haakjes en spaties). Het is niet toegestaan om letters of andere tekens toe te voegen die geen onderdeel zijn van de geregistreerde aanduidingen."
   appellation_hint: De partijnaam die is geregistreerd bij het centraal stembureau. Deze naam komt boven de lijst op het stembiljet te staan.
   blank_name: Blanco lijst
-  blank_name_hint: Er is geen geregistreerde aanduiding.
+  blank_name_hint: De partij is niet geregistreerd bij het centraal stembureau.
   legal_name_hint: De naam die is vastgelegd in de notariële akte en bij de Kamer van Koophandel.
   name_combination: Combinatie van meerdere geregistreerde namen
-  name_combination_hint: De partij heeft een samenwerkings\u00ADverband met één of meer andere geregistreerde partijen. Samen leveren zij alle kandidaten voor de kandidatenlijst.
+  name_combination_hint: De partij werkt samen met één of meer andere geregistreerde partijen. Samen leveren zij alle kandidaten voor de kandidatenlijst.
   one_to_fifteen_seats: 1 tot 15 zetels
-  previous_election_results_combined: "Bij de vorige {} had de samenvoeging van aanduidingen, of één van de partijen afzonderlijk:"
-  previous_election_results_combined_hint: "Als de partijen bij de vorige verkiezing als afzonderlijke lijsten hebben meegedaan, kies dan het hoogste aantal zetels dat één van de partijen had behaald. De zetels die partijen afzonderlijk hebben behaald mogen niet bij elkaar worden opgeteld."
-  previous_election_results_hint: Het aantal behaalde zetels bij de vorige verkiezing bepaalt of u ondersteunings\u00ADverklaringen moet indienen. Ook bepaalt het of het maximale aantal toegestane kandidaten op de lijst 50 of 80 is.
+  previous_election_results_combined: "Bij de vorige {} had de combinatie, of één van de partijen apart:"
+  previous_election_results_combined_hint: "Hebben de partijen bij de vorige verkiezing apart van elkaar meegedaan? Tel dan de zetels van de aparte partijen niet bij elkaar op, maar kies het hoogste aantal zetels dat één van de partijen heeft behaald."
+  previous_election_results_hint: "Heeft uw partij bij de vorige verkiezing geen zetels behaald, dan moet u ondersteuningsverklaringen inleveren. Het aantal zetels bepaalt ook hoeveel kandidaten u op de lijst mag zetten: maximaal 50 of maximaal 80."
   registered_name: Op zichzelf staande geregistreerde naam
-  registered_name_hint: De partij neemt deel aan de verkiezing met een geregistreerde naam.
+  registered_name_hint: De partij is geregistreerd bij het centraal stembureau.
   sixteen_or_more_seats: 16 of meer zetels
   zero_seats: "0 zetels, of niet meegedaan"
