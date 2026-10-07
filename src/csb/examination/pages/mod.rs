@@ -20,6 +20,7 @@ mod all_brp_findings;
 mod all_restorations;
 pub(in crate::csb) mod candidate;
 pub(in crate::csb) mod candidate_list;
+mod candidate_list_overview;
 mod correction;
 mod delete;
 pub(in crate::csb) mod finish_examination;

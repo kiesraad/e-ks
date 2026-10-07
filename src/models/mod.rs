@@ -17,7 +17,7 @@
 //! need, from the live [`crate::CsbStream`]s.
 
 pub mod brp_overview;
-pub mod candidate_list_summary;
+pub mod candidate_list_overview;
 pub(crate) mod csb_model_inputs;
 pub(crate) mod documents;
 pub(crate) mod eml;

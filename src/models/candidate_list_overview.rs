@@ -10,14 +10,14 @@ use super::{Pdf, layout::markdown_document, markdown::filters, markdown::model_t
 use crate::{AppError, ElectoralDistrict};
 
 #[derive(Debug)]
-pub struct CandidateListSummary {
+pub struct CandidateListOverview {
     pub election_name: String,
     pub election_date: String,
     pub electoral_districts: Vec<ElectoralDistrict>,
     pub lists: BTreeMap<String, Vec<Vec<ElectoralDistrict>>>,
 }
 
-impl CandidateListSummary {
+impl CandidateListOverview {
     fn active_districts(&self, list: &str) -> Vec<ElectoralDistrict> {
         self.lists.get(list).map_or_default(|batched_districts| {
             batched_districts.iter().cloned().flatten().collect()
@@ -87,14 +87,14 @@ pub enum AffiliationType {
 }
 
 model_template!(
-    CandidateListSummaryTemplate,
-    CandidateListSummary,
-    "models/templates/candidate-list-summary.md"
+    CandidateListOverviewTemplate,
+    CandidateListOverview,
+    "models/templates/candidate-list-overview.md"
 );
 
-impl Pdf for CandidateListSummary {
+impl Pdf for CandidateListOverview {
     fn document(&self) -> Result<Textris, AppError> {
-        markdown_document(CandidateListSummaryTemplate(self))
+        markdown_document(CandidateListOverviewTemplate(self))
     }
 
     fn filename(&self) -> String {

@@ -3,7 +3,7 @@
 //! development tool.
 
 mod brp_overview;
-mod candidate_list_summary;
+mod candidate_list_overview;
 mod h1;
 mod h3;
 mod h4;
@@ -34,7 +34,7 @@ use super::{
 use crate::{
     AppError,
     core::{ElectionType, ModelLocale},
-    models::examples::candidate_list_summary::candidate_list_summary_example_1,
+    models::examples::candidate_list_overview::candidate_list_summary_example_1,
 };
 
 /// A named example input, renderable to a PDF. `name` matches the former JSON
