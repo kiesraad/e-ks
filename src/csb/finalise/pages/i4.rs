@@ -3,9 +3,12 @@ use axum::{extract::State, response::Response};
 use crate::{
     AppError, AppRequestState, CsbMainStore,
     core::{ModelLocale, constants::DEFAULT_DATE_FORMAT},
-    csb::examination::{
-        numbering::list_numbering,
-        pages::{CsbI4DocxDownloadPath, CsbI4DownloadPath},
+    csb::{
+        examination::{
+            numbering::list_numbering,
+            paths::{CsbI4DraftDocxDownloadPath, CsbI4DraftDownloadPath},
+        },
+        finalise::paths::{CsbI4FinalDocxDownloadPath, CsbI4FinalDownloadPath},
     },
     models::{
         Pdf,
@@ -17,7 +20,11 @@ use crate::{
 };
 
 /// Collect the store data the I 4 model needs.
-async fn i4_model<S: AppRequestState>(main_store: CsbMainStore, state: &S) -> Result<I4, AppError> {
+async fn i4_model<S: AppRequestState>(
+    main_store: CsbMainStore,
+    state: &S,
+    is_draft: bool,
+) -> Result<I4, AppError> {
     let election = main_store.election;
     let registry = state.csb_store_registry();
     let numbering = list_numbering(registry, &main_store).await?;
@@ -73,24 +80,54 @@ async fn i4_model<S: AppRequestState>(main_store: CsbMainStore, state: &S) -> Re
             .map(|o| o.objection_text.to_string())
             .collect(),
         response_objections: None,
+        is_draft,
     })
 }
 
-pub async fn gen_i4<S: AppRequestState>(
-    _: CsbI4DownloadPath,
+pub async fn gen_i4_final<S: AppRequestState>(
+    _: CsbI4FinalDownloadPath,
     main_store: CsbMainStore,
     State(state): State<S>,
 ) -> Result<Response, AppError> {
-    i4_model(main_store, &state).await?.pdf_response().await
+    i4_model(main_store, &state, false)
+        .await?
+        .pdf_response()
+        .await
 }
 
-/// The same I 4 as [`gen_i4`], exported as a Word document.
-pub async fn gen_i4_docx<S: AppRequestState>(
-    _: CsbI4DocxDownloadPath,
+/// The same I 4 as [`gen_i4_final`], exported as a Word document.
+pub async fn gen_i4_final_docx<S: AppRequestState>(
+    _: CsbI4FinalDocxDownloadPath,
     main_store: CsbMainStore,
     State(state): State<S>,
 ) -> Result<Response, AppError> {
-    i4_model(main_store, &state).await?.docx_response().await
+    i4_model(main_store, &state, false)
+        .await?
+        .docx_response()
+        .await
+}
+
+pub async fn gen_i4_draft<S: AppRequestState>(
+    _: CsbI4DraftDownloadPath,
+    main_store: CsbMainStore,
+    State(state): State<S>,
+) -> Result<Response, AppError> {
+    i4_model(main_store, &state, true)
+        .await?
+        .pdf_response()
+        .await
+}
+
+/// The same I 4 as [`gen_i4_draft`], exported as a Word document.
+pub async fn gen_i4_draft_docx<S: AppRequestState>(
+    _: CsbI4DraftDocxDownloadPath,
+    main_store: CsbMainStore,
+    State(state): State<S>,
+) -> Result<Response, AppError> {
+    i4_model(main_store, &state, true)
+        .await?
+        .docx_response()
+        .await
 }
 
 #[cfg(test)]
@@ -173,7 +210,7 @@ mod tests {
             )
             .await?;
 
-        let model = i4_model(main_store, &state).await?;
+        let model = i4_model(main_store, &state, false).await?;
 
         assert_eq!(model.public_session.date, "09-04-2027");
         assert_eq!(model.public_session.time, "10:15");
@@ -202,7 +239,7 @@ mod tests {
             )
             .await?;
 
-        let model = i4_model(main_store, &state).await?;
+        let model = i4_model(main_store, &state, false).await?;
 
         let configured = ElectionConfig::EK27.public_session();
         assert_eq!(model.public_session.date, configured.formatted_date());
@@ -215,7 +252,7 @@ mod tests {
     async fn gen_i4_returns_pdf_response() -> Result<(), AppError> {
         let main_store = CsbMainStore::new_for_test();
         let state = AppState::new_for_tests().await;
-        let response = gen_i4(CsbI4DownloadPath, main_store, State(state))
+        let response = gen_i4_final(CsbI4FinalDownloadPath, main_store, State(state))
             .await?
             .into_response();
 
@@ -243,7 +280,7 @@ mod tests {
     async fn gen_i4_docx_returns_word_response() -> Result<(), AppError> {
         let main_store = CsbMainStore::new_for_test();
         let state = AppState::new_for_tests().await;
-        let response = gen_i4_docx(CsbI4DocxDownloadPath, main_store, State(state))
+        let response = gen_i4_final_docx(CsbI4FinalDocxDownloadPath, main_store, State(state))
             .await?
             .into_response();
 
@@ -294,7 +331,7 @@ mod tests {
             )
             .await?;
 
-        let model = i4_model(main_store, &state).await?;
+        let model = i4_model(main_store, &state, false).await?;
 
         let on_votes: Vec<_> = model
             .numbered_based_on_votes
@@ -369,7 +406,7 @@ mod tests {
             .await?;
 
         let main_store = CsbMainStore::new_for_test();
-        let response = gen_i4(CsbI4DownloadPath, main_store, State(state))
+        let response = gen_i4_final(CsbI4FinalDownloadPath, main_store, State(state))
             .await?
             .into_response();
 

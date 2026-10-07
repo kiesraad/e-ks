@@ -4,10 +4,7 @@ use axum::response::{IntoResponse, Response};
 use crate::{
     AppError, Context, CsbContext, CsbMainStore, HtmlTemplate,
     csb::{
-        examination::{
-            CsbI4DocxDownloadPath, CsbI4DownloadPath, extractors::CsbPoliticalGroups,
-            numbering::ListNumbering,
-        },
+        examination::{extractors::CsbPoliticalGroups, numbering::ListNumbering},
         finalise::paths::{CsbEml230bDownloadPath, CsbFinalisePath, CsbListOrderPath},
     },
     filters,

@@ -40,11 +40,11 @@ pub struct CsbI1DocxDownloadPath;
 
 #[derive(TypedPath)]
 #[typed_path("/csb/examination/i4.pdf", rejection(AppError))]
-pub struct CsbI4DownloadPath;
+pub struct CsbI4DraftDownloadPath;
 
 #[derive(TypedPath)]
 #[typed_path("/csb/examination/i4.docx", rejection(AppError))]
-pub struct CsbI4DocxDownloadPath;
+pub struct CsbI4DraftDocxDownloadPath;
 
 #[derive(TypedPath)]
 #[typed_path("/csb/examination/osv3-2.pdf", rejection(AppError))]

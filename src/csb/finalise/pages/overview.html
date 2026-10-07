@@ -19,10 +19,23 @@
         <a class="button secondary icon-plus-end"
            href="{{ crate::csb::examination::CsbHearingDetailsPath { model: crate::structs::csb::HearingModel::I4 } }}">{{ "csb.finish_examination.hearing_details"|trans }}</a>
       </div>
+      <h4>{{ "csb.finalise.draft_title"|trans }}</h4>
       <div class="examination-strip">
-        <a href="{{ CsbI4DocxDownloadPath }}"
-           class="button secondary icon-download">{{ "csb.finish_examination.download_word"|trans }}</a>
-        <a href="{{ CsbI4DownloadPath }}" class="button primary icon-download">{{ "csb.finish_examination.download_pdf"|trans }}</a>
+        <a href="{{ crate::csb::examination::paths::CsbI4DraftDocxDownloadPath }}"
+           class="button secondary icon-download"
+           id="i4-draft-docx">{{ "csb.finish_examination.download_word"|trans }}</a>
+        <a href="{{ crate::csb::examination::paths::CsbI4DraftDownloadPath }}"
+           class="button primary icon-download"
+           id="i4-draft-pdf">{{ "csb.finish_examination.download_pdf"|trans }}</a>
+      </div>
+      <h4>{{ "csb.finalise.final_title"|trans }}</h4>
+      <div class="examination-strip">
+        <a href="{{ crate::csb::finalise::CsbI4FinalDocxDownloadPath }}"
+           class="button secondary icon-download"
+           id="i4-final-docx">{{ "csb.finish_examination.download_word"|trans }}</a>
+        <a href="{{ crate::csb::finalise::CsbI4FinalDownloadPath }}"
+           class="button primary icon-download"
+           id="i4-final-pdf">{{ "csb.finish_examination.download_pdf"|trans }}</a>
         <a href="{{ CsbEml230bDownloadPath }}"
            class="button secondary icon-download">{{ "csb.finalise.download_eml230b"|trans }}</a>
       </div>
