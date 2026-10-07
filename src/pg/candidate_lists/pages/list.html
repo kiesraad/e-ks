@@ -10,7 +10,6 @@
 {% block header_action %}<a href="/" class="button secondary">{{ "action.back"|trans }}</a>{% endblock %}
 {% block content %}
   <section class="candidate-lists">
-    {% if total_persons > 0 %}
       <div class="candidates">
         <a href="{{ Person::list_path() }}" class="card card-persons">
           <div class="card-header">
@@ -29,7 +28,6 @@
           <div class="card-footer">{{ "action.manage_candidates"|trans }}</div>
         </a>
       </div>
-    {% endif %}
     <div class="cards cards-candidate-lists">
       {% let election = "election"|election_value %}
       {% let max_candidates = "max_candidates"|integer_value %}
@@ -82,19 +80,23 @@
           <a class="card-footer" href="{{ candidate_list.data.list.view_path() }}">{{ "action.manage_candidate_list"|trans }}</a>
         </div>
       {% endfor %}
+      {% let has_list = candidate_lists.len() > 0 %}
       {# add new candidate list card #}
-      {% if election.has_only_one_district() && candidate_lists.len() > 0 %}
+      {% if election.has_only_one_district() && has_list %}
         {# do not show the add button #}
       {% else %}
         <div class="card card-add-list">
-          <div>
-            <a href="{{ CandidateList::create_path() }}"
-               class="button secondary icon-plus">{{
-            "candidate_list.actions.add"|trans }}</a>
-            {% if !candidate_lists.is_empty() %}
-              <p>{{ "candidate_list.add_list_note"|trans(&election|election_type_title) }}</p>
-            {% endif %}
+          <div class="card-header">
+            <h3 class="h4">
+              {% if has_list %}
+                {{ "candidate_list.actions.add_more"|trans() }}
+              {% else %}
+                {{ "candidate_list.actions.add_first"|trans() }}
+              {% endif %}
+            </h3>
           </div>
+          <a href="{{ CandidateList::create_path() }}" class="button {% if has_list %}secondary{% endif %} circular-button icon-plus"></a>
+          <p>{{ "candidate_list.add_list_note"|trans(&election|election_type_title) }}</p>
         </div>
       {% endif %}
     </div>

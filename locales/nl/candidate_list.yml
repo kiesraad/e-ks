@@ -1,5 +1,6 @@
 actions:
-  add: Lijst toevoegen
+  add_first: Kandidatenlijst toevoegen
+  add_more: Nog een lijst toevoegen
   add_candidates: Kandidaten toevoegen
   add_existing: Bestaand
   add_new: Nieuw

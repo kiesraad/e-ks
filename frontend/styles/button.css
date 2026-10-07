@@ -314,6 +314,22 @@ span.button {
     padding-right: 2rem;
     padding-bottom: 2rem;
   }
+
+  &.circular-button {
+    width: var(--space-16);
+    height: var(--space-16);
+    border-radius: 50%;
+    padding: 0;
+
+    &.icon-plus::before {
+      height: var(--space-7);
+      width: var(--space-7);
+    }
+
+    &.secondary:not(:hover, :focus, :active) {
+      background: transparent;
+    }
+  }
 }
 
 .read-more {

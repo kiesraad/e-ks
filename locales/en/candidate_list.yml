@@ -1,5 +1,6 @@
 actions:
-  add: Add list
+  add_first: Add candidate list
+  add_more: Add another list
   add_candidates: Add candidates to the list
   add_existing: Existing
   add_new: New
