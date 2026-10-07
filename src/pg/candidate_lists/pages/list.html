@@ -85,7 +85,7 @@
       {% if election.has_only_one_district() && has_list %}
         {# do not show the add button #}
       {% else %}
-        <div class="card card-add-list">
+        <div class="card card-add-list" data-href="{{ CandidateList::create_path() }}">
           <div class="card-header">
             <h3 class="h4">
               {% if has_list %}

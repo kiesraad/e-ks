@@ -302,11 +302,16 @@ span.button {
   }
 
   &.icon-upload {
-    background-image: url("../icons/upload.svg");
-    background-repeat: no-repeat;
-    background-position: left var(--space-md) center;
-    padding-left: 2.6rem;
-    background-size: 18px;
+    padding-inline-end: var(--space-4);
+
+    &::before {
+      content: "";
+      mask-image: url("../icons/upload.svg");
+      mask-size: contain;
+      width: var(--space-4);
+      height: var(--space-4);
+      background-color: currentColor;
+    }
   }
 
   &.no-text {

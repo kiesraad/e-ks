@@ -48,6 +48,11 @@ main {
       margin-bottom: var(--space-xxl);
     }
   }
+
+  /* Less space below a footer nav like in a candidate list */
+  &:has(> .container > .footer-nav:last-child) {
+    padding-bottom: var(--space-8);
+  }
 }
 
 footer {
@@ -111,6 +116,11 @@ footer {
     display: flex;
     gap: var(--space-md);
     margin-left: auto;
+
+    p {
+      font-size: var(--font-size-sm);
+      color: var(--gray-500);
+    }
   }
 
   .delete-link {
