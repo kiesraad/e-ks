@@ -8,7 +8,7 @@ use crate::{
         Pdf,
         csb_model_inputs::{found_omissions, submitted_lists},
         i1::I1,
-        i4::PublicSession,
+        inputs::PublicSession,
     },
     structs::csb::HearingModel,
 };

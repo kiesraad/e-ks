@@ -10,9 +10,10 @@ use super::paths::{
     CsbDeleteOmissionPath, CsbExaminationOverviewPath, CsbFinishExaminationPath,
     CsbGeneralInformationPath, CsbI1DocxDownloadPath, CsbI1DownloadPath,
     CsbOmissionLetterDocxDownloadPath, CsbOmissionLetterDownloadPath, CsbOmissionLetterPath,
-    CsbOmissionLettersDownloadPath, CsbOmissionOverviewPath, CsbPaperCorrectionsStartPath,
-    CsbPaperCorrectionsStopPath, CsbPersonCorrectionPath, CsbPoliticalGroupPath,
-    CsbPoliticalGroupToggleFinishPath, OmissionListQuery, PgIndexPath,
+    CsbOmissionLettersDownloadPath, CsbOmissionOverviewPath, CsbOsv3_2DocxDownloadPath,
+    CsbOsv3_2DownloadPath, CsbPaperCorrectionsStartPath, CsbPaperCorrectionsStopPath,
+    CsbPersonCorrectionPath, CsbPoliticalGroupPath, CsbPoliticalGroupToggleFinishPath,
+    OmissionListQuery, PgIndexPath,
 };
 
 mod all_brp_findings;
@@ -27,6 +28,7 @@ pub(in crate::csb) mod hearing_details;
 mod i1;
 mod omission;
 mod omission_letter;
+mod osv3_2;
 mod overview;
 mod paper_corrections;
 pub(in crate::csb) mod political_group;
@@ -36,6 +38,8 @@ pub fn router<S: AppRequestState>() -> Router<S> {
         .typed_get(overview::overview)
         .typed_get(i1::gen_i1::<S>)
         .typed_get(i1::gen_i1_docx::<S>)
+        .typed_get(osv3_2::gen_osv3_2::<S>)
+        .typed_get(osv3_2::gen_osv3_2_docx::<S>)
         .typed_get(omission_letter::overview)
         .typed_get(omission_letter::gen_omission_letter)
         .typed_get(omission_letter::gen_omission_letter_docx)

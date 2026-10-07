@@ -68,6 +68,7 @@ mod tests {
             recovery: Default::default(),
             first_candidate_name: None,
             first_non_scrapped_candidate_name: None,
+            previously_seated: false,
             candidate_list_districts: Default::default(),
         }
     }
