@@ -12,32 +12,49 @@ Voor de verkiezing van de leden van **{{ election_name|line }}** op **{{ electio
 
 De voorzitter van het centraal stembureau voor de verkiezing van de leden van **{{ election_name | line}}**,
 
-|  |  | Lijstengroep (gelijkluidende lijsten) | Lijstengroep (niet gelijkluidende lijsten) | Op zichzelf staande lijst |
+|  |  | Type |
 {%- for district in electoral_districts -%} {{ district.region_number() }} |
 {%- endfor %}
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| --- | --- | --- | {% for _ in electoral_districts %} --- | {% endfor %}
 {% for (political_group, district_batches) in lists -%}
-  | {{ loop.index }} | {{ political_group }} | X | X | X |
+  | {{ loop.index }} | {{ political_group }} | {% match self.affiliation_type(&political_group) -%}
+  {%- when Some with (AffiliationType::SetOfEqualLists) -%}
+    G
+  {%- when Some with (AffiliationType::GroupOfLists) -%}
+    NG
+  {%- when Some with (AffiliationType::StandAloneList) -%}
+    OZ
+  {%- when None -%}
+{%- endmatch -%} |
   {%- let active_districts = self.active_districts(&political_group) %}
     {%- for district in electoral_districts -%}
       {%- if active_districts.contains(&district) -%}
-        X |
+        \* |
       {%- else -%}
         |
       {%- endif -%}
     {%- endfor %}
 {% endfor %}
 
+#### Lijsttypes
+
+Bij het weergeven van de lijsten wordt onderscheid gemaakt tussen de volgende lijsttypes:
+
+- *G*: Lijstengroep (gelijkluidende lijsten)
+- *NG*: Lijstengroep (niet gelijkluidende lijsten)
+- *OZ*: Op zichzelfstaande lijst
+
+#### Kieskringen
 
 Kieskringen en gemeente of openbaar lichaam waar hoofdstembureau is gevestigd:
 {% for district in electoral_districts %}
 {{ district.region_number() }}. {{ district.title() }}
 {%- endfor %}
 
+@pagebreak
 {% for (political_group, district_batches) in lists %}
 #### {{ loop.index }}. {{ political_group }}
 
-{ widths = "1 8"}
 | Stel | Kieskringen |
 | --- | --- |
 {% for (number, districts) in self.batched_districts(political_group) -%}

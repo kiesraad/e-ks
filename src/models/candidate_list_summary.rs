@@ -59,6 +59,31 @@ impl CandidateListSummary {
             })
             .collect()
     }
+
+    fn affiliation_type(&self, list: &str) -> Option<AffiliationType> {
+        self.lists.get(list).and_then(|districts| {
+            if districts.len() == 1 {
+                if districts[0].len() == 1 {
+                    Some(AffiliationType::StandAloneList)
+                } else {
+                    Some(AffiliationType::SetOfEqualLists)
+                }
+            } else if districts.len() > 1 {
+                Some(AffiliationType::GroupOfLists)
+            } else {
+                None
+            }
+        })
+    }
+}
+
+pub enum AffiliationType {
+    /// lijstengroep
+    GroupOfLists,
+    /// stel gelijkluidende lijsten
+    SetOfEqualLists,
+    /// op zichzelf staande lijst
+    StandAloneList,
 }
 
 model_template!(
@@ -73,6 +98,6 @@ impl Pdf for CandidateListSummary {
     }
 
     fn filename(&self) -> String {
-        "OSV_3-4_overzicht_kandidatenlijsten.pdf".to_string()
+        "overzicht_kandidatenlijsten.pdf".to_string()
     }
 }

@@ -11,10 +11,6 @@ pub fn candidate_list_summary_example_1() -> CandidateListSummary {
         electoral_districts: ElectoralDistrict::ek_districts().to_vec(),
         lists: [
             (
-                "Partij der Gelijkluidenden".to_string(),
-                vec![ElectoralDistrict::ek_districts().to_vec()],
-            ),
-            (
                 "Geen Stel Beweging".to_string(),
                 ElectoralDistrict::ek_districts()
                     .into_iter()
@@ -37,7 +33,7 @@ pub fn candidate_list_summary_example_1() -> CandidateListSummary {
                 ],
             ),
             (
-                "Lijst Fibonacci met een lange naam die op twee regels zal moeten".to_string(),
+                "Lijst Fibonacci".to_string(),
                 vec![vec![
                     ElectoralDistrict::Groningen,
                     ElectoralDistrict::Fryslan,
@@ -46,6 +42,10 @@ pub fn candidate_list_summary_example_1() -> CandidateListSummary {
                     ElectoralDistrict::NoordHolland,
                     ElectoralDistrict::Bonaire,
                 ]],
+            ),
+            (
+                "Bonaire Bonaire".to_string(),
+                vec![vec![ElectoralDistrict::Bonaire]],
             ),
         ]
         .into(),

@@ -89,7 +89,10 @@ pub fn examples() -> Vec<Example> {
         example("model-i4-example-1", i4_example_1()),
         example("model-i4-example-2", i4_example_2()),
         example("model-osv3-2-example-1", osv3_2_example_1()),
-        example("candidate-list-summary", candidate_list_summary_example_1()),
+        example(
+            "overzicht_kandidatenlijsten-example-1",
+            candidate_list_summary_example_1(),
+        ),
         example("verzuimbrief-example-1", omission_letter_example_1()),
         example("verzuimbrief-example-2", omission_letter_example_2()),
         example("brp-overzicht-example-1", brp_overview_example_1()),
