@@ -16,10 +16,10 @@ pub fn candidate_list_summary_example_1() -> CandidateListSummary {
             ),
             (
                 "Geen Stel Beweging".to_string(),
-                vec![
-                    vec![ElectoralDistrict::Gelderland],
-                    vec![ElectoralDistrict::NoordBrabant],
-                ],
+                ElectoralDistrict::ek_districts()
+                    .into_iter()
+                    .map(|&district| vec![district])
+                    .collect(),
             ),
             (
                 "Groep Wisselend".to_string(),
@@ -35,6 +35,17 @@ pub fn candidate_list_summary_example_1() -> CandidateListSummary {
                     ],
                     vec![ElectoralDistrict::Saba],
                 ],
+            ),
+            (
+                "Lijst Fibonacci met een lange naam die op twee regels zal moeten".to_string(),
+                vec![vec![
+                    ElectoralDistrict::Groningen,
+                    ElectoralDistrict::Fryslan,
+                    ElectoralDistrict::Drenthe,
+                    ElectoralDistrict::Flevoland,
+                    ElectoralDistrict::NoordHolland,
+                    ElectoralDistrict::Bonaire,
+                ]],
             ),
         ]
         .into(),

@@ -39,13 +39,14 @@ impl CandidateListSummary {
             })
             .collect();
         batches.sort_unstable();
+        let batch_count = batches.len();
 
         let mut counter = 0;
         batches
             .into_iter()
             .map(|numbers| {
-                // A list in 1 district does not get a 'stel' number
-                let stel = (numbers.len() > 1).then(|| {
+                // A list in 1 district does not get a 'stel' number. Lists that are 'gelijkluidend' also don't.
+                let stel = (numbers.len() > 1 && batch_count > 1).then(|| {
                     counter += 1;
                     counter
                 });
