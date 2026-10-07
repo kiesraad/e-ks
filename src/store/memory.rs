@@ -1,6 +1,6 @@
 //! In-memory persistence backend for the event store.
 //!
-//! Unlike the database and filesystem backends, the in-memory backend keeps no
+//! Unlike the database backend, the in-memory backend keeps no
 //! durable storage: event payloads live only in the registry's cached
 //! projections, so an in-memory store's [`Store::load`](super::Store::load) is a
 //! no-op. It does, however, keep a small shared index of each stream's scope and
@@ -124,7 +124,7 @@ pub(crate) fn elections_for_stream(
 /// returning its `(stream_id, election, event_id)`.
 ///
 /// The lookup is restricted to [`Scope::PoliticalGroup`] streams, mirroring the
-/// database and filesystem backends, so a prefix can only ever resolve to an
+/// database backend, so a prefix can only ever resolve to an
 /// app-store event (never a CSB event). An ambiguous prefix matching more than
 /// one event is reported as [`AppError::AmbiguousHash`].
 pub(crate) fn find_event_by_hash_prefix(

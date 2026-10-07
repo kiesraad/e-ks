@@ -26,10 +26,10 @@ impl Default for AcmeStore {
 
 impl AcmeStore {
     /// Construct from `STORAGE_URL`; same scheme rules as
-    /// [`crate::SessionStore`], with disk falling back to in-memory.
+    /// [`crate::SessionStore`].
     pub fn from_storage_url(storage_url: &str) -> Result<Self, AppError> {
         match StorageScheme::parse(storage_url)? {
-            StorageScheme::Memory | StorageScheme::Local => Ok(Self::default()),
+            StorageScheme::Memory => Ok(Self::default()),
             StorageScheme::Postgres => Ok(Self::Database(sqlx::PgPool::connect_lazy(storage_url)?)),
         }
     }
@@ -103,12 +103,6 @@ mod tests {
     #[test]
     fn from_storage_url_memory_is_in_memory() {
         let store = AcmeStore::from_storage_url("memory://").unwrap();
-        assert!(matches!(store, AcmeStore::InMemory(_)));
-    }
-
-    #[test]
-    fn from_storage_url_local_falls_back_to_memory() {
-        let store = AcmeStore::from_storage_url("local:///whatever").unwrap();
         assert!(matches!(store, AcmeStore::InMemory(_)));
     }
 

@@ -2,11 +2,12 @@
 
 use std::sync::Arc;
 
+#[cfg(feature = "database")]
 use chrono::{DateTime, Utc};
 
-use std::path::PathBuf;
-
-use crate::{ElectionConfig, StreamId, crypto::EventCipher};
+#[cfg(feature = "database")]
+use crate::crypto::EventCipher;
+use crate::{ElectionConfig, StreamId};
 
 use super::{EventHash, EventHashPrefix, StoreData, StoreEvent, memory::MemoryStore};
 
@@ -39,9 +40,9 @@ impl<D> Clone for Store<D> {
 /// A store's resolved backend: a persistence target paired with the
 /// per-stream [`EventCipher`].
 ///
-/// The persisting variants (`Database`, `Local`) cannot be constructed
-/// without a cipher (see `StorePersistence::into_backend_for_stream`), so
-/// events written to disk or database are *always* encrypted. `Memory` carries
+/// The persisting variant (`Database`) cannot be constructed without a
+/// cipher (see `StorePersistence::into_backend_for_stream`), so events
+/// written to the database are *always* encrypted. `Memory` carries
 /// no cipher because it never writes events out; it keeps only the shared
 /// index used to answer cross-stream lookups.
 #[derive(Clone, Debug)]
@@ -50,11 +51,6 @@ pub(crate) enum StoreBackend {
     #[cfg(feature = "database")]
     Database {
         pool: sqlx::PgPool,
-        cipher: Box<EventCipher>,
-    },
-    /// Local filesystem-backed, encrypted persistence.
-    Local {
-        dir: PathBuf,
         cipher: Box<EventCipher>,
     },
     /// In-memory only: no durable persistence and no encryption, just the shared
@@ -98,6 +94,7 @@ where
 
     /// Build a [`StoreEvent`] for a freshly persisted event and apply it to the
     /// in-memory projection via [`Store::apply_event`].
+    #[cfg(feature = "database")]
     pub(crate) fn apply_persisted_event(
         &self,
         event_id: usize,

@@ -313,7 +313,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Config, CsbAction, CsbStoreData, CsbUser, ElectionConfig, PgEvent, PgStoreData};
+    use crate::{Config, CsbAction, CsbStoreData, CsbUser, ElectionConfig};
 
     /// Two registries over one projection and backend, under different scopes.
     async fn two_scopes() -> (StoreRegistry<CsbStoreData>, StoreRegistry<CsbStoreData>) {
@@ -341,29 +341,23 @@ mod tests {
         assert_eq!(registry.scope(), CsbStoreData::scope());
     }
 
-    /// Registry over the filesystem backend in a fresh temp directory. The
-    /// local backend only persists political-group streams, hence
-    /// [`PgStoreData`].
-    async fn local_registry() -> StoreRegistry<PgStoreData> {
-        let dir = std::env::temp_dir().join(format!("eks-registry-test-{}", StreamId::new()));
-        std::fs::create_dir_all(&dir).expect("create temp dir");
-        let config = Config::new_test();
-        StoreRegistry::new(
-            format!("local://{}", dir.display()),
-            MasterKey::new(&config.master_encryption_key),
-        )
-        .await
-        .expect("local registry")
-    }
-
-    #[tokio::test]
-    async fn purge_idle_evicts_untouched_stores_but_keeps_persisted_data() -> Result<(), AppError> {
-        let registry = local_registry().await;
+    #[cfg(feature = "database")]
+    #[cfg_attr(not(feature = "db-tests"), ignore = "requires database")]
+    #[sqlx::test(migrations = false)]
+    async fn purge_idle_evicts_untouched_stores_but_keeps_persisted_data(
+        pool: sqlx::PgPool,
+    ) -> Result<(), AppError> {
+        #[cfg(feature = "migrations")]
+        crate::store::database::migrate(&pool).await?;
+        let registry = StoreRegistry::<crate::PgStoreData>::with_persistence(
+            StorePersistence::Database(pool),
+            MasterKey::new(&Config::new_test().master_encryption_key),
+        );
         let stream_id = StreamId::new();
         registry
             .get_or_create(stream_id, ElectionConfig::EK27)
             .await?
-            .update(PgEvent::Login)
+            .update(crate::PgEvent::Login)
             .await?;
 
         // Recently used, so nothing is idle for an hour yet.
