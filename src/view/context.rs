@@ -3,7 +3,7 @@
 
 use axum::{extract::FromRequestParts, http::request::Parts};
 
-use crate::{AppError, AppRequestState, ElectionConfig, PgStore, Session};
+use crate::{AppError, AppRequestState, ElectionConfig, PgStore, Session, SessionExpiry};
 
 #[cfg(test)]
 use crate::Locale;
@@ -47,6 +47,8 @@ pub struct Context {
     pub overlay_active: bool,
     /// Session data for locale and CSRF.
     pub session: Session,
+    /// Remaining session lifetime at render time, for the expiry warning.
+    pub session_expiry: SessionExpiry,
     /// Short identifier of the server this instance runs on (e.g. "S1"),
     /// rendered next to the version in the layout footer when set.
     pub server_name: Option<&'static str>,
@@ -86,6 +88,7 @@ impl Context {
             show_success_alert: false,
             show_download_warning: false,
             overlay_active: false,
+            session_expiry: session.expiry(),
             session,
             server_name: None,
             general_information_path,
@@ -114,6 +117,7 @@ impl askama::Values for Context {
         match key {
             "locale" => Some(&self.session.locale as &dyn std::any::Any),
             "csrf_token" => Some(&self.session.csrf_token().0 as &dyn std::any::Any),
+            "session_expiry" => Some(&self.session_expiry as &dyn std::any::Any),
             "election" => Some(&self.election as &dyn std::any::Any),
             "max_candidates" => Some(&self.max_candidates as &dyn std::any::Any),
             "candidate_limit" => Some(&self.candidate_limit as &dyn std::any::Any),

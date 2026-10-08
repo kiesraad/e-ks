@@ -6,22 +6,28 @@ use askama::Template;
 use auth_service::{AuthFailure, AuthServiceState, AuthState, RedirectTarget, handle_logout};
 use axum::{
     extract::{FromRef, State},
-    http::{HeaderName, HeaderValue},
+    http::{HeaderName, HeaderValue, Uri},
     response::{IntoResponse, Response},
 };
 use axum_extra::extract::CookieJar;
 
 use axum_extra::routing::TypedPath;
 
-use super::{LoggedOutPath, LogoutPath};
+use super::{LoggedOutPath, LoginStartPath, LogoutPath};
 use crate::{
     AppRequestState, Context, HtmlTemplate, Locale, LocaleValues, Session, SessionPageValues,
-    filters,
+    auth::session::session_idle_timeout, filters,
 };
 
 #[derive(Template)]
 #[template(path = "pg/common/pages/login_start.html")]
-struct LoginStartTemplate;
+struct LoginStartTemplate {
+    /// Explain that the previous session expired (the expiry-warning script
+    /// lands here once the countdown runs out).
+    session_expired: bool,
+    /// Minutes of inactivity after which a session expires, for that notice.
+    idle_minutes: String,
+}
 
 #[derive(Template)]
 #[template(path = "pg/common/pages/logged_out.html")]
@@ -44,9 +50,14 @@ struct AuthCancelledTemplate;
 struct AuthUnavailableTemplate;
 
 /// GET `/login`: DigiD start page with login button and flow explanation.
-pub async fn login_start() -> impl IntoResponse {
+/// With the flag of [`LoginStartPath::expired_url`] it also tells the user
+/// their session expired through inactivity.
+pub async fn login_start(uri: Uri) -> impl IntoResponse {
     HtmlTemplate(
-        LoginStartTemplate,
+        LoginStartTemplate {
+            session_expired: LoginStartPath::asks_for_expired_notice(&uri),
+            idle_minutes: session_idle_timeout().num_minutes().to_string(),
+        },
         LocaleValues {
             locale: Locale::default(),
         },
@@ -56,14 +67,7 @@ pub async fn login_start() -> impl IntoResponse {
 /// GET `/logout`: the logout prompt; runs behind the session middleware, which
 /// supplies the session and CSRF-checks the prompt's POST.
 pub async fn logout(_: LogoutPath, session: Session) -> Response {
-    HtmlTemplate(
-        LogoutConfirmTemplate,
-        SessionPageValues {
-            locale: session.locale,
-            csrf_token: session.csrf_token().0.clone(),
-        },
-    )
-    .into_response()
+    HtmlTemplate(LogoutConfirmTemplate, SessionPageValues::new(&session)).into_response()
 }
 
 /// Where the auth-service sends the browser once logout completes. Built from
@@ -139,13 +143,46 @@ mod tests {
 
     #[tokio::test]
     async fn login_start_shows_digid_button_and_explanation() {
-        let response = login_start().await.into_response();
+        let response = login_start(Uri::from_static("/login"))
+            .await
+            .into_response();
         let body = response_body_string(response).await;
         assert!(body.contains("Inloggen"));
         // The button initiates SSO by POSTing back to /login.
         assert!(body.contains("action=\"/login\""));
         assert!(body.contains("method=\"post\""));
         assert!(body.contains("Kandidaatstelling van de Kiesraad"));
+        assert!(!body.contains("sessie is verlopen"));
+    }
+
+    /// The URL the expiry-warning script navigates to explains why the user
+    /// is back on the login page, naming the idle timeout.
+    #[tokio::test]
+    async fn login_start_explains_an_expired_session() {
+        let uri: Uri = LoginStartPath::expired_url().parse().expect("valid url");
+        let response = login_start(uri).await.into_response();
+        let body = response_body_string(response).await;
+        assert!(body.contains("Uw sessie is verlopen omdat u 15 minuten niet actief bent geweest"));
+        assert!(body.contains("Inloggen"));
+    }
+
+    /// Only the exact flag triggers the notice; other query strings leave the
+    /// start page as it is rather than failing the request.
+    #[test]
+    fn expired_notice_needs_the_exact_flag() {
+        for (uri, expected) in [
+            ("/login", false),
+            ("/login?expired=true", true),
+            ("/login?foo=bar&expired=true", true),
+            ("/login?expired=banana", false),
+            ("/login?expired=true-ish", false),
+        ] {
+            assert_eq!(
+                LoginStartPath::asks_for_expired_notice(&Uri::from_static(uri)),
+                expected,
+                "{uri}"
+            );
+        }
     }
 
     #[tokio::test]

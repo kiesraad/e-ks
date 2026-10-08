@@ -3,6 +3,7 @@
 use chrono::{DateTime, Duration, Utc};
 use rand::{RngExt, distr::Alphanumeric};
 use secrecy::{ExposeSecret, SecretString};
+use serde::Serialize;
 
 use crate::{
     AppError, CsbUser, ElectionConfig, Locale, Scope, SessionUser, StreamId, TokenValue,
@@ -10,12 +11,19 @@ use crate::{
     utils::sha256_hex,
 };
 
-/// Idle timeout (in seconds) after which a session is considered expired.
-const SESSION_IDLE_TIMEOUT_SECS: i64 = 10 * 60; // 10 minutes, per TVS "Checklist Testen" v2.1 T8: max 15 minutes inactivity.
+/// Idle timeout (in seconds) after which a session is considered expired: the
+/// ceiling the DigiD "Checklist Testen" (TVS v2.1 T8) sets, at most 15 minutes
+/// of inactivity. Every request through the session middleware counts as
+/// activity, so a page load extends the session by this much.
+const SESSION_IDLE_TIMEOUT_SECS: i64 = 15 * 60; // 15 minutes
 
 /// Absolute cap on total session lifetime, regardless of activity (defense in
 /// depth; TVS mandates only the idle ceiling). Covers one working day.
 const SESSION_ABSOLUTE_TIMEOUT_SECS: i64 = 8 * 60 * 60; // 8 hours
+
+/// How long before the session expires the browser warns the user and offers
+/// to extend it (see `frontend/scripts/generic-ui/session-expiry.ts`).
+const SESSION_EXPIRY_WARNING_LEAD_SECS: i64 = 1 * 60; // 1 minute
 
 /// Idle timeout after which a session is considered expired.
 pub fn session_idle_timeout() -> Duration {
@@ -25,6 +33,47 @@ pub fn session_idle_timeout() -> Duration {
 /// Absolute lifetime cap, checked regardless of activity.
 pub fn session_absolute_timeout() -> Duration {
     Duration::seconds(SESSION_ABSOLUTE_TIMEOUT_SECS)
+}
+
+/// Lead time of the expiry warning shown in the browser.
+pub fn session_expiry_warning_lead() -> Duration {
+    Duration::seconds(SESSION_EXPIRY_WARNING_LEAD_SECS)
+}
+
+/// When a session runs out, as the browser needs it: rendered into every
+/// session page as data attributes and answered as JSON on `/session`, so the
+/// script that warns before expiry never hard-codes a duration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct SessionExpiry {
+    /// Seconds until the session expires, whichever of the idle timeout and
+    /// the absolute cap comes first. Zero once expired.
+    pub expires_in_secs: u64,
+    /// Seconds before expiry at which the warning should appear.
+    pub warning_lead_secs: u64,
+    /// Whether activity still pushes the expiry back. `false` once the absolute
+    /// cap is the binding limit: extending is then pointless, and the warning
+    /// says the user has to log in again instead of offering to extend.
+    pub extendable: bool,
+}
+
+impl SessionExpiry {
+    /// A session that has already expired.
+    pub fn expired() -> Self {
+        Self {
+            expires_in_secs: 0,
+            warning_lead_secs: Self::warning_lead_secs(),
+            extendable: false,
+        }
+    }
+
+    fn warning_lead_secs() -> u64 {
+        u64::try_from(session_expiry_warning_lead().num_seconds()).unwrap_or_default()
+    }
+
+    /// `true` while the remaining time is within the warning lead.
+    pub fn is_due_for_warning(&self) -> bool {
+        self.expires_in_secs <= self.warning_lead_secs
+    }
 }
 
 /// SHA-256 (hex) of a raw token: the value stored at rest and used as the lookup
@@ -210,9 +259,25 @@ impl Session {
 
     /// True once past the idle timeout or the absolute lifetime cap.
     pub fn is_expired(&self) -> bool {
-        let now = Utc::now();
-        now - self.last_activity >= session_idle_timeout()
-            || now - self.created_at >= session_absolute_timeout()
+        self.expiry_at(Utc::now()).expires_in_secs == 0
+    }
+
+    /// The remaining lifetime as seen from `now`, for the browser-side warning.
+    pub fn expiry(&self) -> SessionExpiry {
+        self.expiry_at(Utc::now())
+    }
+
+    fn expiry_at(&self, now: DateTime<Utc>) -> SessionExpiry {
+        let idle_deadline = self.last_activity + session_idle_timeout();
+        let absolute_deadline = self.created_at + session_absolute_timeout();
+        let deadline = idle_deadline.min(absolute_deadline);
+        // A deadline in the past clamps to zero: the session is expired.
+        let expires_in_secs = u64::try_from((deadline - now).num_seconds()).unwrap_or_default();
+        SessionExpiry {
+            expires_in_secs,
+            warning_lead_secs: SessionExpiry::warning_lead_secs(),
+            extendable: expires_in_secs > 0 && idle_deadline < absolute_deadline,
+        }
     }
 
     /// Raw CSRF token to embed in rendered forms.
@@ -386,6 +451,69 @@ mod tests {
         session.created_at = Utc::now() - session_absolute_timeout() - Duration::seconds(1);
 
         assert!(session.is_expired());
+    }
+
+    /// The idle timeout matches the DigiD ceiling of 15 minutes inactivity,
+    /// and the warning leads it by two minutes.
+    #[test]
+    fn timeouts_follow_the_digid_checklist() {
+        assert_eq!(session_idle_timeout(), Duration::minutes(15));
+        assert_eq!(session_expiry_warning_lead(), Duration::minutes(2));
+        assert!(session_expiry_warning_lead() < session_idle_timeout());
+    }
+
+    /// A fresh session expires when its idle timeout runs out, and activity
+    /// can still extend it.
+    #[test]
+    fn expiry_of_fresh_session_is_the_idle_timeout() {
+        let session = Session::new_test();
+        let now = session.last_activity;
+
+        let expiry = session.expiry_at(now);
+
+        assert_eq!(expiry.expires_in_secs, 15 * 60);
+        assert_eq!(expiry.warning_lead_secs, 2 * 60);
+        assert!(expiry.extendable);
+        assert!(!expiry.is_due_for_warning());
+    }
+
+    /// Within the warning lead the expiry reports itself as due for a warning.
+    #[test]
+    fn expiry_is_due_for_warning_within_the_lead() {
+        let mut session = Session::new_test();
+        session.last_activity = Utc::now() - session_idle_timeout() + Duration::seconds(90);
+
+        let expiry = session.expiry();
+
+        assert!(expiry.expires_in_secs <= 90);
+        assert!(expiry.expires_in_secs > 80);
+        assert!(expiry.is_due_for_warning());
+        assert!(expiry.extendable);
+    }
+
+    /// Once the absolute cap comes first, the remaining time follows the cap
+    /// and extending is no longer offered.
+    #[test]
+    fn expiry_follows_the_absolute_cap_when_it_comes_first() {
+        let mut session = Session::new_test();
+        session.created_at = Utc::now() - session_absolute_timeout() + Duration::minutes(5);
+        session.last_activity = Utc::now();
+
+        let expiry = session.expiry();
+
+        assert!(expiry.expires_in_secs <= 5 * 60);
+        assert!(expiry.expires_in_secs > 5 * 60 - 10);
+        assert!(!expiry.extendable);
+    }
+
+    /// An expired session reports zero remaining seconds, never a negative
+    /// value wrapped around.
+    #[test]
+    fn expiry_of_expired_session_is_zero() {
+        let mut session = Session::new_test();
+        session.last_activity = Utc::now() - session_idle_timeout() - Duration::hours(1);
+
+        assert_eq!(session.expiry(), SessionExpiry::expired());
     }
 
     /// Only committee sessions can enter paper-corrections mode.

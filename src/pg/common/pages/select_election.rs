@@ -43,10 +43,7 @@ pub async fn select_election<S: AppRequestState>(
         water_councils: WaterCouncil::ALL,
     };
 
-    let values = SessionPageValues {
-        locale: session.locale,
-        csrf_token: session.csrf_token().0.clone(),
-    };
+    let values = SessionPageValues::new(&session);
     let html = template
         .render_with_values(&values)
         .map_err(AppError::TemplateError)?;
@@ -208,6 +205,10 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let body = crate::test_utils::response_body_string(response).await;
         assert!(body.contains(r#"class="logout-form""#), "{body}");
+        // This page lives outside the main layout, yet a user can sit on it
+        // long enough for the session to expire: it warns too.
+        assert!(body.contains(r#"class="modal session-expiry""#), "{body}");
+        assert!(body.contains(r#"data-status-url="/session""#), "{body}");
         assert!(
             body.contains(&format!(r#"action="{}""#, crate::common::LogoutPath)),
             "{body}"

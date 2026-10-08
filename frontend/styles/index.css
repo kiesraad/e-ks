@@ -29,6 +29,7 @@
 @import "position-preview.css" layer(components);
 @import "restorations.css" layer(components);
 @import "steps.css" layer(components);
+@import "session-expiry.css" layer(components);
 @import "sticky-nav.css" layer(components);
 @import "table.css" layer(components);
 @import "tags.css" layer(components);
