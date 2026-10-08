@@ -3,7 +3,7 @@
 
 use axum::{extract::FromRequestParts, http::request::Parts};
 
-use crate::{AppError, AppRequestState, CsbUser, ElectionConfig, Session};
+use crate::{AppError, AppRequestState, CsbUser, ElectionConfig, Session, SessionExpiry};
 
 #[cfg(test)]
 use crate::Locale;
@@ -17,6 +17,8 @@ pub struct CsbContext {
     pub election: ElectionConfig,
     /// Session data for locale and CSRF.
     pub session: Session,
+    /// Remaining session lifetime at render time, for the expiry warning.
+    pub session_expiry: SessionExpiry,
     /// Short identifier of the server this instance runs on (e.g. "S1"),
     /// rendered next to the version in the layout footer when set.
     pub server_name: Option<&'static str>,
@@ -30,6 +32,7 @@ impl CsbContext {
     pub fn new(session: Session, election: ElectionConfig) -> Self {
         Self {
             election,
+            session_expiry: session.expiry(),
             session,
             server_name: None,
             show_success_alert: false,
@@ -55,6 +58,7 @@ impl askama::Values for CsbContext {
             "election" => Some(&self.election as &dyn std::any::Any),
             "locale" => Some(&self.session.locale as &dyn std::any::Any),
             "csrf_token" => Some(&self.session.csrf_token().0 as &dyn std::any::Any),
+            "session_expiry" => Some(&self.session_expiry as &dyn std::any::Any),
             "server_name" => Some(&self.server_name as &dyn std::any::Any),
             "show_success_alert" => Some(&self.show_success_alert as &dyn std::any::Any),
             "overlay_active" => Some(&self.overlay_active as &dyn std::any::Any),

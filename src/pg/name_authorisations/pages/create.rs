@@ -84,10 +84,10 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
         assert_eq!(
-            // One for: logout, language selection ande create name authorisation
+            // One for: logout, session-expiry warning, language selection and create name authorisation
             body.matches(r#"input type="hidden" name="csrf_token""#)
                 .count(),
-            3,
+            4,
         );
 
         Ok(())

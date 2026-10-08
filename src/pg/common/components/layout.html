@@ -111,6 +111,7 @@
     </div>
   {% endif %}
   {% block overlay %}{% endblock %}
+  {% include "pg/common/components/session_expiry.html" %}
   {% if "show_success_alert"|value_true %}
     <div class="alert alert-success alert-floating">{{ "common.save_success"|trans }}</div>
   {% endif %}

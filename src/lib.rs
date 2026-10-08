@@ -127,7 +127,7 @@ pub(crate) use auth::{
     csb_user::{CsbUser, HasCsbUser},
     derive_id::IdDeriver,
     pending_request_store::PendingRequestStore,
-    session::Session,
+    session::{Session, SessionExpiry},
     session_store::SessionStore,
     session_user::SessionUser,
 };

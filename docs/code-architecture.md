@@ -267,6 +267,28 @@ escalation always means a new session through that same helper. (The
 development login can create either kind of session; the TVS login flow
 currently creates political-group sessions only.)
 
+#### Session lifetime and the expiry warning
+
+A session expires after 15 minutes without a request (the ceiling of the
+DigiD "Checklist Testen", T8) and in any case 8 hours after login; the
+constants live in `src/auth/session.rs`. Every request through the session
+middleware counts as activity, so a page load extends the session.
+
+Shortly before the session runs out the browser shows a warning with a
+countdown and a "stay logged in" button
+(`frontend/scripts/generic-ui/session-expiry.ts`, markup in
+`pg/common/components/session_expiry.html`, included by both layouts and the
+session pages outside them). Every session page renders the remaining
+lifetime as a typed `SessionExpiry` into the dialog's data attributes. A user
+may have several tabs open, so a tab never trusts its own clock alone: before
+it warns, and again when the countdown reaches zero, it asks `GET /session`
+how much time is really left. That peek is the one request the middleware
+does not count as activity, otherwise an idle tab would keep the session
+alive forever. "Stay logged in" posts to the same path (CSRF token in the
+header, like every mutation), and tabs tell each other about extensions over
+a `BroadcastChannel`. Once the session is gone the tab navigates to
+`/login?expired=true`, which explains why.
+
 #### CSB stores
 
 The CSB section has two projections of its own on the shared store machinery
@@ -401,7 +423,9 @@ order on an incoming request is:
 3. **`session_middleware`.** Reads the `EKS_SESSION_ID` cookie and looks the
    session up in the `SessionStore`. A missing or invalid session redirects to
    `/login`. Otherwise the session's `last_activity` is refreshed and the
-   `Session` is placed in the request extensions.
+   `Session` is placed in the request extensions. The one request that does
+   not count as activity is `GET /session`, the peek the browser-side expiry
+   warning uses (see below).
    A committee session active within `CSB_ALERT_HOURS` is reported here too
    (never blocked).
 4. **Store middleware.** App (political group) routes get `store_middleware`;

@@ -8,6 +8,9 @@
     </aside>
     <main class="auth-container">
       <h2>{{ "auth.start.title"|trans }}</h2>
+      {% if session_expired %}
+        <div class="alert alert-warning">{{ "auth.session_expiry.expired"|trans(idle_minutes) }}</div>
+      {% endif %}
       <p class="text-balance">{{ "auth.start.intro"|trans }}</p>
       {% include "pg/common/components/digid_login_button.html" %}
     </main>
