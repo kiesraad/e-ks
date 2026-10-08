@@ -69,7 +69,12 @@ fn shared_list_set_number(
         if list_sets.iter().any(|shared| shared.id == list.id) {
             continue;
         }
-        if valid.iter().filter(|(_, list)| list.id == list_id).count() > 1 {
+        if valid
+            .iter()
+            .filter(|(_, other)| other.id == list.id)
+            .count()
+            > 1
+        {
             list_sets.push(list);
         }
     }
@@ -325,15 +330,23 @@ mod tests {
     /// on its shared lists.
     #[test]
     fn shared_subset_within_a_group_of_lists_still_gets_a_set() {
-        let shared_list = sample_list_for(
-            CandidateListId::new(),
-            [ElectoralDistrict::PsMaastricht, ElectoralDistrict::PsVenlo],
-        );
-        let solo_list = sample_list_for(CandidateListId::new(), [ElectoralDistrict::Limburg]);
+        // The solo list is created first and listed first, to prove it is
+        // not counted as a set when numbering the shared list.
+        let shared_list = CandidateList {
+            created_at: chrono::DateTime::from_timestamp(1, 0).unwrap().into(),
+            ..sample_list_for(
+                CandidateListId::new(),
+                [ElectoralDistrict::PsMaastricht, ElectoralDistrict::PsVenlo],
+            )
+        };
+        let solo_list = CandidateList {
+            created_at: chrono::DateTime::from_timestamp(0, 0).unwrap().into(),
+            ..sample_list_for(CandidateListId::new(), [ElectoralDistrict::Limburg])
+        };
         let valid = vec![
+            (ElectoralDistrict::Limburg, solo_list.clone()),
             (ElectoralDistrict::PsMaastricht, shared_list.clone()),
             (ElectoralDistrict::PsVenlo, shared_list.clone()),
-            (ElectoralDistrict::Limburg, solo_list.clone()),
         ];
 
         assert_eq!(

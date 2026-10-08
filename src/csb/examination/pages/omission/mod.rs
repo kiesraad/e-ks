@@ -77,6 +77,21 @@ impl OmissionTarget {
         }
     }
 
+    /// The candidate whose lists the list selector is limited to: a candidate
+    /// omission only applies to lists the candidate is on. `None` offers every
+    /// list of the group.
+    fn candidate_list_filter(&self) -> Option<PersonId> {
+        (self.omission_type == OmissionType::Candidate).then(|| PersonId::from(self.reference))
+    }
+
+    /// The lists the add-omission form can apply to; see
+    /// [`Self::candidate_list_filter`]. The submit handler falls back to this
+    /// same set when the form sent none, so a single list is picked without a
+    /// selector.
+    fn candidate_list_options(&self, store: &CsbStream) -> Vec<views::CandidateListOption> {
+        views::candidate_list_options(store, self.candidate_list_filter())
+    }
+
     /// Render the add-omission form tab. Shared by the initial GET and the
     /// re-render after an invalid submit; only the form data differs.
     fn render_add_form(
@@ -95,13 +110,7 @@ impl OmissionTarget {
         let available_candidate_lists = self
             .omission_type
             .needs_candidate_lists()
-            .then(|| {
-                views::candidate_list_options(
-                    store,
-                    (self.omission_type == OmissionType::Candidate)
-                        .then(|| PersonId::from(self.reference)),
-                )
-            })
+            .then(|| self.candidate_list_options(store))
             .filter(|options| options.len() > 1)
             .unwrap_or_default();
 
@@ -275,7 +284,8 @@ pub async fn add_omission_submit(
         target.omission_type.needs_candidate_lists(),
         &form.candidate_lists,
         || {
-            views::candidate_list_options(&store, None)
+            target
+                .candidate_list_options(&store)
                 .into_iter()
                 .map(|o| o.id)
                 .collect()
@@ -807,6 +817,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn delete_appellation_omission_returns_to_the_appellation_overview() {
+        let store = CsbStore::new_for_test();
+        let stream_id = store.stream_id;
+
+        let omission = Omission::new(
+            OmissionCategory::Appellation,
+            "Aanduiding niet geregistreerd".parse().unwrap(),
+            "De aanduiding is niet geregistreerd.".parse().unwrap(),
+            None,
+        );
+        omission.create(&store).await.unwrap();
+
+        let response =
+            submit_delete_omission(store.clone(), omission.id, QueryParamState::default(), None)
+                .await;
+
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        let location = location(&response);
+        assert!(
+            location.contains(&format!(
+                "/csb/examination/{stream_id}/omission/appellation/{stream_id}/overview"
+            )),
+            "{location}"
+        );
+    }
+
+    #[tokio::test]
     async fn delete_omission_returns_to_the_list_the_overview_was_opened_for() {
         let store = CsbStore::new_for_test();
         let stream_id = store.stream_id;
@@ -1094,6 +1131,53 @@ mod tests {
         let body = response_body_string(response).await;
         assert!(body.contains("Kandidaat nr. 2, Jansen, H.A.H.A. (Henk)"));
         assert!(!body.contains("Kandidaat nr. 1, Jansen"));
+    }
+
+    /// The dialog hides the list selector when the candidate is on only one
+    /// of the group's lists, so the submit has to pick that list itself.
+    #[tokio::test]
+    async fn add_candidate_omission_defaults_to_the_candidates_only_list() {
+        use crate::test_utils::{sample_candidate_list, sample_person};
+
+        let store = CsbStore::new_for_test();
+
+        let person = sample_person(PersonId::new());
+        let person_id = person.id;
+        let own_list_id = CandidateListId::new();
+        let mut own_list = sample_candidate_list(own_list_id);
+        own_list.candidates = vec![person_id];
+        let other_list_id = CandidateListId::new();
+        let other_list = sample_candidate_list(other_list_id);
+        store.add_person(person);
+        store.add_candidate_list(own_list);
+        store.add_candidate_list(other_list);
+
+        let response = render_add_omission(
+            store.clone(),
+            OmissionType::Candidate,
+            person_id,
+            Some(own_list_id),
+        )
+        .await;
+        let body = response_body_string(response).await;
+        assert!(!body.contains(r#"name="candidate_lists""#));
+
+        let response = submit_add_omission(
+            store.clone(),
+            OmissionType::Candidate,
+            person_id,
+            Some(own_list_id),
+            sample_form(),
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        let omission = store.get_omission_for_test();
+        assert!(matches!(
+            omission.category,
+            OmissionCategory::Candidate { person, ref lists }
+                if person == person_id && lists == &[own_list_id]
+        ));
     }
 
     #[tokio::test]

@@ -23,6 +23,7 @@ const PER_PAGE: usize = 20;
 /// trans!("audit_log.filter.category.list_submitter", _)
 /// trans!("audit_log.filter.category.substitute_submitter", _)
 /// trans!("audit_log.filter.category.system", _)
+/// trans!("audit_log.filter.category.import", _)
 pub const EVENT_TYPES_BY_CATEGORY: &[EventTypeCategory] = &[
     EventTypeCategory {
         key: "political_group",
@@ -72,12 +73,18 @@ pub const EVENT_TYPES_BY_CATEGORY: &[EventTypeCategory] = &[
     EventTypeCategory {
         key: "system",
         event_types: &[
+            "login",
+            "logout",
             "developer_login",
             "download_file",
             "hide_download_warning",
             "export_csv",
             "import_csv",
         ],
+    },
+    EventTypeCategory {
+        key: "import",
+        event_types: &["import"],
     },
 ];
 
@@ -180,6 +187,98 @@ mod tests {
 
     fn no_filter() -> Query<AuditLogFilter> {
         Query(AuditLogFilter::default())
+    }
+
+    /// One event per `PgEvent` variant, so the table cannot silently miss one.
+    #[test]
+    #[allow(clippy::too_many_lines)] // one constructor per variant, no logic
+    fn filter_table_covers_every_event() {
+        use crate::{
+            PgEvent, StreamId,
+            structs::{
+                candidate_lists::CandidateListId, list_submitters::ListSubmitterId,
+                name_authorisations::NameAuthorisationId,
+            },
+            test_utils::{sample_candidate_list, sample_list_submitter, sample_name_authorisation},
+        };
+
+        let person = sample_person(PersonId::new());
+        let person_id = person.id;
+        let list_id = CandidateListId::new();
+        let submitter = sample_list_submitter(ListSubmitterId::new());
+        let authorisation = sample_name_authorisation(NameAuthorisationId::new());
+
+        let events = vec![
+            PgEvent::UpdatePoliticalGroup(sample_political_group()),
+            PgEvent::CreatePerson(person.clone()),
+            PgEvent::CreatePersonPersonalData {
+                person_id,
+                name: person.name.clone(),
+                personal_data: person.personal_data.clone(),
+            },
+            PgEvent::UpdatePerson(person.clone()),
+            PgEvent::UpdatePersonPersonalData {
+                person_id,
+                name: person.name.clone(),
+                personal_data: person.personal_data.clone(),
+            },
+            PgEvent::UpdatePersonAddress {
+                person_id,
+                address: person.address.clone(),
+            },
+            PgEvent::UpdatePersonRepresentative {
+                person_id,
+                representative: None,
+            },
+            PgEvent::DeletePerson { person_id },
+            PgEvent::CreateCandidateList(sample_candidate_list(list_id)),
+            PgEvent::UpdateCandidateListDistricts {
+                list_id,
+                electoral_districts: Default::default(),
+            },
+            PgEvent::UpdateCandidateListOrder {
+                list_id,
+                candidates: vec![person_id],
+            },
+            PgEvent::AddCandidateToCandidateList { list_id, person_id },
+            PgEvent::RemoveCandidateFromCandidateList { list_id, person_id },
+            PgEvent::DeleteCandidateList(list_id),
+            PgEvent::CreateNameAuthorisation(authorisation.clone()),
+            PgEvent::UpdateNameAuthorisation(authorisation.clone()),
+            PgEvent::DeleteNameAuthorisation(authorisation.id),
+            PgEvent::UpdateListSubmitter(submitter.clone()),
+            PgEvent::CreateSubstituteSubmitter(submitter.clone()),
+            PgEvent::UpdateSubstituteSubmitter(submitter.clone()),
+            PgEvent::DeleteSubstituteSubmitter {
+                substitute_submitter_id: submitter.id,
+            },
+            PgEvent::DeveloperLogin {
+                stream_id: StreamId::new(),
+            },
+            PgEvent::Login,
+            PgEvent::Logout,
+            PgEvent::DownloadFile {
+                file_name: "h1.pdf".to_string(),
+                download_path: "/download/h1".to_string(),
+            },
+            PgEvent::HideDownloadWarning,
+            PgEvent::ExportCsv {
+                file_name: "export.csv".to_string(),
+                file_size: 1,
+                list_id,
+            },
+            PgEvent::ImportCandidates {
+                list_id,
+                file_name: "import.csv".to_string(),
+                file_size: 1,
+                created_persons: vec![],
+                updated_persons: vec![],
+                candidates: vec![],
+            },
+            PgEvent::Import { hash: [0; 32] },
+        ];
+
+        crate::structs::audit_log::assert_covers(EVENT_TYPES_BY_CATEGORY, events);
     }
 
     #[tokio::test]

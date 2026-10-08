@@ -131,7 +131,15 @@ pub(super) fn overview_url_for(
             reference: stream_id.into(),
             list: None,
         },
-        _ => OmissionTarget {
+        OmissionCategory::Appellation => OmissionTarget {
+            stream_id,
+            omission_type: OmissionType::Appellation,
+            reference: stream_id.into(),
+            list: None,
+        },
+        // A candidate list omission without a surviving list has no list
+        // overview to return to; the group overview lists it instead.
+        OmissionCategory::PoliticalGroup | OmissionCategory::CandidateList(_) => OmissionTarget {
             stream_id,
             omission_type: OmissionType::PoliticalGroup,
             reference: stream_id.into(),

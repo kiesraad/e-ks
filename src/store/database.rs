@@ -55,7 +55,18 @@ pub async fn migrate(pool: &sqlx::PgPool) -> Result<(), AppError> {
     }
     .await
     {
-        tracing::warn!("Database migration failed, there might me a concurrent migration: {error}");
+        // Two instances migrating at once can make `CREATE TABLE IF NOT EXISTS`
+        // fail on the catalogue's unique index. That is harmless when the other
+        // instance's DDL went through, so only a schema that is still missing
+        // counts as a failed migration.
+        if verify_schema(pool).await.is_ok() {
+            tracing::warn!(
+                "Database migration failed but the schema is present, \
+                 assuming a concurrent migration: {error}"
+            );
+        } else {
+            return Err(error);
+        }
     }
 
     Ok(())

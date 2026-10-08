@@ -24,11 +24,13 @@ impl AppState {
         &self,
         stream_id: StreamId,
     ) -> Result<Option<crate::ElectionConfig>, AppError> {
+        // A lookup failure must not pass for "no data yet": that would send
+        // a returning user through election selection as if they were new.
         let Some(election) = self
             .existing_elections_for_stream(stream_id)
-            .await
-            .ok()
-            .and_then(|list| list.into_iter().next())
+            .await?
+            .into_iter()
+            .next()
         else {
             return Ok(None);
         };

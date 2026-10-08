@@ -154,7 +154,7 @@ impl CsbAction {
             CsbAction::UpdateCorrection(_) => "update_correction",
             CsbAction::BrpPersonChecked { .. } => "brp_person_checked",
             CsbAction::SetBrpFindingHandled { .. } => "set_brp_finding_handled",
-            CsbAction::SetBrpStatus(_) => "brp_validation",
+            CsbAction::SetBrpStatus(_) => "set_brp_validation_state",
         }
     }
 
@@ -178,7 +178,7 @@ impl CsbAction {
                 trans!("audit_log.event.update_correction", locale)
             }
             CsbAction::BrpPersonChecked { .. } => {
-                trans!("audit_log.event.brp_validation", locale)
+                trans!("audit_log.event.brp_person_checked", locale)
             }
             CsbAction::SetBrpFindingHandled { .. } => {
                 trans!("audit_log.event.set_brp_finding_handled", locale)

@@ -32,6 +32,8 @@ const PER_PAGE: usize = 20;
 /// trans!("audit_log.filter.category.registered_political_group", _)
 /// trans!("audit_log.filter.category.numbering", _)
 /// trans!("audit_log.filter.category.objection", _)
+/// trans!("audit_log.filter.category.hearing_details", _)
+/// trans!("audit_log.filter.category.brp_validation", _)
 ///
 /// Event type option labels (referenced dynamically in the template):
 /// trans!("audit_log.event.paper_correction", _)
@@ -59,7 +61,21 @@ pub const EVENT_TYPES_BY_CATEGORY: &[EventTypeCategory] = &[
     },
     EventTypeCategory {
         key: "omission",
-        event_types: &["create_omission", "update_omission", "delete_omission"],
+        event_types: &[
+            "create_omission",
+            "update_omission",
+            "delete_omission",
+            "set_omission_status",
+            "set_omission_part_status",
+        ],
+    },
+    EventTypeCategory {
+        key: "brp_validation",
+        event_types: &[
+            "brp_person_checked",
+            "set_brp_finding_handled",
+            "set_brp_validation_state",
+        ],
     },
     EventTypeCategory {
         key: "registered_political_group",
@@ -68,6 +84,10 @@ pub const EVENT_TYPES_BY_CATEGORY: &[EventTypeCategory] = &[
             "update_registered_political_group",
             "delete_registered_political_group",
         ],
+    },
+    EventTypeCategory {
+        key: "hearing_details",
+        event_types: &["update_hearing_details"],
     },
     EventTypeCategory {
         key: "numbering",
@@ -79,7 +99,7 @@ pub const EVENT_TYPES_BY_CATEGORY: &[EventTypeCategory] = &[
     },
     EventTypeCategory {
         key: "system",
-        event_types: &["login"],
+        event_types: &["login", "logout"],
     },
 ];
 
@@ -672,5 +692,97 @@ mod tests {
         );
 
         Ok(())
+    }
+
+    /// One event per `CsbMainAction` variant, so the table cannot silently
+    /// miss one.
+    #[test]
+    fn filter_table_covers_every_main_stream_event() {
+        use crate::structs::csb::{
+            HearingDetails, HearingModel, Objection, RegisteredPoliticalGroupId,
+            sample_registered_political_group,
+        };
+
+        let group = sample_registered_political_group("Test Partij", 1234, 2);
+        let objection = Objection::default();
+        let actions = vec![
+            CsbMainAction::Login,
+            CsbMainAction::Logout,
+            CsbMainAction::CreateRegisteredPoliticalGroup(group.clone()),
+            CsbMainAction::UpdateRegisteredPoliticalGroup(group),
+            CsbMainAction::DeleteRegisteredPoliticalGroup(RegisteredPoliticalGroupId::new()),
+            CsbMainAction::UpdateHearingDetails(HearingModel::I1, HearingDetails::default()),
+            CsbMainAction::UpdateListOrder(vec![StreamId::new()]),
+            CsbMainAction::AddObjection(objection.clone()),
+            CsbMainAction::UpdateObjection(objection.clone()),
+            CsbMainAction::DeleteObjection(objection.id),
+        ];
+
+        crate::structs::audit_log::assert_covers(
+            EVENT_TYPES_BY_CATEGORY,
+            actions
+                .into_iter()
+                .map(|action| action.by(CsbUser::new_test())),
+        );
+    }
+
+    /// One event per `CsbAction` variant, so the table cannot silently miss one.
+    #[test]
+    fn filter_table_covers_every_political_group_stream_event() {
+        use crate::{
+            PgEvent, PgStoreData,
+            structs::{
+                brp::{BrpFindingKind, BrpStatus},
+                candidate_lists::CandidateListId,
+                csb::{Correction, OmissionPart, OmissionStatus, sample_omission},
+                persons::PersonId,
+            },
+        };
+
+        let omission = sample_omission(OmissionCategory::PoliticalGroup);
+        let person = PersonId::new();
+        let actions = vec![
+            CsbAction::Import {
+                hash: [0; 32],
+                source_stream_id: StreamId::new(),
+                snapshot: Box::new(PgStoreData::default()),
+            },
+            CsbAction::CreateEmpty,
+            CsbAction::Delete,
+            CsbAction::PaperCorrectedUpdate(Box::new(PgEvent::Login)),
+            CsbAction::SetFinished(true),
+            CsbAction::CreateOmission(omission.clone()),
+            CsbAction::UpdateOmission(omission.clone()),
+            CsbAction::DeleteOmission {
+                omission_id: omission.id,
+            },
+            CsbAction::SetOmissionStatus {
+                omission_id: omission.id,
+                status: OmissionStatus::Recovered,
+            },
+            CsbAction::SetOmissionPartStatus {
+                omission_id: omission.id,
+                part: OmissionPart::CandidateList(CandidateListId::new()),
+                status: OmissionStatus::Recovered,
+            },
+            CsbAction::UpdateCorrection(Correction::Appellation("Test Partij".parse().unwrap())),
+            CsbAction::BrpPersonChecked {
+                person,
+                findings: vec![],
+            },
+            CsbAction::SetBrpFindingHandled {
+                person,
+                finding: BrpFindingKind::LastNameNotAllowed { allowed: vec![] },
+                handled: true,
+            },
+            CsbAction::SetBrpStatus(BrpStatus::NotStarted),
+        ];
+
+        crate::structs::audit_log::assert_covers(
+            EVENT_TYPES_BY_CATEGORY,
+            actions
+                .into_iter()
+                .map(|action| action.by(CsbUser::new_test())),
+        );
     }
 }

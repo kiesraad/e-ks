@@ -9,6 +9,8 @@
 // returned as names in their own right, so a user typing an alias gets an
 // exact match without any special handling here.
 
+import { isNetherlands } from "./country-code";
+
 export default function localitySuggestions() {
   const input = document.getElementById("locality") as HTMLInputElement | null;
   const suggestion = document.getElementById("locality-suggestion");
@@ -36,7 +38,7 @@ export default function localitySuggestions() {
   const countryInput = document.getElementById(
     "country",
   ) as HTMLInputElement | null;
-  const isNl = () => countryInput == null || countryInput.value === "NL";
+  const isNl = () => isNetherlands(countryInput);
 
   // `warn` distinguishes "user is actively typing" (false) from "user has
   // committed by blurring, or the form just loaded with a prefilled value"

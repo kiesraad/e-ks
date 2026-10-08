@@ -1,4 +1,6 @@
 // Enhance country code inputs with flag icons and keyboard navigation.
+import { isNetherlands, normaliseCountryCode } from "./country-code";
+
 const COUNTRY_INPUT_SELECTOR = ".country-input";
 
 // Places of residence in the Caribbean Netherlands: country code NL, but an
@@ -90,8 +92,7 @@ function hideList(list: HTMLElement) {
 function updateVisibility(textInput: HTMLInputElement) {
   const place = getPlaceOfResidenceInput()?.value.trim().toLowerCase();
   const is_nl =
-    textInput.value.toUpperCase() === "NL" &&
-    !(place && CARIBBEAN_NL_PLACES.has(place));
+    isNetherlands(textInput) && !(place && CARIBBEAN_NL_PLACES.has(place));
 
   // toggle elements with class hide-nl
   document.querySelectorAll(".hide-nl").forEach((el) => {
@@ -188,6 +189,10 @@ function initCountryInput(elements: CountryInputElements) {
     textInput.select();
     updateSuggestions();
   });
+
+  // Commit the typed value in its canonical form, so `nl` counts as NL for
+  // the address lookup and locality suggestions listening for `change`.
+  textInput.addEventListener("change", () => normaliseCountryCode(textInput));
 
   textInput.addEventListener("blur", () => {
     setTimeout(() => {

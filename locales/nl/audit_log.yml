@@ -49,7 +49,7 @@ empty: Er zijn nog geen gebeurtenissen vastgelegd die voldoen aan de filter crit
 event:
   add_candidate_to_list: Kandidaat aan lijst toegevoegd
   add_objection: Bezwaar toegevoegd
-  brp_validation: Kandidaat gevalideerd tegen de BRP
+  brp_person_checked: Kandidaat gevalideerd tegen de BRP
   create_candidate_list: Kandidatenlijst aangemaakt
   create_empty: Lege politieke groepering aangemaakt
   create_name_authorisation: Statutaire naam en gemachtigde aangemaakt
@@ -108,9 +108,11 @@ filter:
   all_events: Alle gebeurtenissen
   apply: Filteren
   category:
+    brp_validation: BRP-validatie
     candidate_list: Kandidatenlijst
     correction: Ambtshalve correcties
     delete: Verwijderd
+    hearing_details: Zitting details
     import: Import
     list_submitter: Lijstinleveraar
     name_authorisation: Statutaire naam en gemachtigde

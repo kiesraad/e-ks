@@ -1,4 +1,6 @@
 // Auto-fill address fields using postal code and house number lookups.
+import { isNetherlands } from "./country-code";
+
 export default function addressLookup() {
   const postalCodeInput = document.getElementById(
     "postal_code",
@@ -72,7 +74,7 @@ export default function addressLookup() {
       return;
     }
     // skip lookup if country code input is present and not NL
-    if (countryCodeInput != null && countryCodeInput.value !== "NL") {
+    if (!isNetherlands(countryCodeInput)) {
       return;
     }
 

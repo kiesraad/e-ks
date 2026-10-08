@@ -49,7 +49,7 @@ empty: No events have been recorded yet that meet the filter criteria.
 event:
   add_candidate_to_list: Added candidate to list
   add_objection: Added objection
-  brp_validation: Validated candidate against the BRP
+  brp_person_checked: Validated candidate against the BRP
   create_candidate_list: Created list of candidates
   create_empty: Created empty political group
   create_name_authorisation: Created statutory name and authorised agent
@@ -108,9 +108,11 @@ filter:
   all_events: All events
   apply: Filter
   category:
+    brp_validation: BRP validation
     candidate_list: Candidate list
     correction: Corrections
     delete: Deleted
+    hearing_details: Hearing details
     import: Import
     list_submitter: List submitter
     name_authorisation: Statutory name and authorised agent
