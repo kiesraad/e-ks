@@ -27,10 +27,12 @@
           </div>
         </div>
         <div class="examination-strip">
-          <a href="{{ group.brp_overview_docx_path() }}"
-             class="button secondary icon-download">{{ "csb.finish_examination.download_word"|trans }}</a>
           <a href="{{ group.brp_overview_pdf_path() }}"
              class="button primary icon-download">{{ "csb.finish_examination.download_pdf"|trans }}</a>
+          <a href="{{ group.brp_overview_docx_path() }}"
+             class="button secondary icon-download">{{ "csb.finish_examination.download_word"|trans }}</a>
+          <a href="{{ group.brp_overview_markdown_path() }}"
+             class="button secondary icon-download">{{ "csb.finish_examination.download_markdown"|trans }}</a>
         </div>
       </div>
     {% endif %}

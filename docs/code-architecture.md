@@ -303,10 +303,11 @@ The CSB section has two projections of its own on the shared store machinery
   imports it by hash (the same routine as `import`, into the
   `PreSubmittedToCsb` registry), runs the BRP check, and reads the findings
   per candidate off one page, so the group can fix them before the official
-  submission. That page offers an overview for the group as PDF and Word
+  submission. That page offers an overview for the group as PDF, Word and Markdown
   (`models/brp_overview.rs`): every candidate with BRP findings or with
   warnings from the group's own data entry, with the details the check
-  compares. No omissions, corrections or examination state.
+  compares. The examination's BRP errors page offers the same document for an
+  imported list. No omissions, corrections or examination state.
 - **`examination`**: the examination of the imported lists. An overview
   groups the imported political groups by finished/unfinished; detail pages
   render the imported data read-only; omissions and corrections are recorded

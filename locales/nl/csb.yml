@@ -64,6 +64,8 @@ brp:
     in_progress: "De controle tegen de BRP loopt nog, waardoor nog niet alle kandidaten zijn gecontroleerd."
     interrupted: "De controle tegen de BRP is voortijdig gestopt, waardoor niet alle kandidaten zijn gecontroleerd. Start de controle opnieuw om de rest te controleren."
     not_started: De kandidaten zijn nog niet tegen de BRP gecontroleerd.
+brp_errors:
+  download_title: Dowload BRP fouten
 candidate:
   add_candidate_text: Voeg verzuimen toe voor deze kandidaat
   personal_details: Persoonsgegevens
@@ -96,6 +98,7 @@ finalise:
   position: Positie
   title: Vaststellen kandidatenlijsten
 finish_examination:
+  download_markdown: Download Markdown
   download_note: Download hier alle verzuimbrieven als Word en PDF in één ZIP
   download_pdf: Download PDF
   download_word: Download Word

@@ -48,6 +48,7 @@ use crate::{AppError, utils::no_cache_headers};
 pub const PDF_CONTENT_TYPE: &str = "application/pdf";
 pub const DOCX_CONTENT_TYPE: &str =
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+pub const MARKDOWN_CONTENT_TYPE: &str = "text/markdown; charset=utf-8";
 
 /// A document that renders to a PDF: it can build a [`Textris`] document and
 /// knows its download file name.
@@ -106,6 +107,28 @@ pub trait Pdf: Sized {
             HeaderValue::from_static(DOCX_CONTENT_TYPE),
         )?;
         Ok((headers, self.generate_docx_bytes().await?).into_response())
+    }
+
+    /// [`Self::filename`] with the `.md` extension.
+    fn markdown_filename(&self) -> String {
+        let filename = self.filename();
+        format!("{}.md", filename.strip_suffix(".pdf").unwrap_or(&filename))
+    }
+
+    /// Export the document as GitHub-flavored Markdown. Like the Word export
+    /// this keeps the content and coarse structure, not the PDF's styling.
+    fn generate_markdown(&self) -> Result<String, AppError> {
+        Ok(self.document()?.to_markdown())
+    }
+
+    /// The Markdown export as a download response under
+    /// [`Self::markdown_filename`].
+    fn markdown_response(&self) -> Result<Response, AppError> {
+        let headers = no_cache_headers::generate_attachment_headers(
+            &self.markdown_filename(),
+            HeaderValue::from_static(MARKDOWN_CONTENT_TYPE),
+        )?;
+        Ok((headers, self.generate_markdown()?).into_response())
     }
 }
 
@@ -275,6 +298,32 @@ mod tests {
         assert_eq!(
             brp_overview_example_1().docx_filename(),
             "brp-overzicht-kiesraad-demo-ek27.docx"
+        );
+        assert_eq!(
+            brp_overview_example_1().markdown_filename(),
+            "brp-overzicht-kiesraad-demo-ek27.md"
+        );
+    }
+
+    /// The Markdown export carries the document's content, with its tables
+    /// and lists.
+    #[test]
+    fn brp_overview_exports_as_markdown() {
+        let markdown = brp_overview_example_1().generate_markdown().unwrap();
+
+        assert!(
+            markdown.starts_with("# Overzicht controle voorinlevering"),
+            "{markdown}"
+        );
+        assert!(markdown.contains("| Aanduiding |"), "{markdown}");
+        // Punctuation is escaped, so it renders literally.
+        assert!(
+            markdown.contains("#### Kandidaat nr\\. 1\\: "),
+            "{markdown}"
+        );
+        assert!(
+            markdown.contains("\n- De woonplaats verschilt"),
+            "{markdown}"
         );
     }
 }

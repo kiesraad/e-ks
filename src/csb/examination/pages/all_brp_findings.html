@@ -75,5 +75,22 @@
         <p class="font-italic">{{ "csb.all_findings.none"|trans }}</p>
       {% endif %}
     </div>
+    {% if brp.is_checked() || brp.is_incomplete() %}
+      <div class="examination-panel">
+        <div class="examination-panel-header">
+          <div>
+            <h2 class="h3">{{ "csb.brp_errors.download_title"|trans }}</h2>
+          </div>
+        </div>
+        <div class="examination-strip">
+          <a href="{{ political_group.brp_overview_pdf_path() }}"
+             class="button primary icon-download">{{ "csb.finish_examination.download_pdf"|trans }}</a>
+          <a href="{{ political_group.brp_overview_docx_path() }}"
+             class="button secondary icon-download">{{ "csb.finish_examination.download_word"|trans }}</a>
+          <a href="{{ political_group.brp_overview_markdown_path() }}"
+             class="button secondary icon-download">{{ "csb.finish_examination.download_markdown"|trans }}</a>
+        </div>
+      </div>
+    {% endif %}
   </div>
 {% endblock %}
