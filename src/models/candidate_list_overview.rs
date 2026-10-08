@@ -4,10 +4,14 @@
 
 use textris_pdf::build::Textris;
 
-use super::{Pdf, layout::markdown_document, markdown::filters, markdown::model_template};
+use super::{
+    Pdf,
+    layout::markdown_document,
+    markdown::{filters, model_template},
+};
 use crate::{AppError, ElectoralDistrict};
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct CandidateListOverview {
     pub election_name: String,
     pub election_date: String,
@@ -20,7 +24,7 @@ impl CandidateListOverview {
         &self,
         district_batches: &[Vec<ElectoralDistrict>],
     ) -> Vec<ElectoralDistrict> {
-        district_batches.iter().cloned().flatten().collect()
+        district_batches.iter().flatten().cloned().collect()
     }
 
     fn number_batched_districts(

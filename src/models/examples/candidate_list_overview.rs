@@ -13,7 +13,7 @@ pub fn candidate_list_summary_example_1() -> CandidateListOverview {
             (
                 "Geen Stel Beweging".to_string(),
                 ElectoralDistrict::ek_districts()
-                    .into_iter()
+                    .iter()
                     .map(|&district| vec![district])
                     .collect(),
             ),
