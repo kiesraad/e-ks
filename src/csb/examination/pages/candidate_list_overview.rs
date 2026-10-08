@@ -40,7 +40,7 @@ async fn candidate_list_overview_model<S: AppRequestState>(
     })
 }
 
-/// The publication of the candidate lists, as PDF.
+/// The overview of the candidate lists, as PDF
 pub async fn gen_candidate_list_overview<S: AppRequestState>(
     _: CsbCandidateListOverviewDownloadPath,
     main_store: CsbMainStore,
@@ -52,7 +52,7 @@ pub async fn gen_candidate_list_overview<S: AppRequestState>(
         .await
 }
 
-/// The same publication as [`gen_osv3_2`], exported as a Word document.
+/// The overview of the candidate lists, as Word
 pub async fn gen_candidate_list_overview_docx<S: AppRequestState>(
     _: CsbCandidateListOverviewDocxDownloadPath,
     main_store: CsbMainStore,
