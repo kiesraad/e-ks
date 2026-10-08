@@ -58,7 +58,10 @@ impl CandidateListOverview {
             .collect()
     }
 
-    fn affiliation_type(&self, district_batches: &[Vec<ElectoralDistrict>]) -> AffiliationType {
+    pub(crate) fn affiliation_type(
+        &self,
+        district_batches: &[Vec<ElectoralDistrict>],
+    ) -> AffiliationType {
         if district_batches.len() == 1 {
             if district_batches[0].len() == 1 {
                 AffiliationType::StandAloneList
@@ -71,6 +74,7 @@ impl CandidateListOverview {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
 pub enum AffiliationType {
     /// lijstengroep
     GroupOfLists,
@@ -93,5 +97,103 @@ impl Pdf for CandidateListOverview {
 
     fn filename(&self) -> String {
         "overzicht_kandidatenlijsten.pdf".to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ElectoralDistrict::{Bonaire, Drenthe, Fryslan, Groningen, Overijssel, Utrecht};
+
+    fn overview() -> CandidateListOverview {
+        CandidateListOverview {
+            election_name: String::new(),
+            election_date: String::new(),
+            electoral_districts: vec![],
+            lists: vec![],
+        }
+    }
+
+    #[test]
+    fn affiliation_types() {
+        assert_eq!(
+            overview().affiliation_type(&[vec![Utrecht]]),
+            AffiliationType::StandAloneList
+        );
+
+        assert_eq!(
+            overview().affiliation_type(&[vec![Groningen, Drenthe]]),
+            AffiliationType::SetOfEqualLists
+        );
+
+        assert_eq!(
+            overview().affiliation_type(&[vec![Groningen], vec![Drenthe]]),
+            AffiliationType::GroupOfLists
+        );
+
+        assert_eq!(
+            overview().affiliation_type(&[vec![Groningen, Drenthe], vec![Utrecht]]),
+            AffiliationType::GroupOfLists
+        );
+    }
+
+    #[test]
+    fn active_districts_are_the_districts_of_every_batch() {
+        let active = overview().active_districts(&[vec![Utrecht], vec![Groningen, Drenthe]]);
+
+        assert_eq!(active.len(), 3);
+        for district in [Utrecht, Groningen, Drenthe] {
+            assert!(active.contains(&district));
+        }
+    }
+
+    #[test]
+    fn a_standalone_list_gets_no_stel_number() {
+        assert_eq!(
+            overview().number_batched_districts(&[vec![Utrecht]]),
+            [(None, "7".to_string())]
+        );
+    }
+
+    #[test]
+    fn a_set_of_equal_lists_gets_no_stel_number() {
+        assert_eq!(
+            overview().number_batched_districts(&[vec![Drenthe, Groningen]]),
+            [(None, "1, 3".to_string())]
+        );
+    }
+
+    #[test]
+    fn lists_in_one_district_get_no_stel_number_and_are_skipped_in_the_count() {
+        assert_eq!(
+            overview().number_batched_districts(&[
+                vec![Drenthe, Groningen],
+                vec![Fryslan],
+                vec![Bonaire, Overijssel],
+            ]),
+            [
+                (Some(1), "1, 3".to_string()),
+                (None, "2".to_string()),
+                (Some(2), "4, 13".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn stel_numbers_districts_and_lists_are_sorted() {
+        // Given in reverse; the districts sort numerically (13 after 7) and
+        // the lists on their lowest district.
+        assert_eq!(
+            overview().number_batched_districts(&[
+                vec![Bonaire, Utrecht],
+                vec![Overijssel, Fryslan],
+                vec![Drenthe, Groningen],
+            ]),
+            [
+                (Some(1), "1, 3".to_string()),
+                (Some(2), "2, 4".to_string()),
+                (Some(3), "7, 13".to_string()),
+            ]
+        );
     }
 }

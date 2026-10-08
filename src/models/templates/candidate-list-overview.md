@@ -17,14 +17,14 @@ De voorzitter van het centraal stembureau voor de verkiezing van de leden van **
 {%- endfor %}
 | --- | --- | --- | {% for _ in electoral_districts %} --- | {% endfor %}
 {% for (political_group, district_batches) in lists -%}
-  | {{ loop.index }} | {{ political_group }} |
+  | **{{ loop.index }}** | **{{ political_group }}** |
   {%- match self.affiliation_type(&district_batches) -%}
     {%- when AffiliationType::SetOfEqualLists -%}
-      G
+      *G*
     {%- when AffiliationType::GroupOfLists -%}
-      NG
+      *NG*
     {%- when AffiliationType::StandAloneList -%}
-      OZ
+      *OZ*
   {%- endmatch -%} |
   
   {%- let active_districts = self.active_districts(&district_batches) %}
@@ -41,9 +41,9 @@ De voorzitter van het centraal stembureau voor de verkiezing van de leden van **
 
 Bij het weergeven van de lijsten wordt onderscheid gemaakt tussen de volgende lijsttypes:
 
-- *G*: Lijstengroep (gelijkluidende lijsten)
-- *NG*: Lijstengroep (niet gelijkluidende lijsten)
-- *OZ*: Op zichzelfstaande lijst
+- *G:* Lijstengroep (gelijkluidende lijsten)
+- *NG:* Lijstengroep (niet gelijkluidende lijsten)
+- *OZ:* Op zichzelfstaande lijst
 
 #### Kieskringen
 
@@ -56,9 +56,10 @@ Kieskringen en gemeente of openbaar lichaam waar hoofdstembureau is gevestigd:
 {% for (political_group, district_batches) in lists %}
 #### {{ loop.index }}. {{ political_group }}
 
+{ widths = "auto 1" }
 | Stel | Kieskringen |
 | --- | --- |
 {% for (number, districts) in self.number_batched_districts(&district_batches) -%}
-| {{ number | assigned_or("") }} | {{ districts }} |
+| {% if let Some(number) = number %}**{{ number }}**{% endif %} | **{{ districts }}** |
 {% endfor %}
 {% endfor %}
