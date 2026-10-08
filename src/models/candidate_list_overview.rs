@@ -2,8 +2,6 @@
 //! This model is Dutch-only; the document text lives in the `templates/osv3-4.md`
 //! Markdown template.
 
-use std::collections::BTreeMap;
-
 use textris_pdf::build::Textris;
 
 use super::{Pdf, layout::markdown_document, markdown::filters, markdown::model_template};
@@ -14,22 +12,22 @@ pub struct CandidateListOverview {
     pub election_name: String,
     pub election_date: String,
     pub electoral_districts: Vec<ElectoralDistrict>,
-    pub lists: BTreeMap<String, Vec<Vec<ElectoralDistrict>>>,
+    pub lists: Vec<(String, Vec<Vec<ElectoralDistrict>>)>,
 }
 
 impl CandidateListOverview {
-    fn active_districts(&self, list: &str) -> Vec<ElectoralDistrict> {
-        self.lists.get(list).map_or_default(|batched_districts| {
-            batched_districts.iter().cloned().flatten().collect()
-        })
+    fn active_districts(
+        &self,
+        district_batches: &[Vec<ElectoralDistrict>],
+    ) -> Vec<ElectoralDistrict> {
+        district_batches.iter().cloned().flatten().collect()
     }
 
-    fn batched_districts(&self, list: &str) -> Vec<(Option<usize>, String)> {
-        let Some(batches) = self.lists.get(list) else {
-            return Vec::with_capacity(0);
-        };
-
-        let mut batches: Vec<Vec<_>> = batches
+    fn number_batched_districts(
+        &self,
+        district_batches: &[Vec<ElectoralDistrict>],
+    ) -> Vec<(Option<usize>, String)> {
+        let mut batches: Vec<Vec<_>> = district_batches
             .iter()
             .map(|batch| {
                 let mut numbers: Vec<_> =
@@ -60,20 +58,16 @@ impl CandidateListOverview {
             .collect()
     }
 
-    fn affiliation_type(&self, list: &str) -> Option<AffiliationType> {
-        self.lists.get(list).and_then(|districts| {
-            if districts.len() == 1 {
-                if districts[0].len() == 1 {
-                    Some(AffiliationType::StandAloneList)
-                } else {
-                    Some(AffiliationType::SetOfEqualLists)
-                }
-            } else if districts.len() > 1 {
-                Some(AffiliationType::GroupOfLists)
+    fn affiliation_type(&self, district_batches: &[Vec<ElectoralDistrict>]) -> AffiliationType {
+        if district_batches.len() == 1 {
+            if district_batches[0].len() == 1 {
+                AffiliationType::StandAloneList
             } else {
-                None
+                AffiliationType::SetOfEqualLists
             }
-        })
+        } else {
+            AffiliationType::GroupOfLists
+        }
     }
 }
 

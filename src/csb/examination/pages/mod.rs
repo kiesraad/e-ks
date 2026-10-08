@@ -41,6 +41,8 @@ pub fn router<S: AppRequestState>() -> Router<S> {
         .typed_get(i1::gen_i1_docx::<S>)
         .typed_get(osv3_2::gen_osv3_2::<S>)
         .typed_get(osv3_2::gen_osv3_2_docx::<S>)
+        .typed_get(candidate_list_overview::gen_candidate_list_overview_docx::<S>)
+        .typed_get(candidate_list_overview::gen_candidate_list_overview::<S>)
         .typed_get(omission_letter::overview)
         .typed_get(omission_letter::gen_omission_letter)
         .typed_get(omission_letter::gen_omission_letter_docx)

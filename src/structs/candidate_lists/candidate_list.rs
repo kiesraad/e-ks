@@ -49,6 +49,18 @@ impl CandidateList {
             .iter()
             .all(|district| self.electoral_districts.contains(district))
     }
+
+    pub fn equal_candidates(&self, other: &Self) -> bool {
+        // Early exit
+        if self.candidates.len() != other.candidates.len() {
+            return false;
+        }
+
+        self.candidates
+            .iter()
+            .zip(other.candidates.iter())
+            .all(|(a, b)| a == b)
+    }
 }
 
 #[cfg(test)]

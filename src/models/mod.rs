@@ -152,7 +152,7 @@ mod tests {
             assert_pdf(&example.render().expect("render example"), name);
             rendered += 1;
         }
-        assert_eq!(rendered, 24, "expected to render every example input");
+        assert_eq!(rendered, 25, "expected to render every example input");
     }
 
     /// Every example input also exports as a Word document, which exercises the

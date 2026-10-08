@@ -4,7 +4,7 @@
 //! What the omissions scrap is read from the store's [`Scrapped`] state, so
 //! the models report the same outcome as the recovery pages.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use crate::{
     AppError, CsbStoreData, CsbStream, ElectionConfig, ElectoralDistrict, StreamId,
@@ -293,6 +293,45 @@ pub async fn i4_inputs(
         .collect();
 
     Ok(inputs)
+}
+
+/// The overview of candidate lists, required for the candidate-list-overview
+/// document. Returns Political groups in order of their numbering, along with
+/// their batched districts. Districts are batched in terms of equality of the
+/// candidates on the list in that district.
+pub async fn lists_overview(
+    registry: &StoreRegistry<CsbStoreData>,
+    election: &ElectionConfig,
+    stream_order: &[StreamId],
+) -> Result<Vec<(String, Vec<Vec<ElectoralDistrict>>)>, AppError> {
+    let stores = examined_stores(registry, election).await?;
+    let mut batches = Vec::with_capacity(stream_order.len());
+
+    for stream_id in stream_order {
+        let store = stores
+            .iter()
+            .find(|store| store.stream_id == *stream_id)
+            .ok_or(AppError::Conflict)?;
+
+        let scrapped = store.get_scrapped();
+        let mut list_batches: HashMap<Vec<PersonId>, Vec<ElectoralDistrict>> = HashMap::new();
+        for (district, list) in valid_lists_by_district(store, &scrapped) {
+            let candidates = list
+                .candidates
+                .iter()
+                .copied()
+                .filter(|person| !scrapped.is_candidate_scrapped(list.id, *person))
+                .collect();
+            list_batches.entry(candidates).or_default().push(district);
+        }
+
+        batches.push((
+            store.get_appellation_with_scrapped(WithCorrections::All, &scrapped),
+            list_batches.into_values().collect(),
+        ));
+    }
+
+    Ok(batches)
 }
 
 /// The OSV 3-2 lists: per district, the valid lists in list order, numbered
