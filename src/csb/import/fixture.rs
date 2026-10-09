@@ -88,6 +88,10 @@ const FIXTURE_GROUPS: [FixtureGroup; 6] = [
 /// for the pre-submission check (*voorinlevering*).
 const PRE_SUBMISSION_GROUP: &str = "De Stille Meerderheid";
 
+/// The fixture group whose first list has more candidates than it may; the
+/// lists of every other group are cut to fit.
+const TOO_MANY_CANDIDATES_GROUP: &str = "Beweging Losse Eindjes";
+
 impl FixtureGroup {
     /// The group's registration with the committee, under a stable id.
     fn registered_political_group(&self) -> Option<RegisteredPoliticalGroup> {
@@ -250,8 +254,9 @@ async fn import_fixture_group<S: AppRequestState>(
     let app_store = state
         .store_for_stream(pg_stream_id, election, false)
         .await?;
-    crate::fixtures::load_for_group(&PgStore::own(app_store.clone()), group.political_group())
-        .await?;
+    let pg_store = PgStore::own(app_store.clone());
+    crate::fixtures::load_for_group(&pg_store, group.political_group()).await?;
+    fit_lists_to_maximum(&pg_store, group).await?;
     let events = app_store.data.read().events.clone();
     let snapshot = PgStoreData::snapshot_until(&events, usize::MAX);
 
@@ -268,6 +273,42 @@ async fn import_fixture_group<S: AppRequestState>(
         .await?;
 
     Ok(store)
+}
+
+/// Cut the group's lists to the number of candidates it may have, except the
+/// first list of [`TOO_MANY_CANDIDATES_GROUP`]. The candidates cut are the
+/// last ones the BRP fixture has no findings for, so no finding is lost.
+async fn fit_lists_to_maximum(store: &PgStore, group: &FixtureGroup) -> Result<(), AppError> {
+    let max = group.political_group().get_max_candidates();
+    let findings = crate::fixtures::brp_findings();
+    let lists = in_district_order(store.get_candidate_lists(), &store.election);
+
+    for (index, mut list) in lists.into_iter().enumerate() {
+        if index == 0 && group.appellation == TOO_MANY_CANDIDATES_GROUP {
+            continue;
+        }
+        let surplus = list.candidates.len().saturating_sub(max);
+        if surplus == 0 {
+            continue;
+        }
+        let cut: Vec<PersonId> = list
+            .candidates
+            .iter()
+            .rev()
+            .filter(|person| !findings.contains_key(person))
+            .take(surplus)
+            .copied()
+            .collect();
+        let kept: Vec<PersonId> = list
+            .candidates
+            .iter()
+            .copied()
+            .filter(|person| !cut.contains(person))
+            .collect();
+        list.update_order(store, &kept).await?;
+    }
+
+    Ok(())
 }
 
 /// The BRP check over the whole package as the BRP really answered it, from
@@ -417,8 +458,18 @@ fn fixture_omissions(store: &CsbStream) -> Vec<Omission> {
 /// The candidate lists in district order, so the first list is the one
 /// covering the first district.
 fn fixture_lists(store: &CsbStream) -> Vec<CandidateList> {
-    let districts = store.election.electoral_districts();
-    let mut lists = store.get_candidate_lists(WithCorrections::Paper);
+    in_district_order(
+        store.get_candidate_lists(WithCorrections::Paper),
+        &store.election,
+    )
+}
+
+/// `lists` sorted by the first district each covers.
+fn in_district_order(
+    mut lists: Vec<CandidateList>,
+    election: &ElectionConfig,
+) -> Vec<CandidateList> {
+    let districts = election.electoral_districts();
     lists.sort_by_key(|list| {
         list.electoral_districts
             .first()
@@ -739,6 +790,59 @@ mod tests {
                 );
             }
         }
+
+        Ok(())
+    }
+
+    /// The lists with more candidates than the group may have, as
+    /// `(appellation, districts)`.
+    fn lists_over_maximum(store: &CsbStream) -> Vec<(String, Vec<ElectoralDistrict>)> {
+        let max = store
+            .get_political_group(WithCorrections::None)
+            .get_max_candidates();
+        store
+            .get_candidate_lists(WithCorrections::None)
+            .into_iter()
+            .filter(|list| list.candidates.len() > max)
+            .map(|list| {
+                (
+                    store.get_appellation(WithCorrections::None),
+                    list.electoral_districts.into_iter().collect(),
+                )
+            })
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn one_fixture_list_has_too_many_candidates() -> Result<(), AppError> {
+        let state = fixture_state(ElectionConfig::EK27).await;
+
+        let over: Vec<_> = fixture_stores(&state)
+            .await
+            .iter()
+            .flat_map(lists_over_maximum)
+            .collect();
+        assert_eq!(
+            over,
+            vec![(
+                TOO_MANY_CANDIDATES_GROUP.to_string(),
+                vec![ElectoralDistrict::Groningen]
+            )]
+        );
+
+        for store in pre_submission_stores(&state).await {
+            assert!(lists_over_maximum(&store).is_empty(), "pre-submission");
+        }
+
+        // Cutting the lists lost no BRP finding.
+        let findings = crate::fixtures::brp_findings();
+        let checked = fixture_store_named(&state, group_handled(Handling::WithBrpFindings)).await;
+        let candidates: BTreeSet<PersonId> = checked
+            .get_candidate_lists(WithCorrections::None)
+            .into_iter()
+            .flat_map(|list| list.candidates)
+            .collect();
+        assert!(findings.keys().all(|person| candidates.contains(person)));
 
         Ok(())
     }
