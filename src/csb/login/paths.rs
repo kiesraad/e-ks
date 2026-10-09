@@ -1,20 +1,17 @@
-//! Typed paths for the CSB GitHub login flow.
+//! Typed paths for the CSB security-key login. Both steps are same-origin
+//! (a page and a form post), so one strict Content-Security-Policy covers the
+//! whole flow.
 
 use axum_extra::routing::TypedPath;
 
 use crate::AppError;
 
+/// The login page, which starts the ceremony.
 #[derive(TypedPath)]
 #[typed_path("/csb/login", rejection(AppError))]
 pub struct CsbLoginPath;
 
-/// Starts the OAuth round-trip. A plain link, so the browser navigates to
-/// GitHub without a form submission: `form-action` never enters the picture
-/// and the app keeps one strict Content-Security-Policy for every page.
+/// Receives the signed assertion and establishes the session.
 #[derive(TypedPath)]
-#[typed_path("/csb/login/start", rejection(AppError))]
-pub struct CsbLoginStartPath;
-
-#[derive(TypedPath)]
-#[typed_path("/csb/login/callback", rejection(AppError))]
-pub struct CsbLoginCallbackPath;
+#[typed_path("/csb/login/finish", rejection(AppError))]
+pub struct CsbLoginFinishPath;

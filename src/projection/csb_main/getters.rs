@@ -1,7 +1,7 @@
 //! Read accessors over the CSB main projection.
 
 use crate::{
-    AppError, CsbMainStore, StreamId,
+    AppError, CredentialId, CsbMainStore, StreamId,
     structs::{
         common::Appellation,
         csb::{
@@ -12,6 +12,17 @@ use crate::{
 };
 
 impl CsbMainStore {
+    /// The signature counter the security key reported at its last login, 0
+    /// when it never logged in (the `credentialRecord.signCount` of WebAuthn
+    /// §7.2 step 22).
+    pub fn last_sign_count(&self, credential_id: &CredentialId) -> u32 {
+        self.snapshot()
+            .sign_counts
+            .get(credential_id)
+            .copied()
+            .unwrap_or(0)
+    }
+
     /// The registered political groups in the order their lists are numbered
     /// on votes (Kieswet Art. I 14): most votes first.
     pub fn registered_political_groups(&self) -> Vec<RegisteredPoliticalGroup> {

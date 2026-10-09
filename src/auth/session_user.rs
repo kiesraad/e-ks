@@ -21,8 +21,8 @@ pub enum SessionUser {
         /// Election picked at `/select-election`; `None` until then.
         election: Option<ElectionConfig>,
     },
-    /// A member of the central electoral committee (CSB), logged in via
-    /// GitHub OAuth or the dev login.
+    /// A member of the central electoral committee (CSB), logged in with a
+    /// security key (WebAuthn) or the dev login.
     CentralElectoralCommittee {
         /// The committee member, recorded on every CSB event for the audit log.
         user: CsbUser,

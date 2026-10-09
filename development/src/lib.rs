@@ -12,8 +12,8 @@ use tokio::{
 /// Variables to hand to the development processes, read from `.env` and then
 /// `.env.local` (which wins). Both files are optional. `.env.local` is
 /// gitignored, so it is where credentials that must not be committed belong,
-/// such as the CSB GitHub OAuth ones (`GITHUB_CLIENT_ID`,
-/// `GITHUB_CLIENT_SECRET`, `GITHUB_ALLOWED_USER_IDS`).
+/// such as the CSB security-key ones (`CSB_WEBAUTHN_ORIGIN`,
+/// `CSB_WEBAUTHN_USERS`).
 ///
 /// A variable already set in the caller's own environment is skipped, so
 /// `DEFAULT_ELECTION=PS27:prov1 bin/dev` still wins over the file.

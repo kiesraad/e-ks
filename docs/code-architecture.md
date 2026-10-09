@@ -166,7 +166,7 @@ modules:
 | `src/csb/` | Central voting bureau (CSB) section: import, examination, monitoring, audit log, and its own event stores (see [The CSB section](#the-csb-section-srccsb)). |
 | `src/structs/` | Shared domain model structs (persons, political groups, candidate lists, common value types) used by both `src/pg/` and `src/csb/`. |
 | `src/models/` | The official PDF models (H 1, H 3-1, H 3-2, H 4, H 9, I 1, I 4) rendered with `textris-pdf`, plus the embedded fonts and the JSON example inputs. |
-| `src/auth/` | Authentication: the session model and token handling, session/pending-request storage, id derivation, and the session cookie helpers + `Session` extractor. The session/store middleware and the development login endpoint live in `src/middleware/`. |
+| `src/auth/` | Authentication: how a login is proven and a session established, for both login methods. The session model and token handling, session/pending-request storage, id derivation, the session cookie helpers + `Session` extractor, the CSB identity (`CsbUser`), and the CSB security-key mechanism (`csb_webauthn/`: challenge lifecycle and WebAuthn assertion verification). The login endpoints live with their section (`src/pg/common/pages/auth.rs`, `src/csb/login/`); the session/store middleware, the CSB access guards and the development login endpoint live in `src/app/middleware/`. |
 | `src/core/` | Cross-cutting infrastructure: `Config`, server startup, logging/tracing, election configuration, Askama rendering, CSV, ZIP, locales. |
 | `src/store/` | The generic event store: persistence backends (memory/file/Postgres), at-rest encryption, the event hash chain, and the per-stream `StoreRegistry`. |
 | `src/error/` | `AppError`, the application-wide error type. Its mapping to a response lives in `src/view/`, the page layouts in `src/pg/` and `src/csb/`. |
@@ -598,7 +598,8 @@ Runtime configuration is read from environment variables once at startup into a
 | `ACME_ROOT_CA_PATH` | Optional extra trust root for the ACME directory's own TLS (pebble testing only). |
 | `SERVER_NAME` | Short server identifier shown in the page footer. |
 | `EKS_KEY` | Optional shared secret for the `x-eks-key` request gate. |
-| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` / `GITHUB_ALLOWED_USER_IDS` | Enable the CSB GitHub OAuth login (`/csb/login`): the GitHub OAuth app's credentials and the comma-separated numeric GitHub account ids allowed to log in; all three or none. The client secret is a secret like the master keys. |
+| `CSB_WEBAUTHN_ORIGIN` | Enable the CSB security-key (WebAuthn) login (`/csb/login`): the origin the CSB section is served on, e.g. `https://csb.example.nl` (`http://localhost:3000` in development). Its host is the WebAuthn relying-party id, so keys enrolled for one host only work there. Outside `dev-features` builds it requires `CSB_BIND_ADDRESS` (startup fails without it), so the login is never served on the main listener. |
+| `CSB_WEBAUTHN_USERS` | Comma-separated `username:user-handle:credential-id:public-key` entries (blobs base64url without padding), one per committee member allowed to log in, as printed by `bin/enrol_csb_user` (see [docs/csb-enrolment.md](csb-enrolment.md)). Requires `CSB_WEBAUTHN_ORIGIN`. One malformed entry, a duplicate username, or a key listed for two users refuses the whole configuration. The entries are public keys, not secrets. |
 | `DEFAULT_ELECTION` | Election a login lands on when the flow has no election selection of its own (CSB logins, dev logins): the election code, with the election domain appended after a colon where the type needs one (e.g. `EK27`, `PS27:prov1`). Dev builds default to `EK27`. |
 | `BIND_ADDRESS` | Address the server binds to (also accepted as a CLI argument). |
 | `CSB_BIND_ADDRESS` | Serve the CSB section on a second listener, so it can be published on a domain of its own: a port number (bound on `0.0.0.0`) or an `address:port` with a numeric address. `/csb` is then unreachable on `BIND_ADDRESS`. The second listener serves the whole application, since a committee session correcting paper documents uses the political-group routes as well. It is not behind the `EKS_KEY` gate. |
@@ -625,14 +626,17 @@ For local development, `bin/dev` reads `.env` and then `.env.local` (which
 wins) from the repository root and hands the variables to the processes it
 starts; a variable already set in the surrounding shell is left alone. Both
 files are optional. `.env.local` is gitignored, so it is where the credentials
-that must not be committed belong, in particular the GitHub OAuth ones that
-have no development default:
+that must not be committed belong. The CSB security-key login has no
+development default either; enabling it for `bin/dev` takes:
 
 ```sh
-GITHUB_CLIENT_ID=Ov23li...
-GITHUB_CLIENT_SECRET=...
-GITHUB_ALLOWED_USER_IDS=1234567
+CSB_WEBAUTHN_ORIGIN=http://localhost:3000
+CSB_WEBAUTHN_USERS=alice:Qm1kbm9...:zGJB3Yi...:MFkwEwYH...
 ```
+
+`bin/enrol_csb_user alice localhost` prints the `CSB_WEBAUTHN_USERS` entry
+for a key (see [docs/csb-enrolment.md](csb-enrolment.md));
+`/dev/login?csb=true` remains the way to reach the CSB section without a key.
 
 ### Rate limiting
 
