@@ -36,7 +36,7 @@ async fn candidate_list_overview_model<S: AppRequestState>(
             .format(DEFAULT_DATE_FORMAT)
             .to_string(),
         electoral_districts: election.electoral_districts().to_vec(),
-        lists: lists_overview(registry, &election, &numbering.stream_ids()).await?,
+        groups: lists_overview(registry, &election, &numbering.stream_ids()).await?,
     })
 }
 

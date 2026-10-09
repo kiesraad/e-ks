@@ -21,6 +21,7 @@ pub mod candidate_list_overview;
 pub(crate) mod csb_model_inputs;
 pub(crate) mod documents;
 pub(crate) mod eml;
+pub(crate) mod established_lists;
 pub mod examples;
 mod fonts;
 pub mod h1;

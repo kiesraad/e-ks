@@ -4,12 +4,14 @@
 //! What the omissions scrap is read from the store's [`Scrapped`] state, so
 //! the models report the same outcome as the recovery pages.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 
 use crate::{
     AppError, CsbStoreData, CsbStream, ElectionConfig, ElectoralDistrict, StreamId,
     core::AnyLocale,
     models::{
+        candidate_list_overview::OverviewGroup,
+        established_lists::EstablishedLists,
         i1, i4,
         inputs::{DistrictLists, OmissionGroup, ValidList, ValidListCandidate},
         omission_letter,
@@ -295,43 +297,35 @@ pub async fn i4_inputs(
     Ok(inputs)
 }
 
-/// The overview of candidate lists, required for the candidate-list-overview
-/// document. Returns Political groups in order of their numbering, along with
-/// their batched districts. Districts are batched in terms of equality of the
-/// candidates on the list in that district.
+/// The candidate list overview groups, numbered on their position in
+/// `stream_order`, the list order of the groups. A group without a list with
+/// a remaining candidate is left out.
 pub async fn lists_overview(
     registry: &StoreRegistry<CsbStoreData>,
     election: &ElectionConfig,
     stream_order: &[StreamId],
-) -> Result<Vec<(String, Vec<Vec<ElectoralDistrict>>)>, AppError> {
+) -> Result<Vec<OverviewGroup>, AppError> {
     let stores = examined_stores(registry, election).await?;
-    let mut batches = Vec::with_capacity(stream_order.len());
+    let mut groups = Vec::with_capacity(stream_order.len());
 
-    for stream_id in stream_order {
+    for (number, stream_id) in (1..).zip(stream_order) {
         let store = stores
             .iter()
             .find(|store| store.stream_id == *stream_id)
             .ok_or(AppError::Conflict)?;
 
         let scrapped = store.get_scrapped();
-        let mut list_batches: HashMap<Vec<PersonId>, Vec<ElectoralDistrict>> = HashMap::new();
-        for (district, list) in valid_lists_by_district(store, &scrapped) {
-            let candidates = list
-                .candidates
-                .iter()
-                .copied()
-                .filter(|person| !scrapped.is_candidate_scrapped(list.id, *person))
-                .collect();
-            list_batches.entry(candidates).or_default().push(district);
-        }
-
-        batches.push((
-            store.get_appellation_with_scrapped(WithCorrections::All, &scrapped),
-            list_batches.into_values().collect(),
-        ));
+        let Some(established) = EstablishedLists::new(store, &scrapped)? else {
+            continue;
+        };
+        groups.push(OverviewGroup {
+            number,
+            appellation: store.get_appellation_with_scrapped(WithCorrections::All, &scrapped),
+            sets: established.sets().clone(),
+        });
     }
 
-    Ok(batches)
+    Ok(groups)
 }
 
 /// The OSV 3-2 lists: per district, the valid lists in list order, numbered
@@ -710,7 +704,6 @@ mod tests {
     use crate::{
         AppRequestState, AppState, CsbAction, CsbStore, ElectionConfig, ElectoralDistrict,
         PgStoreData, Province, StreamId,
-        models::candidate_list_overview::{AffiliationType, CandidateListOverview},
         structs::{
             candidate_lists::{CandidateList, CandidateListId},
             common::UtcDateTime,
@@ -721,6 +714,7 @@ mod tests {
         },
         test_utils::{sample_person, sample_person_with},
     };
+    use eml_nl::utils::AffiliationType;
     use std::collections::BTreeSet;
 
     const EK: ElectionConfig = ElectionConfig::EK27;
@@ -1980,23 +1974,45 @@ mod tests {
         (store, lists, persons)
     }
 
-    /// The batches of the single group in `store`, sorted so the order of the
-    /// batches does not matter.
-    async fn overview_batches(state: &AppState, store: &CsbStore) -> Vec<Vec<ElectoralDistrict>> {
+    /// The single group in `store` as the overview shows it, `None` when it is
+    /// left out.
+    async fn overview_group(state: &AppState, store: &CsbStore) -> Option<OverviewGroup> {
         let mut overview = lists_overview(state.csb_store_registry(), &EK, &[store.stream_id])
             .await
             .unwrap();
-        assert_eq!(overview.len(), 1);
-        let (_, mut batches) = overview.remove(0);
-        for batch in &mut batches {
-            batch.sort();
-        }
-        batches.sort();
-        batches
+        assert!(overview.len() <= 1);
+        overview.pop()
     }
 
-    fn affiliation(batches: &[Vec<ElectoralDistrict>]) -> AffiliationType {
-        CandidateListOverview::default().affiliation_type(batches)
+    /// The districts of each set of the single group in `store`.
+    async fn overview_sets(state: &AppState, store: &CsbStore) -> Vec<Vec<ElectoralDistrict>> {
+        overview_group(state, store)
+            .await
+            .unwrap()
+            .sets
+            .iter()
+            .map(|set| {
+                set.contests
+                    .iter()
+                    .map(|contest| {
+                        *EK.electoral_districts()
+                            .iter()
+                            .find(|district| {
+                                district.region_number().to_string() == contest.id.raw()
+                            })
+                            .unwrap()
+                    })
+                    .collect()
+            })
+            .collect()
+    }
+
+    async fn affiliation(state: &AppState, store: &CsbStore) -> AffiliationType {
+        overview_group(state, store)
+            .await
+            .unwrap()
+            .sets
+            .affiliation_type()
     }
 
     async fn scrap_candidate(store: &CsbStore, person: &Person, lists: &[&CandidateList]) {
@@ -2028,7 +2044,7 @@ mod tests {
         .await;
 
         assert_eq!(
-            overview_batches(&state, &store).await,
+            overview_sets(&state, &store).await,
             [vec![Groningen, Drenthe, Bonaire], vec![Utrecht]]
         );
     }
@@ -2046,16 +2062,22 @@ mod tests {
             ],
         )
         .await;
-        let before = overview_batches(&state, &store).await;
+        let before = overview_sets(&state, &store).await;
         assert_eq!(before, [vec![Groningen, Bonaire]]);
-        assert_eq!(affiliation(&before), AffiliationType::SetOfEqualLists);
+        assert_eq!(
+            affiliation(&state, &store).await,
+            AffiliationType::SetOfEqualLists
+        );
 
         // De Boer is scrapped from the Groningen list only.
         scrap_candidate(&store, &persons[1], &[&lists[0]]).await;
 
-        let after = overview_batches(&state, &store).await;
+        let after = overview_sets(&state, &store).await;
         assert_eq!(after, [vec![Groningen], vec![Bonaire]]);
-        assert_eq!(affiliation(&after), AffiliationType::GroupOfLists);
+        assert_eq!(
+            affiliation(&state, &store).await,
+            AffiliationType::GroupOfLists
+        );
     }
 
     #[tokio::test]
@@ -2071,16 +2093,22 @@ mod tests {
             ],
         )
         .await;
-        let before = overview_batches(&state, &store).await;
+        let before = overview_sets(&state, &store).await;
         assert_eq!(before, [vec![Groningen], vec![Bonaire]]);
-        assert_eq!(affiliation(&before), AffiliationType::GroupOfLists);
+        assert_eq!(
+            affiliation(&state, &store).await,
+            AffiliationType::GroupOfLists
+        );
 
         // Without de Boer, the Groningen list equals the Bonaire list.
         scrap_candidate(&store, &persons[1], &[&lists[0]]).await;
 
-        let after = overview_batches(&state, &store).await;
+        let after = overview_sets(&state, &store).await;
         assert_eq!(after, [vec![Groningen, Bonaire]]);
-        assert_eq!(affiliation(&after), AffiliationType::SetOfEqualLists);
+        assert_eq!(
+            affiliation(&state, &store).await,
+            AffiliationType::SetOfEqualLists
+        );
     }
 
     #[tokio::test]
@@ -2099,9 +2127,12 @@ mod tests {
 
         scrap_candidate(&store, &persons[1], &[&lists[0], &lists[1]]).await;
 
-        let batches = overview_batches(&state, &store).await;
+        let batches = overview_sets(&state, &store).await;
         assert_eq!(batches, [vec![Groningen, Bonaire]]);
-        assert_eq!(affiliation(&batches), AffiliationType::SetOfEqualLists);
+        assert_eq!(
+            affiliation(&state, &store).await,
+            AffiliationType::SetOfEqualLists
+        );
     }
 
     #[tokio::test]
@@ -2129,7 +2160,7 @@ mod tests {
         .await;
 
         assert_eq!(
-            overview_batches(&state, &store).await,
+            overview_sets(&state, &store).await,
             [vec![Groningen, Bonaire]]
         );
     }
@@ -2148,7 +2179,7 @@ mod tests {
         )
         .await;
         assert_eq!(
-            affiliation(&overview_batches(&state, &store).await),
+            affiliation(&state, &store).await,
             AffiliationType::GroupOfLists
         );
 
@@ -2160,9 +2191,12 @@ mod tests {
         )
         .await;
 
-        let after = overview_batches(&state, &store).await;
+        let after = overview_sets(&state, &store).await;
         assert_eq!(after, [vec![Groningen]]);
-        assert_eq!(affiliation(&after), AffiliationType::StandAloneList);
+        assert_eq!(
+            affiliation(&state, &store).await,
+            AffiliationType::StandAloneList
+        );
     }
 
     #[tokio::test]
@@ -2176,7 +2210,7 @@ mod tests {
         )
         .await;
         assert_eq!(
-            affiliation(&overview_batches(&state, &store).await),
+            affiliation(&state, &store).await,
             AffiliationType::SetOfEqualLists
         );
 
@@ -2188,13 +2222,16 @@ mod tests {
         )
         .await;
 
-        let after = overview_batches(&state, &store).await;
+        let after = overview_sets(&state, &store).await;
         assert_eq!(after, [vec![Groningen]]);
-        assert_eq!(affiliation(&after), AffiliationType::StandAloneList);
+        assert_eq!(
+            affiliation(&state, &store).await,
+            AffiliationType::StandAloneList
+        );
     }
 
     #[tokio::test]
-    async fn a_group_without_valid_lists_has_no_batches() {
+    async fn a_group_without_valid_lists_is_left_out() {
         let state = AppState::new_for_tests().await;
         let (store, list, _) = seed_group_with_list(&state, "De Ongeldige Partij").await;
         create_omission_with_status(
@@ -2205,7 +2242,99 @@ mod tests {
         )
         .await;
 
-        assert!(overview_batches(&state, &store).await.is_empty());
+        assert!(overview_group(&state, &store).await.is_none());
+    }
+
+    #[tokio::test]
+    async fn a_list_without_remaining_candidates_is_left_out() {
+        use ElectoralDistrict::{Bonaire, Drenthe, Groningen};
+        let state = AppState::new_for_tests().await;
+        let (store, lists, persons) = seed_group_with_lists(
+            &state,
+            "De Uitgedunde Partij",
+            vec![
+                (vec![Groningen], vec![0, 1, 2]),
+                (vec![Drenthe], vec![1]),
+                (vec![Bonaire], vec![2]),
+            ],
+        )
+        .await;
+
+        scrap_candidate(&store, &persons[1], &[&lists[1]]).await;
+        scrap_candidate(&store, &persons[2], &[&lists[2]]).await;
+
+        assert_eq!(overview_sets(&state, &store).await, [vec![Groningen]]);
+        assert_eq!(
+            affiliation(&state, &store).await,
+            AffiliationType::StandAloneList
+        );
+    }
+
+    #[tokio::test]
+    async fn a_group_whose_lists_lost_every_candidate_is_left_out() {
+        use ElectoralDistrict::{Bonaire, Groningen};
+        let state = AppState::new_for_tests().await;
+        let (store, lists, persons) = seed_group_with_lists(
+            &state,
+            "De Lege Partij",
+            vec![(vec![Groningen], vec![0]), (vec![Bonaire], vec![1])],
+        )
+        .await;
+
+        scrap_candidate(&store, &persons[0], &[&lists[0]]).await;
+        scrap_candidate(&store, &persons[1], &[&lists[1]]).await;
+
+        assert!(overview_group(&state, &store).await.is_none());
+    }
+
+    #[tokio::test]
+    async fn a_district_with_several_lists_counts_once() {
+        use ElectoralDistrict::{Drenthe, Utrecht};
+        let state = AppState::new_for_tests().await;
+        let (store, _, _) = seed_group_with_lists(
+            &state,
+            "De Dubbele Partij",
+            vec![
+                (vec![Utrecht], vec![0, 1]),
+                (vec![Utrecht, Drenthe], vec![0, 1]),
+            ],
+        )
+        .await;
+
+        assert_eq!(
+            overview_sets(&state, &store).await,
+            [vec![Drenthe, Utrecht]]
+        );
+        assert_eq!(
+            affiliation(&state, &store).await,
+            AffiliationType::SetOfEqualLists
+        );
+    }
+
+    #[tokio::test]
+    async fn a_left_out_group_keeps_the_numbers_of_the_others() {
+        let state = AppState::new_for_tests().await;
+        let (invalid, list, _) = seed_group_with_list(&state, "De Ongeldige Partij").await;
+        let (valid, _, _) = seed_group_with_list(&state, "De Geldige Partij").await;
+        create_omission_with_status(
+            &invalid,
+            OmissionCategory::CandidateList(vec![list.id]),
+            "Lijstverzuim",
+            OmissionStatus::NotRecovered,
+        )
+        .await;
+
+        let overview = lists_overview(
+            state.csb_store_registry(),
+            &EK,
+            &[invalid.stream_id, valid.stream_id],
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(overview.len(), 1);
+        assert_eq!(overview[0].number, 2);
+        assert_eq!(overview[0].appellation, "De Geldige Partij");
     }
 
     #[tokio::test]
@@ -2222,11 +2351,11 @@ mod tests {
         .await
         .unwrap();
 
-        let appellations: Vec<&str> = overview
+        let groups: Vec<(usize, &str)> = overview
             .iter()
-            .map(|(appellation, _)| appellation.as_str())
+            .map(|group| (group.number, group.appellation.as_str()))
             .collect();
-        assert_eq!(appellations, ["Later Aangemaakt", "Eerst Aangemaakt"]);
+        assert_eq!(groups, [(1, "Later Aangemaakt"), (2, "Eerst Aangemaakt")]);
     }
 
     #[tokio::test]
@@ -2244,7 +2373,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(overview[0].0, "Blanco (Aarts, A.)");
+        assert_eq!(overview[0].appellation, "Blanco (Aarts, A.)");
     }
 
     #[tokio::test]
