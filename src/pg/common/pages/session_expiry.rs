@@ -127,7 +127,7 @@ mod tests {
         // ten minutes idle out of fifteen: about five minutes left
         assert!(expiry.expires_in_secs <= 5 * 60, "{expiry:?}");
         assert!(expiry.expires_in_secs > 5 * 60 - 10, "{expiry:?}");
-        assert_eq!(expiry.warning_lead_secs, 2 * 60);
+        assert_eq!(expiry.warning_lead_secs, 60);
         assert!(expiry.extendable);
         // the stored session is still ten minutes idle
         assert!(stored_expiry(&state, &cookie).await.expires_in_secs <= 5 * 60);

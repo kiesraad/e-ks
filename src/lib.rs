@@ -135,7 +135,7 @@ pub(crate) use core::TlsConfig;
 pub(crate) use core::{
     AnyLocale, ElectionConfig, ElectionType, ElectoralDistrict, GithubLogin, GithubOauthConfig,
     GithubUserId, HtmlTemplate, Locale, LocaleValues, Province, RateLimit, RateLimits, Scope,
-    SessionPageValues, WaterCouncil,
+    WaterCouncil,
     constants::{self, MAX_CANDIDATES},
     http_trace, translate,
 };
@@ -149,7 +149,7 @@ pub(crate) use utils::{
 };
 // Askama resolves custom filters from the enclosing module scope, so template
 // modules do `use crate::filters`.
-pub(crate) use view::{Context, ErrorPage, filters};
+pub(crate) use view::{Context, ErrorPage, SessionPageValues, filters};
 
 #[cfg(test)]
 mod test_support;

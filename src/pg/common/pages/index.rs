@@ -129,7 +129,7 @@ mod tests {
     async fn index_includes_the_session_expiry_warning() {
         let body = render_index(PgStore::new_for_test()).await;
         assert!(body.contains(r#"class="modal session-expiry""#), "{body}");
-        assert!(body.contains(r#"data-warning-lead="120""#), "{body}");
+        assert!(body.contains(r#"data-warning-lead="60""#), "{body}");
         assert!(body.contains(r#"data-status-url="/session""#), "{body}");
         assert!(
             body.contains(r#"data-expired-url="/login?expired=true""#),
