@@ -23,8 +23,8 @@ jobs:
       contents: read
     runs-on: ubuntu-24.04
     outputs:
-      changed: ${{ steps.filter.outputs.changed }}
-      models_changed: ${{ steps.filter-models.outputs.changed }}
+      code_changed: ${{ steps.filter.outputs.code_changed }}
+      models_changed: ${{ steps.filter.outputs.models_changed }}
     steps:
       - &checkout-with-history
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -32,29 +32,36 @@ jobs:
           fetch-depth: '0'
           persist-credentials: false
 
-      - name: Filter changes for non-Markdown files
+      - name: Detect which files changed
         id: filter
         run: |
-          if [[ "${GITHUB_REF_NAME}" == "main" ]] || [[ $(git diff --name-only "origin/${GITHUB_BASE_REF}" HEAD | grep -v "\.md$") ]]  ; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=false" >> "$GITHUB_OUTPUT"
+          if [[ "${GITHUB_REF_NAME}" == "main" ]]; then
+            echo "code_changed=true" >> "$GITHUB_OUTPUT"
+            echo "models_changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
 
-      - name: Filter changes for the PDF models
-        id: filter-models
-        run: |
-          if [[ "${GITHUB_REF_NAME}" == "main" ]] || [[ $(git diff --name-only "origin/${GITHUB_BASE_REF}" HEAD -- src/models Cargo.lock development/src/bin/pdf_diff.rs .github/workflows/build-lint-test.yml .github/scripts/comment-pdf-diff-summary.js) ]]; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
+          changed_files() {
+            git diff --name-only "origin/${GITHUB_BASE_REF}" HEAD -- "$@"
+          }
+
+          if [[ -n $(changed_files . ':(exclude)docs' ':(exclude,glob)*.md' ':(exclude,glob)**/README.md') ]]; then
+            echo "code_changed=true" >> "$GITHUB_OUTPUT"
           else
-            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "code_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [[ -n $(changed_files src/models Cargo.lock development/src/bin/pdf_diff.rs .github/workflows/build-lint-test.yml .github/scripts/comment-pdf-diff-summary.js) ]]; then
+            echo "models_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "models_changed=false" >> "$GITHUB_OUTPUT"
           fi
 
   format:
     name: Rust format
     permissions:
       contents: read
-    if: ${{ needs.changes.outputs.changed == 'true' }}
+    if: ${{ needs.changes.outputs.code_changed == 'true' }}
     needs: changes
     runs-on: ubuntu-24.04
     steps:
@@ -77,7 +84,7 @@ jobs:
     name: Frontend lint
     permissions:
       contents: read
-    if: ${{ needs.changes.outputs.changed == 'true' }}
+    if: ${{ needs.changes.outputs.code_changed == 'true' }}
     needs: changes
     runs-on: ubuntu-24.04
     steps:
@@ -124,7 +131,7 @@ jobs:
     name: Cargo.lock up to date
     permissions:
       contents: read
-    if: ${{ needs.changes.outputs.changed == 'true' }}
+    if: ${{ needs.changes.outputs.code_changed == 'true' }}
     needs: changes
     runs-on: ubuntu-24.04
     steps:
@@ -138,7 +145,7 @@ jobs:
     name: Rust lint & test
     permissions:
       contents: read
-    if: ${{ needs.changes.outputs.changed == 'true' }}
+    if: ${{ needs.changes.outputs.code_changed == 'true' }}
     needs: changes
     runs-on: ubuntu-24.04
     env: &rust-check-env
@@ -182,7 +189,7 @@ jobs:
     name: Rust dylint
     permissions:
       contents: read
-    if: ${{ needs.changes.outputs.changed == 'true' }}
+    if: ${{ needs.changes.outputs.code_changed == 'true' }}
     needs: changes
     runs-on: ubuntu-24.04
     env:
@@ -279,7 +286,7 @@ jobs:
     permissions:
       contents: read
     environment: development
-    if: ${{ needs.changes.outputs.changed == 'true' }}
+    if: ${{ needs.changes.outputs.code_changed == 'true' }}
     needs: changes
     runs-on: ubuntu-24.04
     env: *rust-check-env
@@ -325,7 +332,7 @@ jobs:
     name: Playwright tests
     permissions:
       contents: read
-    if: ${{ needs.changes.outputs.changed == 'true' }}
+    if: ${{ needs.changes.outputs.code_changed == 'true' }}
     needs: changes
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -363,7 +370,7 @@ jobs:
     name: Audit dependencies
     permissions:
       contents: read
-    if: ${{ needs.changes.outputs.changed == 'true' }}
+    if: ${{ needs.changes.outputs.code_changed == 'true' }}
     needs: changes
     runs-on: ubuntu-24.04
     steps:
