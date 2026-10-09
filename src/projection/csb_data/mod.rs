@@ -957,7 +957,7 @@ mod brp_reset_tests {
             .update(CsbAction::SetBrpStatus(BrpStatus::Finished))
             .await
             .unwrap();
-        assert!(store.is_brp_checked(person.id));
+        assert!(store.snapshot().is_brp_checked(person.id));
         store
     }
 
@@ -976,11 +976,11 @@ mod brp_reset_tests {
             .unwrap();
 
         assert!(
-            !store.is_brp_checked(person_id),
+            !store.snapshot().is_brp_checked(person_id),
             "the findings are about values that are no longer on screen"
         );
         // The sweep still ran to completion; it is the candidate that changed.
-        assert_eq!(store.get_brp_status(), BrpStatus::Finished);
+        assert_eq!(store.snapshot().brp_status().clone(), BrpStatus::Finished);
     }
 
     #[tokio::test]
@@ -997,7 +997,7 @@ mod brp_reset_tests {
             .await
             .unwrap();
 
-        assert!(!store.is_brp_checked(person_id));
+        assert!(!store.snapshot().is_brp_checked(person_id));
     }
 
     #[tokio::test]
@@ -1021,7 +1021,7 @@ mod brp_reset_tests {
             .await
             .unwrap();
 
-        assert!(!store.is_brp_checked(person_id));
+        assert!(!store.snapshot().is_brp_checked(person_id));
     }
 
     #[tokio::test]
@@ -1048,7 +1048,7 @@ mod brp_reset_tests {
             .await
             .unwrap();
 
-        assert!(store.is_brp_checked(person_id));
+        assert!(store.snapshot().is_brp_checked(person_id));
     }
 
     #[tokio::test]
@@ -1066,8 +1066,8 @@ mod brp_reset_tests {
             .await
             .unwrap();
 
-        assert!(!store.is_brp_checked(person_id));
-        assert_eq!(store.get_brp_status(), BrpStatus::NotStarted);
+        assert!(!store.snapshot().is_brp_checked(person_id));
+        assert_eq!(store.snapshot().brp_status().clone(), BrpStatus::NotStarted);
     }
 
     #[tokio::test]
@@ -1097,7 +1097,9 @@ mod brp_reset_tests {
             .unwrap();
 
         let handled: Vec<bool> = store
-            .get_brp_findings_for_person(person_id)
+            .snapshot()
+            .brp_findings_for_person(person_id)
+            .to_vec()
             .iter()
             .map(|finding| finding.handled)
             .collect();
@@ -1113,7 +1115,9 @@ mod brp_reset_tests {
             .unwrap();
         assert!(
             store
-                .get_brp_findings_for_person(person_id)
+                .snapshot()
+                .brp_findings_for_person(person_id)
+                .to_vec()
                 .iter()
                 .all(|finding| !finding.handled)
         );
@@ -1133,6 +1137,6 @@ mod brp_reset_tests {
             .await
             .unwrap();
 
-        assert!(!store.is_brp_checked(person_id));
+        assert!(!store.snapshot().is_brp_checked(person_id));
     }
 }

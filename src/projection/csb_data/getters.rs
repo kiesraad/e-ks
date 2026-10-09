@@ -4,24 +4,21 @@
 //! [`CsbStream`] are the older per-call wrappers that clone out of one and are
 //! being phased out.
 
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 use super::{CsbStoreData, Scrapped};
 use crate::{
-    AppError, CsbStream, ElectionConfig, ElectoralDistrict, Locale, OrNotFound, PgStoreData,
+    AppError, ElectionConfig, ElectoralDistrict, Locale,
     structs::{
         brp::{BrpFinding, BrpStatus},
-        candidate_lists::{CandidateList, CandidateListId},
+        candidate_lists::CandidateListId,
         common::{Appellation, FullName},
         csb::{
             Omission, OmissionCategory, OmissionId, OmissionTitle, PersonCorrectionDelta,
             RecoveryProgress,
         },
         list_designation::ListDesignation,
-        list_submitters::ListSubmitter,
-        name_authorisations::NameAuthorisation,
-        persons::{Person, PersonId},
-        political_groups::PoliticalGroup,
+        persons::PersonId,
         problems::AllProblems,
     },
     trans,
@@ -394,252 +391,6 @@ impl CsbStoreData {
     }
 }
 
-impl CsbStream {
-    /// The political group's data with the given corrections applied.
-    pub fn read(&self, corrections: WithCorrections) -> Arc<PgStoreData> {
-        Arc::clone(self.snapshot().shared_view(corrections))
-    }
-
-    pub fn is_examination_finished(&self) -> bool {
-        self.snapshot().is_examination_finished()
-    }
-
-    pub fn is_deleted(&self) -> bool {
-        self.snapshot().is_deleted()
-    }
-
-    pub fn has_paper_corrections(&self) -> bool {
-        self.snapshot().has_paper_corrections()
-    }
-
-    pub fn get_omission(&self, omission_id: OmissionId) -> Result<Omission, AppError> {
-        self.snapshot()
-            .omission(omission_id)
-            .cloned()
-            .or_not_found()
-    }
-
-    pub fn get_omission_count(&self) -> usize {
-        self.snapshot().omission_count()
-    }
-
-    pub fn get_correction_count(&self) -> usize {
-        self.snapshot().correction_count()
-    }
-
-    pub fn get_restoration_count(&self) -> usize {
-        self.snapshot().restoration_count()
-    }
-
-    pub fn get_recovery_progress(&self) -> RecoveryProgress {
-        self.snapshot().recovery_progress(self.election)
-    }
-
-    pub fn get_scrapped(&self) -> Scrapped {
-        self.snapshot().scrapped().clone()
-    }
-
-    pub fn get_scrapped_districts(&self) -> Vec<ElectoralDistrict> {
-        self.snapshot().scrapped_districts(self.election)
-    }
-
-    pub fn get_recovery_position(
-        &self,
-        list_id: CandidateListId,
-        person_id: PersonId,
-    ) -> Option<usize> {
-        self.snapshot().recovery_position(list_id, person_id)
-    }
-
-    pub fn get_omissions(&self) -> Vec<Omission> {
-        self.snapshot().omissions().cloned().collect()
-    }
-
-    pub fn get_political_group_omissions(&self) -> Vec<Omission> {
-        cloned(self.snapshot().political_group_omissions())
-    }
-
-    pub fn get_appellation_omissions(&self) -> Vec<Omission> {
-        cloned(self.snapshot().appellation_omissions())
-    }
-
-    pub fn get_political_group_csb_corrections_count(&self) -> usize {
-        self.snapshot().political_group_csb_corrections_count()
-    }
-
-    pub fn get_candidate_omissions(&self, person_id: PersonId) -> Vec<Omission> {
-        cloned(
-            self.snapshot()
-                .candidate_omissions(self.election, person_id),
-        )
-    }
-
-    pub fn has_candidate_omissions(&self, person_id: PersonId, list_id: CandidateListId) -> bool {
-        self.snapshot().has_candidate_omissions(person_id, list_id)
-    }
-
-    pub fn has_candidate_csb_corrections(&self, person_id: PersonId) -> bool {
-        self.snapshot().has_candidate_csb_corrections(person_id)
-    }
-
-    pub fn get_candidate_list_omissions(
-        &self,
-        list_id: CandidateListId,
-    ) -> Result<Vec<Omission>, AppError> {
-        self.snapshot()
-            .candidate_list_omissions(self.election, list_id)
-            .map(cloned)
-            .or_not_found()
-    }
-
-    pub fn has_candidate_list_omissions(&self, list_id: CandidateListId) -> Result<bool, AppError> {
-        self.snapshot()
-            .has_candidate_list_omissions(list_id)
-            .or_not_found()
-    }
-
-    pub fn has_candidate_list_csb_corrections(
-        &self,
-        list_id: CandidateListId,
-    ) -> Result<bool, AppError> {
-        self.snapshot()
-            .has_candidate_list_csb_corrections(list_id)
-            .or_not_found()
-    }
-
-    pub fn get_all_declarations_of_support_omissions(&self) -> Vec<Omission> {
-        cloned(
-            self.snapshot()
-                .declarations_of_support_omissions(self.election),
-        )
-    }
-
-    pub fn get_political_group(&self, corrections: WithCorrections) -> PoliticalGroup {
-        self.read(corrections).political_group().clone()
-    }
-
-    pub fn get_candidate_lists(&self, corrections: WithCorrections) -> Vec<CandidateList> {
-        cloned(self.read(corrections).candidate_lists())
-    }
-
-    pub fn get_candidate_lists_in_page_order(
-        &self,
-        corrections: WithCorrections,
-    ) -> Vec<CandidateList> {
-        cloned(self.read(corrections).candidate_lists_in_page_order())
-    }
-
-    pub fn get_candidate_list(
-        &self,
-        list_id: CandidateListId,
-        corrections: WithCorrections,
-    ) -> Option<CandidateList> {
-        self.read(corrections).candidate_list(list_id).cloned()
-    }
-
-    pub fn get_person(&self, person_id: PersonId, corrections: WithCorrections) -> Option<Person> {
-        self.read(corrections).person(person_id).cloned()
-    }
-
-    pub fn get_first_list(&self, person_id: PersonId) -> Option<CandidateList> {
-        self.read(WithCorrections::All)
-            .first_list(person_id)
-            .cloned()
-    }
-
-    pub fn get_all_csb_corrected_persons(&self) -> Vec<PersonId> {
-        self.snapshot().csb_corrected_persons().collect()
-    }
-
-    pub fn get_first_candidate_name(
-        &self,
-        corrections: WithCorrections,
-        scrapped: Option<&Scrapped>,
-    ) -> Option<FullName> {
-        self.snapshot()
-            .first_candidate_name(corrections, scrapped)
-            .cloned()
-    }
-
-    pub fn get_appellation(&self, corrections: WithCorrections) -> String {
-        self.snapshot().appellation(corrections)
-    }
-
-    pub fn get_appellation_with_scrapped(
-        &self,
-        corrections: WithCorrections,
-        scrapped: &Scrapped,
-    ) -> String {
-        self.snapshot()
-            .appellation_with_scrapped(corrections, scrapped)
-    }
-
-    pub fn get_appellation_with_deleted_label(
-        &self,
-        corrections: WithCorrections,
-        locale: Locale,
-    ) -> String {
-        self.snapshot()
-            .appellation_with_deleted_label(corrections, locale)
-    }
-
-    pub fn get_candidate_position(
-        &self,
-        list_id: CandidateListId,
-        person_id: PersonId,
-        corrections: WithCorrections,
-    ) -> Option<usize> {
-        self.read(corrections)
-            .candidate_position(list_id, person_id)
-    }
-
-    pub fn get_list_submitter(&self, corrections: WithCorrections) -> ListSubmitter {
-        self.read(corrections).list_submitter().clone()
-    }
-
-    pub fn get_substitute_submitters(&self, corrections: WithCorrections) -> Vec<ListSubmitter> {
-        self.read(corrections).substitute_submitters().to_vec()
-    }
-
-    pub fn get_name_authorisations(&self, corrections: WithCorrections) -> Vec<NameAuthorisation> {
-        cloned(self.read(corrections).name_authorisations())
-    }
-
-    pub fn get_persons(&self, corrections: WithCorrections) -> Vec<Person> {
-        self.read(corrections).persons().cloned().collect()
-    }
-
-    pub fn get_brp_findings(&self) -> HashMap<PersonId, Vec<BrpFinding>> {
-        self.snapshot().brp_findings().clone()
-    }
-
-    pub fn get_brp_findings_for_person(&self, person_id: PersonId) -> Vec<BrpFinding> {
-        self.snapshot().brp_findings_for_person(person_id).to_vec()
-    }
-
-    pub fn is_brp_checked(&self, person_id: PersonId) -> bool {
-        self.snapshot().is_brp_checked(person_id)
-    }
-
-    pub fn get_brp_status(&self) -> BrpStatus {
-        self.snapshot().brp_status().clone()
-    }
-
-    #[cfg(test)]
-    pub fn get_omission_for_test(&self) -> Omission {
-        self.snapshot().omission_for_test().clone()
-    }
-
-    /// Collect all problems, excluding info problems
-    pub fn get_all_problems(&self, election: ElectionConfig) -> Result<AllProblems, AppError> {
-        self.snapshot().all_problems(election)
-    }
-}
-
-fn cloned<T: Clone>(items: Vec<&T>) -> Vec<T> {
-    items.into_iter().cloned().collect()
-}
-
 #[cfg(test)]
 mod tests {
     use std::collections::{BTreeMap, BTreeSet};
@@ -656,6 +407,8 @@ mod tests {
                 Correction, OmissionCategory, OmissionStatus, PersonCorrection, sample_omission,
             },
             list_designation::ListDesignation,
+            persons::Person,
+            political_groups::PoliticalGroup,
         },
         test_utils::{sample_candidate_list, sample_person, sample_person_with},
     };

@@ -399,7 +399,11 @@ mod tests {
         let csb_store = state
             .csb_store_for_stream(import_stream_id, ElectionConfig::EK27)
             .await?;
-        let mut pg = csb_store.get_political_group(WithCorrections::All);
+        let mut pg = csb_store
+            .snapshot()
+            .view(WithCorrections::All)
+            .political_group()
+            .clone();
         pg.appellation = Appellation::from_str("Test Partij").ok();
         csb_store.set_political_group(pg);
         csb_store

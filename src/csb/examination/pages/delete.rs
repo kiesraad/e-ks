@@ -65,7 +65,11 @@ mod tests {
         let store = CsbStore::new_for_test();
         let context = CsbContext::new_test();
 
-        let mut pg = store.get_political_group(WithCorrections::All);
+        let mut pg = store
+            .snapshot()
+            .view(WithCorrections::All)
+            .political_group()
+            .clone();
         pg.appellation = Appellation::from_str("Test Partij").ok();
         store.set_political_group(pg);
 

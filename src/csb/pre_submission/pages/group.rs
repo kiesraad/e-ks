@@ -267,7 +267,7 @@ mod tests {
         assert!(location.starts_with(&format!("/csb/pre-submission/{stream_id}")));
         assert!(brp_sweep_running(stream_id));
         assert!(matches!(
-            store.get_brp_status(),
+            store.snapshot().brp_status().clone(),
             BrpStatus::InProgress { .. }
         ));
     }

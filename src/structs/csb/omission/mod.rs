@@ -652,7 +652,11 @@ pub mod tests {
 
         omission.create(&store).await?;
 
-        let loaded = store.get_omission(omission.id)?;
+        let loaded = store
+            .snapshot()
+            .omission(omission.id)
+            .cloned()
+            .ok_or(crate::AppError::GenericNotFound)?;
         assert_eq!(loaded.id, omission.id);
         assert_eq!(loaded.description.to_string(), "test description");
 
@@ -669,7 +673,11 @@ pub mod tests {
         omission.description = "Updated description".parse().unwrap();
         omission.update(&store).await?;
 
-        let updated = store.get_omission(omission.id)?;
+        let updated = store
+            .snapshot()
+            .omission(omission.id)
+            .cloned()
+            .ok_or(crate::AppError::GenericNotFound)?;
         assert_eq!(updated.description.to_string(), "Updated description");
 
         Ok(())
@@ -685,7 +693,11 @@ pub mod tests {
             .set_status(&store, OmissionStatus::Recovered)
             .await?;
 
-        let updated = store.get_omission(omission.id)?;
+        let updated = store
+            .snapshot()
+            .omission(omission.id)
+            .cloned()
+            .ok_or(crate::AppError::GenericNotFound)?;
         assert_eq!(updated.status, OmissionStatus::Recovered);
         assert!(!updated.is_pending());
         assert!(!updated.is_unresolved());
@@ -693,7 +705,14 @@ pub mod tests {
         omission
             .set_status(&store, OmissionStatus::NotRecovered)
             .await?;
-        assert!(store.get_omission(omission.id)?.is_unresolved());
+        assert!(
+            store
+                .snapshot()
+                .omission(omission.id)
+                .cloned()
+                .ok_or(crate::AppError::GenericNotFound)?
+                .is_unresolved()
+        );
 
         Ok(())
     }
@@ -717,7 +736,12 @@ pub mod tests {
                 .is_err()
         );
         assert_eq!(
-            store.get_omission(omission.id)?.status,
+            store
+                .snapshot()
+                .omission(omission.id)
+                .cloned()
+                .ok_or(crate::AppError::GenericNotFound)?
+                .status,
             OmissionStatus::Pending
         );
 
@@ -732,7 +756,11 @@ pub mod tests {
         omission.create(&store).await?;
         omission.delete(&store).await?;
 
-        let missing = store.get_omission(omission.id);
+        let missing = store
+            .snapshot()
+            .omission(omission.id)
+            .cloned()
+            .ok_or(crate::AppError::GenericNotFound);
         assert!(missing.is_err());
 
         Ok(())

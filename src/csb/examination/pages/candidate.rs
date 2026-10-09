@@ -386,9 +386,9 @@ mod tests {
             "{:?}",
             response.status()
         );
-        assert!(store.is_brp_checked(person_id));
+        assert!(store.snapshot().is_brp_checked(person_id));
         assert_eq!(
-            store.get_brp_findings_for_person(person_id),
+            store.snapshot().brp_findings_for_person(person_id).to_vec(),
             vec![
                 crate::structs::brp::BrpFindingKind::Mismatch {
                     brp_value: crate::structs::brp::BrpValue::PlaceOfResidence(
@@ -912,7 +912,7 @@ mod tests {
             )),
             "{location}"
         );
-        let findings = store.get_brp_findings_for_person(person_id);
+        let findings = store.snapshot().brp_findings_for_person(person_id).to_vec();
         assert!(!findings[0].handled);
         assert!(findings[1].handled);
 

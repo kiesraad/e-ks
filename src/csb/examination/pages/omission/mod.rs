@@ -526,7 +526,7 @@ mod tests {
         )
         .await;
         assert!(matches!(result, Err(AppError::GenericNotFound)));
-        assert_eq!(store.get_omission_count(), 0);
+        assert_eq!(store.snapshot().omission_count(), 0);
     }
 
     #[tokio::test]
@@ -793,7 +793,17 @@ mod tests {
         );
         omission.create(&store).await.unwrap();
         let omission_id = omission.id;
-        assert_eq!(store.get_candidate_list_omissions(list).unwrap().len(), 1);
+        assert_eq!(
+            store
+                .snapshot()
+                .candidate_list_omissions(store.election, list)
+                .unwrap()
+                .into_iter()
+                .cloned()
+                .collect::<Vec<_>>()
+                .len(),
+            1
+        );
 
         let response =
             submit_delete_omission(store.clone(), omission_id, QueryParamState::default(), None)
@@ -801,7 +811,16 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
         // The omission is gone...
-        assert!(store.get_candidate_list_omissions(list).unwrap().is_empty());
+        assert!(
+            store
+                .snapshot()
+                .candidate_list_omissions(store.election, list)
+                .unwrap()
+                .into_iter()
+                .cloned()
+                .collect::<Vec<_>>()
+                .is_empty()
+        );
         // ...and we return to the overview it was listed on, without replaying
         // the overlay open animation
         let location = location(&response);
@@ -875,7 +894,15 @@ mod tests {
         .await;
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
-        assert!(store.get_political_group_omissions().is_empty());
+        assert!(
+            store
+                .snapshot()
+                .political_group_omissions()
+                .into_iter()
+                .cloned()
+                .collect::<Vec<_>>()
+                .is_empty()
+        );
         let location = location(&response);
         assert!(location.contains("redirect_to=%2Fback%2Fhere"));
         assert!(location.contains("overlay=true"));
@@ -910,7 +937,7 @@ mod tests {
         let location = location(&response);
         assert!(location.contains(&format!("/list/{list}")));
 
-        let omission = store.get_omission_for_test();
+        let omission = store.snapshot().omission_for_test().clone();
         assert_eq!(omission.title.to_string(), "Waarborgsom ontbreekt");
         assert_eq!(
             omission.description.to_string(),
@@ -937,7 +964,15 @@ mod tests {
         .await;
 
         assert_eq!(response.status(), StatusCode::OK);
-        assert!(store.get_political_group_omissions().is_empty());
+        assert!(
+            store
+                .snapshot()
+                .political_group_omissions()
+                .into_iter()
+                .cloned()
+                .collect::<Vec<_>>()
+                .is_empty()
+        );
     }
 
     #[tokio::test]
@@ -954,7 +989,16 @@ mod tests {
         )
         .await;
 
-        assert_eq!(store.get_political_group_omissions().len(), 1);
+        assert_eq!(
+            store
+                .snapshot()
+                .political_group_omissions()
+                .into_iter()
+                .cloned()
+                .collect::<Vec<_>>()
+                .len(),
+            1
+        );
     }
 
     #[tokio::test]
@@ -975,7 +1019,7 @@ mod tests {
         )
         .await;
 
-        let omission = store.get_omission_for_test();
+        let omission = store.snapshot().omission_for_test().clone();
         assert!(!omission.recoverable);
     }
 
@@ -997,7 +1041,15 @@ mod tests {
         .await;
 
         assert_eq!(response.status(), StatusCode::OK);
-        assert!(store.get_political_group_omissions().is_empty());
+        assert!(
+            store
+                .snapshot()
+                .political_group_omissions()
+                .into_iter()
+                .cloned()
+                .collect::<Vec<_>>()
+                .is_empty()
+        );
     }
 
     #[tokio::test]
@@ -1134,7 +1186,7 @@ mod tests {
         let location = location(&response);
         assert!(location.contains(&format!("/list/{list_id}/candidate/{person_id}")));
 
-        let omission = store.get_omission_for_test();
+        let omission = store.snapshot().omission_for_test().clone();
         assert!(matches!(
             omission.category,
             OmissionCategory::Candidate { person, ref lists }
@@ -1167,7 +1219,7 @@ mod tests {
         .await;
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
-        let omission = store.get_omission_for_test();
+        let omission = store.snapshot().omission_for_test().clone();
         let OmissionCategory::Candidate { person, ref lists } = omission.category else {
             panic!("Should be a candidate omission")
         };
