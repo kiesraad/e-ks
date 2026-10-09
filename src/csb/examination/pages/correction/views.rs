@@ -315,10 +315,13 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
         assert_eq!(
-            store.get_appellation(WithCorrections::Paper),
+            store.snapshot().appellation(WithCorrections::Paper),
             "Kiesraad Demo"
         );
-        assert_eq!(store.get_appellation(WithCorrections::All), "Nieuwe Naam");
+        assert_eq!(
+            store.snapshot().appellation(WithCorrections::All),
+            "Nieuwe Naam"
+        );
     }
 
     #[tokio::test]
@@ -341,7 +344,10 @@ mod tests {
         .into_response();
 
         assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(store.get_appellation(WithCorrections::All), "Kiesraad Demo");
+        assert_eq!(
+            store.snapshot().appellation(WithCorrections::All),
+            "Kiesraad Demo"
+        );
     }
 
     #[tokio::test]
@@ -409,7 +415,12 @@ mod tests {
         .into_response();
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
-        let corrected = store.get_person(person_id, WithCorrections::All).unwrap();
+        let corrected = store
+            .snapshot()
+            .view(WithCorrections::All)
+            .person(person_id)
+            .cloned()
+            .unwrap();
         assert_eq!(
             corrected.name.initials.as_ref().map(ToString::to_string),
             Some("X.Y.Z.".to_string())
@@ -446,8 +457,16 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
-            store.get_person(person_id, WithCorrections::All),
-            store.get_person(person_id, WithCorrections::None)
+            store
+                .snapshot()
+                .view(WithCorrections::All)
+                .person(person_id)
+                .cloned(),
+            store
+                .snapshot()
+                .view(WithCorrections::None)
+                .person(person_id)
+                .cloned()
         );
     }
 }

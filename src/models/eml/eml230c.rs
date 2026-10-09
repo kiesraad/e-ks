@@ -271,7 +271,12 @@ mod tests {
         });
         for (districts, candidates) in lists {
             for person in &candidates {
-                if store.get_person(person.id, WithCorrections::All).is_none() {
+                if store
+                    .snapshot()
+                    .view(WithCorrections::All)
+                    .person(person.id)
+                    .is_none()
+                {
                     store.add_person(person.clone());
                 }
             }

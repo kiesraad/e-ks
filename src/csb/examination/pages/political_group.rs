@@ -398,7 +398,7 @@ mod tests {
         );
         assert!(brp_sweep_running(stream_id));
         assert!(matches!(
-            store.get_brp_status(),
+            store.snapshot().brp_status().clone(),
             BrpStatus::InProgress { .. }
         ));
     }
@@ -810,7 +810,7 @@ mod tests {
         let stream_id = store.stream_id;
 
         // default unfinished => false
-        assert!(!store.is_examination_finished());
+        assert!(!store.snapshot().is_examination_finished());
 
         toggle_examination_finish(
             CsbPoliticalGroupToggleFinishPath { stream_id },
@@ -821,7 +821,7 @@ mod tests {
         .unwrap();
 
         // toggle once => true
-        assert!(store.is_examination_finished());
+        assert!(store.snapshot().is_examination_finished());
 
         toggle_examination_finish(
             CsbPoliticalGroupToggleFinishPath { stream_id },
@@ -832,7 +832,7 @@ mod tests {
         .unwrap();
 
         // toggle twice => false
-        assert!(!store.is_examination_finished());
+        assert!(!store.snapshot().is_examination_finished());
     }
 
     #[tokio::test]

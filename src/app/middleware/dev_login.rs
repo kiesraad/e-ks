@@ -554,7 +554,9 @@ mod tests {
         let csb_store = csb_stores
             .iter()
             .find(|store| {
-                store.get_appellation(crate::projection::WithCorrections::None)
+                store
+                    .snapshot()
+                    .appellation(crate::projection::WithCorrections::None)
                     == "Beweging Losse Eindjes"
             })
             .expect("the fixture group with omissions");

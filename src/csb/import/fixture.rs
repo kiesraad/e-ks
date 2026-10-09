@@ -590,7 +590,10 @@ fn candidate_tokens(
         (
             "{candidate_name}",
             store
-                .get_person(person, WithCorrections::Paper)
+                .snapshot()
+                .view(WithCorrections::Paper)
+                .person(person)
+                .cloned()
                 .map(|person| person.name.display())
                 .unwrap_or_default(),
         ),
@@ -684,7 +687,7 @@ mod tests {
         fixture_stores(state)
             .await
             .into_iter()
-            .find(|store| store.get_appellation(WithCorrections::None) == appellation)
+            .find(|store| store.snapshot().appellation(WithCorrections::None) == appellation)
             .unwrap_or_else(|| panic!("no fixture import named {appellation:?}"))
     }
 
@@ -761,15 +764,24 @@ mod tests {
         let checked = group_handled(Handling::WithBrpFindings);
         let store = fixture_store_named(&state, checked).await;
 
-        assert!(matches!(store.get_brp_status(), BrpStatus::Finished));
+        assert!(matches!(
+            store.snapshot().brp_status().clone(),
+            BrpStatus::Finished
+        ));
 
         // Nothing was recorded that the BRP did not return, and every
         // candidate was checked, findings or not.
         let generated = crate::fixtures::brp_findings();
-        let recorded = store.get_brp_findings();
+        let recorded = store.snapshot().brp_findings().clone();
         assert_eq!(
             recorded.len(),
-            store.get_persons(WithCorrections::All).len()
+            store
+                .snapshot()
+                .view(WithCorrections::All)
+                .persons()
+                .cloned()
+                .collect::<Vec<_>>()
+                .len()
         );
         for (person, findings) in &recorded {
             assert_eq!(findings, generated.get(person).unwrap_or(&Vec::new()));
@@ -778,7 +790,12 @@ mod tests {
         // The candidates on its lists carry the findings the file holds for
         // them.
         let candidates: BTreeSet<PersonId> = store
-            .get_candidate_lists(WithCorrections::All)
+            .snapshot()
+            .view(WithCorrections::All)
+            .candidate_lists()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>()
             .into_iter()
             .flat_map(|list| list.candidates)
             .collect();
@@ -794,7 +811,7 @@ mod tests {
         );
 
         for store in fixture_stores(&state).await {
-            if store.get_appellation(WithCorrections::None) != checked {
+            if store.snapshot().appellation(WithCorrections::None) != checked {
                 assert_eq!(
                     BrpCheckState::for_political_group(&store.snapshot()),
                     BrpCheckState::NotChecked,
@@ -810,15 +827,23 @@ mod tests {
     /// `(appellation, districts)`.
     fn lists_over_maximum(store: &CsbStream) -> Vec<(String, Vec<ElectoralDistrict>)> {
         let max = store
-            .get_political_group(WithCorrections::None)
+            .snapshot()
+            .view(WithCorrections::None)
+            .political_group()
+            .clone()
             .get_max_candidates();
         store
-            .get_candidate_lists(WithCorrections::None)
+            .snapshot()
+            .view(WithCorrections::None)
+            .candidate_lists()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>()
             .into_iter()
             .filter(|list| list.candidates.len() > max)
             .map(|list| {
                 (
-                    store.get_appellation(WithCorrections::None),
+                    store.snapshot().appellation(WithCorrections::None),
                     list.electoral_districts.into_iter().collect(),
                 )
             })
@@ -850,7 +875,12 @@ mod tests {
         let findings = crate::fixtures::brp_findings();
         let checked = fixture_store_named(&state, group_handled(Handling::WithBrpFindings)).await;
         let candidates: BTreeSet<PersonId> = checked
-            .get_candidate_lists(WithCorrections::None)
+            .snapshot()
+            .view(WithCorrections::None)
+            .candidate_lists()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>()
             .into_iter()
             .flat_map(|list| list.candidates)
             .collect();
@@ -867,24 +897,39 @@ mod tests {
         assert_eq!(stores.len(), 1);
         let store = &stores[0];
         assert_eq!(
-            store.get_appellation(WithCorrections::None),
+            store.snapshot().appellation(WithCorrections::None),
             PRE_SUBMISSION_GROUP
         );
         // The same package the examination got, without anything the
         // examination adds to it.
         assert_eq!(
-            store.get_candidate_lists(WithCorrections::None).len(),
+            store
+                .snapshot()
+                .view(WithCorrections::None)
+                .candidate_lists()
+                .into_iter()
+                .cloned()
+                .collect::<Vec<_>>()
+                .len(),
             fixture_store_named(&state, PRE_SUBMISSION_GROUP)
                 .await
-                .get_candidate_lists(WithCorrections::None)
+                .snapshot()
+                .view(WithCorrections::None)
+                .candidate_lists()
+                .into_iter()
+                .cloned()
+                .collect::<Vec<_>>()
                 .len()
         );
-        assert_eq!(store.get_omission_count(), 0);
-        assert!(!store.has_paper_corrections());
+        assert_eq!(store.snapshot().omission_count(), 0);
+        assert!(!store.snapshot().has_paper_corrections());
 
         // Every candidate was checked; the first four on the first list have
         // five findings between them.
-        assert!(matches!(store.get_brp_status(), BrpStatus::Finished));
+        assert!(matches!(
+            store.snapshot().brp_status().clone(),
+            BrpStatus::Finished
+        ));
         assert_eq!(
             BrpCheckState::for_political_group(&store.snapshot()),
             BrpCheckState::Errors {
@@ -893,7 +938,7 @@ mod tests {
             }
         );
         let first_list = fixture_lists(store).remove(0);
-        let findings = store.get_brp_findings();
+        let findings = store.snapshot().brp_findings().clone();
         let flagged: Vec<usize> = first_list
             .candidates
             .iter()
@@ -958,7 +1003,11 @@ mod tests {
         // Every imported group entered the previous result its registration
         // gives it; the unregistered one has no seats.
         for store in fixture_stores(&state).await {
-            let group = store.get_political_group(WithCorrections::None);
+            let group = store
+                .snapshot()
+                .view(WithCorrections::None)
+                .political_group()
+                .clone();
             let expected = match registered
                 .iter()
                 .find(|r| r.has_appellation(group.appellation.as_ref().unwrap()))
@@ -1055,13 +1104,21 @@ mod tests {
         let state = fixture_state(ElectionConfig::EK27).await;
         let store = fixture_store_named(&state, "Partij Puntkomma").await;
 
-        assert!(store.has_paper_corrections());
-        assert_eq!(store.get_omission_count(), 0);
-        assert_eq!(store.get_correction_count(), 0, "no CSB corrections");
+        assert!(store.snapshot().has_paper_corrections());
+        assert_eq!(store.snapshot().omission_count(), 0);
+        assert_eq!(store.snapshot().correction_count(), 0, "no CSB corrections");
 
         // The submitter's house number differs from the package.
-        let imported = store.get_list_submitter(WithCorrections::None);
-        let corrected = store.get_list_submitter(WithCorrections::Paper);
+        let imported = store
+            .snapshot()
+            .view(WithCorrections::None)
+            .list_submitter()
+            .clone();
+        let corrected = store
+            .snapshot()
+            .view(WithCorrections::Paper)
+            .list_submitter()
+            .clone();
         assert_eq!(imported.id, corrected.id);
         assert_ne!(
             imported.address.house_number(),
@@ -1076,20 +1133,34 @@ mod tests {
             .iter()
             .copied()
             .filter(|person| {
-                store.get_person(*person, WithCorrections::None)
-                    != store.get_person(*person, WithCorrections::Paper)
+                store
+                    .snapshot()
+                    .view(WithCorrections::None)
+                    .person(*person)
+                    .cloned()
+                    != store
+                        .snapshot()
+                        .view(WithCorrections::Paper)
+                        .person(*person)
+                        .cloned()
             })
             .collect();
         assert_eq!(changed, list.candidates[1..3].to_vec());
         let residence = store
-            .get_person(changed[0], WithCorrections::Paper)
+            .snapshot()
+            .view(WithCorrections::Paper)
+            .person(changed[0])
+            .cloned()
             .and_then(|person| person.personal_data.place_of_residence);
         assert_eq!(
             residence.map(|p| p.to_string()),
             Some("Utrecht".to_string())
         );
         let initials = store
-            .get_person(changed[1], WithCorrections::Paper)
+            .snapshot()
+            .view(WithCorrections::Paper)
+            .person(changed[1])
+            .cloned()
             .and_then(|person| person.name.initials)
             .map(|initials| initials.to_string());
         assert_eq!(initials, Some("A.B.C.".to_string()));
@@ -1107,10 +1178,17 @@ mod tests {
             "Actiegroep Laatste Moment",
         ] {
             let store = fixture_store_named(&state, appellation).await;
-            assert_eq!(store.get_omission_count(), 0, "{appellation}");
-            assert!(!store.has_paper_corrections(), "{appellation}");
+            assert_eq!(store.snapshot().omission_count(), 0, "{appellation}");
+            assert!(!store.snapshot().has_paper_corrections(), "{appellation}");
             assert!(
-                !store.get_candidate_lists(WithCorrections::None).is_empty(),
+                !store
+                    .snapshot()
+                    .view(WithCorrections::None)
+                    .candidate_lists()
+                    .into_iter()
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .is_empty(),
                 "{appellation}"
             );
         }
@@ -1155,7 +1233,10 @@ mod tests {
             .sum();
         assert_eq!(actionable.len(), 6);
         assert!(decisions > actionable.len());
-        assert_eq!(store.get_recovery_progress().pending, decisions);
+        assert_eq!(
+            store.snapshot().recovery_progress(store.election).pending,
+            decisions
+        );
         assert!(
             actionable
                 .iter()
@@ -1188,7 +1269,12 @@ mod tests {
             for district in omission.electoral_districts(&store.election) {
                 assert!(
                     store
-                        .get_candidate_lists(WithCorrections::Paper)
+                        .snapshot()
+                        .view(WithCorrections::Paper)
+                        .candidate_lists()
+                        .into_iter()
+                        .cloned()
+                        .collect::<Vec<_>>()
                         .iter()
                         .any(|list| list.electoral_districts.contains(district)),
                     "no fixture list covers {district:?}"
@@ -1196,11 +1282,21 @@ mod tests {
             }
             for list_id in omission.candidate_lists() {
                 let list = store
-                    .get_candidate_list(*list_id, WithCorrections::Paper)
+                    .snapshot()
+                    .view(WithCorrections::Paper)
+                    .candidate_list(*list_id)
+                    .cloned()
                     .expect("the omission refers to a fixture list");
                 if let OmissionCategory::Candidate { person, .. } = &omission.category {
                     assert!(list.candidates.contains(person));
-                    assert!(store.get_person(*person, WithCorrections::Paper).is_some());
+                    assert!(
+                        store
+                            .snapshot()
+                            .view(WithCorrections::Paper)
+                            .person(*person)
+                            .cloned()
+                            .is_some()
+                    );
                 }
             }
         }
