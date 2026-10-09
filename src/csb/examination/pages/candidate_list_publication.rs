@@ -24,11 +24,8 @@ async fn candidate_list_publication_model<S: AppRequestState>(
     let election = main_store.election;
     let registry = state.csb_store_registry();
     let numbering = list_numbering(registry, &main_store).await?;
-    if numbering
-        .groups
-        .iter()
-        .any(|group| group.position.is_none())
-    {
+
+    if !numbering.is_complete() {
         // TODO: should not result in error, see #1319
         return Err(AppError::IncompleteData("List order not recorded"));
     }
@@ -159,10 +156,9 @@ mod tests {
     }
 
     /// Per district the lists follow the recorded order; a group only
-    /// appears in the districts it has a list in, and the numbers there run
-    /// on without a gap.
+    /// appears in the districts it has a list in
     #[tokio::test]
-    async fn candidate_list_publication_model_orders_the_lists_per_district_by_number()
+    async fn document_uses_global_ordering_even_when_list_not_present_in_district()
     -> Result<(), AppError> {
         let state = AppState::new_for_tests().await;
         let both = seed_group(
@@ -181,7 +177,7 @@ mod tests {
             rows(&model),
             [
                 ("Groningen", vec![(1, "Alleen Groningen"), (2, "Overal")]),
-                ("Drenthe", vec![(1, "Overal")]),
+                ("Drenthe", vec![(2, "Overal")]),
             ]
         );
         assert_eq!(model.election_date, "24-05-2027");
@@ -190,9 +186,9 @@ mod tests {
     }
 
     /// A list scrapped in one district drops out of that district only; the
-    /// lists after it there move up a number, elsewhere they keep theirs.
+    /// lists after it don't move up a number.
     #[tokio::test]
-    async fn candidate_list_publication_model_numbers_on_past_a_list_scrapped_in_one_district()
+    async fn document_uses_global_ordering_even_when_list_scrapped_in_district()
     -> Result<(), AppError> {
         let state = AppState::new_for_tests().await;
         let districts = [ElectoralDistrict::Groningen, ElectoralDistrict::Drenthe];
@@ -223,7 +219,7 @@ mod tests {
                     "Groningen",
                     vec![(1, "Eerste"), (2, "Geschrapt"), (3, "Derde")]
                 ),
-                ("Drenthe", vec![(1, "Eerste"), (2, "Derde")]),
+                ("Drenthe", vec![(1, "Eerste"), (3, "Derde")]),
             ]
         );
 

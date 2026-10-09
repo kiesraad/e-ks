@@ -21,8 +21,8 @@ pub struct CandidateListPublication {
     pub public_session: PublicSession,
 }
 
-/// A valid list with its number in the district: the lists of a district
-/// are numbered sequentially, without gaps.
+/// A valid list with its group's list number, the same in every district;
+/// numbers of groups without a valid list in the district are skipped.
 #[derive(Debug)]
 pub struct NumberedList {
     pub number: usize,
@@ -30,7 +30,7 @@ pub struct NumberedList {
 }
 
 /// A candidate row, with the name as printed on the candidate list.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct PublishedCandidate {
     pub position: usize,
     /// E.g. `Kierkegaard, G.J. (Geertruda Johanna) (v)`.

@@ -67,7 +67,7 @@ pub fn candidate_list_publication_example_1() -> CandidateListPublication {
             },
             DistrictLists {
                 electoral_district: ElectoralDistrict::Bonaire.title().to_string(),
-                lists: vec![kiesraad_demo(1), blanco_nagelhout(2)],
+                lists: vec![kiesraad_demo(1), blanco_nagelhout(3)],
             },
         ],
         public_session: PublicSession {
