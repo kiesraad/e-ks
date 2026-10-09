@@ -4,7 +4,7 @@ import setupSessionExpiry from "../../../frontend/scripts/generic-ui/session-exp
 
 const ORIGIN = "http://eks.test";
 const IDLE_TIMEOUT = 15 * 60;
-const WARNING_LEAD = 2 * 60;
+const WARNING_LEAD = 60;
 const CSRF_TOKEN = "csrf-token-for-test";
 
 type Expiry = {
@@ -105,7 +105,7 @@ async function openPage(page: Page, server: Server) {
 const minutes = (count: number) => count * 60 * 1000;
 
 test.describe("session-expiry", () => {
-  test("opens the warning two minutes before expiry and counts down", async ({
+  test("opens the warning one minute before expiry and counts down", async ({
     page,
   }) => {
     await openPage(page, {
@@ -116,23 +116,23 @@ test.describe("session-expiry", () => {
     const dialog = page.locator("dialog.session-expiry");
     const timer = dialog.locator(".session-expiry-timer");
 
-    await page.clock.fastForward(minutes(12));
+    await page.clock.fastForward(minutes(13));
     await expect(dialog).toBeHidden();
 
     await page.clock.fastForward(minutes(1));
     await expect(dialog).toBeVisible();
-    await expect(timer).toHaveText("2:00");
+    await expect(timer).toHaveText("1:00");
     await expect(dialog.locator(".session-expiry-extend")).toBeVisible();
 
     await page.clock.runFor(1000);
-    await expect(timer).toHaveText("1:59");
+    await expect(timer).toHaveText("0:59");
   });
 
   test("stays closed while another tab keeps the session alive", async ({
     page,
   }) => {
     // The server has seen activity from another tab: ten minutes left when
-    // this tab asks, two minutes left the next time.
+    // this tab asks, one minute left the next time.
     await openPage(page, {
       peeks: [expiry(10 * 60), expiry(WARNING_LEAD)],
       extend: expiry(IDLE_TIMEOUT),
@@ -140,12 +140,12 @@ test.describe("session-expiry", () => {
     });
     const dialog = page.locator("dialog.session-expiry");
 
-    await page.clock.fastForward(minutes(13));
+    await page.clock.fastForward(minutes(14));
     // give the peek time to answer before asserting the dialog stayed closed
     await page.waitForTimeout(100);
     await expect(dialog).toBeHidden();
 
-    await page.clock.fastForward(minutes(8));
+    await page.clock.fastForward(minutes(9));
     await expect(dialog).toBeVisible();
   });
 
@@ -160,7 +160,7 @@ test.describe("session-expiry", () => {
     await openPage(page, server);
     const dialog = page.locator("dialog.session-expiry");
 
-    await page.clock.fastForward(minutes(13));
+    await page.clock.fastForward(minutes(14));
     await expect(dialog).toBeVisible();
 
     await dialog.locator(".session-expiry-extend").click();
@@ -168,7 +168,7 @@ test.describe("session-expiry", () => {
     expect(server.extendTokens).toEqual([CSRF_TOKEN]);
 
     // The warning comes back a full idle timeout later, not earlier.
-    await page.clock.fastForward(minutes(12));
+    await page.clock.fastForward(minutes(13));
     await page.waitForTimeout(100);
     await expect(dialog).toBeHidden();
     await page.clock.fastForward(minutes(1));
@@ -185,10 +185,10 @@ test.describe("session-expiry", () => {
     });
     const dialog = page.locator("dialog.session-expiry");
 
-    await page.clock.fastForward(minutes(13));
+    await page.clock.fastForward(minutes(14));
     await expect(dialog).toBeVisible();
 
-    await page.clock.runFor(minutes(2));
+    await page.clock.runFor(minutes(1));
     await expect(dialog).toBeHidden();
     await expect(page).toHaveURL(`${ORIGIN}/page`);
   });
@@ -201,10 +201,10 @@ test.describe("session-expiry", () => {
     });
     const dialog = page.locator("dialog.session-expiry");
 
-    await page.clock.fastForward(minutes(13));
+    await page.clock.fastForward(minutes(14));
     await expect(dialog).toBeVisible();
 
-    await page.clock.runFor(minutes(2));
+    await page.clock.runFor(minutes(1));
     await expect(page).toHaveURL(`${ORIGIN}/login?expired=true`);
   });
 
@@ -218,7 +218,7 @@ test.describe("session-expiry", () => {
     });
     const dialog = page.locator("dialog.session-expiry");
 
-    await page.clock.fastForward(minutes(13));
+    await page.clock.fastForward(minutes(14));
     await expect(dialog).toBeVisible();
     await expect(dialog.locator(".session-expiry-extend")).toBeHidden();
     await expect(dialog.locator(".session-expiry-message-final")).toBeVisible();

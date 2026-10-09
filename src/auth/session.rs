@@ -23,7 +23,7 @@ const SESSION_ABSOLUTE_TIMEOUT_SECS: i64 = 8 * 60 * 60; // 8 hours
 
 /// How long before the session expires the browser warns the user and offers
 /// to extend it (see `frontend/scripts/generic-ui/session-expiry.ts`).
-const SESSION_EXPIRY_WARNING_LEAD_SECS: i64 = 1 * 60; // 1 minute
+const SESSION_EXPIRY_WARNING_LEAD_SECS: i64 = 60; // 1 minute
 
 /// Idle timeout after which a session is considered expired.
 pub fn session_idle_timeout() -> Duration {
@@ -454,11 +454,11 @@ mod tests {
     }
 
     /// The idle timeout matches the DigiD ceiling of 15 minutes inactivity,
-    /// and the warning leads it by two minutes.
+    /// and the warning leads it by one minute.
     #[test]
     fn timeouts_follow_the_digid_checklist() {
         assert_eq!(session_idle_timeout(), Duration::minutes(15));
-        assert_eq!(session_expiry_warning_lead(), Duration::minutes(2));
+        assert_eq!(session_expiry_warning_lead(), Duration::minutes(1));
         assert!(session_expiry_warning_lead() < session_idle_timeout());
     }
 
@@ -472,7 +472,7 @@ mod tests {
         let expiry = session.expiry_at(now);
 
         assert_eq!(expiry.expires_in_secs, 15 * 60);
-        assert_eq!(expiry.warning_lead_secs, 2 * 60);
+        assert_eq!(expiry.warning_lead_secs, 60);
         assert!(expiry.extendable);
         assert!(!expiry.is_due_for_warning());
     }
@@ -481,12 +481,12 @@ mod tests {
     #[test]
     fn expiry_is_due_for_warning_within_the_lead() {
         let mut session = Session::new_test();
-        session.last_activity = Utc::now() - session_idle_timeout() + Duration::seconds(90);
+        session.last_activity = Utc::now() - session_idle_timeout() + Duration::seconds(45);
 
         let expiry = session.expiry();
 
-        assert!(expiry.expires_in_secs <= 90);
-        assert!(expiry.expires_in_secs > 80);
+        assert!(expiry.expires_in_secs <= 45);
+        assert!(expiry.expires_in_secs > 35);
         assert!(expiry.is_due_for_warning());
         assert!(expiry.extendable);
     }

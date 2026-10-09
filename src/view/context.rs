@@ -3,10 +3,7 @@
 
 use axum::{extract::FromRequestParts, http::request::Parts};
 
-use crate::{AppError, AppRequestState, ElectionConfig, PgStore, Session, SessionExpiry};
-
-#[cfg(test)]
-use crate::Locale;
+use crate::{AppError, AppRequestState, ElectionConfig, Locale, PgStore, Session, SessionExpiry};
 
 /// Route prefixes on which the shared layout shows the "documents were already
 /// downloaded" warning, and the CSB route that leaves paper-corrections mode.
@@ -170,6 +167,36 @@ impl<S: AppRequestState> FromRequestParts<S> for Context {
         context.overlay_active = crate::overlay_active(parts);
 
         Ok(context)
+    }
+}
+
+/// Values for session-backed pages rendered without a store `Context`:
+/// locale, the token the `csrf_field` macro reads, and the remaining session
+/// lifetime the expiry-warning component renders.
+pub struct SessionPageValues {
+    pub locale: Locale,
+    pub csrf_token: String,
+    pub session_expiry: SessionExpiry,
+}
+
+impl SessionPageValues {
+    pub fn new(session: &Session) -> Self {
+        Self {
+            locale: session.locale,
+            csrf_token: session.csrf_token().0.clone(),
+            session_expiry: session.expiry(),
+        }
+    }
+}
+
+impl askama::Values for SessionPageValues {
+    fn get_value<'a>(&'a self, key: &str) -> Option<&'a dyn std::any::Any> {
+        match key {
+            "locale" => Some(&self.locale as &dyn std::any::Any),
+            "csrf_token" => Some(&self.csrf_token as &dyn std::any::Any),
+            "session_expiry" => Some(&self.session_expiry as &dyn std::any::Any),
+            _ => None,
+        }
     }
 }
 

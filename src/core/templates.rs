@@ -7,7 +7,7 @@ use axum::{
     response::{Html, IntoResponse, Response},
 };
 
-use crate::{AppError, Locale, Session, SessionExpiry};
+use crate::{AppError, Locale};
 
 /// Values for pages rendered with only a locale (no `Context`).
 pub struct LocaleValues {
@@ -18,36 +18,6 @@ impl askama::Values for LocaleValues {
     fn get_value<'a>(&'a self, key: &str) -> Option<&'a dyn std::any::Any> {
         match key {
             "locale" => Some(&self.locale as &dyn std::any::Any),
-            _ => None,
-        }
-    }
-}
-
-/// Values for session-backed pages rendered without a store `Context`:
-/// locale, the token the `csrf_field` macro reads, and the remaining session
-/// lifetime the expiry-warning component renders.
-pub struct SessionPageValues {
-    pub locale: Locale,
-    pub csrf_token: String,
-    pub session_expiry: SessionExpiry,
-}
-
-impl SessionPageValues {
-    pub fn new(session: &Session) -> Self {
-        Self {
-            locale: session.locale,
-            csrf_token: session.csrf_token().0.clone(),
-            session_expiry: session.expiry(),
-        }
-    }
-}
-
-impl askama::Values for SessionPageValues {
-    fn get_value<'a>(&'a self, key: &str) -> Option<&'a dyn std::any::Any> {
-        match key {
-            "locale" => Some(&self.locale as &dyn std::any::Any),
-            "csrf_token" => Some(&self.csrf_token as &dyn std::any::Any),
-            "session_expiry" => Some(&self.session_expiry as &dyn std::any::Any),
             _ => None,
         }
     }
