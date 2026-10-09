@@ -192,13 +192,15 @@ mod tests {
         let sid = stream_id();
         let user = CsbUser::Github {
             user_id: "583231".parse().expect("valid id"),
+            login: Some("octocat".parse().expect("valid login")),
         };
         let event = StoreEvent::new(1, CsbMainAction::Login.by(user));
 
         let entry = CsbAuditLogEntry::from_event(&event, sid, "Stream".to_string(), EN);
 
-        assert_eq!(entry.user, "GitHub user 583231");
+        assert_eq!(entry.user, "GitHub user octocat (583231)");
         assert!(entry.matches_search("583231"));
+        assert!(entry.matches_search("octocat"));
         assert!(entry.matches_search("github"));
     }
 }

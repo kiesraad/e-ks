@@ -1,7 +1,8 @@
 //! Minimal GitHub OAuth (authorization-code) client for the CSB login: builds
 //! the authorize URL, exchanges the callback code for an access token, and
-//! resolves the authenticated user's numeric account id. Every GitHub-specific
-//! endpoint, header, and parameter lives in the constants below.
+//! resolves the authenticated user's numeric account id and login. Every
+//! GitHub-specific endpoint, header, and parameter lives in the constants
+//! below.
 
 use std::time::Duration;
 
@@ -9,7 +10,7 @@ use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
 use tracing::warn;
 
-use crate::{AppError, GithubOauthConfig, GithubUserId};
+use crate::{AppError, GithubLogin, GithubOauthConfig, GithubUserId};
 
 /// GitHub's OAuth authorization endpoint (step 1: user consent).
 const AUTHORIZE_URL: &str = "https://github.com/login/oauth/authorize";
@@ -37,6 +38,30 @@ struct TokenResponse {
 #[derive(Deserialize)]
 struct UserResponse {
     id: GithubUserId,
+    login: Option<String>,
+}
+
+/// The authenticated GitHub account: the stable id the allowlist is checked
+/// against, plus the login for the audit log when GitHub returned one this
+/// application can hold.
+pub(super) struct GithubIdentity {
+    pub id: GithubUserId,
+    pub login: Option<GithubLogin>,
+}
+
+impl From<UserResponse> for GithubIdentity {
+    fn from(user: UserResponse) -> Self {
+        let login = user
+            .login
+            .and_then(|login| match login.parse::<GithubLogin>() {
+                Ok(login) => Some(login),
+                Err(err) => {
+                    warn!("GitHub user {}: {err}; recording the id alone", user.id);
+                    None
+                }
+            });
+        Self { id: user.id, login }
+    }
 }
 
 /// URL of GitHub's consent page for this app and `state` nonce. No scopes are
@@ -55,15 +80,15 @@ pub(super) fn authorize_url(
     Ok(format!("{AUTHORIZE_URL}?{query}"))
 }
 
-/// Completes the OAuth code exchange and returns the numeric account id of
-/// the user who authorized it.
-pub(super) async fn authenticated_user_id(
+/// Completes the OAuth code exchange and returns the account that authorized
+/// it.
+pub(super) async fn authenticated_user(
     config: &GithubOauthConfig,
     code: &str,
-) -> Result<GithubUserId, AppError> {
+) -> Result<GithubIdentity, AppError> {
     let client = http_client()?;
     let access_token = exchange_code(&client, config, code).await?;
-    fetch_user_id(&client, &access_token).await
+    fetch_user(&client, &access_token).await
 }
 
 /// Client with a pinned `User-Agent`, a timeout, and redirects disabled: the
@@ -104,11 +129,11 @@ async fn exchange_code(
     Ok(SecretString::from(access_token))
 }
 
-/// Resolves the numeric account id the access token belongs to.
-async fn fetch_user_id(
+/// Resolves the account the access token belongs to.
+async fn fetch_user(
     client: &reqwest::Client,
     access_token: &SecretString,
-) -> Result<GithubUserId, AppError> {
+) -> Result<GithubIdentity, AppError> {
     let user: UserResponse = client
         .get(USER_URL)
         .bearer_auth(access_token.expose_secret())
@@ -119,7 +144,7 @@ async fn fetch_user_id(
         .error_for_status()?
         .json()
         .await?;
-    Ok(user.id)
+    Ok(user.into())
 }
 
 #[cfg(test)]
@@ -163,10 +188,30 @@ mod tests {
     }
 
     #[test]
-    fn user_response_parses_numeric_account_id() {
+    fn user_response_parses_numeric_account_id_and_login() {
         let user: UserResponse =
             serde_json::from_str(r#"{"login":"octocat","id":583231,"type":"User"}"#)
                 .expect("user json");
         assert_eq!(user.id, "583231".parse().expect("valid id"));
+
+        let identity = GithubIdentity::from(user);
+        assert_eq!(identity.id, "583231".parse().expect("valid id"));
+        assert_eq!(
+            identity.login,
+            Some("octocat".parse().expect("valid login"))
+        );
+    }
+
+    /// A login this application cannot hold costs the login, not the sign-in.
+    #[test]
+    fn an_unusable_login_is_dropped_rather_than_refused() {
+        let user: UserResponse =
+            serde_json::from_str(r#"{"login":"not a login","id":583231}"#).expect("user json");
+        let identity = GithubIdentity::from(user);
+        assert_eq!(identity.id, "583231".parse().expect("valid id"));
+        assert_eq!(identity.login, None);
+
+        let user: UserResponse = serde_json::from_str(r#"{"id":583231}"#).expect("user json");
+        assert_eq!(GithubIdentity::from(user).login, None);
     }
 }

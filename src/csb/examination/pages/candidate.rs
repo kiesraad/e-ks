@@ -228,11 +228,14 @@ pub async fn check_against_brp<S: AppRequestState>(
         .get_person(path.person_id, WithCorrections::All)
         .ok_or(AppError::GenericNotFound)?;
 
-    for (person, findings) in state
+    let checked = state
         .brp_client()
         .verify_batch(std::slice::from_ref(&candidate))
-        .await?
-    {
+        .await;
+    for lookup in checked.lookups {
+        store.update(CsbAction::BrpLookup(lookup)).await?;
+    }
+    for (person, findings) in checked.outcome? {
         store
             .update(CsbAction::BrpPersonChecked { person, findings })
             .await?;
@@ -385,6 +388,16 @@ mod tests {
                 .into()
             ]
         );
+        // The request itself is on the stream, ahead of what it found.
+        let events = store.data.read().events.clone();
+        assert!(matches!(
+            &events[0].payload.action,
+            CsbAction::BrpLookup(lookup) if lookup.persons == vec![person_id]
+        ));
+        assert!(matches!(
+            events[1].payload.action,
+            CsbAction::BrpPersonChecked { .. }
+        ));
     }
 
     #[tokio::test]

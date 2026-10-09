@@ -1,4 +1,22 @@
 detail:
+  brp:
+    agrees: The BRP agrees on every checked field.
+    brp_value: Value in the BRP
+    bsns_sent: Social security numbers sent
+    candidate: Candidate
+    candidates: Candidates
+    error: Error
+    fields: Fields requested
+    finding: Finding
+    handled: Handled
+    include_deceased: Including deceased persons
+    list_value: Value on the list
+    query: Request
+    query_consult: Lookup by social security number
+    query_search: Search by last name and date of birth
+    result: Result
+    returned: "Persons returned, by social security number"
+    returned_none: None
   field: Field
   fields:
     appellation: Appellation
@@ -49,7 +67,8 @@ empty: No events have been recorded yet that meet the filter criteria.
 event:
   add_candidate_to_list: Added candidate to list
   add_objection: Added objection
-  brp_validation: Validated candidate against the BRP
+  brp_lookup: Consulted the BRP
+  brp_person_checked: Checked candidate against the BRP
   create_candidate_list: Created list of candidates
   create_empty: Created empty political group
   create_name_authorisation: Created statutory name and authorised agent
@@ -77,7 +96,7 @@ event:
   paper_correction: Paper corrections
   remove_candidate_from_list: Removed candidate from list
   set_brp_finding_handled: Set BRP finding handled
-  set_brp_validation_state: Set BRP validation state
+  set_brp_status: Set BRP check status
   set_finished: Set finished state
   set_omission_part_status: Set omission status per electoral district or list
   set_omission_status: Set omission status
@@ -108,6 +127,7 @@ filter:
   all_events: All events
   apply: Filter
   category:
+    brp_validation: BRP check
     candidate_list: Candidate list
     correction: Corrections
     delete: Deleted

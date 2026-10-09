@@ -1,8 +1,8 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// A field of the BRP `personen` endpoint, named by the dotted path the API
 /// expects. [`super::client::CANDIDATE_FIELDS`] lists the ones we request.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BrpField {
     // Personen
     #[serde(rename = "burgerservicenummer")]
@@ -53,4 +53,15 @@ pub enum BrpField {
     DateOfMarriage,
     #[serde(rename = "partners.ontbindingHuwelijkPartnerschap")]
     DateOfDissolutionMarriage,
+}
+
+impl BrpField {
+    /// The dotted path the BRP API knows this field by, for showing a request
+    /// as it was sent.
+    pub fn api_name(self) -> String {
+        serde_json::to_value(self)
+            .ok()
+            .and_then(|value| value.as_str().map(str::to_string))
+            .unwrap_or_default()
+    }
 }

@@ -331,7 +331,12 @@ The CSB section has two projections of its own on the shared store machinery
   is decrypted, so monitoring works without touching any political group's
   data.
 - **`audit_log`**: the CSB audit log, a read view over either the main
-  committee stream or a single imported stream.
+  committee stream or a single imported stream. Every request to the BRP is
+  on the stream as a `CsbAction::BrpLookup` (the candidates it was for, the
+  request as sent, and the burgerservicenummers returned or the error), ahead
+  of the `BrpPersonChecked` findings it led to; the detail page sets a
+  candidate's values against the BRP's and names the committee member, by
+  GitHub login and id, who started the check.
 - **`registered_political_groups`**: administration of the political groups
   registered for the election with their result at the previous election of
   the same body (appellation, votes, seats), kept on the CSB main stream. The

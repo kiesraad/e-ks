@@ -213,6 +213,7 @@ mod tests {
             SessionUser::CentralElectoralCommittee {
                 user: CsbUser::Github {
                     user_id: "583231".parse().expect("valid id"),
+                    login: Some("octocat".parse().expect("valid login")),
                 },
                 election: ElectionConfig::EK27,
                 paper_correction_stream_id: Some(StreamId::new()),
