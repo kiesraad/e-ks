@@ -3,7 +3,8 @@ use uuid::Uuid;
 
 use crate::{
     AppError, AppRequestState, CsbAction, CsbMainAction, CsbMainStore, CsbStore, CsbStoreData,
-    CsbStream, CsbUser, ElectionConfig, ElectoralDistrict, PgStore, PgStoreData, StreamId,
+    CsbStream, CsbUser, ElectionConfig, ElectoralDistrict, OrNotFound, PgStore, PgStoreData,
+    StreamId,
     projection::WithCorrections,
     store::StoreRegistry,
     structs::{
@@ -233,7 +234,10 @@ async fn register(
     let Some(registration) = group.registered_political_group() else {
         return Ok(());
     };
-    if main_store.has_registered_appellation(&registration.appellation, None) {
+    if main_store
+        .snapshot()
+        .has_registered_appellation(&registration.appellation, None)
+    {
         return Ok(());
     }
     main_store
@@ -281,7 +285,15 @@ async fn import_fixture_group<S: AppRequestState>(
 async fn fit_lists_to_maximum(store: &PgStore, group: &FixtureGroup) -> Result<(), AppError> {
     let max = group.political_group().get_max_candidates();
     let findings = crate::fixtures::brp_findings();
-    let lists = in_district_order(store.get_candidate_lists(), &store.election);
+    let lists = in_district_order(
+        store
+            .snapshot()
+            .candidate_lists()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>(),
+        &store.election,
+    );
 
     for (index, mut list) in lists.into_iter().enumerate() {
         if index == 0 && group.appellation == TOO_MANY_CANDIDATES_GROUP {
@@ -398,7 +410,7 @@ async fn record_brp_check(
 async fn fixture_paper_corrections(store: &CsbStore) -> Result<(), AppError> {
     let corrections = store.paper_corrections();
 
-    let mut submitter = corrections.get_list_submitter();
+    let mut submitter = corrections.snapshot().list_submitter().clone();
     if let Address::Dutch(address) = &mut submitter.address {
         address.house_number = Some("7".parse().expect("house number"));
         address.house_number_addition = None;
@@ -411,12 +423,20 @@ async fn fixture_paper_corrections(store: &CsbStore) -> Result<(), AppError> {
     let mut candidates = first_list.candidates.iter().skip(1);
 
     if let Some(person_id) = candidates.next() {
-        let mut person = corrections.get_person(*person_id)?;
+        let mut person = corrections
+            .snapshot()
+            .person(*person_id)
+            .cloned()
+            .or_not_found()?;
         person.personal_data.place_of_residence = Some("Utrecht".parse().expect("locality"));
         person.update(&corrections).await?;
     }
     if let Some(person_id) = candidates.next() {
-        let mut person = corrections.get_person(*person_id)?;
+        let mut person = corrections
+            .snapshot()
+            .person(*person_id)
+            .cloned()
+            .or_not_found()?;
         person.name.initials = Some("A.B.C.".parse().expect("initials"));
         person.update(&corrections).await?;
     }
@@ -749,7 +769,13 @@ mod tests {
         );
         let main_store = state.csb_main_store(election).await.unwrap();
         assert_eq!(
-            main_store.registered_political_groups().len(),
+            main_store
+                .snapshot()
+                .registered_political_groups()
+                .into_iter()
+                .cloned()
+                .collect::<Vec<_>>()
+                .len(),
             REGISTERED_GROUP_COUNT,
             "a second fixture import should register nothing"
         );
@@ -973,7 +999,12 @@ mod tests {
         let state = fixture_state(election).await;
         let main_store = state.csb_main_store(election).await?;
 
-        let registered = main_store.registered_political_groups();
+        let registered = main_store
+            .snapshot()
+            .registered_political_groups()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
         let summary: Vec<(String, u64, u32)> = registered
             .iter()
             .map(|group| {
@@ -1043,10 +1074,19 @@ mod tests {
 
         import_csb_fixture(&state, election, CsbUser::new_test()).await?;
 
-        let registered = main_store.registered_political_groups();
+        let registered = main_store
+            .snapshot()
+            .registered_political_groups()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
         assert_eq!(registered.len(), REGISTERED_GROUP_COUNT);
         assert_eq!(
-            main_store.get_registered_political_group(by_hand.id)?,
+            main_store
+                .snapshot()
+                .registered_political_group(by_hand.id)
+                .cloned()
+                .or_not_found()?,
             by_hand
         );
 

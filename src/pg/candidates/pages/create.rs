@@ -73,6 +73,7 @@ pub async fn create_person_candidate_list_submit(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::OrNotFound;
 
     use crate::{
         Context, Form, MAX_CANDIDATES, PgStore,
@@ -191,9 +192,15 @@ mod tests {
             .expect("location header value");
         assert!(location.contains("max_candidates_reached=true"));
         // No orphan person is created when the list is already full.
-        assert_eq!(store.get_person_count(), MAX_CANDIDATES);
+        assert_eq!(store.snapshot().person_count(), MAX_CANDIDATES);
         assert_eq!(
-            store.get_candidate_list(list_id)?.candidates.len(),
+            store
+                .snapshot()
+                .candidate_list(list_id)
+                .cloned()
+                .or_not_found()?
+                .candidates
+                .len(),
             MAX_CANDIDATES
         );
 
@@ -239,7 +246,13 @@ mod tests {
             .expect("location header value");
         assert!(!location.contains("max_candidates_reached=true"));
         assert_eq!(
-            store.get_candidate_list(list_id)?.candidates.len(),
+            store
+                .snapshot()
+                .candidate_list(list_id)
+                .cloned()
+                .or_not_found()?
+                .candidates
+                .len(),
             MAX_CANDIDATES + 1
         );
 

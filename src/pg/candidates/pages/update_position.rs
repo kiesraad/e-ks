@@ -88,7 +88,7 @@ pub async fn update_candidate_position_submit(
         Err(form_data) => Ok(HtmlTemplate(
             UpdateCandidatePositionTemplate {
                 position_warning: PositionWarning::new_opt(
-                    &store.get_political_group(),
+                    &store.snapshot().political_group().clone(),
                     &candidate,
                 ),
                 candidate,
@@ -120,6 +120,7 @@ pub async fn update_candidate_position_submit(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::OrNotFound;
     use crate::{
         Context, Form, PgStore, QueryParamState,
         structs::{candidate_lists::CandidateListId, persons::PersonId},
@@ -150,7 +151,7 @@ mod tests {
 
         let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
             .expect("candidate list");
-        let political_group = store.get_political_group();
+        let political_group = store.snapshot().political_group().clone();
         let candidate = list.get_candidate(&store, person.id).await?;
 
         let response = update_candidate_position(
@@ -194,7 +195,7 @@ mod tests {
 
         let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
             .expect("candidate list");
-        let political_group = store.get_political_group();
+        let political_group = store.snapshot().political_group().clone();
         let candidate = list.get_candidate(&store, last_candidate_id).await?;
 
         let response = update_candidate_position(
@@ -238,7 +239,10 @@ mod tests {
         let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
             .expect("candidate list");
         let candidate = store
-            .get_candidate_list(list_id)?
+            .snapshot()
+            .candidate_list(list_id)
+            .cloned()
+            .or_not_found()?
             .get_candidate(&store, person_a.id)
             .await?;
 
@@ -289,7 +293,10 @@ mod tests {
         let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
             .expect("candidate list");
         let candidate = store
-            .get_candidate_list(list_id)?
+            .snapshot()
+            .candidate_list(list_id)
+            .cloned()
+            .or_not_found()?
             .get_candidate(&store, person_a.id)
             .await?;
 

@@ -118,7 +118,7 @@ mod tests {
             .expect("location header")
             .to_str()
             .expect("location header value");
-        let submitters = store.get_substitute_submitters();
+        let submitters = store.snapshot().substitute_submitters().to_vec();
         assert_eq!(submitters.len(), 1);
         assert_eq!(
             location,

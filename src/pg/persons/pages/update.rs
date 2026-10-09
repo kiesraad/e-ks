@@ -74,6 +74,7 @@ pub async fn update_person_submit(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::OrNotFound;
     use crate::{
         AppError, Context, Form, PgStore, QueryParamState,
         structs::{common::DateOfBirth, persons::PersonId},
@@ -144,7 +145,7 @@ mod tests {
             .expect("location header value");
         assert_eq!(location, expected_path);
 
-        let updated = store.get_person(person_id)?;
+        let updated = store.snapshot().person(person_id).cloned().or_not_found()?;
         assert_eq!(updated.name.last_name.to_string(), "Updated");
 
         Ok(())

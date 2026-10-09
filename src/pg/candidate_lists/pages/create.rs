@@ -25,7 +25,14 @@ pub async fn create_candidate_list(
     store: PgStore,
 ) -> Result<Response, AppError> {
     if context.election.has_only_one_district() {
-        if !store.get_candidate_lists().is_empty() {
+        if !store
+            .snapshot()
+            .candidate_lists()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .is_empty()
+        {
             return Err(AppError::UserError(
                 "Cannot create more than one candidate list for single district elections"
                     .to_string(),
@@ -48,7 +55,13 @@ pub async fn create_candidate_list(
     let available_districts =
         CandidateList::available_districts(&store.snapshot(), &context.election);
     let districts_on_other_lists = CandidateList::districts_on_other_lists(&store.snapshot(), None);
-    let has_previous_list = !store.get_candidate_lists().is_empty();
+    let has_previous_list = !store
+        .snapshot()
+        .candidate_lists()
+        .into_iter()
+        .cloned()
+        .collect::<Vec<_>>()
+        .is_empty();
     Ok(HtmlTemplate(
         CandidateListCreateTemplate {
             form: FormData::new(),
@@ -83,7 +96,13 @@ pub async fn create_candidate_list_submit(
         Err(form_data) => Ok(HtmlTemplate(
             CandidateListCreateTemplate {
                 form: form_data,
-                has_previous_list: !store.get_candidate_lists().is_empty(),
+                has_previous_list: !store
+                    .snapshot()
+                    .candidate_lists()
+                    .into_iter()
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .is_empty(),
                 available_districts,
                 districts_on_other_lists,
                 overlay: Overlay::new_create(&QueryParamState::default()),
@@ -94,7 +113,11 @@ pub async fn create_candidate_list_submit(
         Ok(mut candidate_list) => {
             if should_copy_candidates {
                 candidate_list.candidates = store
-                    .get_candidate_lists()
+                    .snapshot()
+                    .candidate_lists()
+                    .into_iter()
+                    .cloned()
+                    .collect::<Vec<_>>()
                     .last()
                     .map(|list| list.candidates.clone())
                     .unwrap_or_default();
@@ -458,7 +481,12 @@ mod test {
         // verify
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
 
-        let lists = store.get_candidate_lists();
+        let lists = store
+            .snapshot()
+            .candidate_lists()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
         assert_eq!(lists.len(), 1);
         let list = &lists[0];
         // WsFryslan got dropped because it's not part of EK27

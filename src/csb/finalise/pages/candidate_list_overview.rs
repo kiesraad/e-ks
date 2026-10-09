@@ -120,7 +120,7 @@ mod tests {
                 .await?;
         assert_eq!(numbers(&model), numbered);
         assert_eq!(main_store.list_order_events(), 1);
-        assert_eq!(main_store.list_order(), [first, second]);
+        assert_eq!(main_store.snapshot().list_order(), [first, second]);
 
         let model =
             candidate_list_overview_model(CsbContext::new_test(), main_store.clone(), &state)

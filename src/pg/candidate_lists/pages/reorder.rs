@@ -40,6 +40,7 @@ pub async fn reorder_candidate_list(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::OrNotFound;
     use crate::{
         PgStore,
         structs::{
@@ -66,7 +67,11 @@ mod tests {
 
         let response = reorder_candidate_list(
             CandidateListReorderPath { list_id },
-            store.get_candidate_list(list_id)?,
+            store
+                .snapshot()
+                .candidate_list(list_id)
+                .cloned()
+                .or_not_found()?,
             store.clone(),
             Json(CandidateListReorderPayload {
                 person_ids: vec![person_b.id, person_a.id],
@@ -96,7 +101,11 @@ mod tests {
         list.create(store).await?;
         person_a.create(store).await?;
         person_b.create(store).await?;
-        let mut list = store.get_candidate_list(list.id)?;
+        let mut list = store
+            .snapshot()
+            .candidate_list(list.id)
+            .cloned()
+            .or_not_found()?;
         list.update_order(store, &[person_a.id, person_b.id])
             .await?;
 
@@ -123,7 +132,12 @@ mod tests {
 
         assert!(matches!(err, AppError::DuplicateCandidate));
         assert_eq!(
-            store.get_candidate_list(list.id)?.candidates,
+            store
+                .snapshot()
+                .candidate_list(list.id)
+                .cloned()
+                .or_not_found()?
+                .candidates,
             vec![person_a, person_b]
         );
 
@@ -168,7 +182,12 @@ mod tests {
         assert!(matches!(err, AppError::CandidateSetChanged));
 
         assert_eq!(
-            store.get_candidate_list(list.id)?.candidates,
+            store
+                .snapshot()
+                .candidate_list(list.id)
+                .cloned()
+                .or_not_found()?
+                .candidates,
             vec![person_a, person_b]
         );
 

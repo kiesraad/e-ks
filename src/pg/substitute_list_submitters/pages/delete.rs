@@ -117,7 +117,7 @@ mod tests {
                 .to_string()
         );
 
-        let submitters = store.get_substitute_submitters();
+        let submitters = store.snapshot().substitute_submitters().to_vec();
         assert!(submitters.is_empty());
 
         Ok(())

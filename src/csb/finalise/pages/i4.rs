@@ -39,9 +39,10 @@ async fn i4_model<S: AppRequestState>(
 
     let i4_inputs = i4_inputs(registry, &election, &numbering.stream_ids()).await?;
 
+    let main = main_store.snapshot();
     let mut public_session = PublicSession::from(election.public_session());
-    if let Some(hearing_details) = main_store.get_hearing_details(HearingModel::I4) {
-        public_session = public_session.with_hearing_details(hearing_details);
+    if let Some(hearing_details) = main.hearing_details(HearingModel::I4) {
+        public_session = public_session.with_hearing_details(hearing_details.clone());
     }
 
     Ok(I4 {
@@ -68,9 +69,9 @@ async fn i4_model<S: AppRequestState>(
             })
             .collect(),
         // Objections are recorded during the public session.
-        objections: main_store
-            .get_all_objections()
-            .into_iter()
+        objections: main
+            .objections()
+            .iter()
             .map(|o| o.objection_text.to_string())
             .collect(),
         response_objections: None,
@@ -368,7 +369,7 @@ mod tests {
         let model = i4_model(CsbContext::new_test(), main_store.clone(), &state, false).await?;
         assert_eq!(by_lot(&model), numbered);
         assert_eq!(main_store.list_order_events(), 1);
-        assert_eq!(main_store.list_order(), [first, second]);
+        assert_eq!(main_store.snapshot().list_order(), [first, second]);
 
         let model = i4_model(CsbContext::new_test(), main_store.clone(), &state, false).await?;
         assert_eq!(by_lot(&model), numbered);
@@ -393,7 +394,7 @@ mod tests {
 
         assert_eq!(by_lot(&model), [(None, "Eerste"), (None, "Tweede")]);
         assert_eq!(main_store.list_order_events(), 0);
-        assert!(main_store.list_order().is_empty());
+        assert!(main_store.snapshot().list_order().is_empty());
 
         Ok(())
     }

@@ -27,7 +27,7 @@ pub async fn list_name_authorisations(
     store: PgStore,
     Query(query): Query<QueryParamState>,
 ) -> Result<impl IntoResponse, AppError> {
-    let steps = PoliticalGroupSteps::new(&store, query.is_initial())?;
+    let steps = PoliticalGroupSteps::new(&store.snapshot(), query.is_initial())?;
     Ok(HtmlTemplate(
         NameAuthorisationTemplate {
             name_authorisations: steps.name_authorisations.clone(),

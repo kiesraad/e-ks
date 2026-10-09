@@ -36,7 +36,7 @@ pub async fn update_list_submitter(
     store: PgStore,
     Query(query): Query<QueryParamState>,
 ) -> Result<Response, AppError> {
-    let list_submitter = store.get_list_submitter();
+    let list_submitter = store.snapshot().list_submitter().clone();
     let should_warn = !list_submitter.is_empty();
     let address_unknown = list_submitter.address.is_unknown();
     let overlay = overlay_for(&list_submitter, &query);
@@ -59,7 +59,7 @@ pub async fn update_list_submitter_submit(
     Query(query): Query<QueryParamState>,
     Form(form): Form<ListSubmitterForm>,
 ) -> Result<Response, AppError> {
-    let list_submitter = store.get_list_submitter();
+    let list_submitter = store.snapshot().list_submitter().clone();
     match form.validate_update_with_checks(&ListSubmitterData::from(list_submitter.clone())) {
         Err(form_data) => Ok(HtmlTemplate(
             ListSubmitterUpdateTemplate {
@@ -152,7 +152,7 @@ mod tests {
                 .to_string()
         );
 
-        let updated = store.get_list_submitter();
+        let updated = store.snapshot().list_submitter().clone();
         assert_eq!(updated.name.last_name.to_string(), "Updated");
 
         Ok(())
@@ -182,7 +182,7 @@ mod tests {
         .unwrap();
 
         // the handler runs the BAG lookup and persists the outcome...
-        let stored = store.get_list_submitter();
+        let stored = store.snapshot().list_submitter().clone();
         assert!(matches!(
             &stored.address,
             Address::Dutch(address) if address.known_in_bag == Some(false)

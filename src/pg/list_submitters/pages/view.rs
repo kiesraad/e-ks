@@ -28,7 +28,7 @@ pub async fn view_list_submitter(
     store: PgStore,
     Query(query): Query<QueryParamState>,
 ) -> Result<impl IntoResponse, AppError> {
-    let steps = PoliticalGroupSteps::new(&store, query.is_initial())?;
+    let steps = PoliticalGroupSteps::new(&store.snapshot(), query.is_initial())?;
     let list_submitter = steps.list_submitter.clone();
     let substitute_submitters = steps.substitute_submitters.clone();
     Ok(HtmlTemplate(

@@ -1,12 +1,8 @@
-//! Read accessors over a political group's projection.
-//!
-//! The pure getters on [`PgStoreData`] borrow from a snapshot; the getters on
-//! [`Store<PgStoreData>`] are the older per-call wrappers that clone out of
-//! one and are being phased out.
+//! Read accessors over a political group's projection, borrowing from a
+//! snapshot.
 
 use crate::{
-    AppError, ElectionConfig, ElectoralDistrict, OrNotFound, PgStoreData,
-    store::{Store, StoreEvent},
+    ElectoralDistrict, PgStoreData,
     structs::{
         candidate_lists::{CandidateList, CandidateListId},
         common::FullName,
@@ -154,120 +150,13 @@ impl PgStoreData {
     }
 }
 
-impl Store<PgStoreData> {
-    pub fn get_election(&self) -> ElectionConfig {
-        self.election
-    }
-
-    pub fn get_political_group(&self) -> PoliticalGroup {
-        self.snapshot().political_group().clone()
-    }
-
-    pub fn get_persons(&self) -> Vec<Person> {
-        self.snapshot().persons().cloned().collect()
-    }
-
-    pub fn get_sorted_persons(&self) -> Vec<Person> {
-        self.snapshot()
-            .sorted_persons()
-            .into_iter()
-            .cloned()
-            .collect()
-    }
-
-    pub fn get_name_authorisations(&self) -> Vec<NameAuthorisation> {
-        self.snapshot()
-            .name_authorisations()
-            .into_iter()
-            .cloned()
-            .collect()
-    }
-
-    pub fn get_substitute_submitters(&self) -> Vec<ListSubmitter> {
-        self.snapshot().substitute_submitters().to_vec()
-    }
-
-    pub fn get_person_count(&self) -> usize {
-        self.snapshot().person_count()
-    }
-
-    pub fn get_candidate_list_count(&self) -> usize {
-        self.snapshot().candidate_list_count()
-    }
-
-    pub fn get_candidate_list(&self, list_id: CandidateListId) -> Result<CandidateList, AppError> {
-        self.snapshot()
-            .candidate_list(list_id)
-            .cloned()
-            .or_not_found()
-    }
-
-    pub fn get_candidate_lists(&self) -> Vec<CandidateList> {
-        self.snapshot()
-            .candidate_lists()
-            .into_iter()
-            .cloned()
-            .collect()
-    }
-
-    pub fn get_person(&self, person_id: PersonId) -> Result<Person, AppError> {
-        self.snapshot().person(person_id).cloned().or_not_found()
-    }
-
-    pub fn get_candidate_position(
-        &self,
-        list_id: CandidateListId,
-        person_id: PersonId,
-    ) -> Option<usize> {
-        self.snapshot().candidate_position(list_id, person_id)
-    }
-
-    pub fn get_first_candidate_name(&self) -> Option<FullName> {
-        self.snapshot().first_candidate_name().cloned()
-    }
-
-    pub fn get_name_authorisation(
-        &self,
-        authorisation_id: NameAuthorisationId,
-    ) -> Result<NameAuthorisation, AppError> {
-        self.snapshot()
-            .name_authorisation(authorisation_id)
-            .cloned()
-            .or_not_found()
-    }
-
-    pub fn get_list_submitter(&self) -> ListSubmitter {
-        self.snapshot().list_submitter().clone()
-    }
-
-    pub fn get_substitute_submitter(
-        &self,
-        substitute_submitter_id: ListSubmitterId,
-    ) -> Result<ListSubmitter, AppError> {
-        self.snapshot()
-            .substitute_submitter(substitute_submitter_id)
-            .cloned()
-            .or_not_found()
-    }
-
-    pub fn count_candidate_lists(&self, person_id: PersonId) -> usize {
-        self.snapshot().count_candidate_lists(person_id)
-    }
-
-    pub fn get_events(&self) -> Vec<StoreEvent<crate::PgEvent>> {
-        self.snapshot().events.clone()
-    }
-
-    pub fn should_show_download_warning(&self) -> bool {
-        self.snapshot().should_show_download_warning()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
-        PgEvent, store::StoreData, structs::list_submitters::ListSubmitterId,
+        PgEvent,
+        store::{StoreData, StoreEvent},
+        structs::list_submitters::ListSubmitterId,
         test_utils::sample_list_submitter,
     };
 

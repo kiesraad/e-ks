@@ -1,7 +1,7 @@
 //! Store-backed operations for [`Person`].
 
 use crate::{
-    AppError, PgEvent, PgStore,
+    AppError, OrNotFound, PgEvent, PgStore,
     pagination::SortDirection,
     structs::{
         common::{DutchAddress, FullName, Problematic},
@@ -28,7 +28,7 @@ impl Person {
             })
             .await?;
 
-        store.get_person(person_id)
+        store.snapshot().person(person_id).cloned().or_not_found()
     }
 
     pub async fn update_personal_data(
@@ -45,7 +45,7 @@ impl Person {
             })
             .await?;
 
-        store.get_person(self.id)
+        store.snapshot().person(self.id).cloned().or_not_found()
     }
 
     pub async fn create(&self, store: &PgStore) -> Result<(), AppError> {
@@ -112,7 +112,7 @@ impl Person {
         sort_field: &PersonSort,
         sort_direction: &SortDirection,
     ) -> Result<Vec<PersonWithProblems>, AppError> {
-        let mut persons = store.get_persons();
+        let mut persons = store.snapshot().persons().cloned().collect::<Vec<_>>();
         persons.sort_by(|a, b| compare_persons(a, b, sort_field));
 
         if matches!(sort_direction, SortDirection::Desc) {

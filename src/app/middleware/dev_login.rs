@@ -361,8 +361,8 @@ mod tests {
         login_without_fixtures_then_home(app).await;
 
         let store = open_store(&state).await;
-        assert_eq!(store.get_person_count(), 0);
-        assert_eq!(store.get_candidate_list_count(), 0);
+        assert_eq!(store.snapshot().person_count(), 0);
+        assert_eq!(store.snapshot().candidate_list_count(), 0);
     }
 
     #[tokio::test]
@@ -372,7 +372,7 @@ mod tests {
 
         let store = open_store(&state).await;
         assert!(matches!(
-            store.get_events().as_slice(),
+            store.snapshot().events.clone().as_slice(),
             &[
                 StoreEvent {
                     payload: PgEvent::UpdatePoliticalGroup(..),
@@ -447,8 +447,8 @@ mod tests {
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
 
         let store = open_store(&state).await;
-        assert!(store.get_person_count() > 0);
-        assert!(store.get_candidate_list_count() > 0);
+        assert!(store.snapshot().person_count() > 0);
+        assert!(store.snapshot().candidate_list_count() > 0);
     }
 
     /// The `name` query sets the fixture group's appellation and the redirect
@@ -468,14 +468,16 @@ mod tests {
         let store = open_store(&state).await;
         assert_eq!(
             store
-                .get_political_group()
+                .snapshot()
+                .political_group()
+                .clone()
                 .appellation
                 .expect("appellation")
                 .to_string(),
             "Unieke Groep"
         );
 
-        let last_hash = store.get_events().last().expect("events").hash;
+        let last_hash = store.snapshot().events.clone().last().expect("events").hash;
         let header = response
             .headers()
             .get(crate::app::middleware::dev_login::LAST_EVENT_HASH_HEADER)

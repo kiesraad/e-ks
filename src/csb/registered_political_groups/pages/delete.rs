@@ -5,7 +5,7 @@ use axum::{
 };
 
 use crate::{
-    AppError, Context, CsbContext, CsbMainAction, CsbMainStore, HtmlTemplate, Overlay,
+    AppError, Context, CsbContext, CsbMainAction, CsbMainStore, HtmlTemplate, OrNotFound, Overlay,
     QueryParamState,
     csb::registered_political_groups::paths::{
         CsbDeleteRegisteredPoliticalGroupPath, CsbRegisteredPoliticalGroupsPath,
@@ -29,7 +29,11 @@ pub async fn delete(
     main_store: CsbMainStore,
     Query(query): Query<QueryParamState>,
 ) -> Result<Response, AppError> {
-    let group = main_store.get_registered_political_group(id)?;
+    let group = main_store
+        .snapshot()
+        .registered_political_group(id)
+        .cloned()
+        .or_not_found()?;
     Ok(HtmlTemplate(
         DeleteRegisteredPoliticalGroupTemplate {
             group,
@@ -47,7 +51,11 @@ pub async fn delete_submit(
     main_store: CsbMainStore,
 ) -> Result<Response, AppError> {
     // Deleting a group that is already gone is a stale form, not a change.
-    main_store.get_registered_political_group(id)?;
+    main_store
+        .snapshot()
+        .registered_political_group(id)
+        .cloned()
+        .or_not_found()?;
     main_store
         .update(CsbMainAction::DeleteRegisteredPoliticalGroup(id).by(context.user()?))
         .await?;
@@ -100,7 +108,12 @@ mod tests {
         .unwrap();
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
-        let groups = store.registered_political_groups();
+        let groups = store
+            .snapshot()
+            .registered_political_groups()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
         assert_eq!(groups.len(), 1);
         assert_eq!(groups[0].appellation.to_string(), "Blijft");
     }

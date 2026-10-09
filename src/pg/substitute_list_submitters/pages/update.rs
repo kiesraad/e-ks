@@ -72,6 +72,7 @@ pub async fn update_substitute_submitter_submit(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::OrNotFound;
     use crate::{
         QueryParamState,
         structs::list_submitters::ListSubmitterId,
@@ -147,7 +148,11 @@ mod tests {
                 .to_string()
         );
 
-        let updated = store.get_substitute_submitter(sub_submitter_id)?;
+        let updated = store
+            .snapshot()
+            .substitute_submitter(sub_submitter_id)
+            .cloned()
+            .or_not_found()?;
         assert_eq!(updated.name.last_name.to_string(), "Updated");
 
         Ok(())

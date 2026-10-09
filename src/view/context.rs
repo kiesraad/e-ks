@@ -59,13 +59,14 @@ pub struct Context {
 
 impl Context {
     pub fn new(store: &PgStore, session: Session) -> Self {
-        let election = store.get_election();
-        let political_group = store.get_political_group();
+        let data = store.snapshot();
+        let election = store.election;
+        let political_group = data.political_group();
         let max_candidates = political_group.get_max_candidates();
         let candidate_limit = store.candidate_limit();
-        let multiple_candidate_lists = store.get_candidate_list_count() > 1;
+        let multiple_candidate_lists = data.candidate_list_count() > 1;
 
-        let general_information_path = political_group.general_information_path(store);
+        let general_information_path = political_group.general_information_path(&data);
 
         let paper_correction_mode =
             store
@@ -74,8 +75,7 @@ impl Context {
                     exit_path: format!(
                         "{CSB_PAPER_CORRECTIONS_STOP_PREFIX}/{stream_id}/paper-corrections/stop"
                     ),
-                    group_name: political_group
-                        .csb_appellation(store.get_first_candidate_name().as_ref()),
+                    group_name: political_group.csb_appellation(data.first_candidate_name()),
                 });
 
         Self {
@@ -157,7 +157,7 @@ impl<S: AppRequestState> FromRequestParts<S> for Context {
         context.server_name = state.config().server_name.as_deref();
 
         let path = parts.uri.path();
-        context.show_download_warning = store.should_show_download_warning()
+        context.show_download_warning = store.snapshot().should_show_download_warning()
             && DOWNLOAD_WARNING_PREFIXES
                 .iter()
                 .any(|prefix| path.starts_with(prefix));

@@ -93,11 +93,13 @@ async fn eml230_files(
         .zip(&snapshots)
         .map(|(store, (_, data))| CsbPoliticalGroup::from_snapshot(store, data))
         .collect();
-    let mut numbering = ListNumbering::new(
-        &political_groups,
-        &main_store.registered_political_groups(),
-        &main_store.list_order(),
-    );
+    let main = main_store.snapshot();
+    let registered: Vec<_> = main
+        .registered_political_groups()
+        .into_iter()
+        .cloned()
+        .collect();
+    let mut numbering = ListNumbering::new(&political_groups, &registered, main.list_order());
 
     numbering.record_if_incomplete(&context, main_store).await?;
 
@@ -514,7 +516,7 @@ mod tests {
             .await?,
         );
         assert_eq!(main_store.list_order_events(), 1);
-        assert_eq!(main_store.list_order(), [first, second]);
+        assert_eq!(main_store.snapshot().list_order(), [first, second]);
 
         assert_numbered(
             eml230_files(

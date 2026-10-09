@@ -34,7 +34,7 @@ pub async fn delete_person_confirm(
 ) -> AppResponse<impl IntoResponse> {
     Ok(HtmlTemplate(
         DeleteCandidateTemplate {
-            on_candidate_lists: store.count_candidate_lists(candidate.person.id),
+            on_candidate_lists: store.snapshot().count_candidate_lists(candidate.person.id),
             candidate,
             full_list,
             overlay: Overlay::new_edit(&query),
@@ -58,6 +58,7 @@ pub async fn delete_person(
 
 #[cfg(test)]
 mod tests {
+    use crate::OrNotFound;
     use axum::extract::Query;
 
     use super::*;
@@ -89,7 +90,10 @@ mod tests {
         let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
             .expect("candidate list");
         let candidate = store
-            .get_candidate_list(list_id)?
+            .snapshot()
+            .candidate_list(list_id)
+            .cloned()
+            .or_not_found()?
             .get_candidate(&store, person.id)
             .await?;
 
@@ -138,7 +142,10 @@ mod tests {
         list.create(&store).await?;
 
         let candidate = store
-            .get_candidate_list(list_id)?
+            .snapshot()
+            .candidate_list(list_id)
+            .cloned()
+            .or_not_found()?
             .get_candidate(&store, person.id)
             .await?;
 
@@ -176,7 +183,7 @@ mod tests {
         assert_eq!(updated_list.candidates.len(), 1);
         assert_eq!(updated_list.candidates[0].data.person.id, other_person.id);
 
-        let removed = store.get_person(person.id);
+        let removed = store.snapshot().person(person.id).cloned().or_not_found();
         assert!(removed.is_err());
 
         Ok(())

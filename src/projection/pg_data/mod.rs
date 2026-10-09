@@ -347,6 +347,7 @@ impl PgStoreData {
 
 #[cfg(test)]
 mod tests {
+    use crate::OrNotFound;
     use crate::{
         AppError, ElectoralDistrict, PgEvent, PgStore, PgStoreData,
         store::{StoreData, StoreEvent},
@@ -638,7 +639,11 @@ mod tests {
 
         name_authorisation.create(&store).await?;
 
-        let loaded = store.get_name_authorisation(id)?;
+        let loaded = store
+            .snapshot()
+            .name_authorisation(id)
+            .cloned()
+            .or_not_found()?;
         assert_eq!(loaded.id, name_authorisation.id);
 
         Ok(())
@@ -701,7 +706,7 @@ mod tests {
 
         // Reads serve a snapshot of the corrected projection.
         assert_eq!(
-            store.get_political_group().appellation,
+            store.snapshot().political_group().clone().appellation,
             sample_political_group().appellation
         );
 
@@ -732,7 +737,7 @@ mod tests {
 
         // The request-local snapshot observes the correction right away.
         assert_eq!(
-            store.get_political_group().appellation,
+            store.snapshot().political_group().clone().appellation,
             corrected_group.appellation
         );
 
@@ -798,7 +803,7 @@ mod tests {
 
             person.create(&store).await?;
 
-            let loaded = store.get_person(person_id)?;
+            let loaded = store.snapshot().person(person_id).cloned().or_not_found()?;
             assert_eq!(loaded.id, person_id);
 
             let fresh_store =
@@ -807,7 +812,11 @@ mod tests {
                     .unwrap();
             fresh_store.load().await?;
 
-            let reloaded = fresh_store.get_person(person_id)?;
+            let reloaded = fresh_store
+                .snapshot()
+                .person(person_id)
+                .cloned()
+                .or_not_found()?;
             assert_eq!(reloaded.id, person_id);
 
             Ok(())
@@ -957,7 +966,9 @@ mod tests {
             sample_person(PersonId::new()).create(&store).await?;
 
             let target = store
-                .get_events()
+                .snapshot()
+                .events
+                .clone()
                 .last()
                 .cloned()
                 .expect("at least one event");

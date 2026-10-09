@@ -31,7 +31,11 @@ async fn candidate_list_publication_model<S: AppRequestState>(
         .await?;
 
     let mut public_session = PublicSession::from(election.public_session());
-    if let Some(hearing_details) = main_store.get_hearing_details(HearingModel::I4) {
+    if let Some(hearing_details) = main_store
+        .snapshot()
+        .hearing_details(HearingModel::I4)
+        .cloned()
+    {
         public_session = public_session.with_hearing_details(hearing_details);
     }
 
@@ -231,7 +235,7 @@ mod tests {
                 .await?;
         assert_eq!(rows(&model), numbered);
         assert_eq!(main_store.list_order_events(), 1);
-        assert_eq!(main_store.list_order(), [first, second]);
+        assert_eq!(main_store.snapshot().list_order(), [first, second]);
 
         let model =
             candidate_list_publication_model(CsbContext::new_test(), main_store.clone(), &state)

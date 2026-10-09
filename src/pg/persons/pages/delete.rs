@@ -47,6 +47,7 @@ pub async fn delete_person(
 
 #[cfg(test)]
 mod tests {
+    use crate::OrNotFound;
     use axum::extract::Query;
     use axum_extra::routing::TypedPath;
 
@@ -112,7 +113,7 @@ mod tests {
                 .to_string()
         );
 
-        let found = store.get_person(person_id);
+        let found = store.snapshot().person(person_id).cloned().or_not_found();
         assert!(found.is_err());
 
         Ok(())

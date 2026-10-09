@@ -1,4 +1,4 @@
-use crate::structs::candidate_lists::CandidateList;
+use crate::structs::candidate_lists::{CandidateList, CandidateListId};
 use askama::Template;
 use axum::{
     http::StatusCode,
@@ -6,7 +6,8 @@ use axum::{
 };
 
 use crate::{
-    AppError, Context, EventHashPrefix, HtmlTemplate, Locale, Overlay, PgStore, QueryParamState,
+    AppError, Context, EventHashPrefix, HtmlTemplate, Locale, OrNotFound, Overlay, PgStore,
+    QueryParamState,
     candidate_lists::{
         CSV_HEADERS, CandidateRecordCsv,
         importer::{ImportCandidateListError, import_candidate_list_csv},
@@ -59,11 +60,20 @@ pub async fn import_export(
     store: PgStore,
 ) -> Result<Response, AppError> {
     Ok(render_import_export(
-        store.get_candidate_list(list_id)?,
+        candidate_list(&store, list_id)?,
         vec![],
         context,
         &store,
     ))
+}
+
+/// The list as the store holds it now.
+fn candidate_list(store: &PgStore, list_id: CandidateListId) -> Result<CandidateList, AppError> {
+    store
+        .snapshot()
+        .candidate_list(list_id)
+        .cloned()
+        .or_not_found()
 }
 
 pub async fn import_candidate_list(
@@ -72,7 +82,7 @@ pub async fn import_candidate_list(
     store: PgStore,
     import_data: Result<FileForm, AppError>,
 ) -> Result<Response, AppError> {
-    let mut list = store.get_candidate_list(list_id)?;
+    let mut list = candidate_list(&store, list_id)?;
 
     let import_data = match import_data {
         Ok(form) => form,
@@ -417,10 +427,18 @@ mod tests {
         );
         assert!(!location.contains("import_capped"), "{location}");
 
-        let candidate_id = store.get_candidate_list(list.id)?.candidates[0];
+        let candidate_id = store
+            .snapshot()
+            .candidate_list(list.id)
+            .cloned()
+            .or_not_found()?
+            .candidates[0];
         assert_eq!(
             store
-                .get_person(candidate_id)?
+                .snapshot()
+                .person(candidate_id)
+                .cloned()
+                .or_not_found()?
                 .personal_data
                 .date_of_birth
                 .map(|d| d.to_string()),

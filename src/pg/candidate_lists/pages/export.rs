@@ -177,7 +177,9 @@ mod tests {
 
         assert!(
             !store
-                .get_events()
+                .snapshot()
+                .events
+                .clone()
                 .iter()
                 .any(|e| matches!(e.payload, PgEvent::ExportCsv { .. })),
             "a refused export is not recorded"

@@ -339,7 +339,7 @@ mod tests {
         add_candidate_list(&store).await?;
 
         // make political group standalone
-        let mut group = store.get_political_group();
+        let mut group = store.snapshot().political_group().clone();
         group.list_designation = Some(ListDesignation::Standalone);
         group.update(&store).await?;
 
@@ -362,7 +362,7 @@ mod tests {
         add_candidate_list(&store).await?;
 
         // make political group standalone
-        let mut group = store.get_political_group();
+        let mut group = store.snapshot().political_group().clone();
         group.list_designation = Some(ListDesignation::Standalone);
         group.update(&store).await?;
 
@@ -387,7 +387,7 @@ mod tests {
         add_candidate_list(&store).await?;
 
         // make political group standalone
-        let mut group = store.get_political_group();
+        let mut group = store.snapshot().political_group().clone();
         group.list_designation = Some(ListDesignation::Combined);
         group.update(&store).await?;
 
@@ -412,7 +412,7 @@ mod tests {
         add_candidate_list(&store).await?;
 
         // make political group standalone
-        let mut group = store.get_political_group();
+        let mut group = store.snapshot().political_group().clone();
         group.list_designation = Some(ListDesignation::Blank);
         group.update(&store).await?;
 

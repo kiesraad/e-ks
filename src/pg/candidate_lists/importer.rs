@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use crate::{
-    AppError, Locale, PgEvent, PgStore,
+    AppError, Locale, OrNotFound, PgEvent, PgStore,
     candidate_lists::{CSV_HEADERS, CandidateRecord, CandidateRecordCsv},
     core::{Csv, CsvError},
     form::FieldErrors,
@@ -45,7 +45,11 @@ pub(crate) async fn import_candidate_list_csv(
     let capped = records.len() > store.candidate_limit();
     records.truncate(store.candidate_limit());
 
-    let persons = collect_persons(records, store.get_persons(), locale)?;
+    let persons = collect_persons(
+        records,
+        store.snapshot().persons().cloned().collect::<Vec<_>>(),
+        locale,
+    )?;
     emit_import_event(list, store, persons, file_name, file_size).await?;
 
     Ok(ImportOutcome {
@@ -352,7 +356,11 @@ async fn emit_import_event(
         })
         .await?;
 
-    *list = store.get_candidate_list(list.id)?;
+    *list = store
+        .snapshot()
+        .candidate_list(list.id)
+        .cloned()
+        .or_not_found()?;
 
     Ok(())
 }
@@ -388,14 +396,22 @@ mod tests {
         .await
         .expect("import should succeed");
 
-        assert_eq!(store.get_person_count(), 1);
+        assert_eq!(store.snapshot().person_count(), 1);
         assert_eq!(
-            store.get_candidate_list(list_id)?.candidates,
+            store
+                .snapshot()
+                .candidate_list(list_id)
+                .cloned()
+                .or_not_found()?
+                .candidates,
             vec![existing_person.id]
         );
         assert_eq!(
             store
-                .get_person(existing_person.id)?
+                .snapshot()
+                .person(existing_person.id)
+                .cloned()
+                .or_not_found()?
                 .name
                 .first_name
                 .as_deref()
@@ -429,9 +445,14 @@ mod tests {
         .await
         .expect("import should succeed");
 
-        assert_eq!(store.get_person_count(), 1);
+        assert_eq!(store.snapshot().person_count(), 1);
         assert_eq!(
-            store.get_candidate_list(list_id)?.candidates,
+            store
+                .snapshot()
+                .candidate_list(list_id)
+                .cloned()
+                .or_not_found()?
+                .candidates,
             vec![existing_person.id]
         );
 
@@ -462,10 +483,19 @@ mod tests {
         .await
         .expect("import should succeed");
 
-        let candidates = store.get_candidate_list(list_id)?.candidates;
-        let persisted_existing_person = store.get_person(existing_person.id)?;
+        let candidates = store
+            .snapshot()
+            .candidate_list(list_id)
+            .cloned()
+            .or_not_found()?
+            .candidates;
+        let persisted_existing_person = store
+            .snapshot()
+            .person(existing_person.id)
+            .cloned()
+            .or_not_found()?;
 
-        assert_eq!(store.get_person_count(), 2);
+        assert_eq!(store.snapshot().person_count(), 2);
         assert_eq!(candidates.len(), 1);
         assert_ne!(candidates[0], existing_person.id);
         assert_eq!(persisted_existing_person.id, existing_person.id);
@@ -496,8 +526,17 @@ mod tests {
         .await
         .expect("import should succeed");
 
-        assert_eq!(store.get_person_count(), 2);
-        assert_eq!(store.get_candidate_list(list_id)?.candidates.len(), 2);
+        assert_eq!(store.snapshot().person_count(), 2);
+        assert_eq!(
+            store
+                .snapshot()
+                .candidate_list(list_id)
+                .cloned()
+                .or_not_found()?
+                .candidates
+                .len(),
+            2
+        );
 
         Ok(())
     }
@@ -521,13 +560,30 @@ mod tests {
         .await
         .expect("duplicate rows should merge");
 
-        let candidate_id = store.get_candidate_list(list_id)?.candidates[0];
+        let candidate_id = store
+            .snapshot()
+            .candidate_list(list_id)
+            .cloned()
+            .or_not_found()?
+            .candidates[0];
 
-        assert_eq!(store.get_person_count(), 1);
-        assert_eq!(store.get_candidate_list(list_id)?.candidates.len(), 1);
+        assert_eq!(store.snapshot().person_count(), 1);
         assert_eq!(
             store
-                .get_person(candidate_id)?
+                .snapshot()
+                .candidate_list(list_id)
+                .cloned()
+                .or_not_found()?
+                .candidates
+                .len(),
+            1
+        );
+        assert_eq!(
+            store
+                .snapshot()
+                .person(candidate_id)
+                .cloned()
+                .or_not_found()?
                 .name
                 .first_name
                 .as_deref()
@@ -557,13 +613,30 @@ mod tests {
         .await
         .expect("duplicate rows should merge");
 
-        let candidate_id = store.get_candidate_list(list_id)?.candidates[0];
+        let candidate_id = store
+            .snapshot()
+            .candidate_list(list_id)
+            .cloned()
+            .or_not_found()?
+            .candidates[0];
 
-        assert_eq!(store.get_person_count(), 1);
-        assert_eq!(store.get_candidate_list(list_id)?.candidates.len(), 1);
+        assert_eq!(store.snapshot().person_count(), 1);
         assert_eq!(
             store
-                .get_person(candidate_id)?
+                .snapshot()
+                .candidate_list(list_id)
+                .cloned()
+                .or_not_found()?
+                .candidates
+                .len(),
+            1
+        );
+        assert_eq!(
+            store
+                .snapshot()
+                .person(candidate_id)
+                .cloned()
+                .or_not_found()?
                 .name
                 .first_name
                 .as_deref()
@@ -595,8 +668,17 @@ mod tests {
         .expect("import should succeed");
 
         assert_eq!(store.current_event_id(), event_id_before_import + 1);
-        assert_eq!(store.get_person_count(), 2);
-        assert_eq!(store.get_candidate_list(list_id)?.candidates.len(), 2);
+        assert_eq!(store.snapshot().person_count(), 2);
+        assert_eq!(
+            store
+                .snapshot()
+                .candidate_list(list_id)
+                .cloned()
+                .or_not_found()?
+                .candidates
+                .len(),
+            2
+        );
 
         Ok(())
     }
@@ -628,12 +710,18 @@ mod tests {
 
         assert!(outcome.capped);
         assert_eq!(
-            store.get_candidate_list(list_id)?.candidates.len(),
+            store
+                .snapshot()
+                .candidate_list(list_id)
+                .cloned()
+                .or_not_found()?
+                .candidates
+                .len(),
             MAX_CANDIDATES
         );
         // Rows past the cap are dropped entirely: no person records may be
         // persisted for them.
-        assert_eq!(store.get_person_count(), MAX_CANDIDATES);
+        assert_eq!(store.snapshot().person_count(), MAX_CANDIDATES);
 
         Ok(())
     }
@@ -664,9 +752,22 @@ mod tests {
         .await
         .expect("import should succeed");
 
-        let candidates = store.get_candidate_list(list_id)?.candidates;
-        let known = store.get_person(candidates[0])?;
-        let unknown = store.get_person(candidates[1])?;
+        let candidates = store
+            .snapshot()
+            .candidate_list(list_id)
+            .cloned()
+            .or_not_found()?
+            .candidates;
+        let known = store
+            .snapshot()
+            .person(candidates[0])
+            .cloned()
+            .or_not_found()?;
+        let unknown = store
+            .snapshot()
+            .person(candidates[1])
+            .cloned()
+            .or_not_found()?;
 
         assert_eq!(known.address.known_in_bag, Some(true));
         assert_eq!(unknown.address.known_in_bag, Some(false));
@@ -699,9 +800,17 @@ mod tests {
         .await
         .expect("import should succeed");
 
-        let candidate_id = store.get_candidate_list(list_id)?.candidates[0];
+        let candidate_id = store
+            .snapshot()
+            .candidate_list(list_id)
+            .cloned()
+            .or_not_found()?
+            .candidates[0];
         let representative = store
-            .get_person(candidate_id)?
+            .snapshot()
+            .person(candidate_id)
+            .cloned()
+            .or_not_found()?
             .representative
             .expect("representative should be present");
 
@@ -736,7 +845,7 @@ mod tests {
             other => panic!("expected validation messages, got {other:?}"),
         }
 
-        assert_eq!(store.get_person_count(), 0);
+        assert_eq!(store.snapshot().person_count(), 0);
 
         Ok(())
     }
@@ -766,8 +875,17 @@ mod tests {
         assert_eq!(outcome.ignored_columns, vec!["lijst_nummer".to_string()]);
         assert!(outcome.has_warnings());
 
-        let candidate_id = store.get_candidate_list(list_id)?.candidates[0];
-        let person = store.get_person(candidate_id)?;
+        let candidate_id = store
+            .snapshot()
+            .candidate_list(list_id)
+            .cloned()
+            .or_not_found()?
+            .candidates[0];
+        let person = store
+            .snapshot()
+            .person(candidate_id)
+            .cloned()
+            .or_not_found()?;
         assert_eq!(
             person.name.initials.as_ref().map(ToString::to_string),
             Some("H.A.H.A.".to_string())

@@ -21,7 +21,11 @@ async fn i1_model<S: AppRequestState>(main_store: CsbMainStore, state: &S) -> Re
     let found_omissions = found_omissions(registry, &election).await?;
 
     let mut session = PublicSession::from(election.public_session());
-    if let Some(hearing_details) = main_store.get_hearing_details(HearingModel::I1) {
+    if let Some(hearing_details) = main_store
+        .snapshot()
+        .hearing_details(HearingModel::I1)
+        .cloned()
+    {
         session = session.with_hearing_details(hearing_details);
     }
 

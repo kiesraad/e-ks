@@ -5,8 +5,8 @@ use axum::{
 };
 
 use crate::{
-    AppError, Context, CsbContext, CsbMainAction, CsbMainStore, Form, HtmlTemplate, Overlay,
-    QueryParamState,
+    AppError, Context, CsbContext, CsbMainAction, CsbMainStore, Form, HtmlTemplate, OrNotFound,
+    Overlay, QueryParamState,
     csb::registered_political_groups::{
         RegisteredPoliticalGroupForm,
         paths::{
@@ -64,7 +64,10 @@ fn validate(
         Some(current) => form.validate_update(current)?,
         None => form.validate_create()?,
     };
-    if main_store.has_registered_appellation(&group.appellation, current.map(|c| c.id)) {
+    if main_store
+        .snapshot()
+        .has_registered_appellation(&group.appellation, current.map(|c| c.id))
+    {
         return Err(FormData::new_with_errors(
             group.into(),
             vec![(
@@ -109,7 +112,11 @@ pub async fn edit(
     main_store: CsbMainStore,
     Query(query): Query<QueryParamState>,
 ) -> Result<Response, AppError> {
-    let group = main_store.get_registered_political_group(id)?;
+    let group = main_store
+        .snapshot()
+        .registered_political_group(id)
+        .cloned()
+        .or_not_found()?;
     Ok(render(
         context,
         &query,
@@ -125,7 +132,11 @@ pub async fn edit_submit(
     Query(query): Query<QueryParamState>,
     Form(form): Form<RegisteredPoliticalGroupForm>,
 ) -> Result<Response, AppError> {
-    let current = main_store.get_registered_political_group(id)?;
+    let current = main_store
+        .snapshot()
+        .registered_political_group(id)
+        .cloned()
+        .or_not_found()?;
     let group = match validate(&main_store, form, Some(&current)) {
         Ok(group) => group,
         Err(form) => return Ok(render(context, &query, form, Some(current))),
@@ -209,7 +220,12 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
         assert!(location(&response).starts_with("/csb/registered-political-groups?"));
-        let groups = store.registered_political_groups();
+        let groups = store
+            .snapshot()
+            .registered_political_groups()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
         assert_eq!(groups.len(), 1);
         assert_eq!(groups[0].appellation.to_string(), "Nieuwe Partij");
         assert_eq!(groups[0].previous_votes.value(), 4321);
@@ -236,7 +252,15 @@ mod tests {
         assert!(body.contains("This field must not be empty."));
         // The entered values are kept for correction.
         assert!(body.contains("value=\"veel\""));
-        assert!(store.registered_political_groups().is_empty());
+        assert!(
+            store
+                .snapshot()
+                .registered_political_groups()
+                .into_iter()
+                .cloned()
+                .collect::<Vec<_>>()
+                .is_empty()
+        );
     }
 
     #[tokio::test]
@@ -256,7 +280,16 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
         assert!(body.contains("already registered"));
-        assert_eq!(store.registered_political_groups().len(), 1);
+        assert_eq!(
+            store
+                .snapshot()
+                .registered_political_groups()
+                .into_iter()
+                .cloned()
+                .collect::<Vec<_>>()
+                .len(),
+            1
+        );
     }
 
     #[tokio::test]
@@ -316,11 +349,24 @@ mod tests {
         .unwrap();
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
-        let updated = store.get_registered_political_group(group.id).unwrap();
+        let updated = store
+            .snapshot()
+            .registered_political_group(group.id)
+            .cloned()
+            .unwrap();
         assert_eq!(updated.appellation.to_string(), "Nieuwe Naam");
         assert_eq!(updated.previous_votes.value(), 20);
         assert_eq!(updated.previous_seats.value(), 0);
-        assert_eq!(store.registered_political_groups().len(), 1);
+        assert_eq!(
+            store
+                .snapshot()
+                .registered_political_groups()
+                .into_iter()
+                .cloned()
+                .collect::<Vec<_>>()
+                .len(),
+            1
+        );
     }
 
     #[tokio::test]
@@ -352,7 +398,10 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
             store
-                .get_registered_political_group(first.id)
+                .snapshot()
+                .registered_political_group(first.id)
+                .cloned()
+                .or_not_found()
                 .unwrap()
                 .appellation
                 .to_string(),

@@ -85,7 +85,14 @@ pub(in crate::csb) async fn render(
     let data = store.snapshot();
     let political_group = CsbPoliticalGroup::from_snapshot(&store, &data)
         .with_mode(mode)
-        .with_registrations(&main_store.registered_political_groups());
+        .with_registrations(
+            &main_store
+                .snapshot()
+                .registered_political_groups()
+                .into_iter()
+                .cloned()
+                .collect::<Vec<_>>(),
+        );
 
     let brp_findings = data.brp_findings();
     let candidate_lists = candidate_lists(&data, &political_group, brp_findings)?;

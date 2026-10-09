@@ -263,7 +263,7 @@ mod tests {
         let eml = eml210(
             &store.snapshot(),
             &context.election,
-            &store.get_political_group(),
+            &store.snapshot().political_group().clone(),
             list.id(),
             ModelLocale::Nl,
         )
@@ -291,7 +291,7 @@ mod tests {
         let eml = eml210(
             &store.snapshot(),
             &context.election,
-            &store.get_political_group(),
+            &store.snapshot().political_group().clone(),
             list.id(),
             ModelLocale::Nl,
         )
@@ -320,7 +320,7 @@ mod tests {
         let eml = eml210(
             &store.snapshot(),
             &context.election,
-            &store.get_political_group(),
+            &store.snapshot().political_group().clone(),
             list.id(),
             ModelLocale::Nl,
         )
@@ -348,7 +348,7 @@ mod tests {
         let eml = eml210(
             &store.snapshot(),
             &context.election,
-            &store.get_political_group(),
+            &store.snapshot().political_group().clone(),
             list.id(),
             ModelLocale::Fry,
         )

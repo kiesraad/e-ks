@@ -90,6 +90,7 @@ pub async fn update_candidate_list_submit(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::OrNotFound;
     use crate::{
         Context, ElectionConfig, ElectoralDistrict, Form, PgStore, QueryParamState,
         structs::candidate_lists::{CandidateListId, CandidateListSummary},
@@ -261,7 +262,10 @@ mod tests {
         // deduplicated, in the election's district order
         assert_eq!(
             store
-                .get_candidate_list(candidate_list.id)?
+                .snapshot()
+                .candidate_list(candidate_list.id)
+                .cloned()
+                .or_not_found()?
                 .electoral_districts,
             BTreeSet::from([ElectoralDistrict::Drenthe, ElectoralDistrict::Utrecht])
         );
@@ -303,7 +307,12 @@ mod tests {
         // verify
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
 
-        let lists = store.get_candidate_lists();
+        let lists = store
+            .snapshot()
+            .candidate_lists()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
         assert_eq!(lists.len(), 1);
         let list = &lists[0];
         // WsFryslan got dropped because it's not part of EK27
