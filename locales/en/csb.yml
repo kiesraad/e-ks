@@ -83,7 +83,7 @@ examination: Examination
 finalise:
   add_objection: Add objection
   district_count: Electoral districts
-  download_eml230b: Download EML230b
+  download_eml_zip: Download EML files
   draft_title: Draft version
   final_title: Final version
   i4_note: Official report on the validity and numbering of the candidate lists. Create the form for the report of the public session.

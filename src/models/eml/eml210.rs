@@ -2,15 +2,12 @@
 
 use eml_nl::{
     common::{
-        AuthorityIdentifier, CreatedByAuthority, FirstName, LastName, ListData, ListDataContest,
-        ManagingAuthority, NameLineInitials, NamePrefix, PersonName,
+        AuthorityIdentifier, CreatedByAuthority, ListData, ListDataContest, ManagingAuthority,
     },
     documents::{
         EML, ElectionIdentifierBuilder,
-        candidate_lists::QualifyingAddress,
         nomination::{
-            AgentIdentifier, Nomination, NominationAffiliation, NominationContestIdentifier,
-            NominationNominate,
+            Nomination, NominationAffiliation, NominationContestIdentifier, NominationNominate,
         },
     },
     io::EMLWrite,
@@ -20,88 +17,15 @@ use eml_nl::{
 use crate::{
     AppError, ElectionConfig, PgStore,
     core::ModelLocale,
-    models::eml::candidate_identifier,
+    models::eml::{agent, candidate_identifier, contact},
     structs::{
         candidate_lists::{CandidateList, CandidateListId, FullCandidateList},
         candidates::Candidate,
-        common::{Address, BsnOrNoneConfirmed, DutchAddress, FullName},
+        common::BsnOrNoneConfirmed,
         list_submitters::ListSubmitter,
-        persons::Representative,
         political_groups::PoliticalGroup,
     },
 };
-
-impl From<&FullName> for eml_nl::common::PersonNameStructure {
-    fn from(val: &FullName) -> Self {
-        eml_nl::common::PersonNameStructure::new(PersonName {
-            name_line_initials: val
-                .initials
-                .as_ref()
-                .map(|initials| NameLineInitials::new(initials.to_string())),
-            first_name: val
-                .first_name
-                .as_ref()
-                .map(|n| FirstName::new(n.to_string())),
-            name_prefix: val
-                .last_name_prefix
-                .as_ref()
-                .map(|n| NamePrefix::new(n.to_string())),
-            last_name: LastName::new(val.last_name.to_string()),
-            person_name_type: None,
-            code: None,
-            name_details_key_ref: None,
-        })
-    }
-}
-
-impl From<&Address> for QualifyingAddress {
-    fn from(address: &Address) -> QualifyingAddress {
-        let locality = eml_nl::documents::candidate_lists::QualifyingAddressLocality::new(
-            address
-                .locality()
-                .as_ref()
-                .map(ToString::to_string)
-                .unwrap_or_default(),
-        )
-        .with_postal_code_option(address.postal_code())
-        .with_address_line_option(address.address_line_1());
-
-        QualifyingAddress::Locality(locality)
-    }
-}
-
-impl From<&DutchAddress> for eml_nl::documents::nomination::LivingAddress {
-    fn from(address: &DutchAddress) -> eml_nl::documents::nomination::LivingAddress {
-        eml_nl::documents::nomination::LivingAddress::new(
-            address
-                .locality
-                .as_ref()
-                .map(ToString::to_string)
-                .unwrap_or_default(),
-        )
-    }
-}
-
-impl From<&Address> for eml_nl::documents::nomination::NominationContact {
-    fn from(address: &Address) -> eml_nl::documents::nomination::NominationContact {
-        eml_nl::documents::nomination::NominationContact {
-            mailing_address: eml_nl::documents::nomination::MailingAddress {
-                address: address.into(),
-            },
-        }
-    }
-}
-
-impl From<&Representative> for eml_nl::documents::nomination::NominationAgent {
-    fn from(representative: &Representative) -> eml_nl::documents::nomination::NominationAgent {
-        eml_nl::documents::nomination::NominationAgent {
-            role: Some("H10".to_string()),
-            agent_identifier: AgentIdentifier::new(&representative.name),
-            contact: Some((&Address::Dutch(representative.address.clone())).into()),
-            living_address: (&representative.address).into(),
-        }
-    }
-}
 
 impl TryInto<eml_nl::documents::nomination::NominationCandidate> for &Candidate {
     type Error = AppError;
@@ -119,13 +43,8 @@ impl TryInto<eml_nl::documents::nomination::NominationCandidate> for &Candidate 
             gender: Some(StringValue::from_value((&self.person.personal_data).into())),
             gender_annex: None,
             qualifying_address: (&self.person.personal_data).try_into()?,
-            contact: (!self.person.needs_representative())
-                .then(|| (&Address::Dutch(self.person.address.clone())).into()),
-            agent: self
-                .person
-                .needs_representative()
-                .then(|| self.person.representative.as_ref().map(Into::into))
-                .flatten(),
+            contact: contact(&self.person),
+            agent: agent(&self.person),
             date_of_birth_annex: None,
             national_identification_number: match self.person.personal_data.bsn.as_ref() {
                 Some(BsnOrNoneConfirmed::Bsn(bsn)) => Some(bsn.to_exposed_string().into()),
