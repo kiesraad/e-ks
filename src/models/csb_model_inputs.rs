@@ -11,11 +11,11 @@ use crate::{
     core::AnyLocale,
     models::{
         candidate_list_overview::OverviewGroup,
+        candidate_list_publication::{NumberedList, PublishedCandidate},
         established_lists::EstablishedLists,
         i1, i4,
         inputs::{DistrictLists, OmissionGroup, ValidList, ValidListCandidate},
         omission_letter,
-        osv3_2::{NumberedList, PublishedCandidate},
     },
     projection::{Scrapped, WithCorrections},
     store::StoreRegistry,
@@ -328,10 +328,9 @@ pub async fn lists_overview(
     Ok(groups)
 }
 
-/// The OSV 3-2 lists: per district, the valid lists in list order, numbered
-/// on within the district. A district without a group's list, never
-/// submitted or scrapped there, numbers on without a gap. `stream_order` is
-/// the list order of the groups.
+/// The candidate list publication: per district, the valid lists in list order.
+/// group's lists carry its number in every district, so a district without that
+/// list (never submitted or scrapped there) skips that number.
 pub async fn published_lists(
     registry: &StoreRegistry<CsbStoreData>,
     election: &ElectionConfig,

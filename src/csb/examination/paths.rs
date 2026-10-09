@@ -47,23 +47,29 @@ pub struct CsbI4DraftDownloadPath;
 pub struct CsbI4DraftDocxDownloadPath;
 
 #[derive(TypedPath)]
-#[typed_path("/csb/examination/osv3-2.pdf", rejection(AppError))]
-pub struct CsbOsv3_2DownloadPath;
+#[typed_path(
+    "/csb/examination/publicatie-kandidatenlijsten.pdf",
+    rejection(AppError)
+)]
+pub struct CsbCandidateListPublicationDownloadPath;
 
 #[derive(TypedPath)]
-#[typed_path("/csb/examination/osv3-2.docx", rejection(AppError))]
-pub struct CsbOsv3_2DocxDownloadPath;
+#[typed_path(
+    "/csb/examination/publicatie-kandidatenlijsten.docx",
+    rejection(AppError)
+)]
+pub struct CsbCandidateListPublicationDocxDownloadPath;
 
 #[derive(TypedPath, Deserialize)]
 #[typed_path(
-    "/csb/examination/overzicht_kandidatenlijsten.pdf",
+    "/csb/examination/overzicht-kandidatenlijsten.pdf",
     rejection(AppError)
 )]
 pub struct CsbCandidateListOverviewDownloadPath;
 
 #[derive(TypedPath, Deserialize)]
 #[typed_path(
-    "/csb/examination/overzicht_kandidatenlijsten.docx",
+    "/csb/examination/overzicht-kandidatenlijsten.docx",
     rejection(AppError)
 )]
 pub struct CsbCandidateListOverviewDocxDownloadPath;
