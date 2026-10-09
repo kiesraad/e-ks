@@ -15,7 +15,7 @@ use eml_nl::{
 use regex::Regex;
 
 use crate::{
-    AppError, CsbStream, ElectionConfig, StreamId,
+    AppError, CsbStoreData, ElectionConfig,
     models::eml::{
         agent, candidate_id, candidate_identifier, contact,
         eml230b::{
@@ -40,15 +40,15 @@ static LETTERS: LazyLock<Regex> =
 /// `Ok(None)` when no group qualifies
 pub fn eml230c(
     election: &ElectionConfig,
-    numbered_groups: &[(NonZeroU64, &CsbStream)],
+    numbered_groups: &[(NonZeroU64, &CsbStoreData)],
 ) -> Result<Option<Vec<u8>>, AppError> {
     let mut short_codes = ShortCodes::default();
     let mut eml_contests = Vec::new();
 
     for (contest_identifier, district) in contests(election)? {
         let affiliations =
-            contest_affiliations(district, numbered_groups, |store, position, person| {
-                short_codes.candidate(store.stream_id, position, person)
+            contest_affiliations(district, numbered_groups, |group, position, person| {
+                short_codes.candidate(group, position, person)
             })?;
         if affiliations.is_empty() {
             continue;
@@ -80,24 +80,25 @@ pub fn eml230c(
 /// short code in later contests.
 #[derive(Default)]
 struct ShortCodes {
-    assigned: HashMap<(StreamId, PersonId), NameShortCode>,
+    /// Keyed by the group's list number, unique within the document
+    assigned: HashMap<(NonZeroU64, PersonId), NameShortCode>,
 }
 
 impl ShortCodes {
     fn candidate(
         &mut self,
-        stream_id: StreamId,
+        group: NonZeroU64,
         position: usize,
         person: &Person,
     ) -> Result<CandidateListsCandidate, AppError> {
-        if let Some(short_code) = self.assigned.get(&(stream_id, person.id)) {
+        if let Some(short_code) = self.assigned.get(&(group, person.id)) {
             return Ok(CandidateListsCandidate::reference(
                 candidate_id(position)?,
                 short_code.clone(),
             ));
         }
 
-        let short_code = self.assign((stream_id, person.id), &person.name)?;
+        let short_code = self.assign((group, person.id), &person.name)?;
 
         let builder = CandidateListsCandidate::builder()
             .identifier(candidate_identifier(position)?.with_short_code(short_code));
@@ -116,7 +117,7 @@ impl ShortCodes {
     /// assigned to anyone else
     fn assign(
         &mut self,
-        key: (StreamId, PersonId),
+        key: (NonZeroU64, PersonId),
         name: &FullName,
     ) -> Result<NameShortCode, AppError> {
         let short_code = self.new_short_code(name)?;
@@ -172,7 +173,7 @@ mod tests {
     use eml_nl::documents::EML;
 
     use crate::{
-        ElectoralDistrict, Province, WaterCouncil,
+        CsbStream, ElectoralDistrict, Province, WaterCouncil,
         models::eml::remove_variable_fields,
         projection::WithCorrections,
         structs::{
@@ -189,7 +190,7 @@ mod tests {
     /// Assign a short code to a new candidate called `name`
     fn short_code(short_codes: &mut ShortCodes, name: &FullName) -> String {
         short_codes
-            .assign((StreamId::new(), PersonId::new()), name)
+            .assign((NonZeroU64::MIN, PersonId::new()), name)
             .unwrap()
             .value()
             .to_string()
@@ -327,17 +328,23 @@ mod tests {
         vec![store1, store2]
     }
 
-    fn numbered(stores: &[CsbStream]) -> Vec<(NonZeroU64, &CsbStream)> {
-        stores
+    fn snapshots(stores: &[CsbStream]) -> Vec<std::sync::Arc<CsbStoreData>> {
+        stores.iter().map(CsbStream::snapshot).collect()
+    }
+
+    fn numbered(snapshots: &[std::sync::Arc<CsbStoreData>]) -> Vec<(NonZeroU64, &CsbStoreData)> {
+        snapshots
             .iter()
             .enumerate()
-            .map(|(index, store)| (NonZeroU64::new(index as u64 + 1).unwrap(), store))
+            .map(|(index, data)| (NonZeroU64::new(index as u64 + 1).unwrap(), data.as_ref()))
             .collect()
     }
 
     fn export(election: ElectionConfig) -> String {
         let stores = sample_stores(election);
-        let eml = eml230c(&election, &numbered(&stores)).unwrap().unwrap();
+        let eml = eml230c(&election, &numbered(&snapshots(&stores)))
+            .unwrap()
+            .unwrap();
         String::from_utf8(eml).unwrap()
     }
 

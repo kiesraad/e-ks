@@ -167,12 +167,13 @@ async fn imported_appellation(
     source_stream_id: StreamId,
 ) -> Result<Option<String>, AppError> {
     for store in registry.stores_for_election(election).await? {
-        let already_imported_and_not_deleted = store.snapshot().events.first().is_some_and(|e| {
+        let data = store.snapshot();
+        let already_imported_and_not_deleted = data.events.first().is_some_and(|e| {
             matches!(&e.payload.action, CsbAction::Import { source_stream_id: sid, .. } if *sid == source_stream_id) &&
-            !store.is_deleted()
+            !data.is_deleted()
         });
         if already_imported_and_not_deleted {
-            return Ok(Some(store.get_appellation(WithCorrections::All)));
+            return Ok(Some(data.appellation(WithCorrections::All)));
         }
     }
 
@@ -389,8 +390,9 @@ async fn record_brp_result(
 
     for _ in 0..ATTEMPTS {
         // the event id first: a change landing after it is caught by the append
-        let expected = store.snapshot().last_event_id();
-        if store.get_person(checked.id, WithCorrections::All).as_ref() != Some(checked) {
+        let data = store.snapshot();
+        let expected = data.last_event_id();
+        if data.view(WithCorrections::All).person(checked.id) != Some(checked) {
             return Ok(false);
         }
 
@@ -420,11 +422,12 @@ async fn record_brp_result(
 /// Errors propagate: the BRP being unreachable must not record the remaining
 /// candidates as clean.
 async fn verify_candidates(store: CsbStore, brp_client: BrpClient) -> Result<(), AppError> {
-    let already_checked = store.get_brp_findings();
-    let unchecked: Vec<Person> = store
-        .get_persons(WithCorrections::All)
-        .into_iter()
-        .filter(|person| !already_checked.contains_key(&person.id))
+    let data = store.snapshot();
+    let unchecked: Vec<Person> = data
+        .view(WithCorrections::All)
+        .persons()
+        .filter(|person| !data.brp_findings().contains_key(&person.id))
+        .cloned()
         .collect();
 
     let mut ticker = tokio::time::interval(BRP_COURTESY_TIMEOUT);

@@ -26,13 +26,14 @@ pub async fn omissions(
     context: CsbContext,
     store: CsbStore,
 ) -> Result<Response, AppError> {
+    let data = store.snapshot();
     let political_group =
-        CsbPoliticalGroup::new_from_csb_store(&store).with_mode(CsbPhase::Recovery);
-    let all_omissions = store.get_all_omissions(&political_group)?;
+        CsbPoliticalGroup::from_snapshot(&store, &data).with_mode(CsbPhase::Recovery);
+    let all_omissions = data.all_omissions(store.election, &political_group)?;
 
     Ok(HtmlTemplate(
         CsbRecoveryOmissionsTemplate {
-            omission_count: store.get_omission_count(),
+            omission_count: data.omission_count(),
             political_group,
             all_omissions,
         },

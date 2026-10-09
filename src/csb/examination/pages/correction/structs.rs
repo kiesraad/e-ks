@@ -1,5 +1,5 @@
 use crate::{
-    CsbStream,
+    CsbStoreData,
     csb::examination::structs::CandidateCorrectionField,
     projection::WithCorrections,
     structs::{brp::BrpFinding, persons::PersonId},
@@ -49,11 +49,11 @@ pub(crate) struct FieldValues {
 }
 
 impl FieldValues {
-    pub(crate) fn for_appellation(store: &CsbStream) -> Self {
-        let imported = store.get_appellation(WithCorrections::None);
+    pub(crate) fn for_appellation(data: &CsbStoreData) -> Self {
+        let imported = data.appellation(WithCorrections::None);
         let paper_corrected =
-            Some(store.get_appellation(WithCorrections::Paper)).filter(|d| d != &imported);
-        let current_correction = Some(store.get_appellation(WithCorrections::All))
+            Some(data.appellation(WithCorrections::Paper)).filter(|d| d != &imported);
+        let current_correction = Some(data.appellation(WithCorrections::All))
             .filter(|d| d != paper_corrected.as_ref().unwrap_or(&imported));
 
         Self {
@@ -65,33 +65,28 @@ impl FieldValues {
     }
 
     pub(crate) fn for_person(
-        store: &CsbStream,
+        data: &CsbStoreData,
         person_id: PersonId,
         field: CandidateCorrectionField,
         locale: crate::Locale,
     ) -> Self {
         let field_of_interest = field.brp_field();
-        let imported = store.get_person(person_id, WithCorrections::None);
-        let paper_corrected = store.get_person(person_id, WithCorrections::Paper);
-        let csb_corrected = store.get_person(person_id, WithCorrections::All);
+        let imported = data.view(WithCorrections::None).person(person_id);
+        let paper_corrected = data.view(WithCorrections::Paper).person(person_id);
+        let csb_corrected = data.view(WithCorrections::All).person(person_id);
 
-        let imported = imported
-            .as_ref()
-            .map(|p| field.extract(p))
-            .unwrap_or_default();
+        let imported = imported.map(|p| field.extract(p)).unwrap_or_default();
         let paper_corrected = paper_corrected
-            .as_ref()
             .map(|p| field.extract(p))
             .filter(|v| v != &imported);
         let current_correction = csb_corrected
-            .as_ref()
             .map(|p| field.extract(p))
             .filter(|v| v != paper_corrected.as_ref().unwrap_or(&imported));
 
         // Only a difference the BRP actually holds is worth offering; a value
         // it could not be read from is shown as a finding instead.
-        let brp = store
-            .get_brp_findings_for_person(person_id)
+        let brp = data
+            .brp_findings_for_person(person_id)
             .iter()
             .filter_map(BrpFinding::brp_value)
             .find(|value| value.field() == field_of_interest)

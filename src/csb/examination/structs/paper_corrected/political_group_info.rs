@@ -1,6 +1,6 @@
 use super::PaperCorrected;
 use crate::{
-    CsbStream, Locale,
+    CsbStoreData, Locale,
     projection::WithCorrections,
     structs::{
         common::PreviousElectionResults, csb::CsbPhase, list_designation::ListDesignation,
@@ -22,17 +22,17 @@ pub struct PaperCorrectedPoliticalGroupInfo {
 }
 
 impl PaperCorrectedPoliticalGroupInfo {
-    pub fn new(store: &CsbStream, locale: Locale, mode: CsbPhase) -> Self {
-        let imported_group = store.get_political_group(WithCorrections::None);
-        let paper_corrected_group = store.get_political_group(WithCorrections::Paper);
+    pub fn new(data: &CsbStoreData, locale: Locale, mode: CsbPhase) -> Self {
+        let imported_group = data.view(WithCorrections::None).political_group();
+        let paper_corrected_group = data.view(WithCorrections::Paper).political_group();
 
         let designation = paper_corrected_group.list_designation.unwrap_or_default();
 
         let mut list_type = PaperCorrected::new(
-            list_type_label(&imported_group, locale),
-            list_type_label(&paper_corrected_group, locale),
+            list_type_label(imported_group, locale),
+            list_type_label(paper_corrected_group, locale),
         );
-        if mode.is_recovery() && store.get_scrapped().is_appellation_scrapped() {
+        if mode.is_recovery() && data.scrapped().is_appellation_scrapped() {
             list_type = list_type
                 .with_csb_correction(Some(trans!("political_group.type.blank_name", locale)));
         }
@@ -40,14 +40,14 @@ impl PaperCorrectedPoliticalGroupInfo {
         Self {
             appellation_label: appellation_label(designation, locale),
             appellation: PaperCorrected::new(
-                store.get_appellation(WithCorrections::None),
-                store.get_appellation(WithCorrections::Paper),
+                data.appellation(WithCorrections::None),
+                data.appellation(WithCorrections::Paper),
             )
-            .with_csb_correction(Some(store.get_appellation(WithCorrections::All))),
+            .with_csb_correction(Some(data.appellation(WithCorrections::All))),
             list_type,
             previous_results: PaperCorrected::new(
-                previous_results_label(&imported_group, locale),
-                previous_results_label(&paper_corrected_group, locale),
+                previous_results_label(imported_group, locale),
+                previous_results_label(paper_corrected_group, locale),
             ),
             is_blank: designation == ListDesignation::Blank,
         }

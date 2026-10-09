@@ -49,16 +49,21 @@ pub(in crate::csb) async fn render(
     store: CsbStore,
     mode: CsbPhase,
 ) -> Result<Response, AppError> {
+    let data = store.snapshot();
     Ok(HtmlTemplate(
         CsbGeneralInformationTemplate {
-            political_group: CsbPoliticalGroup::new_from_csb_store(&store).with_mode(mode),
-            group_info: PaperCorrectedPoliticalGroupInfo::new(&store, context.session.locale, mode),
-            name_authorisations: paper_corrected_name_authorisations(&store),
-            list_submitter: paper_corrected_list_submitter(&store),
-            substitute_submitters: paper_corrected_substitute_submitters(&store),
-            political_group_omissions: store.get_political_group_omissions(),
-            appellation_omissions: store.get_appellation_omissions(),
-            general_problems: store.get_all_problems(context.election)?.general,
+            political_group: CsbPoliticalGroup::from_snapshot(&store, &data).with_mode(mode),
+            group_info: PaperCorrectedPoliticalGroupInfo::new(&data, context.session.locale, mode),
+            name_authorisations: paper_corrected_name_authorisations(&data),
+            list_submitter: paper_corrected_list_submitter(&data),
+            substitute_submitters: paper_corrected_substitute_submitters(&data),
+            political_group_omissions: data
+                .political_group_omissions()
+                .into_iter()
+                .cloned()
+                .collect(),
+            appellation_omissions: data.appellation_omissions().into_iter().cloned().collect(),
+            general_problems: data.all_problems(context.election)?.general,
         },
         context,
     )

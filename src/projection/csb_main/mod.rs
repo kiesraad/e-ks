@@ -89,8 +89,7 @@ impl crate::CsbMainStore {
     }
 
     pub fn list_order_events(&self) -> usize {
-        self.data
-            .read()
+        self.snapshot()
             .events
             .iter()
             .filter(|event| matches!(event.payload.action, CsbMainAction::UpdateListOrder(_)))

@@ -3,7 +3,7 @@ use axum::{extract::FromRequestParts, http::request::Parts};
 use std::collections::{BTreeSet, HashMap};
 
 use crate::{
-    AppError, AppRequestState, CsbStream, ElectoralDistrict, Session, StreamId,
+    AppError, AppRequestState, CsbStoreData, CsbStream, ElectoralDistrict, Session, StreamId,
     csb::examination::structs::BrpCheckState,
     projection::{Scrapped, WithCorrections},
     structs::{
@@ -45,26 +45,35 @@ pub struct CsbPoliticalGroup {
 
 impl CsbPoliticalGroup {
     pub fn new_from_csb_store(store: &CsbStream) -> Self {
-        let scrapped = store.get_scrapped();
+        Self::from_snapshot(store, &store.snapshot())
+    }
+
+    /// The group as `data`, a snapshot of `store`, shows it.
+    pub fn from_snapshot(store: &CsbStream, data: &CsbStoreData) -> Self {
+        let scrapped = data.scrapped().clone();
+        let corrected = data.view(WithCorrections::All);
         Self {
-            political_group: store.get_political_group(WithCorrections::All),
+            political_group: corrected.political_group().clone(),
             stream_id: store.stream_id,
-            brp: BrpCheckState::for_political_group(store),
+            brp: BrpCheckState::for_political_group(data),
             mode: CsbPhase::Examination,
-            is_examination_finished: store.is_examination_finished(),
-            is_deleted: store.is_deleted(),
-            restoration_count: store.get_restoration_count(),
-            omission_count: store.get_omission_count(),
-            recovery: store.get_recovery_progress(),
-            first_candidate_name: store.get_first_candidate_name(WithCorrections::All, None),
-            first_non_scrapped_candidate_name: store
-                .get_first_candidate_name(WithCorrections::All, Some(&scrapped)),
+            is_examination_finished: data.is_examination_finished(),
+            is_deleted: data.is_deleted(),
+            restoration_count: data.restoration_count(),
+            omission_count: data.omission_count(),
+            recovery: data.recovery_progress(store.election),
+            first_candidate_name: data
+                .first_candidate_name(WithCorrections::All, None)
+                .cloned(),
+            first_non_scrapped_candidate_name: data
+                .first_candidate_name(WithCorrections::All, Some(&scrapped))
+                .cloned(),
             previously_seated: false,
             scrapped,
-            candidate_list_districts: store
-                .get_candidate_lists(WithCorrections::All)
+            candidate_list_districts: corrected
+                .candidate_lists()
                 .into_iter()
-                .map(|list| (list.id, list.electoral_districts))
+                .map(|list| (list.id, list.electoral_districts.clone()))
                 .collect(),
         }
     }

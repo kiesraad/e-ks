@@ -514,10 +514,6 @@ impl CsbStream {
         )
     }
 
-    pub(crate) fn title_order(&self, omission: &Omission) -> (OmissionTitle, usize) {
-        self.snapshot().title_order(self.election, omission)
-    }
-
     pub fn get_political_group(&self, corrections: WithCorrections) -> PoliticalGroup {
         self.read(corrections).political_group().clone()
     }

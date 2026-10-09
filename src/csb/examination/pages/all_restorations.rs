@@ -26,13 +26,14 @@ pub async fn all_restorations(
     context: CsbContext,
     store: CsbStore,
 ) -> Result<Response, AppError> {
-    let political_group = CsbPoliticalGroup::new_from_csb_store(&store);
-    let omission_count = store.get_omission_count();
-    let correction_count = store.get_correction_count();
+    let data = store.snapshot();
+    let political_group = CsbPoliticalGroup::from_snapshot(&store, &data);
+    let omission_count = data.omission_count();
+    let correction_count = data.correction_count();
     Ok(HtmlTemplate(
         CsbAllRestorationsTemplate {
-            all_omissions: store.get_all_omissions(&political_group)?,
-            all_corrections: store.get_all_corrections(&political_group, context.session.locale),
+            all_omissions: data.all_omissions(store.election, &political_group)?,
+            all_corrections: data.all_corrections(&political_group, context.session.locale),
             political_group,
             omission_count,
             correction_count,

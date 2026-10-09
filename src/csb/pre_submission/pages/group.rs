@@ -40,19 +40,20 @@ pub async fn group(
     context: CsbContext,
     store: PreSubmissionStore,
 ) -> Result<Response, AppError> {
-    let group = PreSubmissionGroup::from_store(&store);
+    let data = store.snapshot();
+    let group = PreSubmissionGroup::from_snapshot(store.stream_id, &data);
     let brp_running = brp_sweep_running(store.stream_id);
     let locale = context.session.locale;
 
-    let all_problems = store.get_all_problems(context.election)?;
-    let candidates = store
-        .get_unlinked_brp_findings(locale)
+    let all_problems = data.all_problems(context.election)?;
+    let candidates = data
+        .unlinked_brp_findings(locale)
         .with_problems(&all_problems, |_| None);
 
     Ok(HtmlTemplate(
         PreSubmissionGroupTemplate {
             brp_incomplete: brp_incomplete_reason(
-                &store.get_brp_status(),
+                data.brp_status(),
                 &group.brp,
                 brp_running,
                 locale,
