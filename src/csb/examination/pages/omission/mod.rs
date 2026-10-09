@@ -6,8 +6,8 @@ use axum_extra::routing::TypedPath;
 use uuid::Uuid;
 
 use crate::{
-    AppError, CsbContext, CsbStore, CsbStream, Form, HtmlTemplate, Locale, Overlay,
-    QueryParamState, StreamId,
+    AppError, CsbContext, CsbStore, CsbStoreData, CsbStream, Form, HtmlTemplate, Locale,
+    OrNotFound, Overlay, QueryParamState, StreamId,
     csb::examination::{
         OmissionForm,
         extractors::CsbPoliticalGroup,
@@ -57,9 +57,10 @@ impl OmissionTarget {
     /// A blank list has no appellation, so it cannot get appellation omissions.
     /// The overview stays reachable: a paper correction can blank a list after
     /// its omissions were added.
-    fn ensure_can_add(&self, store: &CsbStream) -> Result<(), AppError> {
-        let is_blank = store
-            .get_political_group(WithCorrections::All)
+    fn ensure_can_add(&self, data: &CsbStoreData) -> Result<(), AppError> {
+        let is_blank = data
+            .view(WithCorrections::All)
+            .political_group()
             .list_designation
             == Some(ListDesignation::Blank);
         if self.omission_type == OmissionType::Appellation && is_blank {
@@ -85,11 +86,12 @@ impl OmissionTarget {
         query: &QueryParamState,
         context: CsbContext,
         store: &CsbStream,
+        data: &CsbStoreData,
     ) -> Result<Response, AppError> {
         let available_districts = self
             .omission_type
             .needs_districts()
-            .then(|| views::available_electoral_districts(store))
+            .then(|| views::available_electoral_districts(data))
             .filter(|options| options.len() > 1)
             .unwrap_or_default();
         let available_candidate_lists = self
@@ -97,7 +99,7 @@ impl OmissionTarget {
             .needs_candidate_lists()
             .then(|| {
                 views::candidate_list_options(
-                    store,
+                    data,
                     (self.omission_type == OmissionType::Candidate)
                         .then(|| PersonId::from(self.reference)),
                 )
@@ -105,35 +107,34 @@ impl OmissionTarget {
             .filter(|options| options.len() > 1)
             .unwrap_or_default();
 
-        let political_group = CsbPoliticalGroup::new_from_csb_store(store);
+        let political_group = CsbPoliticalGroup::from_snapshot(store, data);
         Ok(HtmlTemplate(
             CsbAddOmissionTemplate {
                 form,
                 overlay: Overlay::new_create(query),
                 close_action: return_path(self, &political_group),
-                presets: preset_views(self, store),
+                presets: preset_views(self, data),
                 omission_target: self.to_owned(),
                 available_districts,
                 available_candidate_lists,
-                title_suffix: self.generate_title_suffix(store, context.session.locale)?,
+                title_suffix: self.generate_title_suffix(data, context.session.locale)?,
             },
             context,
         )
         .into_response())
     }
 
-    fn generate_title_suffix(&self, store: &CsbStream, locale: Locale) -> Result<String, AppError> {
-        let first_candidate = store.get_first_candidate_name(WithCorrections::All, None);
-        let appellation = store
-            .get_political_group(WithCorrections::All)
-            .csb_appellation(first_candidate.as_ref());
+    fn generate_title_suffix(
+        &self,
+        data: &CsbStoreData,
+        locale: Locale,
+    ) -> Result<String, AppError> {
+        let corrected = data.view(WithCorrections::All);
+        let appellation = data.appellation(WithCorrections::All);
         let first_part = match self.omission_type {
             OmissionType::PoliticalGroup => trans!("common.general_information", locale),
             OmissionType::Appellation => {
-                match store
-                    .get_political_group(WithCorrections::All)
-                    .list_designation
-                {
+                match corrected.political_group().list_designation {
                     Some(ListDesignation::Standalone) | None => {
                         trans!("political_group.appellation", locale)
                     }
@@ -152,9 +153,9 @@ impl OmissionTarget {
             OmissionType::DeclarationsOfSupport => {
                 trans!("csb.declarations_of_support.title", locale)
             }
-            OmissionType::Candidate => store
-                .get_person(PersonId::from(self.reference), WithCorrections::All)
-                .ok_or(AppError::GenericNotFound)?
+            OmissionType::Candidate => corrected
+                .person(PersonId::from(self.reference))
+                .or_not_found()?
                 .name
                 .display(),
         };
@@ -171,7 +172,8 @@ pub async fn add_omission(
     Query(list_query): Query<OmissionListQuery>,
 ) -> Result<Response, AppError> {
     let target = OmissionTarget::from_add_path(path, list_query);
-    target.ensure_can_add(&store)?;
+    let data = store.snapshot();
+    target.ensure_can_add(&data)?;
     let form = if target.omission_type == OmissionType::CandidateList {
         // Pre-fill the candidate list from the path
         FormData::new_with_data(OmissionForm {
@@ -188,7 +190,7 @@ pub async fn add_omission(
     } else {
         FormData::new()
     };
-    target.render_add_form(form, &query, context, &store)
+    target.render_add_form(form, &query, context, &store, &data)
 }
 
 /// Render the omissions overview page for an entity: the list of omissions
@@ -202,14 +204,15 @@ pub async fn overview(
     Query(list_query): Query<OmissionListQuery>,
 ) -> Result<Response, AppError> {
     let omission_target = OmissionTarget::from_overview_path(path, list_query);
-    let political_group = CsbPoliticalGroup::new_from_csb_store(&store);
+    let data = store.snapshot();
+    let political_group = CsbPoliticalGroup::from_snapshot(&store, &data);
 
     Ok(HtmlTemplate(
         CsbOmissionOverviewTemplate {
             overlay: Overlay::new_edit(&query),
             close_action: return_path(&omission_target, &political_group),
-            omissions: omission_views(&omission_target, &store)?,
-            title_suffix: omission_target.generate_title_suffix(&store, context.session.locale)?,
+            omissions: omission_views(&omission_target, &data, store.election)?,
+            title_suffix: omission_target.generate_title_suffix(&data, context.session.locale)?,
             omission_target,
         },
         context,
@@ -254,19 +257,20 @@ pub async fn add_omission_submit(
     Form(form): Form<OmissionForm>,
 ) -> Result<Response, AppError> {
     let target = OmissionTarget::from_add_path(path, list_query);
-    target.ensure_can_add(&store)?;
+    let data = store.snapshot();
+    target.ensure_can_add(&data)?;
 
     // For candidate list and declarations-of-support omissions at least one district must be selected
     let districts = match selected_or_only_available(
         target.omission_type.needs_districts(),
         &form.electoral_districts,
-        || views::available_electoral_districts(&store),
+        || views::available_electoral_districts(&data),
         "electoral_districts",
     ) {
         Ok(districts) => districts,
         Err(errors) => {
             let form = FormData::new_with_errors(form, errors);
-            return target.render_add_form(form, &query, context, &store);
+            return target.render_add_form(form, &query, context, &store, &data);
         }
     };
 
@@ -275,7 +279,7 @@ pub async fn add_omission_submit(
         target.omission_type.needs_candidate_lists(),
         &form.candidate_lists,
         || {
-            views::candidate_list_options(&store, None)
+            views::candidate_list_options(&data, None)
                 .into_iter()
                 .map(|o| o.id)
                 .collect()
@@ -285,12 +289,12 @@ pub async fn add_omission_submit(
         Ok(candidate_lists) => candidate_lists,
         Err(errors) => {
             let form = FormData::new_with_errors(form, errors);
-            return target.render_add_form(form, &query, context, &store);
+            return target.render_add_form(form, &query, context, &store, &data);
         }
     };
 
     match form.validate_create() {
-        Err(form_data) => target.render_add_form(form_data, &query, context, &store),
+        Err(form_data) => target.render_add_form(form_data, &query, context, &store, &data),
         Ok(mut omission) => {
             omission.category = if target.omission_type == OmissionType::DeclarationsOfSupport {
                 OmissionCategory::DeclarationsOfSupport(districts)
@@ -303,7 +307,7 @@ pub async fn add_omission_submit(
             };
             omission.create(&store).await?;
 
-            let political_group = CsbPoliticalGroup::new_from_csb_store(&store);
+            let political_group = CsbPoliticalGroup::from_snapshot(&store, &data);
             Ok(query.redirect_or(return_path(&target, &political_group)))
         }
     }
@@ -322,7 +326,11 @@ pub async fn delete_omission(
         stream_id,
         omission_id,
     } = path;
-    let omission = store.get_omission(omission_id)?;
+    let omission = store
+        .snapshot()
+        .omission(omission_id)
+        .cloned()
+        .or_not_found()?;
     let overview = overview_url_for(&omission.category, stream_id, list_query.list);
     omission.delete(&store).await?;
     Ok(Redirect::to(

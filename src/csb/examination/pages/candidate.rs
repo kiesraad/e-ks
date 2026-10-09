@@ -8,8 +8,8 @@ use std::collections::BTreeSet;
 use serde::Deserialize;
 
 use crate::{
-    AppError, AppRequestState, Context, CsbAction, CsbContext, CsbStore, ElectoralDistrict, Form,
-    HtmlTemplate,
+    AppError, AppRequestState, Context, CsbAction, CsbContext, CsbStore, CsbStoreData,
+    ElectoralDistrict, Form, HtmlTemplate, OrNotFound, StreamId,
     csb::{
         examination::{
             extractors::CsbPoliticalGroup,
@@ -101,24 +101,29 @@ impl BrpFindingRow {
 }
 
 impl CandidateBrp {
-    fn for_candidate(store: &CsbStore, person_id: PersonId, locale: crate::Locale) -> Self {
-        let state = BrpCheckState::for_candidate(store, person_id);
-        let running = brp_sweep_running(store.stream_id);
-        let findings = store.get_brp_findings_for_person(person_id);
+    fn for_candidate(
+        data: &CsbStoreData,
+        stream_id: StreamId,
+        person_id: PersonId,
+        locale: crate::Locale,
+    ) -> Self {
+        let state = BrpCheckState::for_candidate(data, person_id);
+        let running = brp_sweep_running(stream_id);
+        let findings = data.brp_findings_for_person(person_id);
         // The corrected data is what the BRP was compared against.
-        let rows = match store.get_person(person_id, WithCorrections::All) {
+        let rows = match data.view(WithCorrections::All).person(person_id) {
             Some(person) => findings
                 .iter()
                 .enumerate()
-                .map(|(index, finding)| BrpFindingRow::new(index, finding, &person, locale))
+                .map(|(index, finding)| BrpFindingRow::new(index, finding, person, locale))
                 .collect(),
             None => Vec::new(),
         };
 
         Self {
-            findings: CandidateBrpFindings::new(&findings, locale),
+            findings: CandidateBrpFindings::new(findings, locale),
             rows,
-            incomplete: brp_incomplete_reason(&store.get_brp_status(), &state, running, locale),
+            incomplete: brp_incomplete_reason(data.brp_status(), &state, running, locale),
             state,
             running,
         }
@@ -149,44 +154,48 @@ pub(in crate::csb) async fn render(
     store: CsbStore,
     mode: CsbPhase,
 ) -> Result<Response, AppError> {
-    let political_group = CsbPoliticalGroup::new_from_csb_store(&store).with_mode(mode);
+    let data = store.snapshot();
+    let political_group = CsbPoliticalGroup::from_snapshot(&store, &data).with_mode(mode);
 
-    let imported = store.get_person(person_id, WithCorrections::None);
-    let corrected = store.get_person(person_id, WithCorrections::Paper);
-    let csb_corrected = store.get_person(person_id, WithCorrections::All);
-    let candidate = imported
-        .clone()
-        .or_else(|| corrected.clone())
-        .ok_or(AppError::GenericNotFound)?;
+    let imported = data.view(WithCorrections::None).person(person_id);
+    let corrected = data.view(WithCorrections::Paper).person(person_id);
+    let csb_corrected = data.view(WithCorrections::All).person(person_id);
+    let candidate = imported.or(corrected).cloned().or_not_found()?;
     let details = PaperCorrectedPersonDetails::new(
-        imported.as_ref(),
-        corrected.as_ref(),
-        csb_corrected.as_ref(),
+        imported,
+        corrected,
+        csb_corrected,
         context.session.locale,
     );
     let position = PaperCorrected::new(
-        store
-            .get_candidate_position(list_id, person_id, WithCorrections::None)
+        data.view(WithCorrections::None)
+            .candidate_position(list_id, person_id)
             .map(|p| p.to_string())
             .unwrap_or_default(),
-        store
-            .get_candidate_position(list_id, person_id, WithCorrections::Paper)
+        data.view(WithCorrections::Paper)
+            .candidate_position(list_id, person_id)
             .map(|p| p.to_string())
             .unwrap_or_default(),
     );
     // The corrected electoral districts take precedence over the imported ones.
-    let electoral_districts = store
-        .get_candidate_list(list_id, WithCorrections::All)
-        .map(|list| list.electoral_districts)
-        .ok_or(AppError::GenericNotFound)?;
-    let candidate_omissions = store.get_candidate_omissions(person_id);
-    let brp = CandidateBrp::for_candidate(&store, person_id, context.session.locale);
+    let electoral_districts = data
+        .view(WithCorrections::All)
+        .candidate_list(list_id)
+        .map(|list| list.electoral_districts.clone())
+        .or_not_found()?;
+    let candidate_omissions = data
+        .candidate_omissions(store.election, person_id)
+        .into_iter()
+        .cloned()
+        .collect();
+    let brp =
+        CandidateBrp::for_candidate(&data, store.stream_id, person_id, context.session.locale);
     let scrapped = &political_group.scrapped;
     let is_scrapped = scrapped.is_candidate_scrapped(list_id, person_id);
     let scrapped_districts = scrapped.list_districts(list_id).to_vec();
     let all_districts_scrapped = scrapped.all_list_districts_scrapped(list_id);
-    let problems = store
-        .get_all_problems(context.election)?
+    let problems = data
+        .all_problems(context.election)?
         .candidates
         .iter()
         .find(|c| c.entity.id == person_id)
@@ -204,7 +213,7 @@ pub(in crate::csb) async fn render(
             candidate_omissions,
             brp,
             is_scrapped,
-            recovery_position: store.get_recovery_position(list_id, person_id),
+            recovery_position: data.recovery_position(list_id, person_id),
             scrapped_districts,
             all_districts_scrapped,
             problems,
@@ -225,8 +234,11 @@ pub async fn check_against_brp<S: AppRequestState>(
     store: CsbStore,
 ) -> Result<Response, AppError> {
     let candidate = store
-        .get_person(path.person_id, WithCorrections::All)
-        .ok_or(AppError::GenericNotFound)?;
+        .snapshot()
+        .view(WithCorrections::All)
+        .person(path.person_id)
+        .cloned()
+        .or_not_found()?;
 
     for (person, findings) in state
         .brp_client()
@@ -259,10 +271,11 @@ pub async fn set_brp_finding_handled(
     Form(form): Form<BrpFindingHandledForm>,
 ) -> Result<Response, AppError> {
     let finding = store
-        .get_brp_findings_for_person(path.person_id)
-        .into_iter()
-        .nth(path.index)
-        .ok_or(AppError::GenericNotFound)?;
+        .snapshot()
+        .brp_findings_for_person(path.person_id)
+        .get(path.index)
+        .cloned()
+        .or_not_found()?;
 
     store
         .update(CsbAction::SetBrpFindingHandled {

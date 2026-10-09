@@ -1,4 +1,4 @@
-use std::num::NonZeroU64;
+use std::{num::NonZeroU64, sync::Arc};
 
 use axum::{
     body::Body,
@@ -12,7 +12,7 @@ use tokio::io::{DuplexStream, duplex};
 use tokio_util::io::ReaderStream;
 
 use crate::{
-    AppError, AppRequestState, CsbMainStore, CsbStoreData, CsbStream,
+    AppError, AppRequestState, CsbMainStore, CsbStoreData, StreamId,
     core::ZipResponseWriter,
     csb::{
         examination::{extractors::CsbPoliticalGroup, numbering::ListNumbering},
@@ -75,9 +75,14 @@ async fn eml230b_files(
 ) -> Result<Vec<(String, Vec<u8>)>, AppError> {
     let election = main_store.election;
     let streams = registry.stores_for_election(election).await?;
+    let snapshots: Vec<(StreamId, Arc<CsbStoreData>)> = streams
+        .iter()
+        .map(|store| (store.stream_id, store.snapshot()))
+        .collect();
     let political_groups: Vec<CsbPoliticalGroup> = streams
         .iter()
-        .map(CsbPoliticalGroup::new_from_csb_store)
+        .zip(&snapshots)
+        .map(|(store, (_, data))| CsbPoliticalGroup::from_snapshot(store, data))
         .collect();
     let numbering = ListNumbering::new(
         &political_groups,
@@ -85,17 +90,15 @@ async fn eml230b_files(
         &main_store.list_order(),
     );
 
-    // Each group's established, final list number, paired with its store
-    let numbered_groups: Vec<(NonZeroU64, &CsbStream)> = numbering
+    // Each group's established, final list number, paired with its snapshot
+    let numbered_groups: Vec<(NonZeroU64, &CsbStoreData)> = numbering
         .groups
         .iter()
         .enumerate()
         .filter_map(|(index, group)| {
-            let store = streams
-                .iter()
-                .find(|store| store.stream_id == group.stream_id)?;
+            let (_, data) = snapshots.iter().find(|(id, _)| *id == group.stream_id)?;
             let position = NonZeroU64::new((index + 1) as u64).expect("index + 1 is non-zero");
-            Some((position, store))
+            Some((position, data.as_ref()))
         })
         .collect();
 

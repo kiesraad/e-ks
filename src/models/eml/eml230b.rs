@@ -19,7 +19,7 @@ use eml_nl::{
 };
 
 use crate::{
-    AppError, CsbStream, ElectionConfig, ElectoralDistrict,
+    AppError, CsbStoreData, ElectionConfig, ElectoralDistrict,
     models::{csb_model_inputs, eml::candidate_identifier, established_lists::EstablishedLists},
     projection::WithCorrections,
     structs::{list_designation::ListDesignation, persons::Person},
@@ -32,27 +32,28 @@ pub fn eml230b(
     election: &ElectionConfig,
     contest_identifier: ContestIdentifier,
     district: Option<ElectoralDistrict>,
-    numbered_groups: &[(NonZeroU64, &CsbStream)],
+    numbered_groups: &[(NonZeroU64, &CsbStoreData)],
 ) -> Result<Option<Vec<u8>>, AppError> {
     let mut affiliations = Vec::new();
-    for (position, store) in numbered_groups {
-        let scrapped = store.get_scrapped();
-        let Some(established) = EstablishedLists::new(store, &scrapped)? else {
+    for (position, data) in numbered_groups {
+        let scrapped = data.scrapped();
+        let Some(established) = EstablishedLists::new(data, scrapped)? else {
             continue;
         };
         let Some((list_district, list)) = established.list(district) else {
             continue;
         };
-        let candidates = csb_model_inputs::valid_candidates(store, &scrapped, list)?;
+        let candidates = csb_model_inputs::valid_candidates(data, scrapped, list)?;
 
         // A blank list ("Blanco") leaves RegisteredName empty
         let is_blank = scrapped.is_appellation_scrapped()
-            || store
-                .get_political_group(WithCorrections::All)
+            || data
+                .view(WithCorrections::All)
+                .political_group()
                 .list_designation
                 == Some(ListDesignation::Blank);
-        let appellation = (!is_blank)
-            .then(|| store.get_appellation_with_scrapped(WithCorrections::All, &scrapped));
+        let appellation =
+            (!is_blank).then(|| data.appellation_with_scrapped(WithCorrections::All, scrapped));
 
         affiliations.push((
             *position,
@@ -166,6 +167,7 @@ fn managing_authority_name(election: &ElectionConfig) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::CsbStream;
     use crate::models::eml::remove_variable_fields;
     use std::{assert_matches, collections::BTreeSet, str::FromStr};
 
@@ -255,11 +257,15 @@ mod tests {
         vec![store1, store2, store3]
     }
 
-    fn numbered(stores: &[CsbStream]) -> Vec<(NonZeroU64, &CsbStream)> {
-        stores
+    fn snapshots(stores: &[CsbStream]) -> Vec<std::sync::Arc<CsbStoreData>> {
+        stores.iter().map(CsbStream::snapshot).collect()
+    }
+
+    fn numbered(snapshots: &[std::sync::Arc<CsbStoreData>]) -> Vec<(NonZeroU64, &CsbStoreData)> {
+        snapshots
             .iter()
             .enumerate()
-            .map(|(index, store)| (NonZeroU64::new(index as u64 + 1).unwrap(), store))
+            .map(|(index, data)| (NonZeroU64::new(index as u64 + 1).unwrap(), data.as_ref()))
             .collect()
     }
 
@@ -303,7 +309,7 @@ mod tests {
             &ElectionConfig::EK27,
             contest_identifier,
             Some(district),
-            &numbered(&stores),
+            &numbered(&snapshots(&stores)),
         )
         .unwrap()
         .unwrap();
@@ -326,7 +332,7 @@ mod tests {
             &election,
             ContestIdentifier::geen(),
             None,
-            &numbered(&stores),
+            &numbered(&snapshots(&stores)),
         )
         .unwrap()
         .unwrap();
@@ -351,7 +357,7 @@ mod tests {
             &election,
             contest_identifier,
             Some(district),
-            &numbered(&stores),
+            &numbered(&snapshots(&stores)),
         )
         .unwrap()
         .unwrap();
@@ -373,7 +379,7 @@ mod tests {
             &election,
             ContestIdentifier::geen(),
             None,
-            &numbered(&stores),
+            &numbered(&snapshots(&stores)),
         )
         .unwrap()
         .unwrap();
@@ -408,7 +414,7 @@ mod tests {
             &ElectionConfig::EK27,
             ContestIdentifier::geen(),
             Some(districts[1]),
-            &[(NonZeroU64::MIN, &store)],
+            &[(NonZeroU64::MIN, &*store.snapshot())],
         )
         .unwrap()
         .unwrap();

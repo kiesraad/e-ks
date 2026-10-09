@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::{
-    CsbStream, Locale,
+    CsbStoreData, Locale,
     csb::examination::{extractors::CsbPoliticalGroup, structs::BrpFindingTag},
     projection::WithCorrections,
     structs::{
@@ -102,25 +102,24 @@ impl AllBrpFindings {
     }
 }
 
-impl CsbStream {
+impl CsbStoreData {
     /// Every candidate once, in the order the candidate lists put them
-    /// forward. A candidate standing on more than one list is listed under the
-    /// first list they appear on.
+    /// forward (oldest list first). A candidate standing on more than one list
+    /// is listed under the first list they appear on.
     pub fn listed_candidates(&self) -> Vec<ListedCandidate> {
-        let mut lists = self.get_candidate_lists(WithCorrections::All);
-        lists.sort_by_key(|list| (list.created_at, list.id));
+        let corrected = self.view(WithCorrections::All);
 
         let mut seen: HashSet<PersonId> = HashSet::new();
         let mut candidates = Vec::new();
-        for list in lists {
+        for list in corrected.candidate_lists() {
             for (index, person_id) in list.candidates.iter().enumerate() {
                 if seen.insert(*person_id)
-                    && let Some(person) = self.get_person(*person_id, WithCorrections::All)
+                    && let Some(person) = corrected.person(*person_id)
                 {
                     candidates.push(ListedCandidate {
                         list_id: list.id,
                         position: index + 1,
-                        person,
+                        person: person.clone(),
                     });
                 }
             }
@@ -131,7 +130,7 @@ impl CsbStream {
 
     /// The findings of every candidate that has any, in the order
     /// [`Self::listed_candidates`] puts them.
-    pub fn get_all_brp_findings(
+    pub fn all_brp_findings(
         &self,
         political_group: &CsbPoliticalGroup,
         locale: Locale,
@@ -141,8 +140,8 @@ impl CsbStream {
         })
     }
 
-    /// As [`Self::get_all_brp_findings`], without candidate pages to link to.
-    pub fn get_unlinked_brp_findings(&self, locale: Locale) -> AllBrpFindings {
+    /// As [`Self::all_brp_findings`], without candidate pages to link to.
+    pub fn unlinked_brp_findings(&self, locale: Locale) -> AllBrpFindings {
         self.collect_brp_findings(locale, |_, _| None)
     }
 
@@ -151,7 +150,7 @@ impl CsbStream {
         locale: Locale,
         path_for: impl Fn(&CandidateListId, &PersonId) -> Option<String>,
     ) -> AllBrpFindings {
-        let findings = self.get_brp_findings();
+        let findings = self.brp_findings();
         let candidates = self
             .listed_candidates()
             .into_iter()

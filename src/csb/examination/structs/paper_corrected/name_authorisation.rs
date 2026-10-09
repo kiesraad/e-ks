@@ -1,5 +1,5 @@
 use super::PaperCorrected;
-use crate::{CsbStream, projection::WithCorrections};
+use crate::{CsbStoreData, projection::WithCorrections};
 
 /// A name authorisation with its rows diffed against the corrections.
 pub struct PaperCorrectedNameAuthorisation {
@@ -12,10 +12,10 @@ pub struct PaperCorrectedNameAuthorisation {
 /// by id; entities added by the corrections are appended, entities deleted by
 /// the corrections are hidden.
 pub fn paper_corrected_name_authorisations(
-    store: &CsbStream,
+    data: &CsbStoreData,
 ) -> Vec<PaperCorrectedNameAuthorisation> {
-    let imported = store.get_name_authorisations(WithCorrections::None);
-    let corrected = store.get_name_authorisations(WithCorrections::Paper);
+    let imported = data.view(WithCorrections::None).name_authorisations();
+    let corrected = data.view(WithCorrections::Paper).name_authorisations();
 
     let mut rows: Vec<PaperCorrectedNameAuthorisation> = imported
         .iter()
@@ -23,10 +23,10 @@ pub fn paper_corrected_name_authorisations(
             let counterpart = corrected.iter().find(|c| c.id == na.id)?;
             Some(PaperCorrectedNameAuthorisation {
                 heading: counterpart.legal_name.to_string(),
-                legal_name: PaperCorrected::from_field(Some(na), Some(counterpart), |n| {
+                legal_name: PaperCorrected::from_field(Some(*na), Some(*counterpart), |n| {
                     n.legal_name.to_string()
                 }),
-                authorised_agent: PaperCorrected::from_field(Some(na), Some(counterpart), |n| {
+                authorised_agent: PaperCorrected::from_field(Some(*na), Some(*counterpart), |n| {
                     n.name.display()
                 }),
             })
@@ -39,8 +39,10 @@ pub fn paper_corrected_name_authorisations(
             .filter(|c| !imported.iter().any(|na| na.id == c.id))
             .map(|c| PaperCorrectedNameAuthorisation {
                 heading: c.legal_name.to_string(),
-                legal_name: PaperCorrected::from_field(None, Some(c), |n| n.legal_name.to_string()),
-                authorised_agent: PaperCorrected::from_field(None, Some(c), |n| n.name.display()),
+                legal_name: PaperCorrected::from_field(None, Some(*c), |n| {
+                    n.legal_name.to_string()
+                }),
+                authorised_agent: PaperCorrected::from_field(None, Some(*c), |n| n.name.display()),
             }),
     );
 
@@ -72,7 +74,7 @@ mod tests {
                 .insert(kept.id, kept.clone());
         });
 
-        let rows = paper_corrected_name_authorisations(&store);
+        let rows = paper_corrected_name_authorisations(&store.snapshot());
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].heading, kept.legal_name.to_string());
     }

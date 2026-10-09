@@ -132,13 +132,13 @@ pub async fn csb_audit_log_detail<S: AppRequestState>(
             .position(|s| s.stream_id == stream_id)
             .ok_or(AppError::GenericNotFound)?;
         let store = &stores[position];
-        let label = store.get_appellation_with_deleted_label(WithCorrections::All, locale);
+        let data = store.snapshot();
+        let label = data.appellation_with_deleted_label(WithCorrections::All, locale);
         let label = if position < import_count {
             label
         } else {
             trans!("audit_log.filter.pre_submission_stream", locale, label)
         };
-        let data = store.snapshot();
         let mut detail = CsbEventDetail::find(&data.events, event_id, label, locale)?;
         detail.changes = correction_changes(&data.events, event_id, locale);
         detail

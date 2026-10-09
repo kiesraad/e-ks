@@ -44,9 +44,10 @@ pub async fn appellation_name_correction(
     store: CsbStore,
     Query(query): Query<QueryParamState>,
 ) -> Result<Response, AppError> {
-    let political_group = CsbPoliticalGroup::new_from_csb_store(&store);
+    let data = store.snapshot();
+    let political_group = CsbPoliticalGroup::from_snapshot(&store, &data);
     let locale = context.session.locale;
-    let field_values = FieldValues::for_appellation(&store);
+    let field_values = FieldValues::for_appellation(&data);
     let value = field_values.prefill();
     Ok(render_correction(
         context,
@@ -68,7 +69,8 @@ pub async fn appellation_correction_submit(
     Query(query): Query<QueryParamState>,
     Form(form): Form<CorrectionForm>,
 ) -> Result<Response, AppError> {
-    let political_group = CsbPoliticalGroup::new_from_csb_store(&store);
+    let data = store.snapshot();
+    let political_group = CsbPoliticalGroup::from_snapshot(&store, &data);
     let close_action = political_group.general_information_path().to_string();
     let locale = context.session.locale;
 
@@ -77,7 +79,7 @@ pub async fn appellation_correction_submit(
             context,
             query,
             close_action,
-            FieldValues::for_appellation(&store).into_display(
+            FieldValues::for_appellation(&data).into_display(
                 crate::trans!("political_group.appellation", locale),
                 CorrectionFieldType::Text,
             ),
@@ -102,11 +104,12 @@ pub async fn person_correction(
     Query(query): Query<QueryParamState>,
     Query(list_query): Query<OmissionListQuery>,
 ) -> Result<Response, AppError> {
-    let political_group = CsbPoliticalGroup::new_from_csb_store(&store);
+    let data = store.snapshot();
+    let political_group = CsbPoliticalGroup::from_snapshot(&store, &data);
     let close_action = return_path(&political_group, path.person_id, list_query.list);
     let locale = context.session.locale;
 
-    let field_values = FieldValues::for_person(&store, path.person_id, path.field, locale);
+    let field_values = FieldValues::for_person(&data, path.person_id, path.field, locale);
     let value = field_values.prefill();
     Ok(render_correction(
         context,
@@ -126,7 +129,8 @@ pub async fn person_correction_submit(
     Query(list_query): Query<OmissionListQuery>,
     Form(form): Form<CorrectionForm>,
 ) -> Result<Response, AppError> {
-    let political_group = CsbPoliticalGroup::new_from_csb_store(&store);
+    let data = store.snapshot();
+    let political_group = CsbPoliticalGroup::from_snapshot(&store, &data);
     let close_action = return_path(&political_group, path.person_id, list_query.list);
     let locale = context.session.locale;
 
@@ -137,7 +141,7 @@ pub async fn person_correction_submit(
             context,
             query,
             close_action,
-            FieldValues::for_person(&store, path.person_id, path.field, locale)
+            FieldValues::for_person(&data, path.person_id, path.field, locale)
                 .into_person_display(path.field, locale),
             FormData::new_with_errors(form, vec![("value".to_string(), err)]),
         )),

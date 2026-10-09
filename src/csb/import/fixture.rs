@@ -372,7 +372,13 @@ async fn record_brp_check(
     store: &CsbStore,
     findings_for: impl Fn(&Person) -> Vec<BrpFinding>,
 ) -> Result<(), AppError> {
-    for person in store.get_persons(WithCorrections::All) {
+    let persons: Vec<Person> = store
+        .snapshot()
+        .view(WithCorrections::All)
+        .persons()
+        .cloned()
+        .collect();
+    for person in persons {
         store
             .update(CsbAction::BrpPersonChecked {
                 person: person.id,
@@ -459,7 +465,13 @@ fn fixture_omissions(store: &CsbStream) -> Vec<Omission> {
 /// covering the first district.
 fn fixture_lists(store: &CsbStream) -> Vec<CandidateList> {
     in_district_order(
-        store.get_candidate_lists(WithCorrections::Paper),
+        store
+            .snapshot()
+            .view(WithCorrections::Paper)
+            .candidate_lists()
+            .into_iter()
+            .cloned()
+            .collect(),
         &store.election,
     )
 }
@@ -777,14 +789,14 @@ mod tests {
             .sum();
         assert!(errors > 0, "the BRP fixture group has nothing to show");
         assert_eq!(
-            BrpCheckState::for_political_group(&store),
+            BrpCheckState::for_political_group(&store.snapshot()),
             BrpCheckState::Errors { errors, handled: 0 }
         );
 
         for store in fixture_stores(&state).await {
             if store.get_appellation(WithCorrections::None) != checked {
                 assert_eq!(
-                    BrpCheckState::for_political_group(&store),
+                    BrpCheckState::for_political_group(&store.snapshot()),
                     BrpCheckState::NotChecked,
                     "only one examination fixture group is checked"
                 );
@@ -874,7 +886,7 @@ mod tests {
         // five findings between them.
         assert!(matches!(store.get_brp_status(), BrpStatus::Finished));
         assert_eq!(
-            BrpCheckState::for_political_group(store),
+            BrpCheckState::for_political_group(&store.snapshot()),
             BrpCheckState::Errors {
                 errors: 5,
                 handled: 0

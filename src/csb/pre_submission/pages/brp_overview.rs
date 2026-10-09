@@ -27,7 +27,8 @@ use crate::{
 pub(super) fn brp_overview_model(store: &CsbStream) -> BrpOverview {
     let locale = Locale::Nl;
     let election = store.election;
-    let findings = store.get_brp_findings();
+    let data = store.snapshot();
+    let findings = data.brp_findings();
 
     // Counted over every listed candidate, not only the ones reported on.
     let mut candidates_without_brp_errors = 0;
@@ -35,7 +36,7 @@ pub(super) fn brp_overview_model(store: &CsbStream) -> BrpOverview {
     let mut brp_error_count = 0;
     let mut problem_count = 0;
 
-    let candidates = store
+    let candidates = data
         .listed_candidates()
         .into_iter()
         .filter_map(|candidate| {
@@ -71,11 +72,11 @@ pub(super) fn brp_overview_model(store: &CsbStream) -> BrpOverview {
         })
         .collect();
 
-    let state = BrpCheckState::for_political_group(store);
+    let state = BrpCheckState::for_political_group(&data);
 
     BrpOverview {
         election_name: election.formal_title(ModelLocale::Nl),
-        appellation: store.get_appellation(WithCorrections::All),
+        appellation: data.appellation(WithCorrections::All),
         election_code: election.filename_slug(),
         date: chrono::Utc::now().date_naive(),
         complete: state.is_checked(),

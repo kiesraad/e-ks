@@ -10,7 +10,7 @@ use eml_nl::{
 };
 
 use crate::{
-    AppError, CsbStream, ElectoralDistrict,
+    AppError, CsbStoreData, ElectoralDistrict,
     models::csb_model_inputs::valid_lists_by_district,
     projection::Scrapped,
     structs::{candidate_lists::CandidateList, persons::PersonId},
@@ -126,9 +126,9 @@ pub struct EstablishedLists {
 
 impl EstablishedLists {
     /// `None` when no list has a remaining candidate
-    pub fn new(store: &CsbStream, scrapped: &Scrapped) -> Result<Option<Self>, AppError> {
+    pub fn new(data: &CsbStoreData, scrapped: &Scrapped) -> Result<Option<Self>, AppError> {
         let mut lists = Vec::new();
-        for (district, list) in valid_lists_by_district(store, scrapped) {
+        for (district, list) in valid_lists_by_district(data, scrapped) {
             if lists.iter().any(|(d, _, _)| *d == district) {
                 continue;
             }

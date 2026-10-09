@@ -1,7 +1,7 @@
 use axum::{extract::FromRequestParts, http::request::Parts};
 
 use crate::{
-    AppError, AppRequestState, CsbStore, CsbStream, Session, StreamId,
+    AppError, AppRequestState, CsbStore, CsbStoreData, Session, StreamId,
     csb::{
         examination::structs::BrpCheckState,
         pre_submission::paths::{
@@ -20,11 +20,11 @@ pub struct PreSubmissionGroup {
 }
 
 impl PreSubmissionGroup {
-    pub fn from_store(store: &CsbStream) -> Self {
+    pub fn from_snapshot(stream_id: StreamId, data: &CsbStoreData) -> Self {
         Self {
-            stream_id: store.stream_id,
-            appellation: store.get_appellation(WithCorrections::All),
-            brp: BrpCheckState::for_political_group(store),
+            stream_id,
+            appellation: data.appellation(WithCorrections::All),
+            brp: BrpCheckState::for_political_group(data),
         }
     }
 
@@ -93,8 +93,9 @@ impl<S: AppRequestState> FromRequestParts<S> for PreSubmissionGroups {
             .stores_for_election(election)
             .await?
         {
-            if !store.is_deleted() {
-                groups.push(PreSubmissionGroup::from_store(&store));
+            let data = store.snapshot();
+            if !data.is_deleted() {
+                groups.push(PreSubmissionGroup::from_snapshot(store.stream_id, &data));
             }
         }
 

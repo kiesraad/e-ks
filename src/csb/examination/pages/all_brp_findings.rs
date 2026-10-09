@@ -12,6 +12,7 @@ use crate::{
         import::brp_sweep_running,
     },
     filters,
+    projection::WithCorrections,
     structs::{common::HasSeverity, problems::AllProblems},
 };
 
@@ -35,23 +36,24 @@ pub async fn all_brp_findings(
     context: CsbContext,
     store: CsbStore,
 ) -> Result<Response, AppError> {
-    let political_group = CsbPoliticalGroup::new_from_csb_store(&store);
-    let all_problems = store.get_all_problems(context.election)?;
-    let candidates = store
-        .get_all_brp_findings(&political_group, context.session.locale)
+    let data = store.snapshot();
+    let political_group = CsbPoliticalGroup::from_snapshot(&store, &data);
+    let all_problems = data.all_problems(context.election)?;
+    let candidates = data
+        .all_brp_findings(&political_group, context.session.locale)
         .with_problems(&all_problems, |person| {
-            store
-                .get_first_list(person.id)
+            data.view(WithCorrections::All)
+                .first_list(person.id)
                 .map(|list| political_group.candidate_path(&list.id, &person.id))
         });
 
-    let brp = BrpCheckState::for_political_group(&store);
+    let brp = BrpCheckState::for_political_group(&data);
     let brp_running = brp_sweep_running(store.stream_id);
 
     Ok(HtmlTemplate(
         CsbAllBrpFindingsTemplate {
             brp_incomplete: brp_incomplete_reason(
-                &store.get_brp_status(),
+                data.brp_status(),
                 &brp,
                 brp_running,
                 context.session.locale,

@@ -160,13 +160,11 @@ fn collect_entries(
             .find(|s| s.stream_id.to_string() == stream_id)
             .ok_or(AppError::GenericNotFound)?;
 
+        let data = store.snapshot();
         filter_events(
-            store.snapshot().events.iter(),
+            data.events.iter(),
             store.stream_id,
-            store.get_appellation_with_deleted_label(
-                crate::projection::WithCorrections::All,
-                locale,
-            ),
+            data.appellation_with_deleted_label(crate::projection::WithCorrections::All, locale),
             locale,
             active_event_type,
             active_search,
@@ -207,7 +205,9 @@ pub async fn csb_audit_log<S: AppRequestState>(
 
     // Build a short label for each stream from its import event
     let label = |store: &crate::projection::CsbStream| {
-        store.get_appellation_with_deleted_label(crate::projection::WithCorrections::All, locale)
+        store
+            .snapshot()
+            .appellation_with_deleted_label(crate::projection::WithCorrections::All, locale)
     };
     let import_stream_labels: Vec<(StreamId, String)> = import_stores
         .iter()

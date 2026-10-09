@@ -2,7 +2,8 @@ use axum::{extract::Query, response::Response};
 use serde::Deserialize;
 
 use crate::{
-    AppError, CsbContext, CsbStore, ElectoralDistrict, Form, QueryParamState,
+    AppError, CsbContext, CsbStore, CsbStoreData, ElectionConfig, ElectoralDistrict, Form,
+    OrNotFound, QueryParamState,
     csb::{examination::extractors::CsbPoliticalGroup, recovery::paths::CsbSetOmissionStatusPath},
     structs::{
         candidate_lists::CandidateListId,
@@ -50,7 +51,11 @@ pub async fn set_status(
     Query(query): Query<QueryParamState>,
     Form(form): Form<OmissionStatusForm>,
 ) -> Result<Response, AppError> {
-    let omission = store.get_omission(omission_id)?;
+    let omission = store
+        .snapshot()
+        .omission(omission_id)
+        .cloned()
+        .or_not_found()?;
     let status = match form.status {
         OmissionStatusFormValue::Recovered => OmissionStatus::Recovered,
         OmissionStatusFormValue::NotRecovered => OmissionStatus::NotRecovered,
@@ -61,35 +66,32 @@ pub async fn set_status(
         None => omission.set_status(&store, status).await?,
     }
 
+    // Taken after the write: the decision may have split or merged omissions.
+    let after = store.snapshot();
     let political_group =
-        CsbPoliticalGroup::new_from_csb_store(&store).with_mode(CsbPhase::Recovery);
+        CsbPoliticalGroup::from_snapshot(&store, &after).with_mode(CsbPhase::Recovery);
     Ok(query.redirect_or_highlighting(
         political_group.all_restorations_path(),
-        decided_omission(&store, &omission, part, status).into(),
+        decided_omission(&after, store.election, &omission, part, status).into(),
     ))
 }
 
 /// The omission that holds the decision now: the omission itself, or the one
 /// the decided part was split off into or merged with.
 fn decided_omission(
-    store: &CsbStore,
+    data: &CsbStoreData,
+    election: ElectionConfig,
     omission: &Omission,
     part: Option<OmissionPart>,
     status: OmissionStatus,
 ) -> OmissionId {
     let holds_decision = |candidate: &Omission| {
-        candidate.status == status
-            && part.is_none_or(|part| candidate.covers(&store.election, part))
+        candidate.status == status && part.is_none_or(|part| candidate.covers(&election, part))
     };
-    if store
-        .get_omission(omission.id)
-        .is_ok_and(|o| holds_decision(&o))
-    {
+    if data.omission(omission.id).is_some_and(holds_decision) {
         return omission.id;
     }
-    store
-        .get_omissions()
-        .into_iter()
+    data.omissions()
         .find(|o| o.has_same_details(omission) && holds_decision(o))
         .map_or(omission.id, |o| o.id)
 }

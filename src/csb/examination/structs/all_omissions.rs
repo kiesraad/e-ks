@@ -1,7 +1,7 @@
 use axum_extra::routing::TypedPath;
 
 use crate::{
-    AppError, CsbStream, QueryParamState,
+    AppError, CsbStoreData, ElectionConfig, QueryParamState,
     csb::examination::extractors::CsbPoliticalGroup,
     projection::WithCorrections,
     structs::{
@@ -30,12 +30,13 @@ pub struct OmissionWithPath {
     pub path: String,
 }
 
-impl CsbStream {
-    pub fn get_all_omissions(
+impl CsbStoreData {
+    pub fn all_omissions(
         &self,
+        election: ElectionConfig,
         political_group: &CsbPoliticalGroup,
     ) -> Result<AllOmissions, AppError> {
-        let omissions = self.get_omissions();
+        let omissions = self.omissions().cloned();
 
         let mut general = Vec::new();
         let mut declarations_of_support = Vec::new();
@@ -81,7 +82,7 @@ impl CsbStream {
             candidate_lists,
             candidates,
         };
-        all.sort_by_title(self);
+        all.sort_by_title(self, election);
         Ok(all)
     }
 
@@ -107,10 +108,12 @@ impl CsbStream {
             candidate.omissions.push(with_path);
         } else {
             // a candidate deleted on paper keeps their omissions, shown from the imported data
-            let (person, removed) = match self.get_person(person, WithCorrections::All) {
-                Some(current) => (current, false),
+            let (person, removed) = match self.view(WithCorrections::All).person(person) {
+                Some(current) => (current.clone(), false),
                 None => (
-                    self.get_person(person, WithCorrections::None)
+                    self.view(WithCorrections::None)
+                        .person(person)
+                        .cloned()
                         .ok_or(AppError::InternalServerError)?,
                     true,
                 ),
@@ -129,16 +132,16 @@ impl CsbStream {
 impl AllOmissions {
     /// Order the omissions by title, then district, so the parts of a split
     /// stay together.
-    fn sort_by_title(&mut self, store: &CsbStream) {
+    fn sort_by_title(&mut self, data: &CsbStoreData, election: ElectionConfig) {
         self.declarations_of_support
-            .sort_by_cached_key(|view| store.title_order(&view.omission));
+            .sort_by_cached_key(|view| data.title_order(election, &view.omission));
         self.candidate_lists
-            .sort_by_cached_key(|view| store.title_order(&view.omission));
+            .sort_by_cached_key(|view| data.title_order(election, &view.omission));
 
         for candidate in &mut self.candidates {
             candidate
                 .omissions
-                .sort_by_cached_key(|view| store.title_order(&view.omission));
+                .sort_by_cached_key(|view| data.title_order(election, &view.omission));
         }
     }
 }
@@ -309,7 +312,11 @@ mod tests {
         store.add_person(sample_person(PersonId::new()));
 
         let all_omissions = store
-            .get_all_omissions(&CsbPoliticalGroup::new_from_csb_store(&store))
+            .snapshot()
+            .all_omissions(
+                store.election,
+                &CsbPoliticalGroup::new_from_csb_store(&store),
+            )
             .expect("Couldn't retrieve all omissions");
 
         assert!(all_omissions.candidates.is_empty());
@@ -339,7 +346,11 @@ mod tests {
         .expect("Couldn't create omission");
 
         let all_omissions = store
-            .get_all_omissions(&CsbPoliticalGroup::new_from_csb_store(&store))
+            .snapshot()
+            .all_omissions(
+                store.election,
+                &CsbPoliticalGroup::new_from_csb_store(&store),
+            )
             .expect("Couldn't retrieve all omissions");
 
         assert_eq!(all_omissions.candidates.len(), 1);
@@ -378,7 +389,11 @@ mod tests {
             .expect("Couldn't delete the candidate");
 
         let all_omissions = store
-            .get_all_omissions(&CsbPoliticalGroup::new_from_csb_store(&store))
+            .snapshot()
+            .all_omissions(
+                store.election,
+                &CsbPoliticalGroup::new_from_csb_store(&store),
+            )
             .expect("Couldn't retrieve all omissions");
 
         assert_eq!(all_omissions.candidates.len(), 1);
@@ -412,7 +427,11 @@ mod tests {
         }
 
         let all_omissions = store
-            .get_all_omissions(&CsbPoliticalGroup::new_from_csb_store(&store))
+            .snapshot()
+            .all_omissions(
+                store.election,
+                &CsbPoliticalGroup::new_from_csb_store(&store),
+            )
             .expect("Couldn't retrieve all omissions");
 
         // creates one candidate with 10 omissions

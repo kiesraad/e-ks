@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::{
-    CsbStream,
+    CsbStoreData,
     projection::WithCorrections,
     structs::{brp::BrpFinding, candidate_lists::CandidateList, persons::PersonId},
 };
@@ -133,12 +133,12 @@ impl BrpCheckState {
         }
     }
 
-    pub fn for_candidate(store: &CsbStream, person_id: PersonId) -> Self {
-        if !store.is_brp_checked(person_id) {
+    pub fn for_candidate(data: &CsbStoreData, person_id: PersonId) -> Self {
+        if !data.is_brp_checked(person_id) {
             return Self::NotChecked;
         }
 
-        let findings = store.get_brp_findings_for_person(person_id);
+        let findings = data.brp_findings_for_person(person_id);
         match findings.len() {
             0 => Self::Correct,
             errors => Self::Errors {
@@ -148,20 +148,20 @@ impl BrpCheckState {
         }
     }
 
-    pub fn for_list(store: &CsbStream, list: &CandidateList) -> Self {
-        Self::for_candidates(&store.get_brp_findings(), list.candidates.iter().copied())
+    pub fn for_list(data: &CsbStoreData, list: &CandidateList) -> Self {
+        Self::for_candidates(data.brp_findings(), list.candidates.iter().copied())
     }
 
     /// The state over every candidate the committee is examining, which is why
     /// it reads the corrected lists: candidates the paper corrections added are
     /// examined too, and candidates they removed are not.
-    pub fn for_political_group(store: &CsbStream) -> Self {
+    pub fn for_political_group(data: &CsbStoreData) -> Self {
         Self::for_candidates(
-            &store.get_brp_findings(),
-            store
-                .get_candidate_lists(WithCorrections::All)
+            data.brp_findings(),
+            data.view(WithCorrections::All)
+                .candidate_lists()
                 .into_iter()
-                .flat_map(|list| list.candidates),
+                .flat_map(|list| list.candidates.iter().copied()),
         )
     }
 

@@ -50,12 +50,13 @@ pub async fn overview(
     context: CsbContext,
     store: CsbStore,
 ) -> Result<Response, AppError> {
-    let political_group = CsbPoliticalGroup::new_from_csb_store(&store);
-    let all_omissions = store.get_all_omissions(&political_group)?;
+    let data = store.snapshot();
+    let political_group = CsbPoliticalGroup::from_snapshot(&store, &data);
+    let all_omissions = data.all_omissions(store.election, &political_group)?;
 
     Ok(HtmlTemplate(
         CsbOmissionLetterTemplate {
-            omission_count: store.get_omission_count(),
+            omission_count: data.omission_count(),
             political_group,
             all_omissions,
         },
@@ -69,16 +70,17 @@ pub async fn overview(
 fn omission_letter_model(store: &CsbStream) -> Result<OmissionLetter, AppError> {
     let election = store.election;
     let session = election.public_session();
+    let data = store.snapshot();
 
     Ok(OmissionLetter {
         election_name: election.formal_title(ModelLocale::Nl),
         location: session.location.to_string(),
         // Sent on the day of the examination ("vergadering van heden").
         date: election.document_review_date(),
-        addressee: Person::from(store.get_list_submitter(WithCorrections::All)),
-        appellation: store.get_appellation(WithCorrections::All),
+        addressee: Person::from(data.view(WithCorrections::All).list_submitter().clone()),
+        appellation: data.appellation(WithCorrections::All),
         election_code: election.filename_slug(),
-        omission_groups: omission_letter_sections(store, &election)?,
+        omission_groups: omission_letter_sections(&data, &election)?,
         recovery_deadline_date: election.omission_period_end_date(),
         recovery_deadline_time: RECOVERY_DEADLINE_TIME.to_string(),
         // TODO: use the committee's street address once configured.
@@ -129,7 +131,8 @@ pub async fn gen_omission_letters_zip<S: AppRequestState>(
         .stores_for_election(election)
         .await?
     {
-        if store.is_deleted() || store.get_omission_count() == 0 {
+        let data = store.snapshot();
+        if data.is_deleted() || data.omission_count() == 0 {
             continue;
         }
         letters.push(omission_letter_model(&store)?);
