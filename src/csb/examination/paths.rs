@@ -55,6 +55,20 @@ pub struct CsbOsv3_2DownloadPath;
 pub struct CsbOsv3_2DocxDownloadPath;
 
 #[derive(TypedPath, Deserialize)]
+#[typed_path(
+    "/csb/examination/overzicht_kandidatenlijsten.pdf",
+    rejection(AppError)
+)]
+pub struct CsbCandidateListOverviewDownloadPath;
+
+#[derive(TypedPath, Deserialize)]
+#[typed_path(
+    "/csb/examination/overzicht_kandidatenlijsten.docx",
+    rejection(AppError)
+)]
+pub struct CsbCandidateListOverviewDocxDownloadPath;
+
+#[derive(TypedPath, Deserialize)]
 #[typed_path("/csb/examination/{stream_id}", rejection(AppError))]
 pub struct CsbPoliticalGroupPath {
     pub stream_id: StreamId,

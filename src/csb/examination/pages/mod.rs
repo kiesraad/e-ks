@@ -20,6 +20,7 @@ mod all_brp_findings;
 mod all_restorations;
 pub(in crate::csb) mod candidate;
 pub(in crate::csb) mod candidate_list;
+mod candidate_list_overview;
 mod correction;
 mod delete;
 pub(in crate::csb) mod finish_examination;
@@ -40,6 +41,8 @@ pub fn router<S: AppRequestState>() -> Router<S> {
         .typed_get(i1::gen_i1_docx::<S>)
         .typed_get(osv3_2::gen_osv3_2::<S>)
         .typed_get(osv3_2::gen_osv3_2_docx::<S>)
+        .typed_get(candidate_list_overview::gen_candidate_list_overview_docx::<S>)
+        .typed_get(candidate_list_overview::gen_candidate_list_overview::<S>)
         .typed_get(omission_letter::overview)
         .typed_get(omission_letter::gen_omission_letter)
         .typed_get(omission_letter::gen_omission_letter_docx)

@@ -71,7 +71,7 @@ pub fn osv3_2_example_1() -> OSV3_2 {
             },
         ],
         public_session: PublicSession {
-            location: String::with_capacity(0),
+            location: "'s-Gravenhage".to_string(),
             date: "03-05-2027".to_string(),
             time: String::with_capacity(0),
             chair: "M.C. Voorzitter".to_string(),
