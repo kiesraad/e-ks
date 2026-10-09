@@ -1,0 +1,63 @@
+#!/bin/bash
+# Enrols a security key for the CSB login and prints the CSB_WEBAUTHN_USERS
+# entry for it. Talks to the key directly through libfido2 (fido2-cred), so it
+# runs on any machine with the key plugged in; nothing is sent to e-KS.
+# See docs/csb-enrolment.md.
+
+set -euo pipefail
+
+usage() {
+    echo "Usage: bin/enrol_csb_user <username> <rp-id> [device]" >&2
+    echo >&2
+    echo "  username  1-64 letters, digits, '.', '-', '_' or '@'" >&2
+    echo "  rp-id     host of CSB_WEBAUTHN_ORIGIN, e.g. csb.example.nl" >&2
+    echo "  device    authenticator path from 'fido2-token -L'; optional when" >&2
+    echo "            exactly one is attached" >&2
+    exit 1
+}
+
+[ $# -ge 2 ] && [ $# -le 3 ] || usage
+username=$1
+rp_id=$2
+device=${3:-}
+
+if ! [[ "$username" =~ ^[A-Za-z0-9._@-]{1,64}$ ]]; then
+    echo "invalid username: $username" >&2
+    usage
+fi
+
+for tool in fido2-cred fido2-token; do
+    command -v "$tool" > /dev/null || { echo "$tool not found: install libfido2 (fido2-tools)" >&2; exit 1; }
+done
+
+if [ -z "$device" ]; then
+    devices=$(fido2-token -L | sed 's/: vendor=.*//')
+    if [ "$(printf '%s\n' "$devices" | grep -c .)" -ne 1 ]; then
+        echo "attach exactly one security key or pass its device path:" >&2
+        fido2-token -L >&2
+        exit 1
+    fi
+    device=$devices
+fi
+
+workdir=$(mktemp -d)
+trap 'rm -rf "$workdir"' EXIT
+
+# fido2-cred -M input: client data hash, relying party id, user name, user id.
+# The hash and user id only matter to the key itself, so random values do.
+{
+    head -c 32 /dev/urandom | base64
+    echo "$rp_id"
+    echo "$username"
+    head -c 32 /dev/urandom | base64
+} > "$workdir/param"
+
+echo "Enter the key's PIN when prompted, then touch the key." >&2
+# -v: require user verification (the PIN), both when making the credential
+# and when checking the authenticator's response.
+fido2-cred -M -v -i "$workdir/param" "$device" | fido2-cred -V -v -o "$workdir/cred"
+
+credential_id=$(head -n 1 "$workdir/cred")
+public_key=$(sed '/^-----/d' "$workdir/cred" | tr -d '\n')
+
+echo "${username}:${credential_id}:${public_key}"

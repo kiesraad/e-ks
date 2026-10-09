@@ -13,6 +13,7 @@ import omissionPreset from "./scripts/form-inputs/omission-preset";
 import setupPositionPreview from "./scripts/form-inputs/position-preview";
 import setupSelectAllCheckbox from "./scripts/form-inputs/select-all-checkbox";
 import staleErrors from "./scripts/form-inputs/stale-errors";
+import setupWebauthnCeremony from "./scripts/form-inputs/webauthn-ceremony";
 import setupBfCacheReload from "./scripts/generic-ui/bfcache-reload";
 import setupModal from "./scripts/generic-ui/modal";
 import setupHeaderShadow from "./scripts/generic-ui/header-shadow";
@@ -61,6 +62,7 @@ electionDomain();
 listDesignation();
 omissionPreset();
 duplicateDistricts();
+setupWebauthnCeremony();
 staleErrors(); // last: snapshots the values the other initialisers normalised
 
 // generic UI

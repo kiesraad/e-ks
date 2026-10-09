@@ -15,12 +15,15 @@ all_restorations:
   omissions_title: Overzicht verzuimen
   title: Verzuimen en correcties
 auth:
-  button:
-    github: Inloggen met GitHub
+  ceremony:
+    failed: "De beveiligingssleutel heeft niet bevestigd. Controleer of de sleutel is aangesloten en of u de juiste pincode heeft ingevoerd, en probeer het opnieuw."
+    intro: "Sluit uw beveiligingssleutel aan, voer de pincode in en raak de sleutel aan als deze knippert."
+    retry: Opnieuw proberen
+    unsupported: Deze browser ondersteunt geen beveiligingssleutel of JavaScript staat uit.
   error:
-    message: Inloggen is niet gelukt. Controleer of u toegang heeft en probeer het opnieuw.
+    message: Inloggen is niet gelukt. Controleer of uw beveiligingssleutel is geregistreerd en probeer het opnieuw.
   start:
-    intro: U logt in met uw GitHub-account. Alleen accounts die vooraf toegang hebben gekregen kunnen inloggen bij het centraal stembureau.
+    intro: U logt in met uw beveiligingssleutel. Alleen leden van wie de sleutel vooraf is geregistreerd kunnen inloggen bij het centraal stembureau.
     title: Inloggen bij het centraal stembureau
 brp:
   check_candidate: Deze kandidaat controleren met de BRP

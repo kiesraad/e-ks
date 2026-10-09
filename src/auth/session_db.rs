@@ -211,8 +211,8 @@ mod tests {
                 paper_correction_stream_id: None,
             },
             SessionUser::CentralElectoralCommittee {
-                user: CsbUser::Github {
-                    user_id: "583231".parse().expect("valid id"),
+                user: CsbUser::SecurityKey {
+                    username: "alice".parse().expect("valid username"),
                 },
                 election: ElectionConfig::EK27,
                 paper_correction_stream_id: Some(StreamId::new()),

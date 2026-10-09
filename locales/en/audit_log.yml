@@ -133,5 +133,5 @@ filter:
   stream: Filter by stream
 title: Audit log
 user:
+  committee_member: Committee member
   developer: Developer
-  github: GitHub user

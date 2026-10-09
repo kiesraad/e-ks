@@ -13,7 +13,7 @@ use secrecy::SecretString;
 
 use super::{CsbAlertHours, CsbIpAllowList, RateLimits};
 use crate::{
-    AppError, ElectionConfig, GithubUserId,
+    AppError, CsbWebauthnConfig, ElectionConfig,
     constants::{BRP_PERSONS_ENDPOINT, BRP_TIMEOUT, STORE_CACHE_IDLE_MINUTES},
 };
 
@@ -80,21 +80,6 @@ pub struct AcmeConfig {
     pub root_ca_path: Option<PathBuf>,
 }
 
-/// GitHub OAuth configuration for the CSB (central electoral committee) login.
-///
-/// Fully separate from the political-group login (SAML, auth-service):
-/// committee members authenticate against GitHub and must appear on the
-/// account-id allowlist.
-#[derive(Debug, Clone)]
-pub struct GithubOauthConfig {
-    /// Client id of the GitHub OAuth app.
-    pub client_id: String,
-    /// Client secret of the GitHub OAuth app.
-    pub client_secret: SecretString,
-    /// Numeric GitHub account ids allowed to log in as committee member.
-    pub allowed_user_ids: Vec<GithubUserId>,
-}
-
 /// Runtime configuration loaded from environment variables.
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -134,9 +119,10 @@ pub struct Config {
     /// case-insensitive); anything else leaves the auth-service enabled.
     pub disable_auth_service: bool,
     pub brp_client: BrpConfig,
-    /// GitHub OAuth login for CSB users; the `/csb/login` routes answer 404
-    /// when unset.
-    pub github_oauth: Option<GithubOauthConfig>,
+    /// Security-key (WebAuthn) login for CSB users; the `/csb/login` routes
+    /// answer 404 when unset. Set via `CSB_WEBAUTHN_ORIGIN` and
+    /// `CSB_WEBAUTHN_USERS`.
+    pub csb_webauthn: Option<CsbWebauthnConfig>,
     /// Election a login lands on when the flow has no election selection of
     /// its own (CSB logins, dev logins). Set via `DEFAULT_ELECTION` as the
     /// election code, with the election domain appended after a colon where
@@ -282,25 +268,6 @@ fn parse_csb_bind_address(raw: &str) -> Result<SocketAddr, AppError> {
     })
 }
 
-/// Parses the comma-separated `GITHUB_ALLOWED_USER_IDS` allowlist. Strict: a
-/// single malformed entry rejects the whole configuration rather than silently
-/// shrinking the allowlist.
-fn parse_github_allowlist(raw: &str) -> Result<Vec<GithubUserId>, AppError> {
-    let ids = raw
-        .split(',')
-        .map(str::trim)
-        .filter(|entry| !entry.is_empty())
-        .map(str::parse)
-        .collect::<Result<Vec<GithubUserId>, _>>()
-        .map_err(|err| AppError::ConfigLoadError(format!("GITHUB_ALLOWED_USER_IDS: {err}")))?;
-    if ids.is_empty() {
-        return Err(AppError::ConfigLoadError(
-            "GITHUB_ALLOWED_USER_IDS must contain at least one GitHub user id".to_string(),
-        ));
-    }
-    Ok(ids)
-}
-
 /// Idle time before a cached store projection is evicted, from
 /// `STORE_CACHE_IDLE_MINUTES` (default 24 hours).
 fn store_cache_idle_from_env<F>(lookup: &mut F) -> Result<Duration, AppError>
@@ -345,31 +312,23 @@ where
     })
 }
 
-/// GitHub OAuth config from `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, and
-/// `GITHUB_ALLOWED_USER_IDS` (comma-separated numeric account ids); all three
-/// or none must be set.
-fn github_oauth_from_env<F>(lookup: &mut F) -> Result<Option<GithubOauthConfig>, AppError>
+/// Security-key login config from `CSB_WEBAUTHN_ORIGIN` (the origin the CSB
+/// section is served on) and `CSB_WEBAUTHN_USERS` (comma-separated
+/// `username:credential-id:public-key` entries, as printed by
+/// `bin/enrol_csb_user`). Users without an origin are an error.
+fn csb_webauthn_from_env<F>(lookup: &mut F) -> Result<Option<CsbWebauthnConfig>, AppError>
 where
     F: FnMut(&'static str) -> Result<String, env::VarError>,
 {
-    let mut non_empty = |name| lookup(name).ok().filter(|s: &String| !s.is_empty());
-    let client_id = non_empty("GITHUB_CLIENT_ID");
-    let client_secret = non_empty("GITHUB_CLIENT_SECRET");
-    let allowed_user_ids = non_empty("GITHUB_ALLOWED_USER_IDS");
+    let mut non_empty = |name| lookup(name).ok().filter(|s: &String| !s.trim().is_empty());
+    let origin = non_empty("CSB_WEBAUTHN_ORIGIN");
+    let users = non_empty("CSB_WEBAUTHN_USERS");
 
-    match (client_id, client_secret, allowed_user_ids) {
-        (Some(client_id), Some(client_secret), Some(allowed_user_ids)) => {
-            Ok(Some(GithubOauthConfig {
-                client_id,
-                client_secret: SecretString::from(client_secret),
-                allowed_user_ids: parse_github_allowlist(&allowed_user_ids)?,
-            }))
-        }
-        (None, None, None) => Ok(None),
-        _ => Err(AppError::ConfigLoadError(
-            "GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET and GITHUB_ALLOWED_USER_IDS \
-             must all be set, or all unset"
-                .to_string(),
+    match (origin, users) {
+        (Some(origin), users) => Ok(Some(CsbWebauthnConfig::parse(&origin, users.as_deref())?)),
+        (None, None) => Ok(None),
+        (None, Some(_)) => Err(AppError::ConfigLoadError(
+            "CSB_WEBAUTHN_USERS requires CSB_WEBAUTHN_ORIGIN".to_string(),
         )),
     }
 }
@@ -426,7 +385,7 @@ impl Config {
 
         let tls = tls_from_env(&mut lookup)?;
         let acme = acme_from_env(&mut lookup, tls.is_some())?;
-        let github_oauth = github_oauth_from_env(&mut lookup)?;
+        let csb_webauthn = csb_webauthn_from_env(&mut lookup)?;
         let default_election =
             parse_default_election(&get_env_with("DEFAULT_ELECTION", &mut lookup)?)?;
 
@@ -470,7 +429,7 @@ impl Config {
             csb_alert_hours,
             disable_auth_service,
             brp_client,
-            github_oauth,
+            csb_webauthn,
             default_election,
             rate_limits,
             store_cache_idle_timeout,
@@ -520,7 +479,7 @@ impl Config {
                 persons_endpoint: constants::BRP_PERSONS_ENDPOINT.to_string(),
                 timeout: Duration::from_secs(5),
             },
-            github_oauth: None,
+            csb_webauthn: None,
             default_election: ElectionConfig::EK27,
             rate_limits: RateLimits::default(),
             store_cache_idle_timeout: Duration::from_secs(STORE_CACHE_IDLE_MINUTES.get() * 60),
@@ -1022,58 +981,64 @@ mod tests {
     }
 
     #[test]
-    fn from_env_returns_no_github_oauth_when_unset() {
+    fn from_env_returns_no_csb_webauthn_when_unset() {
         let map = config_env([]);
         let lookup = lookup_from(&map);
 
         let config = Config::from_env_with(lookup).expect("config");
 
-        assert!(config.github_oauth.is_none());
+        assert!(config.csb_webauthn.is_none());
     }
 
     #[test]
-    fn from_env_returns_github_oauth_when_all_set() {
+    fn from_env_returns_csb_webauthn_when_set() {
+        use super::super::csb_webauthn::test_support::{TEST_ORIGIN, test_credential_encoded};
+
+        let users: &'static str = format!("alice:{}", test_credential_encoded()).leak();
         let map = config_env([
-            ("GITHUB_CLIENT_ID", "Iv1.abc123"),
-            ("GITHUB_CLIENT_SECRET", "s3cret"),
-            ("GITHUB_ALLOWED_USER_IDS", "583231, 42,7"),
+            ("CSB_WEBAUTHN_ORIGIN", TEST_ORIGIN),
+            ("CSB_WEBAUTHN_USERS", users),
         ]);
         let lookup = lookup_from(&map);
 
         let config = Config::from_env_with(lookup).expect("config");
-        let github = config.github_oauth.expect("github oauth present");
+        let webauthn = config.csb_webauthn.expect("csb webauthn present");
 
-        assert_eq!(github.client_id, "Iv1.abc123");
-        assert_eq!(github.client_secret.expose_secret(), "s3cret");
-        assert_eq!(
-            github.allowed_user_ids,
-            ["583231", "42", "7"].map(|id| id.parse().expect("valid id"))
-        );
+        assert_eq!(webauthn.users.len(), 1);
+        assert_eq!(webauthn.users[0].username.as_str(), "alice");
     }
 
+    /// The origin alone enables the login page (nobody can log in); a user
+    /// list without it is an error.
     #[test]
-    fn from_env_errors_when_github_oauth_partially_set() {
-        let map = config_env([("GITHUB_CLIENT_ID", "Iv1.abc123")]);
-        let lookup = lookup_from(&map);
+    fn from_env_csb_webauthn_origin_is_the_switch() {
+        let map = config_env([("CSB_WEBAUTHN_ORIGIN", "http://localhost:3000")]);
+        let config = Config::from_env_with(lookup_from(&map)).expect("config");
+        assert!(config.csb_webauthn.expect("present").users.is_empty());
 
-        let err = Config::from_env_with(lookup).expect_err("err");
+        let map = config_env([("CSB_WEBAUTHN_USERS", "alice:abc")]);
+        let err = Config::from_env_with(lookup_from(&map)).expect_err("err");
         assert!(matches!(err, AppError::ConfigLoadError(_)));
     }
 
     #[test]
-    fn from_env_errors_when_github_allowlist_is_malformed() {
-        for allowlist in ["", "octocat", "42,0", " , "] {
+    fn from_env_errors_when_csb_webauthn_users_are_malformed() {
+        for users in [
+            "alice",
+            "alice:abc",
+            "alice:abc:not-a-key",
+            "al ice:abc:abc",
+        ] {
             let map = config_env([
-                ("GITHUB_CLIENT_ID", "Iv1.abc123"),
-                ("GITHUB_CLIENT_SECRET", "s3cret"),
-                ("GITHUB_ALLOWED_USER_IDS", allowlist),
+                ("CSB_WEBAUTHN_ORIGIN", "https://csb.example.nl"),
+                ("CSB_WEBAUTHN_USERS", users),
             ]);
             let lookup = lookup_from(&map);
 
             let err = Config::from_env_with(lookup).expect_err("err");
             assert!(
                 matches!(err, AppError::ConfigLoadError(_)),
-                "allowlist {allowlist:?} must be rejected"
+                "users {users:?} must be rejected"
             );
         }
     }

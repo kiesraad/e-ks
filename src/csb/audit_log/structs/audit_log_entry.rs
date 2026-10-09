@@ -190,15 +190,15 @@ mod tests {
     #[test]
     fn from_event_sets_searchable_user_label() {
         let sid = stream_id();
-        let user = CsbUser::Github {
-            user_id: "583231".parse().expect("valid id"),
+        let user = CsbUser::SecurityKey {
+            username: "alice".parse().expect("valid username"),
         };
         let event = StoreEvent::new(1, CsbMainAction::Login.by(user));
 
         let entry = CsbAuditLogEntry::from_event(&event, sid, "Stream".to_string(), EN);
 
-        assert_eq!(entry.user, "GitHub user 583231");
-        assert!(entry.matches_search("583231"));
-        assert!(entry.matches_search("github"));
+        assert_eq!(entry.user, "Committee member alice");
+        assert!(entry.matches_search("alice"));
+        assert!(entry.matches_search("committee"));
     }
 }

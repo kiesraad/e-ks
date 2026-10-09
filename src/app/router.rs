@@ -151,7 +151,7 @@ fn csrf_layer() -> CsrfLayer {
 
 /// Routes mounted outside the session middleware (no session required): the
 /// SAML auth-service endpoints, the PG login and logged-out pages, and the
-/// CSB GitHub login.
+/// CSB security-key login.
 fn public_router(csb_routes: WithCsbRoutes) -> Router<AppState> {
     let router = auth_service::router().merge(common::public_router());
 
@@ -209,8 +209,9 @@ fn app_feature_router() -> Router<AppState> {
         .merge(substitute_list_submitters::router())
 }
 
-/// Deny every powerful browser feature; the app uses none. The names are the
-/// union of the directives listed on MDN
+/// Deny every powerful browser feature but the WebAuthn credential APIs,
+/// which the CSB security-key login needs and which stay limited to this
+/// origin. The names are the union of the directives listed on MDN
 /// (<https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Permissions-Policy>)
 /// and in the W3C feature registry
 /// (<https://github.com/w3c/webappsec-permissions-policy/blob/main/features.md>).
@@ -226,7 +227,7 @@ const PERMISSIONS_POLICY: &str = concat!(
     "join-ad-interest-group=(), keyboard-map=(), local-fonts=(), magnetometer=(), microphone=(), ",
     "midi=(), otp-credentials=(), payment=(), picture-in-picture=(), private-aggregation=(), ",
     "private-state-token-issuance=(), private-state-token-redemption=(), ",
-    "publickey-credentials-create=(), publickey-credentials-get=(), run-ad-auction=(), ",
+    "publickey-credentials-create=(self), publickey-credentials-get=(self), run-ad-auction=(), ",
     "screen-wake-lock=(), serial=(), speaker-selection=(), storage-access=(), sync-xhr=(), ",
     "unload=(), usb=(), web-share=(), window-management=(), xr-spatial-tracking=()",
 );
@@ -494,7 +495,7 @@ mod tests {
     #[tokio::test]
     async fn excluded_csb_routes_are_unreachable_on_the_main_router() {
         let state = AppState::new_for_tests_with_config(
-            crate::csb::login::test_support::github_test_config(),
+            crate::csb::login::test_support::webauthn_test_config(),
         )
         .await;
         let app: Router =
@@ -504,7 +505,7 @@ mod tests {
             csb::index::CsbIndexPath::PATH,
             csb::import::CsbImportPath::PATH,
             csb::login::CsbLoginPath::PATH,
-            csb::login::CsbLoginStartPath::PATH,
+            csb::login::CsbLoginFinishPath::PATH,
         ] {
             let request = committee_request(&state, uri).await;
             let response = app.clone().oneshot(request).await.expect("response");
@@ -524,7 +525,7 @@ mod tests {
 
     /// A router with `CSB_IP_ALLOW_LIST` set to `203.0.113.7` only.
     async fn ip_gated_app(csb_routes: WithCsbRoutes) -> Router {
-        let mut config = crate::csb::login::test_support::github_test_config();
+        let mut config = crate::csb::login::test_support::webauthn_test_config();
         config.csb_ip_allow_list =
             Some(crate::core::CsbIpAllowList::parse("203.0.113.7").expect("list"));
         let state = AppState::new_for_tests_with_config(config).await;
@@ -558,7 +559,7 @@ mod tests {
     async fn ip_allow_list_gates_the_router_with_csb_routes() {
         let app = ip_gated_app(WithCsbRoutes::Included).await;
 
-        for uri in ["/login", "/robots.txt", csb::login::CsbLoginStartPath::PATH] {
+        for uri in ["/login", "/robots.txt", csb::login::CsbLoginPath::PATH] {
             // The unlisted peer never reaches the route.
             let request = request_from_peer(uri, "203.0.113.8:4000");
             let response = app.clone().oneshot(request).await.expect("response");

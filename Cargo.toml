@@ -83,6 +83,8 @@ ciborium = "0.2.2" # 236M downloads (Nathaniel McCallum)
 hkdf = "0.13.0" # 259M downloads (RustCrypto)
 secrecy = "0.10.3" # 161M downloads (Tony Arcieri)
 urlencoding = "2.1.3" # 264M downloads (Kornel)
+base64 = "0.22.1" # 1B downloads (Marshall Pierce)
+p256 = { version = "0.13.2", default-features = false, features = ["ecdsa", "pkcs8", "std"] } # 110M downloads (RustCrypto)
 
 # development tooling
 dotenvy = "0.15.7"
@@ -161,6 +163,7 @@ axum = { workspace = true, features = ["multipart", "macros"] }
 axum-extra = { workspace = true, features = ["routing", "typed-routing", "form", "typed-header"] }
 axum-server = { workspace = true, optional = true }
 bagatel = { workspace = true }
+base64 = { workspace = true }
 bytes = { workspace = true }
 chrono = { workspace = true, features = ["now"] }
 chrono-tz = { workspace = true }
@@ -174,6 +177,7 @@ http-body-util = { workspace = true }
 hyper-util = { workspace = true }
 instant-acme = { workspace = true, optional = true }
 memory-serve = { workspace = true, optional = true }
+p256 = { workspace = true }
 parking_lot = { workspace = true }
 phf = { workspace = true }
 rand = { workspace = true }

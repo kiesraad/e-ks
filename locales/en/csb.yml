@@ -15,12 +15,15 @@ all_restorations:
   omissions_title: Omissions overview
   title: Omissions and corrections
 auth:
-  button:
-    github: Sign in with GitHub
+  ceremony:
+    failed: "The security key did not confirm. Check that the key is inserted and that you entered the correct PIN, then try again."
+    intro: "Insert your security key, enter its PIN and touch the key when it blinks."
+    retry: Try again
+    unsupported: "This browser does not support security keys, or JavaScript is disabled."
   error:
-    message: Signing in did not succeed. Check that you have been granted access and try again.
+    message: Signing in did not succeed. Check that your security key has been registered and try again.
   start:
-    intro: You sign in with your GitHub account. Only accounts that have been granted access in advance can sign in to the central electoral committee.
+    intro: You sign in with your security key. Only committee members whose key has been registered in advance can sign in to the central electoral committee.
     title: Sign in to the central electoral committee
 brp:
   check_candidate: Check this candidate against the BRP

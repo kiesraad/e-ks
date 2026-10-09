@@ -133,5 +133,5 @@ filter:
   stream: Stream filteren
 title: Logboek
 user:
+  committee_member: CSB-lid
   developer: Ontwikkelaar
-  github: GitHub-gebruiker

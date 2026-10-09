@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{GithubUserId, Locale, trans};
+use crate::{CsbUsername, Locale, trans};
 
 /// The committee member behind a CSB session, recorded on every CSB event so
 /// the audit log can show who triggered it.
@@ -15,8 +15,8 @@ pub enum CsbUser {
     /// Dev-login bypass, with no identity beyond the login method itself.
     #[cfg(any(feature = "dev-features", test))]
     Developer,
-    /// GitHub OAuth login, identified by the account's numeric id.
-    Github { user_id: GithubUserId },
+    /// Security-key (WebAuthn) login, identified by the configured username.
+    SecurityKey { username: CsbUsername },
 }
 
 /// Implemented by the CSB store events, which all record the committee member
@@ -31,8 +31,11 @@ impl CsbUser {
         match self {
             #[cfg(any(feature = "dev-features", test))]
             CsbUser::Developer => trans!("audit_log.user.developer", locale),
-            CsbUser::Github { user_id } => {
-                format!("{} {user_id}", trans!("audit_log.user.github", locale))
+            CsbUser::SecurityKey { username } => {
+                format!(
+                    "{} {username}",
+                    trans!("audit_log.user.committee_member", locale)
+                )
             }
         }
     }
@@ -49,19 +52,19 @@ mod tests {
 
     #[test]
     fn describe_shows_login_method_and_identity() {
-        let github = CsbUser::Github {
-            user_id: "583231".parse().expect("valid id"),
+        let member = CsbUser::SecurityKey {
+            username: "alice".parse().expect("valid username"),
         };
-        assert_eq!(github.describe(Locale::En), "GitHub user 583231");
-        assert_eq!(github.describe(Locale::Nl), "GitHub-gebruiker 583231");
+        assert_eq!(member.describe(Locale::En), "Committee member alice");
+        assert_eq!(member.describe(Locale::Nl), "CSB-lid alice");
 
         assert_eq!(CsbUser::Developer.describe(Locale::En), "Developer");
     }
 
     #[test]
     fn serde_roundtrips() {
-        let user = CsbUser::Github {
-            user_id: "42".parse().expect("valid id"),
+        let user = CsbUser::SecurityKey {
+            username: "alice".parse().expect("valid username"),
         };
         let json = serde_json::to_string(&user).expect("serialize");
         let back: CsbUser = serde_json::from_str(&json).expect("deserialize");
