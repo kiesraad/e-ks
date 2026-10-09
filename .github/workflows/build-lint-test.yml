@@ -24,6 +24,7 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       changed: ${{ steps.filter.outputs.changed }}
+      models_changed: ${{ steps.filter-models.outputs.changed }}
     steps:
       - &checkout-with-history
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -35,6 +36,15 @@ jobs:
         id: filter
         run: |
           if [[ "${GITHUB_REF_NAME}" == "main" ]] || [[ $(git diff --name-only "origin/${GITHUB_BASE_REF}" HEAD | grep -v "\.md$") ]]  ; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Filter changes for the PDF models
+        id: filter-models
+        run: |
+          if [[ "${GITHUB_REF_NAME}" == "main" ]] || [[ $(git diff --name-only "origin/${GITHUB_BASE_REF}" HEAD -- src/models Cargo.lock development/src/bin/pdf_diff.rs .github/workflows/build-lint-test.yml .github/scripts/comment-pdf-diff-summary.js) ]]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -219,23 +229,22 @@ jobs:
     permissions:
       contents: read
       pull-requests: write # Need to be able to comment on the PR
-    if: ${{ needs.changes.outputs.changed == 'true' &&  github.event_name == 'pull_request' }}
+    if: ${{ needs.changes.outputs.models_changed == 'true' && github.event_name == 'pull_request' }}
     needs: changes
     runs-on: ubuntu-24.04
     env: *rust-check-env
     steps:
-      # pdf_diff checks out models/ from origin/main, so it needs history.
+      # pdf_diff checks origin/main out into a worktree to build the baseline,
+      # so it needs history.
       - *checkout-with-history
       - *setup-stable-rust
       - *cargo-cache-restore
-      - *tools-cache
-      - *setup-project
 
       - name: Install diff-pdf
         run: sudo apt-get update && sudo apt-get install -y diff-pdf-wx
 
       - name: Generate PDF diff summary
-        run: bin/pdf_diff
+        run: cargo run --locked --release -p eks-development --bin pdf_diff
 
       - name: Check for diff artifacts
         id: diff-artifacts
