@@ -344,6 +344,7 @@ mod tests {
 
         let files = eml230_files(state.csb_store_registry(), &main_store).await?;
 
+        // One 230b per district, plus the 230c for the whole election
         assert_eq!(files.len(), districts.len() + 1);
         for (_, bytes) in &files {
             let xml = String::from_utf8(bytes.clone()).unwrap();

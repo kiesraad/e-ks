@@ -4,11 +4,7 @@
 //! document, and includes the candidates' private details (mailing address
 //! and representative).
 
-use std::{
-    collections::{HashMap, HashSet},
-    num::NonZeroU64,
-    sync::LazyLock,
-};
+use std::{collections::HashMap, num::NonZeroU64, sync::LazyLock};
 
 use eml_nl::{
     documents::candidate_lists::{
@@ -85,7 +81,6 @@ pub fn eml230c(
 #[derive(Default)]
 struct ShortCodes {
     assigned: HashMap<(StreamId, PersonId), NameShortCode>,
-    taken: HashSet<NameShortCode>,
 }
 
 impl ShortCodes {
@@ -102,9 +97,7 @@ impl ShortCodes {
             ));
         }
 
-        let short_code = self.new_short_code(&person.name)?;
-        self.assigned
-            .insert((stream_id, person.id), short_code.clone());
+        let short_code = self.assign((stream_id, person.id), &person.name)?;
 
         let builder = CandidateListsCandidate::builder()
             .identifier(candidate_identifier(position)?.with_short_code(short_code));
@@ -119,10 +112,22 @@ impl ShortCodes {
         Ok(builder.build()?)
     }
 
+    /// Hand out a short code to the candidate `key`, that has not been
+    /// assigned to anyone else
+    fn assign(
+        &mut self,
+        key: (StreamId, PersonId),
+        name: &FullName,
+    ) -> Result<NameShortCode, AppError> {
+        let short_code = self.new_short_code(name)?;
+        self.assigned.insert(key, short_code.clone());
+        Ok(short_code)
+    }
+
     /// The letters of the last name (without prefix) followed by those of the
     /// initials, e.g. `DijkAB` for "A.B. van Dijk", numbered from 2 onwards
-    /// when already taken; a name without any letters is just numbered
-    fn new_short_code(&mut self, name: &FullName) -> Result<NameShortCode, AppError> {
+    /// when already assigned; a name without any letters is just numbered
+    fn new_short_code(&self, name: &FullName) -> Result<NameShortCode, AppError> {
         let initials = name
             .initials
             .as_ref()
@@ -150,7 +155,7 @@ impl ShortCodes {
             code.push_str(&suffix);
 
             let code = NameShortCode::new(code)?;
-            if self.taken.insert(code.clone()) {
+            if !self.assigned.values().any(|assigned| *assigned == code) {
                 return Ok(code);
             }
         }
@@ -181,9 +186,10 @@ mod tests {
         sample_full_name(None, last_name, prefix, initials)
     }
 
+    /// Assign a short code to a new candidate called `name`
     fn short_code(short_codes: &mut ShortCodes, name: &FullName) -> String {
         short_codes
-            .new_short_code(name)
+            .assign((StreamId::new(), PersonId::new()), name)
             .unwrap()
             .value()
             .to_string()
