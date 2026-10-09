@@ -37,6 +37,14 @@ pub async fn response_body_string(response: axum::response::Response) -> String 
     String::from_utf8(bytes.to_vec()).expect("utf-8 body")
 }
 
+/// Whether `word` occurs as a whole word. Use this over `contains` to assert a
+/// short word is absent: a page's random CSRF token may hold it as a substring.
+pub fn contains_word(haystack: &str, word: &str) -> bool {
+    regex::Regex::new(&format!(r"\b{}\b", regex::escape(word)))
+        .expect("word regex")
+        .is_match(haystack)
+}
+
 /// The `Display` rendering of an optional field.
 pub fn display_opt<T: std::fmt::Display>(value: &Option<T>) -> Option<String> {
     value.as_ref().map(ToString::to_string)
