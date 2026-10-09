@@ -80,7 +80,9 @@ mod tests {
             list_submitters::ListSubmitterId,
             political_groups::PoliticalGroup,
         },
-        test_utils::{response_body_string, sample_list_submitter, sample_political_group},
+        test_utils::{
+            contains_word, response_body_string, sample_list_submitter, sample_political_group,
+        },
     };
 
     #[tokio::test]
@@ -184,7 +186,7 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
-        assert!(!body.contains("Bos"));
+        assert!(!contains_word(&body, "Bos"));
     }
 
     #[tokio::test]

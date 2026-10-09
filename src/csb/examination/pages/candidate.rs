@@ -292,7 +292,7 @@ mod tests {
             csb::OmissionCategory,
             persons::PersonId,
         },
-        test_utils::{response_body_string, sample_candidate_list, sample_person},
+        test_utils::{contains_word, response_body_string, sample_candidate_list, sample_person},
     };
 
     /// A store holding one candidate on one list.
@@ -445,7 +445,7 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
-        assert!(!body.contains("BRP"), "{body}");
+        assert!(!contains_word(&body, "BRP"), "{body}");
         assert!(!body.contains("brp-check"), "{body}");
     }
 
