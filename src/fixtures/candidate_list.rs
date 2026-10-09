@@ -30,7 +30,7 @@ fn next_available_districts(
 }
 
 pub async fn load(store: &PgStore) -> Result<(), AppError> {
-    let election = store.get_election();
+    let election = store.election;
 
     let persons = Person::list(
         store,

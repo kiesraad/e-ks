@@ -101,20 +101,6 @@ impl ListSubmitter {
         self.name.is_empty() && self.address.is_empty()
     }
 
-    /// Clone the stored submitters with the (unpersisted) substitute flag set.
-    pub fn clone_as_substitutes<'a>(
-        submitters: impl IntoIterator<Item = &'a ListSubmitter>,
-    ) -> Vec<ListSubmitter> {
-        submitters
-            .into_iter()
-            .cloned()
-            .map(|mut submitter| {
-                submitter.is_substitute = true;
-                submitter
-            })
-            .collect()
-    }
-
     /// Build the updated submitter from validated form data, keeping this
     /// submitter's id and refreshing the address's BAG flag.
     pub fn updated_from(&self, data: ListSubmitterData) -> Self {

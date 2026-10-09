@@ -25,8 +25,8 @@ pub async fn load_for_group(
     store: &PgStore,
     political_group: PoliticalGroup,
 ) -> Result<(), AppError> {
-    let person_count = store.get_person_count();
-    let candidate_list_count = store.get_candidate_list_count();
+    let person_count = store.snapshot().person_count();
+    let candidate_list_count = store.snapshot().candidate_list_count();
 
     if person_count > 0 && candidate_list_count > 0 {
         tracing::warn!("Skip loading fixtures, store not empty");

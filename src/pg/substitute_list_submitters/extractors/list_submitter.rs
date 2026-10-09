@@ -2,6 +2,7 @@ use axum::extract::Path;
 use serde::Deserialize;
 
 use crate::{
+    OrNotFound,
     pg::request_extractor,
     structs::list_submitters::{ListSubmitter, ListSubmitterId},
 };
@@ -16,7 +17,11 @@ request_extractor!(ListSubmitter, |store, parts, state| {
     let Path(SubstituteSubmitterPathParams { submitter_id }) =
         Path::<SubstituteSubmitterPathParams>::from_request_parts(parts, state).await?;
 
-    store.get_substitute_submitter(submitter_id)
+    store
+        .snapshot()
+        .substitute_submitter(submitter_id)
+        .cloned()
+        .or_not_found()
 });
 
 #[cfg(test)]

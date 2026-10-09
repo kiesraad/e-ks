@@ -28,8 +28,13 @@ pub async fn update_order(
 ) -> Result<impl IntoResponse, AppError> {
     let numbering = ListNumbering::new(
         &political_groups,
-        &main_store.registered_political_groups(),
-        &main_store.list_order(),
+        &main_store
+            .snapshot()
+            .registered_political_groups()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>(),
+        main_store.snapshot().list_order(),
     );
     if !is_permutation(&payload.stream_ids, &numbering.stream_ids()) {
         return Err(AppError::UserError(
@@ -84,7 +89,7 @@ mod tests {
         .into_response();
 
         assert_eq!(response.status(), StatusCode::NO_CONTENT);
-        assert_eq!(main_store.list_order(), order);
+        assert_eq!(main_store.snapshot().list_order().to_vec(), order);
         Ok(())
     }
 
@@ -112,7 +117,7 @@ mod tests {
 
             assert!(matches!(result, Err(AppError::UserError(_))));
         }
-        assert!(main_store.list_order().is_empty());
+        assert!(main_store.snapshot().list_order().to_vec().is_empty());
     }
 
     #[test]

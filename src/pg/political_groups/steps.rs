@@ -2,7 +2,7 @@ use crate::structs::list_designation::ListDesignation;
 use axum_extra::routing::TypedPath;
 
 use crate::{
-    AppError, PgStore, QueryParamState,
+    AppError, PgStoreData, QueryParamState,
     structs::{
         common::{HasSeverity, PotentialProblems, Problematic, Severity},
         list_submitters::ListSubmitter,
@@ -26,16 +26,17 @@ pub struct PoliticalGroupSteps {
 }
 
 impl PoliticalGroupSteps {
-    pub fn new(store: &PgStore, initial: bool) -> Result<Self, AppError> {
-        let political_group = store.get_political_group();
-        let name_authorisations = store.get_name_authorisations();
-        let list_submitter = store.get_list_submitter();
-        let substitute_submitters = store.get_substitute_submitters();
+    pub fn new(data: &PgStoreData, initial: bool) -> Result<Self, AppError> {
+        let political_group = data.political_group();
+        let name_authorisations: Vec<NameAuthorisation> =
+            data.name_authorisations().into_iter().cloned().collect();
+        let list_submitter = data.list_submitter().clone();
+        let substitute_submitters = data.substitute_submitters().to_vec();
 
         Ok(Self {
             initial,
-            list_designation_state: Self::list_designation_state(&political_group),
-            basic_state: Self::basic_state(initial, &political_group),
+            list_designation_state: Self::list_designation_state(political_group),
+            basic_state: Self::basic_state(initial, political_group),
             name_authorisations_state: Self::name_authorisations_state(
                 initial,
                 political_group.list_designation,
@@ -163,7 +164,7 @@ mod tests {
             .create(&store)
             .await?;
 
-        let steps = PoliticalGroupSteps::new(&store, false)?;
+        let steps = PoliticalGroupSteps::new(&store.snapshot(), false)?;
         assert_eq!(steps.name_authorisations_state, "error");
 
         Ok(())
@@ -176,7 +177,7 @@ mod tests {
             .create(&store)
             .await?;
 
-        let steps = PoliticalGroupSteps::new(&store, true)?;
+        let steps = PoliticalGroupSteps::new(&store.snapshot(), true)?;
         assert_eq!(steps.submitters_state, "empty");
 
         Ok(())
@@ -189,7 +190,7 @@ mod tests {
             .create(&store)
             .await?;
 
-        let steps = PoliticalGroupSteps::new(&store, false)?;
+        let steps = PoliticalGroupSteps::new(&store.snapshot(), false)?;
         assert_eq!(steps.submitters_state, "error");
 
         Ok(())
@@ -197,7 +198,7 @@ mod tests {
 
     #[test]
     fn designation_form_depends_on_combined() -> Result<(), AppError> {
-        let mut steps = PoliticalGroupSteps::new(&PgStore::new_for_test(), false)?;
+        let mut steps = PoliticalGroupSteps::new(&PgStore::new_for_test().snapshot(), false)?;
         assert_eq!(steps.designation_form(), "H\u{A0}3-1");
 
         steps.list_designation = Some(ListDesignation::Standalone);

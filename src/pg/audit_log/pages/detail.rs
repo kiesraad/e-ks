@@ -132,7 +132,9 @@ mod tests {
         locale: ModelLocale,
     ) -> AuditLogDownloadDocumentsPath {
         let hash = store
-            .get_events()
+            .snapshot()
+            .events
+            .clone()
             .iter()
             .find(|e| e.event_id == event_id)
             .expect("event in stream")
@@ -182,10 +184,14 @@ mod tests {
         let list = sample_candidate_list(list_id);
         list.create(&store).await?;
 
-        let mut list = store.get_candidate_list(list_id)?;
+        let mut list = store
+            .snapshot()
+            .candidate_list(list_id)
+            .cloned()
+            .or_not_found()?;
         list.append_candidate(&store, person_id).await?;
 
-        let events = store.get_events();
+        let events = store.snapshot().events.clone();
         let target_event_id = events.last().unwrap().event_id;
 
         let response = audit_log_detail(
@@ -243,7 +249,7 @@ mod tests {
 
         // Paper-corrections mode hides it.
         let store = paper_corrections_store().await?;
-        let event_id = store.get_events().last().unwrap().event_id;
+        let event_id = store.snapshot().events.clone().last().unwrap().event_id;
         let response = audit_log_detail(
             AuditLogDetailPath { event_id },
             Context::new_test_from_store(&store),
@@ -296,7 +302,9 @@ mod tests {
 
         assert!(
             !store
-                .get_events()
+                .snapshot()
+                .events
+                .clone()
                 .iter()
                 .any(|e| matches!(e.payload, crate::PgEvent::DownloadFile { .. })),
             "a refused download is not recorded"
@@ -308,7 +316,7 @@ mod tests {
     #[tokio::test]
     async fn paper_corrections_mode_rejects_document_download() -> Result<(), AppError> {
         let store = paper_corrections_store().await?;
-        let event_id = store.get_events().last().unwrap().event_id;
+        let event_id = store.snapshot().events.clone().last().unwrap().event_id;
 
         let result = audit_log_gen_documents(
             audit_download_path(&store, event_id, ModelLocale::Nl),
@@ -348,11 +356,11 @@ mod tests {
 
         // Correct the imported person's first name.
         let store = csb_store.paper_corrections();
-        let mut corrected = store.get_person(person_id)?;
+        let mut corrected = store.snapshot().person(person_id).cloned().or_not_found()?;
         corrected.name.first_name = Some("Gecorrigeerd".parse().unwrap());
         store.update(PgEvent::UpdatePerson(corrected)).await?;
 
-        let event_id = store.get_events().last().unwrap().event_id;
+        let event_id = store.snapshot().events.clone().last().unwrap().event_id;
         let response = audit_log_detail(
             AuditLogDetailPath { event_id },
             Context::new_test_from_store(&store),
@@ -410,7 +418,12 @@ mod tests {
         test_utils::sample_political_group().create(&store).await?;
 
         // create two remove candidate events
-        let mut lists = store.get_candidate_lists();
+        let mut lists = store
+            .snapshot()
+            .candidate_lists()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
         let (c1, c2) = (lists[0].candidates[0], lists[0].candidates[1]);
         lists[0].remove_candidate(&store, c1).await?;
         lists[0].remove_candidate(&store, c2).await?;
@@ -438,7 +451,9 @@ mod tests {
 
         // check if two download events are present
         let download_event_count = store
-            .get_events()
+            .snapshot()
+            .events
+            .clone()
             .iter()
             .filter(|e| matches!(e.payload, crate::PgEvent::DownloadFile { .. }))
             .count();

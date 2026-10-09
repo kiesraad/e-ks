@@ -7,7 +7,7 @@ use crate::{
 request_extractor!(PersonPagination, |store, parts, state| {
     let pagination: Pagination<PersonSort> = Pagination::from_request_parts(parts, state).await?;
 
-    let total_items = store.get_person_count();
+    let total_items = store.snapshot().person_count();
     let pagination = pagination.set_total(total_items);
 
     let persons = Person::list(

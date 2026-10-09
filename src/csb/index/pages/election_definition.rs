@@ -13,7 +13,12 @@ pub async fn download_election_definition(
 ) -> Result<impl IntoResponse, AppError> {
     let bytes = eml110a(
         &main_store.election,
-        &main_store.registered_political_groups(),
+        &main_store
+            .snapshot()
+            .registered_political_groups()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>(),
     )?;
 
     let headers = no_cache_headers::generate_attachment_headers(

@@ -88,6 +88,7 @@ pub async fn update_representative_submit(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::OrNotFound;
     use crate::{
         AppError, Context, Form, PgStore, QueryParamState,
         structs::{candidate_lists::CandidateListId, persons::PersonId},
@@ -116,7 +117,10 @@ mod tests {
         let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
             .expect("candidate list");
         let candidate = store
-            .get_candidate_list(list_id)?
+            .snapshot()
+            .candidate_list(list_id)
+            .cloned()
+            .or_not_found()?
             .get_candidate(&store, person.id)
             .await?;
 
@@ -155,7 +159,10 @@ mod tests {
         let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
             .expect("candidate list");
         let candidate = store
-            .get_candidate_list(list_id)?
+            .snapshot()
+            .candidate_list(list_id)
+            .cloned()
+            .or_not_found()?
             .get_candidate(&store, person.id)
             .await?;
 
@@ -198,7 +205,10 @@ mod tests {
         let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
             .expect("candidate list");
         let candidate = store
-            .get_candidate_list(list_id)?
+            .snapshot()
+            .candidate_list(list_id)
+            .cloned()
+            .or_not_found()?
             .get_candidate(&store, person.id)
             .await?;
 
@@ -234,7 +244,7 @@ mod tests {
             .expect("location header value");
         assert_eq!(location, expected_path);
 
-        let updated = store.get_person(person.id)?;
+        let updated = store.snapshot().person(person.id).cloned().or_not_found()?;
         assert_eq!(
             updated.representative.unwrap().name.last_name.to_string(),
             "Smit"
@@ -257,7 +267,10 @@ mod tests {
         let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
             .expect("candidate list");
         let candidate = store
-            .get_candidate_list(list_id)?
+            .snapshot()
+            .candidate_list(list_id)
+            .cloned()
+            .or_not_found()?
             .get_candidate(&store, person.id)
             .await?;
 

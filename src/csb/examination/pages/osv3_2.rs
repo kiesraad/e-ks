@@ -29,7 +29,11 @@ async fn osv3_2_model<S: AppRequestState>(
     }
 
     let mut public_session = PublicSession::from(election.public_session());
-    if let Some(hearing_details) = main_store.get_hearing_details(HearingModel::I4) {
+    if let Some(hearing_details) = main_store
+        .snapshot()
+        .hearing_details(HearingModel::I4)
+        .cloned()
+    {
         public_session = public_session.with_hearing_details(hearing_details);
     }
 

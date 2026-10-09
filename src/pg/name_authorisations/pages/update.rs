@@ -68,6 +68,7 @@ pub async fn update_name_authorisation_submit(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::OrNotFound;
     use crate::{
         AppError, Context, Form, PgStore, QueryParamState,
         structs::name_authorisations::NameAuthorisationId,
@@ -145,7 +146,11 @@ mod tests {
                 .to_string()
         );
 
-        let updated = store.get_name_authorisation(authorisation_id)?;
+        let updated = store
+            .snapshot()
+            .name_authorisation(authorisation_id)
+            .cloned()
+            .or_not_found()?;
         assert_eq!(updated.name.last_name.to_string(), "Updated");
 
         Ok(())

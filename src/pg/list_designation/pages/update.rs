@@ -29,7 +29,7 @@ pub async fn update_list_designation(
     political_group: PoliticalGroup,
     Query(query): Query<QueryParamState>,
 ) -> Result<Response, AppError> {
-    let steps = PoliticalGroupSteps::new(&store, query.is_initial())?;
+    let steps = PoliticalGroupSteps::new(&store.snapshot(), query.is_initial())?;
     Ok(HtmlTemplate(
         ListDesignationUpdateTemplate {
             steps,
@@ -48,7 +48,7 @@ pub async fn update_list_designation_submit(
     Query(query): Query<QueryParamState>,
     Form(form): Form<ListDesignationForm>,
 ) -> Result<Response, AppError> {
-    let steps = PoliticalGroupSteps::new(&store, query.is_initial())?;
+    let steps = PoliticalGroupSteps::new(&store.snapshot(), query.is_initial())?;
 
     match form.validate_update(&political_group.list_designation.into()) {
         Err(form_data) => Ok(HtmlTemplate(
@@ -87,7 +87,7 @@ mod tests {
     #[tokio::test]
     async fn update_list_designation_renders_existing_data() -> Result<(), AppError> {
         let store = PgStore::new_for_test();
-        let political_group = store.get_political_group();
+        let political_group = store.snapshot().political_group().clone();
 
         let response = update_list_designation(
             ListDesignationUpdatePath {},
@@ -112,7 +112,7 @@ mod tests {
     async fn update_list_designation_persists_and_redirects_to_basic_info() -> Result<(), AppError>
     {
         let store = PgStore::new_for_test();
-        let political_group = store.get_political_group();
+        let political_group = store.snapshot().political_group().clone();
 
         let context = Context::new_test_without_db();
         let form = ListDesignationForm {
@@ -144,7 +144,7 @@ mod tests {
                 .to_string()
         );
         assert_eq!(
-            store.get_political_group().list_designation,
+            store.snapshot().political_group().clone().list_designation,
             Some(ListDesignation::Standalone)
         );
 
@@ -154,7 +154,7 @@ mod tests {
     #[tokio::test]
     async fn update_list_designation_blank_redirects_to_list_submitter() -> Result<(), AppError> {
         let store = PgStore::new_for_test();
-        let political_group = store.get_political_group();
+        let political_group = store.snapshot().political_group().clone();
 
         let context = Context::new_test_without_db();
         let form = ListDesignationForm {
@@ -186,7 +186,7 @@ mod tests {
                 .to_string()
         );
         assert_eq!(
-            store.get_political_group().list_designation,
+            store.snapshot().political_group().clone().list_designation,
             Some(ListDesignation::Blank)
         );
 

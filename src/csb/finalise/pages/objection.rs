@@ -5,8 +5,8 @@ use axum::{
 };
 
 use crate::{
-    AppError, Context, CsbContext, CsbMainAction, CsbMainStore, Form, HtmlTemplate, Overlay,
-    QueryParamState,
+    AppError, Context, CsbContext, CsbMainAction, CsbMainStore, Form, HtmlTemplate, OrNotFound,
+    Overlay, QueryParamState,
     csb::finalise::{
         CsbFinalisePath,
         forms::ObjectionForm,
@@ -82,7 +82,11 @@ pub async fn update_objection(
     main_store: CsbMainStore,
     Query(query): Query<QueryParamState>,
 ) -> Result<Response, AppError> {
-    let objection = main_store.get_objection(id)?;
+    let objection = main_store
+        .snapshot()
+        .objection(id)
+        .cloned()
+        .or_not_found()?;
     Ok(render(
         context,
         &query,
@@ -98,7 +102,11 @@ pub async fn update_objection_submit(
     Query(query): Query<QueryParamState>,
     Form(form): Form<ObjectionForm>,
 ) -> Result<Response, AppError> {
-    let current = main_store.get_objection(id)?;
+    let current = main_store
+        .snapshot()
+        .objection(id)
+        .cloned()
+        .or_not_found()?;
     let objection = match form.validate_update(&current) {
         Ok(objection) => objection,
         Err(form) => return Ok(render(context, &query, form, Some(current))),
@@ -115,7 +123,11 @@ pub async fn delete_objection(
     main_store: CsbMainStore,
 ) -> Result<Response, AppError> {
     // Deleting an objection that is already gone is a stale form, not a change.
-    main_store.get_objection(id)?;
+    main_store
+        .snapshot()
+        .objection(id)
+        .cloned()
+        .or_not_found()?;
     main_store
         .update(CsbMainAction::DeleteObjection(id).by(context.user()?))
         .await?;
@@ -200,7 +212,7 @@ mod tests {
 
         assert_redirect(response).await;
 
-        let objections = main_store.get_all_objections();
+        let objections = main_store.snapshot().objections().to_vec();
         assert_eq!(objections.len(), 1);
         assert_eq!(
             objections[0].objection_text.to_string(),
@@ -224,7 +236,7 @@ mod tests {
 
         assert_redirect(response).await;
 
-        let objections = main_store.get_all_objections();
+        let objections = main_store.snapshot().objections().to_vec();
         assert_eq!(
             objections[0].objection_text.to_string(),
             "eerste regel\ntweede regel"
@@ -252,7 +264,7 @@ mod tests {
             assert!(body.contains("This field must not be empty."));
         }
 
-        assert!(main_store.get_all_objections().is_empty());
+        assert!(main_store.snapshot().objections().to_vec().is_empty());
     }
 
     #[tokio::test]
@@ -315,7 +327,7 @@ mod tests {
 
         assert_redirect(response).await;
 
-        let objections = main_store.get_all_objections();
+        let objections = main_store.snapshot().objections().to_vec();
         assert_eq!(objections.len(), 1);
         assert_eq!(objections[0].objection_text.to_string(), "new text");
         assert_eq!(objections[0].id, id);
@@ -341,7 +353,7 @@ mod tests {
         let body = response_body_string(response).await;
         assert!(body.contains("This field must not be empty."));
 
-        let objections = main_store.get_all_objections();
+        let objections = main_store.snapshot().objections().to_vec();
         assert_eq!(objections.len(), 1);
         assert_eq!(objections[0].objection_text.to_string(), "old text");
         assert_eq!(objections[0].id, id);
@@ -362,7 +374,7 @@ mod tests {
 
         assert_redirect(response).await;
 
-        assert!(main_store.get_all_objections().is_empty());
+        assert!(main_store.snapshot().objections().to_vec().is_empty());
     }
 
     #[tokio::test]

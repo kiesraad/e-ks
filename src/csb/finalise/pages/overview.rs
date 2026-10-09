@@ -31,11 +31,16 @@ pub async fn overview(
 ) -> Result<Response, AppError> {
     let numbering = ListNumbering::new(
         &political_groups,
-        &main_store.registered_political_groups(),
-        &main_store.list_order(),
+        &main_store
+            .snapshot()
+            .registered_political_groups()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>(),
+        main_store.snapshot().list_order(),
     );
     let has_multiple_districts = !context.election.has_only_one_district();
-    let objections = main_store.get_all_objections();
+    let objections = main_store.snapshot().objections().to_vec();
 
     Ok(HtmlTemplate(
         CsbFinaliseTemplate {

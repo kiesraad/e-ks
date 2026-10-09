@@ -307,14 +307,14 @@ mod tests {
             .await
             .unwrap_err();
         assert!(matches!(err, AppError::Conflict));
-        assert_eq!(first.get_persons().len(), 1);
+        assert_eq!(first.snapshot().person_count(), 1);
 
         // the handle that wrote keeps writing, a fresh handle sees the new state
         sample_person(PersonId::new()).create(&first).await?;
         sample_person(PersonId::new())
             .create(&PgStore::own(first.projection.clone()))
             .await?;
-        assert_eq!(first.get_persons().len(), 3);
+        assert_eq!(first.snapshot().person_count(), 3);
 
         Ok(())
     }
@@ -368,7 +368,7 @@ mod tests {
         // Reads never pass through the limit check, so the stream stays
         // viewable while the cap is in force.
         assert_eq!(
-            store.get_political_group().appellation,
+            store.snapshot().political_group().clone().appellation,
             crate::test_utils::sample_political_group().appellation
         );
     }

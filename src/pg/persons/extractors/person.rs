@@ -2,7 +2,7 @@ use axum::extract::Path;
 use serde::Deserialize;
 
 use crate::{
-    AppError, Locale,
+    AppError, Locale, OrNotFound,
     pg::request_extractor,
     structs::persons::{Person, PersonId},
     trans,
@@ -20,7 +20,10 @@ request_extractor!(Person, |store, parts, state| {
         Path::<PersonPathParams>::from_request_parts(parts, state).await?;
 
     store
-        .get_person(person_id)
+        .snapshot()
+        .person(person_id)
+        .cloned()
+        .or_not_found()
         .map_err(|_| AppError::NotFound(trans!("person.not_found", locale, person_id)))
 });
 

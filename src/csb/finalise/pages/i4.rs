@@ -38,9 +38,10 @@ async fn i4_model<S: AppRequestState>(
         valid_lists,
     } = i4_inputs(registry, &election, &numbering.stream_ids()).await?;
 
+    let main = main_store.snapshot();
     let mut public_session = PublicSession::from(election.public_session());
-    if let Some(hearing_details) = main_store.get_hearing_details(HearingModel::I4) {
-        public_session = public_session.with_hearing_details(hearing_details);
+    if let Some(hearing_details) = main.hearing_details(HearingModel::I4) {
+        public_session = public_session.with_hearing_details(hearing_details.clone());
     }
 
     Ok(I4 {
@@ -74,9 +75,9 @@ async fn i4_model<S: AppRequestState>(
             })
             .collect(),
         // Objections are recorded during the public session.
-        objections: main_store
-            .get_all_objections()
-            .into_iter()
+        objections: main
+            .objections()
+            .iter()
             .map(|o| o.objection_text.to_string())
             .collect(),
         response_objections: None,

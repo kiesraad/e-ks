@@ -203,6 +203,7 @@ pub async fn add_person_to_candidate_list(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::OrNotFound;
     use crate::{
         Context, Form, MAX_CANDIDATES, PgStore,
         structs::{candidate_lists::CandidateListId, persons::PersonId},
@@ -415,7 +416,13 @@ mod tests {
         // Bulk add silently caps: no error, just the maximum number of candidates.
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
-            store.get_candidate_list(list_id)?.candidates.len(),
+            store
+                .snapshot()
+                .candidate_list(list_id)
+                .cloned()
+                .or_not_found()?
+                .candidates
+                .len(),
             MAX_CANDIDATES
         );
 
@@ -467,7 +474,13 @@ mod tests {
             .expect("location header value");
         assert!(location.contains("max_candidates_reached=true"));
         assert_eq!(
-            store.get_candidate_list(list_id)?.candidates.len(),
+            store
+                .snapshot()
+                .candidate_list(list_id)
+                .cloned()
+                .or_not_found()?
+                .candidates
+                .len(),
             MAX_CANDIDATES
         );
 
@@ -506,7 +519,13 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
-            store.get_candidate_list(list_id)?.candidates.len(),
+            store
+                .snapshot()
+                .candidate_list(list_id)
+                .cloned()
+                .or_not_found()?
+                .candidates
+                .len(),
             MAX_CANDIDATES + 5
         );
 

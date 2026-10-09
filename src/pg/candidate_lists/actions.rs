@@ -38,7 +38,10 @@ impl CandidateList {
         person_ids: &[PersonId],
     ) -> Result<(), AppError> {
         let existing_person_ids = store
-            .get_persons()
+            .snapshot()
+            .persons()
+            .cloned()
+            .collect::<Vec<_>>()
             .iter()
             .map(|p| p.id)
             .collect::<BTreeSet<_>>();
@@ -61,7 +64,11 @@ impl CandidateList {
             return Err(AppError::GenericNotFound);
         }
 
-        store.get_candidate_list(self.id)?;
+        store
+            .snapshot()
+            .candidate_list(self.id)
+            .cloned()
+            .or_not_found()?;
 
         store
             .update(PgEvent::UpdateCandidateListOrder {
@@ -70,7 +77,11 @@ impl CandidateList {
             })
             .await?;
 
-        *self = store.get_candidate_list(self.id)?;
+        *self = store
+            .snapshot()
+            .candidate_list(self.id)
+            .cloned()
+            .or_not_found()?;
 
         Ok(())
     }
@@ -102,7 +113,7 @@ impl CandidateList {
         store: &PgStore,
         person_id: PersonId,
     ) -> Result<(), AppError> {
-        let person = store.get_person(person_id)?;
+        let person = store.snapshot().person(person_id).cloned().or_not_found()?;
 
         if !self.candidates.contains(&person.id) {
             // never allow a list to grow beyond the store's hard maximum
@@ -119,7 +130,11 @@ impl CandidateList {
                 })
                 .await?;
 
-            *self = store.get_candidate_list(self.id)?;
+            *self = store
+                .snapshot()
+                .candidate_list(self.id)
+                .cloned()
+                .or_not_found()?;
         }
 
         Ok(())
@@ -138,7 +153,11 @@ impl CandidateList {
                 })
                 .await?;
 
-            *self = store.get_candidate_list(self.id)?;
+            *self = store
+                .snapshot()
+                .candidate_list(self.id)
+                .cloned()
+                .or_not_found()?;
         }
 
         Ok(())
@@ -149,13 +168,17 @@ impl CandidateList {
         store: &PgStore,
         person_id: PersonId,
     ) -> Result<Candidate, AppError> {
-        let list = store.get_candidate_list(self.id)?;
+        let list = store
+            .snapshot()
+            .candidate_list(self.id)
+            .cloned()
+            .or_not_found()?;
 
         let position = list
             .position_of(person_id)
             .ok_or(AppError::GenericNotFound)?;
 
-        let person = store.get_person(person_id)?;
+        let person = store.snapshot().person(person_id).cloned().or_not_found()?;
 
         Ok(Candidate {
             list_id: self.id,
@@ -169,12 +192,20 @@ impl CandidateList {
         store: &PgStore,
         include: &[PersonId],
     ) -> Result<Vec<Person>, AppError> {
-        let list = store.get_candidate_list(self.id)?;
+        let list = store
+            .snapshot()
+            .candidate_list(self.id)
+            .cloned()
+            .or_not_found()?;
         let existing: BTreeMap<PersonId, ()> =
             list.candidates.into_iter().map(|id| (id, ())).collect();
 
         Ok(store
-            .get_sorted_persons()
+            .snapshot()
+            .sorted_persons()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>()
             .into_iter()
             .filter(|person| !existing.contains_key(&person.id) || include.contains(&person.id))
             .collect())

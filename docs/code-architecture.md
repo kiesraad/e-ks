@@ -272,15 +272,22 @@ currently creates political-group sessions only.)
 The CSB section has two projections of its own on the shared store machinery
 (see [The store at runtime](#the-store-at-runtime)):
 
-- **`CsbStoreData`** (`src/csb/store_csb/`), one stream per imported package
-  (scope `ImportedByCsb`), driven by `CsbEvent`. The projection holds the
-  imported snapshot (`imported_data`), a second projection with the paper
-  corrections replayed on top (`paper_corrected_data`), the recorded
-  omissions and person corrections, and the examination-finished flag. A
-  second registry over the same projection, under scope `PreSubmittedToCsb`,
-  holds the packages imported for the pre-submission check; a registry only
-  lists streams of its own scope, so the two never see each other's imports.
-- **`CsbMainStoreData`** (`src/csb/store_main/`), a single stream per
+- **`CsbStoreData`** (`src/projection/csb_data/`), one stream per imported
+  package (scope `ImportedByCsb`), driven by `CsbEvent`. The projection holds
+  three versions of the political group's data, picked by `WithCorrections`
+  through `view()`: the imported snapshot (`imported_data`), the paper
+  corrections replayed on top of it (`paper_corrected_data`), and the
+  committee's own corrections applied on top of that (`csb_corrected_data`,
+  derived again after every event that touches either). Beside them live the
+  recorded omissions, what they scrap, the BRP findings and the
+  examination-finished flag. The three versions are shared by `Arc`, so a
+  paper-corrections `PgStore` serves one without copying it. A second
+  registry over the same projection, under scope `PreSubmittedToCsb`, holds
+  the packages imported for the pre-submission check; a registry only lists
+  streams of its own scope, so the two never see each other's imports.
+  `CsbStore` (`src/projection/csb_store.rs`) is the request handle that binds
+  the acting committee member to a stream.
+- **`CsbMainStoreData`** (`src/projection/csb_main/`), a single stream per
   election shared by all committee members under the fixed
   `CSB_MAIN_STREAM_ID` (scope `CentralElectoralCommittee`). It records
   committee-wide events (logins, and the registered political groups with
@@ -354,8 +361,10 @@ candidate (with the affected lists). Recoverable omissions are the
 for declarations of support) or, for a political-group omission, the
 appellation. A **correction** (*ambtshalve correctie*) (`CsbAction::UpdateCorrection`) records a fix to
 the imported political group appellation and person data (initials, last name,
-date of birth, place of residence); corrections on persons are kept in a separate
-map in the projection (`csb_corrected_persons`), so the imported snapshot itself stays untouched.
+date of birth, place of residence). The corrections are kept beside the
+projection (`csb_corrected_persons`, `csb_corrected_appellation`) and folded
+into `csb_corrected_data` by `apply`, so every `WithCorrections::All` read
+serves them while the imported and paper-corrected data stay untouched.
 
 #### Paper-corrections mode
 
@@ -369,6 +378,7 @@ against the newly selected stream). While the mode is active, the regular app
 routes serve the familiar political-group interface over the imported
 stream's `paper_corrected_data`, through the same handlers the PG side uses:
 `store_middleware` hands them a `PgStore` in paper-corrections mode, whose
+projection shares that data by `Arc` (refreshed after each write) and whose
 writes wrap each `PgEvent` in `CsbAction::PaperCorrectedUpdate` and append it
 to the CSB stream. The source political group's stream is never touched, and
 the finalise/document-generation routes are blocked: the documents were
@@ -809,7 +819,7 @@ parameterized over a projection type `D`:
   lookup. The CSB registries hold a handful of streams and are not swept. The
   in-memory backend is exempt, since there the cached projection is the only
   copy of the events.
-- **`PgStore`** (`src/pg/store_handle.rs`) is the handle the feature handlers
+- **`PgStore`** (`src/projection/pg_store.rs`) is the handle the feature handlers
   actually work with: it pairs a `Store<PgStoreData>` projection (reads) with
   a *write target*. For a political group session the target is its own
   stream, and `update(event)` appends `PgEvent`s there. For a committee
@@ -838,6 +848,16 @@ while computing; a snapshot taken before a write does not observe it. Event
 application takes the write lock and mutates in place, cloning the projection
 first only when a snapshot is still alive (`Arc::make_mut`). Replaying
 persisted events clones lazily too: a `load()` with nothing new is free.
+
+Reads are pure methods on the projection types: `PgStoreData` (persons,
+lists, submitters, authorisations, validation through `AllProblems::find_all`)
+and `CsbStoreData` (omissions, corrections, BRP findings, scrapping), which
+borrow from the snapshot and leave cloning to the template boundary. Queries
+that depend on the election, such as district order or the recovery progress,
+take an `ElectionConfig` explicitly. A handler takes one snapshot, builds its
+page from it, and takes a fresh one after a write when it needs to read the
+result. Audit-log replays and document generation for an earlier event build a
+plain projection value by applying events; no store is involved.
 
 ### Storage backend
 

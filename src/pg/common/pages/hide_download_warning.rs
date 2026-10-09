@@ -89,7 +89,7 @@ mod tests {
             })
             .await
             .unwrap();
-        assert!(store.should_show_download_warning());
+        assert!(store.snapshot().should_show_download_warning());
 
         (app, store, token, csrf)
     }
@@ -123,7 +123,7 @@ mod tests {
             response.headers().get(header::LOCATION).unwrap(),
             "/candidate-lists",
         );
-        assert!(!store.should_show_download_warning());
+        assert!(!store.snapshot().should_show_download_warning());
     }
 
     /// The script sends its token in the header and expects to stay put.
@@ -141,7 +141,7 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::NO_CONTENT);
         assert!(response.headers().get(header::LOCATION).is_none());
-        assert!(!store.should_show_download_warning());
+        assert!(!store.snapshot().should_show_download_warning());
     }
 
     /// Without a referrer the event is still recorded, rather than the request
@@ -159,6 +159,6 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
         assert_eq!(response.headers().get(header::LOCATION).unwrap(), "/");
-        assert!(!store.should_show_download_warning());
+        assert!(!store.snapshot().should_show_download_warning());
     }
 }

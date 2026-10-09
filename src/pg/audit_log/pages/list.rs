@@ -126,7 +126,9 @@ pub async fn audit_log(
 
     // Convert all events to entries, applying event_type filter early
     let all_entries: Vec<AuditLogEntry> = store
-        .get_events()
+        .snapshot()
+        .events
+        .clone()
         .into_iter()
         .rev()
         .filter(|event| {

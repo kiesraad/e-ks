@@ -115,7 +115,12 @@ mod tests {
                 .to_string()
         );
 
-        let name_authorisations = store.get_name_authorisations();
+        let name_authorisations = store
+            .snapshot()
+            .name_authorisations()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
         assert!(name_authorisations.is_empty());
 
         Ok(())

@@ -84,11 +84,13 @@ async fn eml230b_files(
         .zip(&snapshots)
         .map(|(store, (_, data))| CsbPoliticalGroup::from_snapshot(store, data))
         .collect();
-    let numbering = ListNumbering::new(
-        &political_groups,
-        &main_store.registered_political_groups(),
-        &main_store.list_order(),
-    );
+    let main = main_store.snapshot();
+    let registered: Vec<_> = main
+        .registered_political_groups()
+        .into_iter()
+        .cloned()
+        .collect();
+    let numbering = ListNumbering::new(&political_groups, &registered, main.list_order());
 
     // Each group's established, final list number, paired with its snapshot
     let numbered_groups: Vec<(NonZeroU64, &CsbStoreData)> = numbering

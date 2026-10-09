@@ -54,6 +54,7 @@ impl CandidateList {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::OrNotFound;
     use crate::{
         AppError, MAX_CANDIDATES, PgStore,
         structs::{
@@ -275,7 +276,12 @@ mod tests {
         };
         list_late.create(&store).await?;
 
-        let lists = store.get_candidate_lists();
+        let lists = store
+            .snapshot()
+            .candidate_lists()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
         assert_eq!(lists.len(), 2);
         assert_eq!(lists[0].id, list_early.id);
         assert_eq!(lists[1].id, list_late.id);
@@ -290,7 +296,11 @@ mod tests {
 
         list.create(&store).await?;
 
-        let loaded = store.get_candidate_list(list.id)?;
+        let loaded = store
+            .snapshot()
+            .candidate_list(list.id)
+            .cloned()
+            .or_not_found()?;
 
         assert_eq!(loaded.id, list.id);
 
@@ -563,7 +573,13 @@ mod tests {
 
         assert!(matches!(err, AppError::TooManyCandidates { .. }));
         assert_eq!(
-            store.get_candidate_list(list_id)?.candidates.len(),
+            store
+                .snapshot()
+                .candidate_list(list_id)
+                .cloned()
+                .or_not_found()?
+                .candidates
+                .len(),
             MAX_CANDIDATES
         );
 
@@ -588,7 +604,15 @@ mod tests {
         let err = list.update_order(&store, &person_ids).await.unwrap_err();
 
         assert!(matches!(err, AppError::TooManyCandidates { .. }));
-        assert!(store.get_candidate_list(list_id)?.candidates.is_empty());
+        assert!(
+            store
+                .snapshot()
+                .candidate_list(list_id)
+                .cloned()
+                .or_not_found()?
+                .candidates
+                .is_empty()
+        );
 
         Ok(())
     }
@@ -608,7 +632,15 @@ mod tests {
             .unwrap_err();
 
         assert!(matches!(err, AppError::DuplicateCandidate));
-        assert!(store.get_candidate_list(list_id)?.candidates.is_empty());
+        assert!(
+            store
+                .snapshot()
+                .candidate_list(list_id)
+                .cloned()
+                .or_not_found()?
+                .candidates
+                .is_empty()
+        );
 
         Ok(())
     }
@@ -624,7 +656,11 @@ mod tests {
         list.create(&store).await?;
         person_a.create(&store).await?;
         person_b.create(&store).await?;
-        let mut list = store.get_candidate_list(list_id)?;
+        let mut list = store
+            .snapshot()
+            .candidate_list(list_id)
+            .cloned()
+            .or_not_found()?;
         list.append_candidate(&store, person_a.id).await?;
         list.append_candidate(&store, person_b.id).await?;
 
@@ -650,7 +686,10 @@ mod tests {
         list.append_candidate(&store, person.id).await?;
 
         let candidate = store
-            .get_candidate_list(list_id)?
+            .snapshot()
+            .candidate_list(list_id)
+            .cloned()
+            .or_not_found()?
             .get_candidate(&store, person.id)
             .await?;
 

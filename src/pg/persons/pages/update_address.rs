@@ -71,6 +71,7 @@ pub async fn update_person_address_submit(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::OrNotFound;
     use crate::{
         AppError, Context, Form, PgStore, QueryParamState,
         common::DutchAddressForm,
@@ -197,7 +198,7 @@ mod tests {
 
         assert_eq!(location, expected_path);
 
-        let updated = store.get_person(person_id)?;
+        let updated = store.snapshot().person(person_id).cloned().or_not_found()?;
         assert_eq!(
             updated.address.locality.as_deref().map(ToString::to_string),
             Some("Juinen".to_string())
@@ -268,7 +269,7 @@ mod tests {
         .unwrap();
 
         // The international address should be removed because `lives_in_nl` is true
-        let updated = store.get_person(person_id)?;
+        let updated = store.snapshot().person(person_id).cloned().or_not_found()?;
         assert_eq!(
             updated.address.locality.as_deref().map(ToString::to_string),
             Some("Juinen".to_string())

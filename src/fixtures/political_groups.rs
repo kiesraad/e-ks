@@ -105,10 +105,10 @@ mod tests {
         let store = PgStore::new_for_test();
         load(&store, fixture_group(None)).await.unwrap();
 
-        let list_submitter = store.get_list_submitter();
+        let list_submitter = store.snapshot().list_submitter().clone();
         assert!(list_submitter.get_problems(()).is_all_good());
 
-        let substitute_submitters = store.get_substitute_submitters();
+        let substitute_submitters = store.snapshot().substitute_submitters().to_vec();
         assert_eq!(substitute_submitters.len(), 2);
     }
 }

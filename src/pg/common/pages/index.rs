@@ -29,7 +29,7 @@ pub async fn index(
 ) -> AppResponse<impl IntoResponse> {
     let data = store.snapshot();
     let political_group = data.political_group();
-    let general_information_empty = political_group.is_general_information_empty(&store);
+    let general_information_empty = political_group.is_general_information_empty(&data);
 
     let (general_problems, general_problems_severity) = if general_information_empty {
         (0, "")
@@ -146,8 +146,8 @@ mod tests {
 
         // Reset to an empty political group
         PoliticalGroup::default().update(&store).await.unwrap();
-        let pg = store.get_political_group();
-        assert!(pg.is_general_information_empty(&store));
+        let pg = store.snapshot().political_group().clone();
+        assert!(pg.is_general_information_empty(&store.snapshot()));
 
         let body = index(PgIndexPath, Context::new_test_from_store(&store), store)
             .await
@@ -164,8 +164,8 @@ mod tests {
 
         // Sample political group with filled in values
         sample_political_group().update(&store).await.unwrap();
-        let pg = store.get_political_group();
-        assert!(!pg.is_general_information_empty(&store));
+        let pg = store.snapshot().political_group().clone();
+        assert!(!pg.is_general_information_empty(&store.snapshot()));
 
         let body = index(PgIndexPath, Context::new_test_from_store(&store), store)
             .await

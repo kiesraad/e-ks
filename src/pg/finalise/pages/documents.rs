@@ -30,6 +30,7 @@ pub async fn gen_documents(
 
 #[cfg(test)]
 mod tests {
+    use crate::OrNotFound;
     use chrono::TimeDelta;
 
     use super::*;
@@ -103,7 +104,7 @@ mod tests {
         let (store, _, context) =
             setup_documents_test_state(1, 1, true, true, ElectionConfig::EK27).await?;
 
-        let mut political_group = store.get_political_group();
+        let mut political_group = store.snapshot().political_group().clone();
         political_group.list_designation =
             Some(crate::structs::list_designation::ListDesignation::Combined);
         political_group.update(&store).await?;
@@ -129,7 +130,7 @@ mod tests {
         let (store, _, context) =
             setup_documents_test_state(1, 1, true, true, ElectionConfig::EK27).await?;
 
-        let mut political_group = store.get_political_group();
+        let mut political_group = store.snapshot().political_group().clone();
         political_group.list_designation =
             Some(crate::structs::list_designation::ListDesignation::Blank);
         political_group.update(&store).await?;
@@ -153,7 +154,7 @@ mod tests {
         let (store, _, context) =
             setup_documents_test_state(1, 1, true, true, ElectionConfig::EK27).await?;
 
-        let mut political_group = store.get_political_group();
+        let mut political_group = store.snapshot().political_group().clone();
         political_group.appellation = None;
         political_group.update(&store).await?;
 
@@ -201,10 +202,18 @@ mod tests {
             setup_documents_test_state(2, 2, true, true, ElectionConfig::EK27).await?;
 
         // duplicate districts: an error document generation itself does not catch
-        let first = store.get_candidate_list(list_ids[0])?;
+        let first = store
+            .snapshot()
+            .candidate_list(list_ids[0])
+            .cloned()
+            .or_not_found()?;
         let second = CandidateList {
             electoral_districts: first.electoral_districts.clone(),
-            ..store.get_candidate_list(list_ids[1])?
+            ..store
+                .snapshot()
+                .candidate_list(list_ids[1])
+                .cloned()
+                .or_not_found()?
         };
         second.update_districts(&store).await?;
         assert!(!AllProblems::find_all(&store.snapshot(), store.election)?.models_downloadable());
@@ -222,7 +231,9 @@ mod tests {
         }
         assert!(
             !store
-                .get_events()
+                .snapshot()
+                .events
+                .clone()
                 .iter()
                 .any(|e| matches!(e.payload, crate::PgEvent::DownloadFile { .. })),
             "a refused download is not recorded"
@@ -424,16 +435,28 @@ mod tests {
 
         let (store, list_ids, context) =
             setup_documents_test_state(1, 2, true, true, ElectionConfig::EK27).await?;
-        let list = store.get_candidate_list(list_ids[0])?;
+        let list = store
+            .snapshot()
+            .candidate_list(list_ids[0])
+            .cloned()
+            .or_not_found()?;
 
-        let mut dutch_candidate = store.get_person(list.candidates[0])?;
+        let mut dutch_candidate = store
+            .snapshot()
+            .person(list.candidates[0])
+            .cloned()
+            .or_not_found()?;
         dutch_candidate.address.street_name = None;
         dutch_candidate.address.postal_code = None;
         dutch_candidate.address.locality = None;
         dutch_candidate.personal_data.bsn = None;
         dutch_candidate.update(&store).await?;
 
-        let mut international_candidate = store.get_person(list.candidates[1])?;
+        let mut international_candidate = store
+            .snapshot()
+            .person(list.candidates[1])
+            .cloned()
+            .or_not_found()?;
         international_candidate.personal_data.country = Some("BE".parse::<CountryCode>().unwrap());
         international_candidate.personal_data.bsn = Some(BsnOrNoneConfirmed::NoneConfirmed);
         international_candidate.representative = Some(Representative::default());
@@ -471,7 +494,13 @@ mod tests {
         let (store, _, context) =
             setup_documents_test_state(1, 1, true, true, ElectionConfig::EK27).await?;
 
-        let mut name_auth = store.get_name_authorisations().remove(0);
+        let mut name_auth = store
+            .snapshot()
+            .name_authorisations()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .remove(0);
         name_auth.name = FullName::default();
         name_auth.legal_name = Default::default();
         name_auth.update(&store).await?;

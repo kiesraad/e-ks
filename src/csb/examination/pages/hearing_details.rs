@@ -35,7 +35,11 @@ pub async fn hearing_details(
     store: CsbMainStore,
     context: CsbContext,
 ) -> Result<Response, AppError> {
-    let hearing_details = store.get_hearing_details(model).unwrap_or_default();
+    let hearing_details = store
+        .snapshot()
+        .hearing_details(model)
+        .cloned()
+        .unwrap_or_default();
     let form_data = FormData::new_with_data(HearingDetailsForm::from(hearing_details));
     Ok(HtmlTemplate(
         CsbHearingDetailsTemplate {
@@ -212,7 +216,9 @@ mod tests {
         assert_eq!(redirect_location(&response), "/csb/examination/finish");
 
         let hearing_details = store
-            .get_hearing_details(HearingModel::I1)
+            .snapshot()
+            .hearing_details(HearingModel::I1)
+            .cloned()
             .expect("stored hearing details");
         assert_eq!(hearing_details.chair, "Vera Voorzitter");
         assert_eq!(hearing_details.members.len(), 2);
@@ -241,10 +247,28 @@ mod tests {
         let store = CsbMainStore::new_for_test();
         submit(&store, HearingModel::I1).await;
 
-        assert!(store.get_hearing_details(HearingModel::I1).is_some());
-        assert!(store.get_hearing_details(HearingModel::I4).is_none());
+        assert!(
+            store
+                .snapshot()
+                .hearing_details(HearingModel::I1)
+                .cloned()
+                .is_some()
+        );
+        assert!(
+            store
+                .snapshot()
+                .hearing_details(HearingModel::I4)
+                .cloned()
+                .is_none()
+        );
 
         submit(&store, HearingModel::I4).await;
-        assert!(store.get_hearing_details(HearingModel::I4).is_some());
+        assert!(
+            store
+                .snapshot()
+                .hearing_details(HearingModel::I4)
+                .cloned()
+                .is_some()
+        );
     }
 }

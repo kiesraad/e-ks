@@ -22,7 +22,12 @@ pub async fn list(
 ) -> Result<Response, AppError> {
     Ok(HtmlTemplate(
         RegisteredPoliticalGroupsTemplate {
-            groups: main_store.registered_political_groups(),
+            groups: main_store
+                .snapshot()
+                .registered_political_groups()
+                .into_iter()
+                .cloned()
+                .collect::<Vec<_>>(),
         },
         context,
     )

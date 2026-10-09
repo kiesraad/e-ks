@@ -1,6 +1,8 @@
 use axum::extract::Path;
 
-use crate::{AppError, pg::request_extractor, structs::candidate_lists::CandidateList, trans};
+use crate::{
+    AppError, OrNotFound, pg::request_extractor, structs::candidate_lists::CandidateList, trans,
+};
 
 use super::CandidateListPathParams;
 
@@ -8,13 +10,18 @@ request_extractor!(CandidateList, |store, context, parts, state| {
     let Path(CandidateListPathParams { list_id }) =
         Path::<CandidateListPathParams>::from_request_parts(parts, state).await?;
 
-    store.get_candidate_list(list_id).map_err(|_| {
-        AppError::NotFound(trans!(
-            "candidate_list.not_found",
-            context.session.locale,
-            list_id
-        ))
-    })
+    store
+        .snapshot()
+        .candidate_list(list_id)
+        .cloned()
+        .or_not_found()
+        .map_err(|_| {
+            AppError::NotFound(trans!(
+                "candidate_list.not_found",
+                context.session.locale,
+                list_id
+            ))
+        })
 });
 
 #[cfg(test)]

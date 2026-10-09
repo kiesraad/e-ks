@@ -138,8 +138,13 @@ pub async fn list_numbering(
 
     Ok(ListNumbering::new(
         &groups,
-        &main_store.registered_political_groups(),
-        &main_store.list_order(),
+        &main_store
+            .snapshot()
+            .registered_political_groups()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>(),
+        main_store.snapshot().list_order(),
     ))
 }
 

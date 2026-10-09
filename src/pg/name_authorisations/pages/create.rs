@@ -117,7 +117,12 @@ mod tests {
             .expect("location header")
             .to_str()
             .expect("location header value");
-        let authorisations = store.get_name_authorisations();
+        let authorisations = store
+            .snapshot()
+            .name_authorisations()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
         assert_eq!(authorisations.len(), 1);
         assert_eq!(
             location,

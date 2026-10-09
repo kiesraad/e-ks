@@ -2,6 +2,7 @@ use axum::extract::Path;
 use serde::Deserialize;
 
 use crate::{
+    OrNotFound,
     pg::request_extractor,
     structs::name_authorisations::{NameAuthorisation, NameAuthorisationId},
 };
@@ -15,7 +16,11 @@ request_extractor!(NameAuthorisation, |store, parts, state| {
     let Path(NameAuthorisationPathParams { authorisation_id }) =
         Path::<NameAuthorisationPathParams>::from_request_parts(parts, state).await?;
 
-    store.get_name_authorisation(authorisation_id)
+    store
+        .snapshot()
+        .name_authorisation(authorisation_id)
+        .cloned()
+        .or_not_found()
 });
 
 #[cfg(test)]
