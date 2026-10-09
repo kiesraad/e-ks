@@ -160,6 +160,19 @@ mod tests {
         assert!(body.contains("Amsterdam"));
         // Every finding links to the candidate it is about.
         assert!(body.contains(&format!("/csb/examination/{stream_id}/list/")));
+        // The overview for the group is offered as Markdown, Word and PDF.
+        assert!(body.contains(&format!(
+            "href=\"/csb/examination/{stream_id}/brp-overzicht.md\""
+        )));
+        assert!(body.contains(&format!(
+            "href=\"/csb/examination/{stream_id}/brp-overzicht.docx\""
+        )));
+        assert!(body.contains(&format!(
+            "href=\"/csb/examination/{stream_id}/brp-overzicht.pdf\""
+        )));
+        assert!(body.contains("Download Markdown"));
+        assert!(body.contains("Download Word"));
+        assert!(body.contains("Download PDF"));
     }
 
     #[tokio::test]
@@ -212,6 +225,8 @@ mod tests {
 
         assert!(body.contains("Not checked"), "{body}");
         assert!(body.contains("have not been checked against the BRP yet"));
+        // Nothing to download before the check ran.
+        assert!(!body.contains("brp-overzicht"));
     }
 
     #[tokio::test]

@@ -5,7 +5,8 @@ use crate::AppRequestState;
 
 use super::paths::{
     CsbAddOmissionPath, CsbAllBrpFindingsPath, CsbAllRestorationsPath,
-    CsbAppellationCorrectionPath, CsbBrpCheckPath, CsbCandidateBrpCheckPath,
+    CsbAppellationCorrectionPath, CsbBrpCheckPath, CsbBrpOverviewDocxDownloadPath,
+    CsbBrpOverviewDownloadPath, CsbBrpOverviewMarkdownDownloadPath, CsbCandidateBrpCheckPath,
     CsbCandidateBrpFindingHandledPath, CsbCandidateListPath, CsbCandidatePath,
     CsbDeleteOmissionPath, CsbExaminationOverviewPath, CsbFinishExaminationPath,
     CsbGeneralInformationPath, CsbI1DocxDownloadPath, CsbI1DownloadPath,
@@ -18,6 +19,7 @@ use super::paths::{
 
 mod all_brp_findings;
 mod all_restorations;
+mod brp_overview;
 pub(in crate::csb) mod candidate;
 pub(in crate::csb) mod candidate_list;
 mod correction;
@@ -62,6 +64,9 @@ pub fn router<S: AppRequestState>() -> Router<S> {
         .typed_post(omission::delete_omission)
         .typed_get(all_restorations::all_restorations)
         .typed_get(all_brp_findings::all_brp_findings)
+        .typed_get(brp_overview::gen_brp_overview)
+        .typed_get(brp_overview::gen_brp_overview_docx)
+        .typed_get(brp_overview::gen_brp_overview_markdown)
         .typed_get(correction::appellation_name_correction)
         .typed_post(correction::appellation_correction_submit)
         .typed_get(correction::person_correction)

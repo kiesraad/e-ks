@@ -5,11 +5,11 @@ use crate::AppRequestState;
 
 pub(in crate::csb) use super::paths::{
     CsbPreSubmissionBrpCheckPath, CsbPreSubmissionBrpOverviewDocxPath,
-    CsbPreSubmissionBrpOverviewPdfPath, CsbPreSubmissionGroupPath, CsbPreSubmissionImportPath,
-    CsbPreSubmissionOverviewPath,
+    CsbPreSubmissionBrpOverviewMarkdownPath, CsbPreSubmissionBrpOverviewPdfPath,
+    CsbPreSubmissionGroupPath, CsbPreSubmissionImportPath, CsbPreSubmissionOverviewPath,
 };
 
-mod brp_overview;
+pub(in crate::csb) mod brp_overview;
 mod group;
 mod import;
 mod overview;
@@ -23,6 +23,7 @@ pub fn router<S: AppRequestState>() -> Router<S> {
         .typed_post(group::start_brp_check::<S>)
         .typed_get(brp_overview::gen_brp_overview)
         .typed_get(brp_overview::gen_brp_overview_docx)
+        .typed_get(brp_overview::gen_brp_overview_markdown)
 }
 
 #[cfg(test)]
@@ -56,6 +57,10 @@ mod tests {
         assert_eq!(
             CsbPreSubmissionBrpOverviewDocxPath { stream_id }.to_string(),
             format!("/csb/pre-submission/{stream_id}/brp-overzicht.docx")
+        );
+        assert_eq!(
+            CsbPreSubmissionBrpOverviewMarkdownPath { stream_id }.to_string(),
+            format!("/csb/pre-submission/{stream_id}/brp-overzicht.md")
         );
     }
 

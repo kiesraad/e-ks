@@ -81,10 +81,6 @@
   font-weight: var(--font-weight-bold);
   line-height: var(--leading-sm);
   margin: var(--space-6) 0 var(--space-2);
-
-  &:first-of-type {
-    margin-top: 0;
-  }
 }
 
 .restoration-strip {

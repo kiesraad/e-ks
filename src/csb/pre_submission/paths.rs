@@ -42,3 +42,12 @@ pub struct CsbPreSubmissionBrpOverviewPdfPath {
 pub struct CsbPreSubmissionBrpOverviewDocxPath {
     pub stream_id: StreamId,
 }
+
+#[derive(TypedPath, Deserialize)]
+#[typed_path(
+    "/csb/pre-submission/{stream_id}/brp-overzicht.md",
+    rejection(AppError)
+)]
+pub struct CsbPreSubmissionBrpOverviewMarkdownPath {
+    pub stream_id: StreamId,
+}
