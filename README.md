@@ -45,6 +45,32 @@ bin/init
 bin/dev
 ```
 
+## Faster local builds
+
+Each distinct cargo configuration (features, rustflags, linker) gets its own
+copy of the dependency tree in `target/`, so keep them identical: `bin/dev`
+builds with `--features development`, use the same flag in the terminal. Two
+per-machine settings cannot live in the repository:
+
+1. **rust-analyzer**: same features, own build directory, no `linkedProjects`
+   for the member crates. In `.vscode/settings.json` (gitignored):
+
+   ```json
+   {
+       "rust-analyzer.cargo.features": ["development"],
+       "rust-analyzer.cargo.targetDir": true
+   }
+   ```
+
+2. **Linker**: link with [wild](https://github.com/davidlattimore/wild) via
+   clang (`cargo install wild-linker`). In `.cargo/config.toml` (gitignored):
+
+   ```toml
+   [target.x86_64-unknown-linux-gnu]
+   linker = "clang"
+   rustflags = ["-C", "link-arg=--ld-path=wild"]
+   ```
+
 ## Development tools
 
 - `bin/esbuild`: transpile and bundle Typescript and CSS, also services frontend assets in development
