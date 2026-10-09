@@ -27,13 +27,14 @@ pub async fn index(
     context: Context,
     store: PgStore,
 ) -> AppResponse<impl IntoResponse> {
-    let political_group = store.get_political_group();
+    let data = store.snapshot();
+    let political_group = data.political_group();
     let general_information_empty = political_group.is_general_information_empty(&store);
 
     let (general_problems, general_problems_severity) = if general_information_empty {
         (0, "")
     } else {
-        let (general_problems, general_infos) = AllProblems::find_general_problems(&store);
+        let (general_problems, general_infos) = AllProblems::find_general_problems(&data);
         let problems = general_problems.flatten();
         let severity_class = if problems.is_empty() {
             (!general_infos.is_empty()).then_some(Severity::Info)
@@ -45,8 +46,8 @@ pub async fn index(
 
         (problems.len() + general_infos.len(), severity_class)
     };
-    let candidate_lists = CandidateListSummary::list(&store);
-    let mut list_problems = AllProblems::find_list_problems(&candidate_lists, &store);
+    let candidate_lists = CandidateListSummary::list(&data, store.election);
+    let mut list_problems = AllProblems::find_list_problems(&candidate_lists, &data);
 
     // Don't show NoCandidateList problem on the home page, only on the finalise page
     list_problems
@@ -56,7 +57,9 @@ pub async fn index(
     let (problematic_lists, general_list_problems, problematic_lists_severity) =
         if list_problems.is_empty() {
             let all_lists_usable = !candidate_lists.is_empty()
-                && candidate_lists.iter().all(|list| list.is_usable(&store));
+                && candidate_lists
+                    .iter()
+                    .all(|list| list.is_usable(&data, store.election));
             let severity_class = if all_lists_usable { "success" } else { "" };
 
             (0, 0, severity_class)

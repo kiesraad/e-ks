@@ -60,7 +60,7 @@ impl std::ops::Deref for PgStore {
 impl PgStore {
     /// Wrap a store that persists app events on its own stream.
     pub fn own(store: Store<PgStoreData>) -> Self {
-        let seen_event_id = store.data.read().last_event_id();
+        let seen_event_id = store.current_event_id();
         Self {
             projection: store,
             target: WriteTarget::Own,
@@ -77,17 +77,17 @@ impl PgStore {
     }
 
     /// Build a paper-corrections handle over a loaded CSB store: reads serve a
-    /// snapshot of its `paper_corrected_data`, writes go to the CSB stream,
-    /// recorded as triggered by the store's committee member.
+    /// snapshot of its `paper_corrected_data` (shared, not copied), writes go
+    /// to the CSB stream, recorded as triggered by the store's committee member.
     pub fn paper_corrections(csb_store: CsbStore) -> Self {
-        let projection = Store::new_for_temp_stream(csb_store.election);
-        *projection.data.write() = csb_store.data.read().paper_corrected_data.clone();
+        let projection = Store::new_temp(
+            csb_store.stream_id,
+            csb_store.election,
+            Arc::clone(&csb_store.snapshot().paper_corrected_data),
+        );
 
         Self {
-            projection: Store {
-                stream_id: csb_store.stream_id,
-                ..projection
-            },
+            projection,
             target: WriteTarget::PaperCorrections { store: csb_store },
             // Recording what was handed in on paper must not be cut off.
             limits: None,
@@ -120,7 +120,8 @@ impl PgStore {
 
                 // Refresh the snapshot so reads later in this request observe
                 // the correction.
-                *self.projection.data.write() = csb_store.data.read().paper_corrected_data.clone();
+                self.projection
+                    .replace(Arc::clone(&csb_store.snapshot().paper_corrected_data));
 
                 Ok(())
             }
@@ -152,7 +153,7 @@ impl PgStore {
             return Ok(());
         };
 
-        let data = self.projection.data.read();
+        let data = self.projection.snapshot();
         let events = data.events();
         let now = Utc::now();
 
@@ -238,12 +239,12 @@ impl PgStore {
     /// when this handle is in paper-corrections mode. Serves as the base
     /// state for audit-log replays, since the correction events alone do not
     /// reconstruct the imported entities.
-    pub fn imported_snapshot(&self) -> Option<PgStoreData> {
+    pub fn imported_snapshot(&self) -> Option<Arc<PgStoreData>> {
         match &self.target {
             WriteTarget::Own => None,
             WriteTarget::PaperCorrections {
                 store: csb_store, ..
-            } => Some(csb_store.data.read().imported_data.clone()),
+            } => Some(Arc::clone(&csb_store.snapshot().imported_data)),
         }
     }
 }
@@ -276,14 +277,7 @@ impl PgStore {
             ..PgStoreData::default()
         };
 
-        Self::own(crate::store::Store {
-            stream_id: StreamId::new(),
-            election,
-            backend: crate::store::StoreBackend::Memory {
-                store: crate::store::memory::MemoryStore::default(),
-            },
-            data: std::sync::Arc::new(parking_lot::RwLock::new(data)),
-        })
+        Self::own(Store::new_temp(StreamId::new(), election, Arc::new(data)))
     }
 }
 

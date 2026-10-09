@@ -389,7 +389,7 @@ mod tests {
             ]
         );
         // The request itself is on the stream, ahead of what it found.
-        let events = store.data.read().events.clone();
+        let events = store.snapshot().events.clone();
         assert!(matches!(
             &events[0].payload.action,
             CsbAction::BrpLookup(lookup) if lookup.persons == vec![person_id]
@@ -618,12 +618,11 @@ mod tests {
         corrected.address.house_number_addition = Some("C".parse().unwrap());
         corrected.representative.as_mut().unwrap().name =
             sample_full_name(None, "Opvolger", None, "G.G.");
-        store
-            .data
-            .write()
-            .paper_corrected_data
-            .persons
-            .insert(person_id, corrected);
+        store.edit(|data| {
+            data.paper_corrected_mut()
+                .persons
+                .insert(person_id, corrected);
+        });
 
         let response = overview(
             CsbCandidatePath {

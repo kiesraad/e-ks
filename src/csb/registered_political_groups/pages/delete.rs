@@ -120,6 +120,6 @@ mod tests {
 
         assert!(matches!(result, Err(AppError::GenericNotFound)));
         // No event was recorded for the stale request.
-        assert!(store.data.read().events.is_empty());
+        assert!(store.snapshot().events.is_empty());
     }
 }

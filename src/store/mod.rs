@@ -21,13 +21,14 @@ pub use health::{DbHealth, run_db_prober};
 pub use persistence::StorePersistence;
 pub use registry::{StoreRegistry, run_store_cache_sweeper};
 pub use store_handle::Store;
-#[cfg(test)]
-pub(crate) use store_handle::StoreBackend;
 pub use stream_id::StreamId;
 
 pub(crate) use event::chain_hash;
 #[cfg(feature = "database")]
 pub(crate) use event::event_aad;
+
+#[cfg(feature = "database")]
+use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 #[cfg(feature = "database")]
@@ -50,7 +51,7 @@ pub struct StreamMeta {
     pub last_event_at: Option<DateTime<Utc>>,
 }
 
-pub trait StoreData: Default + Send + Sync + 'static {
+pub trait StoreData: Default + Clone + Send + Sync + 'static {
     type Event: Event;
 
     /// Apply a fully wrapped store event to the data projection.
@@ -122,7 +123,9 @@ pub(crate) fn check_expected_event_id(
 /// Decrypt persisted events and apply the ones `data` has not seen yet.
 ///
 /// `events` yields the stored events in ascending event order; events at or
-/// below the projection's last ID are skipped.
+/// below the projection's last ID are skipped. The projection is only cloned
+/// (see [`Store::write`]) when an event is actually applied, so a replay with
+/// nothing new is free.
 ///
 /// A payload this build can no longer decode does not fail the load: replay
 /// stops there and reports the id in [`Replay::truncated_at`], leaving the
@@ -130,7 +133,7 @@ pub(crate) fn check_expected_event_id(
 /// of it. Unreadable bytes and a broken hash chain stay hard errors.
 #[cfg(feature = "database")]
 pub(crate) fn apply_encrypted_events<D>(
-    data: &mut D,
+    data: &mut Arc<D>,
     cipher: &EventCipher,
     events: impl IntoIterator<Item = EncryptedEvent>,
 ) -> Result<Replay, AppError>
@@ -177,7 +180,7 @@ where
         }
 
         match cipher.decrypt::<D::Event>(encrypted_payload, &aad) {
-            Ok(payload) => data.apply(StoreEvent {
+            Ok(payload) => Arc::make_mut(data).apply(StoreEvent {
                 event_id,
                 payload,
                 created_at,
@@ -210,7 +213,7 @@ mod tests {
     use super::*;
     use crate::crypto::StreamKey;
 
-    #[derive(Default)]
+    #[derive(Default, Clone)]
     struct TestData {
         events: Vec<StoreEvent<usize>>,
     }
@@ -277,7 +280,7 @@ mod tests {
         let events = seal_chain(&cipher, &[10, 20]);
         let tip = events[1].hash;
 
-        let mut data = TestData::default();
+        let mut data = Arc::new(TestData::default());
         let replay = apply_encrypted_events(&mut data, &cipher, events)?;
 
         assert_eq!(data.payloads(), vec![10, 20]);
@@ -295,8 +298,8 @@ mod tests {
         let events = seal_chain(&cipher, &[10, 20]);
 
         // Another instance already applied event 1.
-        let mut data = TestData::default();
-        data.apply(StoreEvent {
+        let mut data = Arc::new(TestData::default());
+        Arc::make_mut(&mut data).apply(StoreEvent {
             event_id: 1,
             payload: 10,
             created_at: created_at(),
@@ -318,7 +321,7 @@ mod tests {
             *byte ^= 0x01;
         }
 
-        let mut data = TestData::default();
+        let mut data = Arc::new(TestData::default());
         let err = apply_encrypted_events(&mut data, &cipher, events)
             .expect_err("tampering must be detected");
 
@@ -330,7 +333,7 @@ mod tests {
     fn another_streams_key_cannot_replay_events() {
         let events = seal_chain(&StreamKey::generate().cipher(), &[10]);
 
-        let mut data = TestData::default();
+        let mut data = Arc::new(TestData::default());
         let err = apply_encrypted_events(&mut data, &StreamKey::generate().cipher(), events)
             .expect_err("replay must fail with the wrong key");
 
@@ -347,7 +350,7 @@ mod tests {
         let third = seal(&cipher, 3, &second.hash, &30usize);
         let (hash1, hash3) = (first.hash, third.hash);
 
-        let mut data = TestData::default();
+        let mut data = Arc::new(TestData::default());
         let replay = apply_encrypted_events(&mut data, &cipher, [first, second, third])?;
 
         assert_eq!(replay.truncated_at, Some(2));
@@ -373,7 +376,7 @@ mod tests {
         // AES-GCM does not cover the stored hash; only the chain check does.
         events[0].hash[0] ^= 0x01;
 
-        let mut data = TestData::default();
+        let mut data = Arc::new(TestData::default());
         let err = apply_encrypted_events(&mut data, &cipher, events)
             .expect_err("a rewritten hash must be detected");
 

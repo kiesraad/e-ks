@@ -166,8 +166,7 @@ impl<'a> DevLogin<'a> {
             store.update(PgEvent::DeveloperLogin { stream_id }).await?;
         }
         let last_event_hash = store
-            .data
-            .read()
+            .snapshot()
             .events
             .last()
             .map(|e| format_hash(&e.hash, false));
@@ -194,7 +193,7 @@ impl<'a> DevLogin<'a> {
             .store_registry
             .get_or_create(stream_id, election)
             .await?;
-        let store_is_empty = store.data.read().events.is_empty();
+        let store_is_empty = store.snapshot().events.is_empty();
 
         if store_is_empty {
             PoliticalGroup::default()
@@ -401,7 +400,7 @@ mod tests {
             .expect("main store");
 
         assert!(matches!(
-            store.data.read().events.as_slice(),
+            store.snapshot().events.as_slice(),
             &[StoreEvent {
                 payload: CsbMainEvent {
                     user: CsbUser::Developer,
@@ -560,7 +559,7 @@ mod tests {
             })
             .expect("the fixture group with omissions");
 
-        let events = csb_store.data.read().events.clone();
+        let events = csb_store.snapshot().events.clone();
         // The import comes first, followed by the fixture omissions.
         let (event, omissions) = events.split_first().expect("the import event");
         assert!(!omissions.is_empty());

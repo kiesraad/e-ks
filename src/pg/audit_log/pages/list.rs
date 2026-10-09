@@ -407,7 +407,7 @@ mod tests {
 
         // Import the source stream the way `do_import` does: the snapshot
         // excludes the source event log.
-        let events = source.data.read().events.clone();
+        let events = source.snapshot().events.clone();
         let snapshot = crate::PgStoreData::snapshot_until(&events, usize::MAX);
         let csb_store = CsbStore::new_for_test();
         csb_store

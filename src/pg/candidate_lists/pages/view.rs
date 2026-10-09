@@ -26,8 +26,9 @@ pub async fn view_candidate_list(
     store: PgStore,
     Query(query): Query<QueryParamState>,
 ) -> Result<impl IntoResponse, AppError> {
-    let duplicate_districts = full_list.list.duplicate_districts(&store);
-    let person_count = store.get_person_count();
+    let data = store.snapshot();
+    let duplicate_districts = full_list.list.duplicate_districts(&data);
+    let person_count = data.person_count();
     let all_persons_added = full_list.candidates.len() >= person_count;
 
     Ok(HtmlTemplate(
@@ -70,7 +71,8 @@ mod tests {
         other.create(&store).await?;
         list.clone().update_order(&store, &[person.id]).await?;
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
 
         let response = view_candidate_list(
             ViewCandidateListPath { list_id },
@@ -94,7 +96,8 @@ mod tests {
         let store = PgStore::new_for_test();
         let list_id = CandidateListId::new();
         sample_candidate_list(list_id).create(&store).await?;
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
 
         let query = QueryParamState::import_warnings(
             false,
@@ -145,7 +148,8 @@ mod tests {
                 .create(&store)
                 .await?;
 
-            let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
+            let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+                .expect("candidate list");
 
             let response = view_candidate_list(
                 ViewCandidateListPath { list_id },
@@ -177,7 +181,8 @@ mod tests {
         list.create(&store).await?;
 
         let render = |store: PgStore| async move {
-            let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
+            let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+                .expect("candidate list");
             let response = view_candidate_list(
                 ViewCandidateListPath { list_id },
                 Context::new_test_without_db(),

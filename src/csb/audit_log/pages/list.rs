@@ -171,7 +171,7 @@ fn collect_entries(
             .ok_or(AppError::GenericNotFound)?;
 
         filter_events(
-            store.data.read().events.iter(),
+            store.snapshot().events.iter(),
             store.stream_id,
             store.get_appellation_with_deleted_label(
                 crate::projection::WithCorrections::All,
@@ -184,7 +184,7 @@ fn collect_entries(
         .collect()
     } else {
         filter_events(
-            main_store.data.read().events.iter(),
+            main_store.snapshot().events.iter(),
             main_store.stream_id,
             trans!("audit_log.filter.csb_main_stream", locale),
             locale,

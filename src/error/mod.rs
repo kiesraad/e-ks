@@ -1,3 +1,3 @@
 mod app_error;
 
-pub use app_error::{AppError, AppResponse};
+pub use app_error::{AppError, AppResponse, OrNotFound};

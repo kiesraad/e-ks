@@ -86,6 +86,19 @@ impl AuditLogDetail {
     }
 }
 
+impl AuditLogDetail {
+    /// The projection as it was right after `event_id`: `base` with the
+    /// events up to and including it applied.
+    pub fn replay_until(
+        base: &PgStoreData,
+        events: &[StoreEvent<PgEvent>],
+        event_id: usize,
+    ) -> PgStoreData {
+        let count = events.partition_point(|event| event.event_id <= event_id);
+        replay(base, &events[..count])
+    }
+}
+
 fn replay(base: &PgStoreData, events: &[StoreEvent<PgEvent>]) -> PgStoreData {
     let mut state = base.clone();
     for event in events {

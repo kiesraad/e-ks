@@ -6,8 +6,8 @@ use axum::{
 use chrono::{DateTime, Utc};
 
 use crate::{
-    AppError, AppRequestState, Context, CsbAction, CsbContext, CsbEvent, CsbMainStore, CsbStream,
-    ElectionConfig, Event, HasCsbUser, HtmlTemplate, Locale, Overlay, QueryParamState,
+    AppError, AppRequestState, Context, CsbAction, CsbContext, CsbEvent, CsbMainStore,
+    CsbStoreData, Event, HasCsbUser, HtmlTemplate, Locale, Overlay, PgStoreData, QueryParamState,
     csb::audit_log::pages::CsbAuditLogDetailPath,
     filters,
     projection::{CSB_MAIN_STREAM_ID, WithCorrections},
@@ -82,12 +82,7 @@ impl CsbEventDetail {
     /// Fill in what the event payload alone cannot say: the value a correction
     /// replaced, or the candidate and data a BRP event is about. Both come
     /// from the stream replayed up to the event before this one.
-    fn add_stream_context(
-        &mut self,
-        events: &[StoreEvent<CsbEvent>],
-        election: ElectionConfig,
-        locale: Locale,
-    ) {
+    fn add_stream_context(&mut self, events: &[StoreEvent<CsbEvent>], locale: Locale) {
         let Some(index) = events.iter().position(|e| e.event_id == self.event_id) else {
             return;
         };
@@ -102,22 +97,20 @@ impl CsbEventDetail {
             return;
         }
 
-        let before = CsbStream::new_for_temp_stream(election);
-        {
-            let mut data = before.data.write();
-            for event in &events[..index] {
-                data.apply(event.clone());
-            }
+        let mut before = CsbStoreData::default();
+        for event in &events[..index] {
+            before.apply(event.clone());
         }
+        let before = before.view(WithCorrections::All);
 
         match action {
             CsbAction::UpdateCorrection(correction) => {
-                self.changes = vec![correction_change(&before, correction, locale)];
+                self.changes = vec![correction_change(before, correction, locale)];
             }
-            CsbAction::BrpLookup(lookup) => self.facts = lookup_facts(&before, lookup, locale),
+            CsbAction::BrpLookup(lookup) => self.facts = lookup_facts(before, lookup, locale),
             CsbAction::BrpPersonChecked { person, findings } => {
-                let candidate = before.get_person(*person, WithCorrections::All);
-                self.facts = vec![candidate_fact(candidate.as_ref(), *person, locale)];
+                let candidate = before.person(*person);
+                self.facts = vec![candidate_fact(candidate, *person, locale)];
                 if findings.is_empty() {
                     self.facts.push(Fact {
                         label: trans!("audit_log.detail.brp.result", locale),
@@ -127,7 +120,7 @@ impl CsbEventDetail {
                 self.brp_comparison = true;
                 self.changes = findings
                     .iter()
-                    .map(|finding| finding_row(candidate.as_ref(), finding, locale))
+                    .map(|finding| finding_row(candidate, finding, locale))
                     .collect();
             }
             CsbAction::SetBrpFindingHandled {
@@ -135,9 +128,9 @@ impl CsbEventDetail {
                 finding,
                 handled,
             } => {
-                let candidate = before.get_person(*person, WithCorrections::All);
+                let candidate = before.person(*person);
                 self.facts = vec![
-                    candidate_fact(candidate.as_ref(), *person, locale),
+                    candidate_fact(candidate, *person, locale),
                     Fact {
                         label: trans!("audit_log.detail.brp.finding", locale),
                         value: finding.message(locale),
@@ -155,21 +148,21 @@ impl CsbEventDetail {
 
 /// The field change of a correction: the value it replaced, as the stream
 /// state was before it, against the corrected one.
-fn correction_change(before: &CsbStream, correction: &Correction, locale: Locale) -> FieldChange {
+fn correction_change(before: &PgStoreData, correction: &Correction, locale: Locale) -> FieldChange {
     match correction {
         Correction::Appellation(appellation) => FieldChange::Regular {
             field: trans!("audit_log.detail.fields.appellation", locale),
             old_value: before
-                .get_political_group(WithCorrections::All)
+                .political_group()
                 .appellation
-                .map(|a| a.to_string())
+                .as_ref()
+                .map(ToString::to_string)
                 .unwrap_or_default(),
             new_value: appellation.to_string(),
         },
-        Correction::Person(person_id, person_correction) => person_correction.change(
-            before.get_person(*person_id, WithCorrections::All).as_ref(),
-            locale,
-        ),
+        Correction::Person(person_id, person_correction) => {
+            person_correction.change(before.person(*person_id), locale)
+        }
     }
 }
 
@@ -215,16 +208,11 @@ fn finding_row(candidate: Option<&Person>, finding: &BrpFinding, locale: Locale)
 }
 
 /// What one request to the BRP was for, sent, and got back.
-fn lookup_facts(before: &CsbStream, lookup: &BrpLookup, locale: Locale) -> Vec<Fact> {
+fn lookup_facts(before: &PgStoreData, lookup: &BrpLookup, locale: Locale) -> Vec<Fact> {
     let candidates = lookup
         .persons
         .iter()
-        .map(|person_id| {
-            candidate_name(
-                before.get_person(*person_id, WithCorrections::All).as_ref(),
-                *person_id,
-            )
-        })
+        .map(|person_id| candidate_name(before.person(*person_id), *person_id))
         .collect::<Vec<_>>()
         .join(", ");
 
@@ -359,7 +347,7 @@ pub async fn csb_audit_log_detail<S: AppRequestState>(
 ) -> Result<impl IntoResponse, AppError> {
     let locale = context.session.locale;
     let detail = if stream_id == CSB_MAIN_STREAM_ID {
-        let data = main_store.data.read();
+        let data = main_store.snapshot();
         CsbEventDetail::find(
             &data.events,
             event_id,
@@ -389,9 +377,9 @@ pub async fn csb_audit_log_detail<S: AppRequestState>(
         } else {
             trans!("audit_log.filter.pre_submission_stream", locale, label)
         };
-        let data = store.data.read();
+        let data = store.snapshot();
         let mut detail = CsbEventDetail::find(&data.events, event_id, label, locale)?;
-        detail.add_stream_context(&data.events, context.election, locale);
+        detail.add_stream_context(&data.events, locale);
         detail
     };
 
@@ -414,7 +402,7 @@ mod tests {
     };
 
     use crate::{
-        AppError, AppState, CsbAction, CsbContext, CsbMainAction, CsbMainStore, CsbUser,
+        AppError, AppState, CsbAction, CsbContext, CsbMainAction, CsbMainStore, CsbStream, CsbUser,
         ElectionConfig, QueryParamState, StreamId, csb::audit_log::pages::CsbAuditLogDetailPath,
         test_utils::response_body_string,
     };
@@ -471,7 +459,7 @@ mod tests {
         let submission = crate::PgStore::new_for_test();
         let person = sample_person(PersonId::new());
         person.create(&submission).await?;
-        let snapshot = Box::new(submission.data.read().clone());
+        let snapshot = Box::new((*submission.snapshot()).clone());
         store
             .update(
                 CsbAction::Import {
@@ -526,7 +514,7 @@ mod tests {
         let submission = crate::PgStore::new_for_test();
         let person = sample_person(PersonId::new());
         person.create(&submission).await?;
-        let snapshot = Box::new(submission.data.read().clone());
+        let snapshot = Box::new((*submission.snapshot()).clone());
         store
             .update(
                 CsbAction::Import {

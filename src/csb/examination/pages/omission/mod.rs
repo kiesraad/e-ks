@@ -697,12 +697,9 @@ mod tests {
         // projection: they were added during paper corrections.
         let person = sample_person(PersonId::new());
         let person_id = person.id;
-        store
-            .data
-            .write()
-            .paper_corrected_data
-            .persons
-            .insert(person_id, person);
+        store.edit(|data| {
+            data.paper_corrected_mut().persons.insert(person_id, person);
+        });
         let list_id = CandidateListId::new();
         let mut list = sample_candidate_list(list_id);
         list.candidates = vec![person_id];

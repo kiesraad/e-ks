@@ -27,17 +27,17 @@ pub async fn list_candidate_lists(
     context: Context,
     store: PgStore,
 ) -> Result<impl IntoResponse, AppError> {
+    let data = store.snapshot();
     let mut candidate_lists = Vec::new();
-    for summary in CandidateListSummary::list(&store) {
+    for summary in CandidateListSummary::list(&data, store.election) {
         let problems = summary.get_problems(());
         candidate_lists.push(CandidateListWithProblems {
             data: summary,
             problems,
         });
     }
-    let persons = store.get_persons();
-    let problem_severities = persons
-        .iter()
+    let problem_severities = data
+        .persons()
         .filter_map(|p| p.get_problems(context.election).highest_severity())
         .collect::<Vec<_>>();
     let persons_with_problems = problem_severities.len();
@@ -50,7 +50,7 @@ pub async fn list_candidate_lists(
     Ok(HtmlTemplate(
         CandidateListIndexTemplate {
             candidate_lists,
-            total_persons: persons.len(),
+            total_persons: data.person_count(),
             persons_with_problems,
             person_problem_severity,
         },

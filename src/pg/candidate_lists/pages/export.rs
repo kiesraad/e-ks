@@ -97,7 +97,7 @@ mod tests {
 
         list.create(&store).await?;
 
-        let full_list = FullCandidateList::get(&store, list_id)?;
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)?;
 
         // test
         let response =
@@ -167,7 +167,7 @@ mod tests {
                     list_id,
                     event_hash,
                 },
-                FullCandidateList::get(&store, list_id)?,
+                FullCandidateList::get(&store.snapshot(), store.election, list_id)?,
                 store.clone(),
             )
             .await;
@@ -194,7 +194,7 @@ mod tests {
         let list = sample_candidate_list(list_id);
         list.create(&store).await?;
 
-        let full_list = FullCandidateList::get(&store, list_id)?;
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)?;
 
         let response =
             export_candidate_list(export_path(&store, list_id), full_list, store).await?;
