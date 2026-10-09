@@ -6,14 +6,14 @@ use crate::AppRequestState;
 use super::paths::{
     CsbAddOmissionPath, CsbAllBrpFindingsPath, CsbAllRestorationsPath,
     CsbAppellationCorrectionPath, CsbBrpCheckPath, CsbCandidateBrpCheckPath,
-    CsbCandidateBrpFindingHandledPath, CsbCandidateListPath, CsbCandidatePath,
-    CsbDeleteOmissionPath, CsbExaminationOverviewPath, CsbFinishExaminationPath,
+    CsbCandidateBrpFindingHandledPath, CsbCandidateListPath,
+    CsbCandidateListPublicationDocxDownloadPath, CsbCandidateListPublicationDownloadPath,
+    CsbCandidatePath, CsbDeleteOmissionPath, CsbExaminationOverviewPath, CsbFinishExaminationPath,
     CsbGeneralInformationPath, CsbI1DocxDownloadPath, CsbI1DownloadPath,
     CsbOmissionLetterDocxDownloadPath, CsbOmissionLetterDownloadPath, CsbOmissionLetterPath,
-    CsbOmissionLettersDownloadPath, CsbOmissionOverviewPath, CsbOsv3_2DocxDownloadPath,
-    CsbOsv3_2DownloadPath, CsbPaperCorrectionsStartPath, CsbPaperCorrectionsStopPath,
-    CsbPersonCorrectionPath, CsbPoliticalGroupPath, CsbPoliticalGroupToggleFinishPath,
-    OmissionListQuery, PgIndexPath,
+    CsbOmissionLettersDownloadPath, CsbOmissionOverviewPath, CsbPaperCorrectionsStartPath,
+    CsbPaperCorrectionsStopPath, CsbPersonCorrectionPath, CsbPoliticalGroupPath,
+    CsbPoliticalGroupToggleFinishPath, OmissionListQuery, PgIndexPath,
 };
 
 mod all_brp_findings;
@@ -21,6 +21,7 @@ mod all_restorations;
 pub(in crate::csb) mod candidate;
 pub(in crate::csb) mod candidate_list;
 mod candidate_list_overview;
+mod candidate_list_publication;
 mod correction;
 mod delete;
 pub(in crate::csb) mod finish_examination;
@@ -29,7 +30,6 @@ pub(in crate::csb) mod hearing_details;
 mod i1;
 mod omission;
 mod omission_letter;
-mod osv3_2;
 mod overview;
 mod paper_corrections;
 pub(in crate::csb) mod political_group;
@@ -39,10 +39,10 @@ pub fn router<S: AppRequestState>() -> Router<S> {
         .typed_get(overview::overview)
         .typed_get(i1::gen_i1::<S>)
         .typed_get(i1::gen_i1_docx::<S>)
-        .typed_get(osv3_2::gen_osv3_2::<S>)
-        .typed_get(osv3_2::gen_osv3_2_docx::<S>)
         .typed_get(candidate_list_overview::gen_candidate_list_overview_docx::<S>)
         .typed_get(candidate_list_overview::gen_candidate_list_overview::<S>)
+        .typed_get(candidate_list_publication::gen_candidate_list_publication::<S>)
+        .typed_get(candidate_list_publication::gen_candidate_list_publication_docx::<S>)
         .typed_get(omission_letter::overview)
         .typed_get(omission_letter::gen_omission_letter)
         .typed_get(omission_letter::gen_omission_letter_docx)

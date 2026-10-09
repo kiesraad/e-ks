@@ -5,25 +5,27 @@ use crate::{
     core::{ModelLocale, constants::DEFAULT_DATE_FORMAT},
     csb::examination::{
         numbering::list_numbering,
-        pages::{CsbOsv3_2DocxDownloadPath, CsbOsv3_2DownloadPath},
+        pages::{
+            CsbCandidateListPublicationDocxDownloadPath, CsbCandidateListPublicationDownloadPath,
+        },
     },
-    models::{Pdf, csb_model_inputs::published_lists, inputs::PublicSession, osv3_2::OSV3_2},
+    models::{
+        Pdf, candidate_list_publication::CandidateListPublication,
+        csb_model_inputs::published_lists, inputs::PublicSession,
+    },
     structs::csb::HearingModel,
 };
 
-/// Collect the store data the OSV 3-2 model needs.
-async fn osv3_2_model<S: AppRequestState>(
+/// Collect the store data the candidate list publication model needs.
+async fn candidate_list_publication_model<S: AppRequestState>(
     main_store: CsbMainStore,
     state: &S,
-) -> Result<OSV3_2, AppError> {
+) -> Result<CandidateListPublication, AppError> {
     let election = main_store.election;
     let registry = state.csb_store_registry();
     let numbering = list_numbering(registry, &main_store).await?;
-    if numbering
-        .groups
-        .iter()
-        .any(|group| group.position.is_none())
-    {
+
+    if !numbering.is_complete() {
         // TODO: should not result in error, see #1319
         return Err(AppError::IncompleteData("List order not recorded"));
     }
@@ -33,7 +35,7 @@ async fn osv3_2_model<S: AppRequestState>(
         public_session = public_session.with_hearing_details(hearing_details);
     }
 
-    Ok(OSV3_2 {
+    Ok(CandidateListPublication {
         election_name: election.formal_title(ModelLocale::Nl),
         election_date: election
             .election_date()
@@ -45,21 +47,24 @@ async fn osv3_2_model<S: AppRequestState>(
 }
 
 /// The publication of the candidate lists, as PDF.
-pub async fn gen_osv3_2<S: AppRequestState>(
-    _: CsbOsv3_2DownloadPath,
+pub async fn gen_candidate_list_publication<S: AppRequestState>(
+    _: CsbCandidateListPublicationDownloadPath,
     main_store: CsbMainStore,
     State(state): State<S>,
 ) -> Result<Response, AppError> {
-    osv3_2_model(main_store, &state).await?.pdf_response().await
+    candidate_list_publication_model(main_store, &state)
+        .await?
+        .pdf_response()
+        .await
 }
 
-/// The same publication as [`gen_osv3_2`], exported as a Word document.
-pub async fn gen_osv3_2_docx<S: AppRequestState>(
-    _: CsbOsv3_2DocxDownloadPath,
+/// The same publication as [`gen_candidate_list_publication`], exported as a Word document.
+pub async fn gen_candidate_list_publication_docx<S: AppRequestState>(
+    _: CsbCandidateListPublicationDocxDownloadPath,
     main_store: CsbMainStore,
     State(state): State<S>,
 ) -> Result<Response, AppError> {
-    osv3_2_model(main_store, &state)
+    candidate_list_publication_model(main_store, &state)
         .await?
         .docx_response()
         .await
@@ -135,7 +140,7 @@ mod tests {
     }
 
     /// Per district, each list's number and appellation.
-    fn rows(model: &OSV3_2) -> Vec<(&str, Vec<(usize, &str)>)> {
+    fn rows(model: &CandidateListPublication) -> Vec<(&str, Vec<(usize, &str)>)> {
         model
             .valid_lists
             .iter()
@@ -151,10 +156,10 @@ mod tests {
     }
 
     /// Per district the lists follow the recorded order; a group only
-    /// appears in the districts it has a list in, and the numbers there run
-    /// on without a gap.
+    /// appears in the districts it has a list in
     #[tokio::test]
-    async fn osv3_2_model_orders_the_lists_per_district_by_number() -> Result<(), AppError> {
+    async fn document_uses_global_ordering_even_when_list_not_present_in_district()
+    -> Result<(), AppError> {
         let state = AppState::new_for_tests().await;
         let both = seed_group(
             &state,
@@ -166,13 +171,13 @@ mod tests {
             seed_group(&state, "Alleen Groningen", &[ElectoralDistrict::Groningen]).await;
         let main_store = main_store_with_order(vec![groningen, both]).await?;
 
-        let model = osv3_2_model(main_store, &state).await?;
+        let model = candidate_list_publication_model(main_store, &state).await?;
 
         assert_eq!(
             rows(&model),
             [
                 ("Groningen", vec![(1, "Alleen Groningen"), (2, "Overal")]),
-                ("Drenthe", vec![(1, "Overal")]),
+                ("Drenthe", vec![(2, "Overal")]),
             ]
         );
         assert_eq!(model.election_date, "24-05-2027");
@@ -181,10 +186,10 @@ mod tests {
     }
 
     /// A list scrapped in one district drops out of that district only; the
-    /// lists after it there move up a number, elsewhere they keep theirs.
+    /// lists after it don't move up a number.
     #[tokio::test]
-    async fn osv3_2_model_numbers_on_past_a_list_scrapped_in_one_district() -> Result<(), AppError>
-    {
+    async fn document_uses_global_ordering_even_when_list_scrapped_in_district()
+    -> Result<(), AppError> {
         let state = AppState::new_for_tests().await;
         let districts = [ElectoralDistrict::Groningen, ElectoralDistrict::Drenthe];
         let first = seed_group(&state, "Eerste", &districts).await;
@@ -205,7 +210,7 @@ mod tests {
             .set_status(&store, OmissionStatus::NotRecovered)
             .await?;
 
-        let model = osv3_2_model(main_store, &state).await?;
+        let model = candidate_list_publication_model(main_store, &state).await?;
 
         assert_eq!(
             rows(&model),
@@ -214,7 +219,7 @@ mod tests {
                     "Groningen",
                     vec![(1, "Eerste"), (2, "Geschrapt"), (3, "Derde")]
                 ),
-                ("Drenthe", vec![(1, "Eerste"), (2, "Derde")]),
+                ("Drenthe", vec![(1, "Eerste"), (3, "Derde")]),
             ]
         );
 
@@ -223,25 +228,29 @@ mod tests {
 
     /// Without a recorded order the lists numbered by lot have no number yet
     #[tokio::test]
-    async fn osv3_2_model_requires_the_recorded_order() {
+    async fn candidate_list_publication_model_requires_the_recorded_order() {
         let state = AppState::new_for_tests().await;
         seed_group(&state, "Ongenummerd", &[ElectoralDistrict::Groningen]).await;
 
-        let result = osv3_2_model(CsbMainStore::new_for_test(), &state).await;
+        let result = candidate_list_publication_model(CsbMainStore::new_for_test(), &state).await;
 
         // TODO: should not result in error, see: #1319
         assert!(matches!(result, Err(AppError::IncompleteData(_))));
     }
 
     #[tokio::test]
-    async fn gen_osv3_2_returns_pdf_response() -> Result<(), AppError> {
+    async fn gen_candidate_list_publication_returns_pdf_response() -> Result<(), AppError> {
         let state = AppState::new_for_tests().await;
         let stream_id = seed_group(&state, "Kiesraad Demo", &[ElectoralDistrict::Groningen]).await;
         let main_store = main_store_with_order(vec![stream_id]).await?;
 
-        let response = gen_osv3_2(CsbOsv3_2DownloadPath, main_store, State(state))
-            .await?
-            .into_response();
+        let response = gen_candidate_list_publication(
+            CsbCandidateListPublicationDownloadPath,
+            main_store,
+            State(state),
+        )
+        .await?
+        .into_response();
 
         assert_eq!(response.status(), StatusCode::OK);
         let headers = response.headers().clone();
@@ -253,7 +262,7 @@ mod tests {
             headers
                 .get(header::CONTENT_DISPOSITION)
                 .expect("content disposition"),
-            "attachment; filename=\"OSV_3-2_publicatie_kandidatenlijsten.pdf\""
+            "attachment; filename=\"publicatie-kandidatenlijsten.pdf\""
         );
         assert_eq!(
             headers.get(header::CACHE_CONTROL).expect("cache control"),
@@ -268,10 +277,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn gen_osv3_2_docx_returns_word_response() -> Result<(), AppError> {
+    async fn gen_candidate_list_publication_docx_returns_word_response() -> Result<(), AppError> {
         let state = AppState::new_for_tests().await;
-        let response = gen_osv3_2_docx(
-            CsbOsv3_2DocxDownloadPath,
+        let response = gen_candidate_list_publication_docx(
+            CsbCandidateListPublicationDocxDownloadPath,
             CsbMainStore::new_for_test(),
             State(state),
         )
@@ -288,7 +297,7 @@ mod tests {
             headers
                 .get(header::CONTENT_DISPOSITION)
                 .expect("content disposition"),
-            "attachment; filename=\"OSV_3-2_publicatie_kandidatenlijsten.docx\""
+            "attachment; filename=\"publicatie-kandidatenlijsten.docx\""
         );
         // A .docx is a ZIP archive.
         let body = to_bytes(response.into_body(), usize::MAX)

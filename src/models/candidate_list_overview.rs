@@ -56,7 +56,7 @@ impl Pdf for CandidateListOverview {
     }
 
     fn filename(&self) -> String {
-        "overzicht_kandidatenlijsten.pdf".to_string()
+        "overzicht-kandidatenlijsten.pdf".to_string()
     }
 }
 

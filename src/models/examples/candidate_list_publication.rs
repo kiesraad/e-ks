@@ -1,10 +1,10 @@
-//! Example input for model OSV 3-2.
+//! Example input for model candidate list publication
 
 use crate::{
     ElectoralDistrict,
     models::{
+        candidate_list_publication::{CandidateListPublication, NumberedList, PublishedCandidate},
         inputs::{DistrictLists, PublicSession, ValidList},
-        osv3_2::{NumberedList, OSV3_2, PublishedCandidate},
     },
 };
 
@@ -56,8 +56,8 @@ fn blanco_nagelhout(number: usize) -> NumberedList {
 
 /// Two districts; De Correcte Partij has no list in Bonaire, so the blank
 /// list moves up to number 2 there.
-pub fn osv3_2_example_1() -> OSV3_2 {
-    OSV3_2 {
+pub fn candidate_list_publication_example_1() -> CandidateListPublication {
+    CandidateListPublication {
         election_name: "de Eerste Kamer der Staten-Generaal".to_string(),
         election_date: "24-05-2027".to_string(),
         valid_lists: vec![
@@ -67,7 +67,7 @@ pub fn osv3_2_example_1() -> OSV3_2 {
             },
             DistrictLists {
                 electoral_district: ElectoralDistrict::Bonaire.title().to_string(),
-                lists: vec![kiesraad_demo(1), blanco_nagelhout(2)],
+                lists: vec![kiesraad_demo(1), blanco_nagelhout(3)],
             },
         ],
         public_session: PublicSession {

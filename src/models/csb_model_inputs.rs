@@ -11,11 +11,11 @@ use crate::{
     core::AnyLocale,
     models::{
         candidate_list_overview::OverviewGroup,
+        candidate_list_publication::{NumberedList, PublishedCandidate},
         established_lists::EstablishedLists,
         i1, i4,
         inputs::{DistrictLists, OmissionGroup, ValidList, ValidListCandidate},
         omission_letter,
-        osv3_2::{NumberedList, PublishedCandidate},
     },
     projection::{Scrapped, WithCorrections},
     store::StoreRegistry,
@@ -328,20 +328,19 @@ pub async fn lists_overview(
     Ok(groups)
 }
 
-/// The OSV 3-2 lists: per district, the valid lists in list order, numbered
-/// on within the district. A district without a group's list, never
-/// submitted or scrapped there, numbers on without a gap. `stream_order` is
-/// the list order of the groups.
+/// The candidate list publication: per district, the valid lists in list order.
+/// `numbered_groups` holds each group's stream in list order; a group's lists
+/// carry its number in every district, so a district without the group's list
+/// (never submitted or scrapped there) skips that number.
 pub async fn published_lists(
     registry: &StoreRegistry<CsbStoreData>,
     election: &ElectionConfig,
-    stream_order: &[StreamId],
+    numbered_groups: &[StreamId],
 ) -> Result<Vec<DistrictLists<NumberedList>>, AppError> {
     let stores = examined_stores(registry, election).await?;
-    let mut by_district: BTreeMap<ElectoralDistrict, Vec<ValidList<PublishedCandidate>>> =
-        BTreeMap::new();
+    let mut by_district: BTreeMap<ElectoralDistrict, Vec<NumberedList>> = BTreeMap::new();
 
-    for stream_id in stream_order {
+    for (stream_id, number) in numbered_groups.iter().zip(1..) {
         let store = stores
             .iter()
             .find(|store| store.stream_id == *stream_id)
@@ -349,7 +348,10 @@ pub async fn published_lists(
 
         for (district, list) in valid_lists(store, &store.get_scrapped(), PublishedCandidate::new)?
         {
-            by_district.entry(district).or_default().push(list);
+            by_district
+                .entry(district)
+                .or_default()
+                .push(NumberedList { number, list });
         }
     }
 
@@ -357,11 +359,7 @@ pub async fn published_lists(
         .into_iter()
         .map(|(district, lists)| DistrictLists {
             electoral_district: district.title().to_string(),
-            lists: lists
-                .into_iter()
-                .zip(1..)
-                .map(|(list, number)| NumberedList { number, list })
-                .collect(),
+            lists,
         })
         .collect())
 }
