@@ -41,7 +41,7 @@ x509-parser = { version = "0.18.1", default-features = false }
 rcgen = { version = "0.14.8", default-features = false, features = ["aws_lc_rs", "pem"] }
 time = { version = "0.3.53", default-features = false, features = ["std"] }
 hyper-util = { version = "0.1.20", features = ["client-legacy"] }
-tokio = { version = "1.52.1", features = ["fs", "io-util", "macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
+tokio = { version = "1.52.1", features = ["fs", "io-util", "macros", "net", "parking_lot", "process", "rt-multi-thread", "signal", "sync", "test-util", "time"] }
 tower-http = { version = "0.7.0", features = ["csrf", "set-header", "trace"] }
 tracing = { version = "0.1.44", default-features = false, features = ["std"] }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
@@ -212,11 +212,16 @@ eks-locales = { path = "tools/locales" }
 futures-lite = { workspace = true }
 tower = { workspace = true }
 tracing-test = { workspace = true }
-tokio = { workspace = true, features = ["test-util"] }
 reqwest = { workspace = true, features = ["rustls"] }
 
 [lints]
 workspace = true
+
+# Line tables are enough for backtraces and keep the debug artifacts (rlib,
+# binary, incremental cache) several times smaller, which speeds up compiling
+# and linking the main crate.
+[profile.dev]
+debug = "line-tables-only"
 
 # https://askama.readthedocs.io/en/stable/performance.html#slow-debug-recompilations
 [profile.dev.package.askama_derive]
