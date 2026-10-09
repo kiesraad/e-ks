@@ -123,7 +123,7 @@ mod tests {
         );
 
         // verify deletion (i.e. no lists in database left)
-        let lists = CandidateListSummary::list(&store);
+        let lists = CandidateListSummary::list(&store.snapshot(), store.election);
         assert_eq!(lists.len(), 0);
 
         Ok(())

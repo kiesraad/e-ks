@@ -5,6 +5,7 @@ use crate::{
     AppError, Context, EventHashPrefix, HtmlTemplate, PgStore,
     core::ModelLocale,
     filters,
+    store::StoreData,
     structs::{
         common::{HasSeverity, Severity},
         list_designation::ListDesignation,
@@ -31,8 +32,9 @@ pub async fn index(
     context: Context,
     store: PgStore,
 ) -> Result<impl IntoResponse, AppError> {
-    let problems = AllProblems::find_all(&store)?;
-    let event_hash = EventHashPrefix::of(&store.current_event_hash());
+    let data = store.snapshot();
+    let problems = AllProblems::find_all(&data, store.election)?;
+    let event_hash = EventHashPrefix::of(&data.last_event_hash());
 
     Ok(HtmlTemplate(
         IndexTemplate {
@@ -48,8 +50,8 @@ pub async fn index(
             }
             .to_string(),
             frisian_export_allowed: context.election.frisian_export_allowed(),
-            list_designation: store.get_political_group().list_designation,
-            previously_seated: store.get_political_group().was_previously_seated(),
+            list_designation: data.political_group().list_designation,
+            previously_seated: data.political_group().was_previously_seated(),
         },
         context,
     ))

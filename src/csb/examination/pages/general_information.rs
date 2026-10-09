@@ -158,11 +158,10 @@ mod tests {
         let stream_id = store.stream_id;
 
         let submitter = sample_list_submitter(ListSubmitterId::new());
-        {
-            let mut data = store.data.write();
-            data.imported_data.substitute_submitters = vec![submitter.clone()];
-            data.paper_corrected_data.substitute_submitters = vec![submitter.clone()];
-        }
+        store.edit(|data| {
+            data.imported_mut().substitute_submitters = vec![submitter.clone()];
+            data.paper_corrected_mut().substitute_submitters = vec![submitter.clone()];
+        });
 
         store
             .update(CsbAction::PaperCorrectedUpdate(Box::new(

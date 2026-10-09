@@ -117,7 +117,7 @@ mod tests {
         )
         .await?;
 
-        assert_eq!(list.duplicate_districts(&store), vec![]);
+        assert_eq!(list.duplicate_districts(&store.snapshot()), vec![]);
 
         Ok(())
     }
@@ -151,7 +151,7 @@ mod tests {
         .await?;
 
         assert_eq!(
-            list.duplicate_districts(&store),
+            list.duplicate_districts(&store.snapshot()),
             vec![ElectoralDistrict::Drenthe, ElectoralDistrict::Utrecht] // but not Groningen!
         );
 
@@ -177,7 +177,7 @@ mod tests {
         )
         .await?;
 
-        assert_eq!(list.duplicate_districts(&store), vec![]);
+        assert_eq!(list.duplicate_districts(&store.snapshot()), vec![]);
 
         Ok(())
     }
@@ -189,7 +189,7 @@ mod tests {
 
         list.create(&store).await?;
 
-        let lists = CandidateListSummary::list(&store);
+        let lists = CandidateListSummary::list(&store.snapshot(), store.election);
         assert_eq!(1, lists.len());
         assert_eq!(list.id, lists[0].list.id);
         assert_eq!(0, lists[0].candidate_count());
@@ -220,7 +220,7 @@ mod tests {
         .await?;
 
         // test
-        let lists = CandidateListSummary::list(&store);
+        let lists = CandidateListSummary::list(&store.snapshot(), store.election);
 
         // verification
         assert_eq!(3, lists.len());
@@ -342,8 +342,9 @@ mod tests {
         insert_list(&store, vec![]).await?;
 
         // test
-        let result: BTreeSet<ElectoralDistrict> =
-            CandidateList::used_districts(&store)?.into_iter().collect();
+        let result: BTreeSet<ElectoralDistrict> = CandidateList::used_districts(&store.snapshot())
+            .into_iter()
+            .collect();
 
         // verify
         assert_eq!(expected, result);
@@ -353,7 +354,7 @@ mod tests {
     #[tokio::test]
     async fn get_used_districts_no_lists() -> Result<(), AppError> {
         let store = PgStore::new_for_test();
-        let result = CandidateList::used_districts(&store)?;
+        let result = CandidateList::used_districts(&store.snapshot());
 
         assert_eq!(Vec::<ElectoralDistrict>::new(), result);
 
@@ -382,8 +383,9 @@ mod tests {
         .await?;
 
         // test
-        let result: BTreeSet<ElectoralDistrict> =
-            CandidateList::used_districts(&store)?.into_iter().collect();
+        let result: BTreeSet<ElectoralDistrict> = CandidateList::used_districts(&store.snapshot())
+            .into_iter()
+            .collect();
 
         // verify
         assert_eq!(expected, result);
@@ -413,8 +415,9 @@ mod tests {
         .await?;
 
         // test
-        let result: BTreeSet<ElectoralDistrict> =
-            CandidateList::used_districts(&store)?.into_iter().collect();
+        let result: BTreeSet<ElectoralDistrict> = CandidateList::used_districts(&store.snapshot())
+            .into_iter()
+            .collect();
 
         // verify
         assert_eq!(expected, result);
@@ -440,8 +443,9 @@ mod tests {
 
         list_a.delete(&store).await?;
 
-        let lists = CandidateListSummary::list(&store);
-        let list_b_from_db = FullCandidateList::get(&store, list_b.id).unwrap();
+        let lists = CandidateListSummary::list(&store.snapshot(), store.election);
+        let list_b_from_db =
+            FullCandidateList::get(&store.snapshot(), store.election, list_b.id).unwrap();
 
         assert_eq!(1, lists.len());
         assert_eq!(list_b.id, lists[0].list.id);
@@ -467,7 +471,8 @@ mod tests {
             .update_order(&store, &[person_a.id, person_b.id])
             .await?;
 
-        let detail = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let detail = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
         assert_eq!(2, detail.candidates.len());
         assert_eq!(person_a.id, detail.candidates[0].data.person.id);
         assert_eq!(person_b.id, detail.candidates[1].data.person.id);
@@ -488,7 +493,8 @@ mod tests {
     #[tokio::test]
     async fn get_full_candidate_list_returns_none_for_missing_list() -> Result<(), AppError> {
         let store = PgStore::new_for_test();
-        let missing = FullCandidateList::get(&store, CandidateListId::new());
+        let missing =
+            FullCandidateList::get(&store.snapshot(), store.election, CandidateListId::new());
         assert!(missing.is_err());
 
         Ok(())
@@ -509,7 +515,8 @@ mod tests {
         list.append_candidate(&store, person_a.id).await?;
         list.append_candidate(&store, person_b.id).await?;
 
-        let detail = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let detail = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
 
         assert_eq!(detail.candidates.len(), 2);
         assert_eq!(detail.candidates[0].data.person.id, person_a.id);
@@ -623,7 +630,8 @@ mod tests {
 
         person_a.delete(&store).await?;
 
-        let detail = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let detail = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
         assert_eq!(detail.candidates.len(), 1);
         assert_eq!(detail.candidates[0].data.person.id, person_b.id);
 

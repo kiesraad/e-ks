@@ -350,7 +350,7 @@ pub async fn setup_documents_test_state(
     for _ in 0..list_count {
         let list_id = CandidateListId::new();
         let mut list = sample_candidate_list(list_id);
-        if let Some(district) = CandidateList::available_districts(&store, &election)
+        if let Some(district) = CandidateList::available_districts(&store.snapshot(), &election)
             .into_iter()
             .next()
         {

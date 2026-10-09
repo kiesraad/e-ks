@@ -130,8 +130,9 @@ mod tests {
     #[test]
     fn list_submitter_deleted_by_the_corrections_is_hidden() {
         let store = CsbStore::new_for_test();
-        store.data.write().imported_data.list_submitter =
-            sample_list_submitter(ListSubmitterId::new());
+        store.edit(|data| {
+            data.imported_mut().list_submitter = sample_list_submitter(ListSubmitterId::new());
+        });
 
         assert!(paper_corrected_list_submitter(&store).is_none());
     }
@@ -140,11 +141,10 @@ mod tests {
     fn unchanged_list_submitter_is_shown() {
         let store = CsbStore::new_for_test();
         let submitter = sample_list_submitter(ListSubmitterId::new());
-        {
-            let mut data = store.data.write();
-            data.imported_data.list_submitter = submitter.clone();
-            data.paper_corrected_data.list_submitter = submitter;
-        }
+        store.edit(|data| {
+            data.imported_mut().list_submitter = submitter.clone();
+            data.paper_corrected_mut().list_submitter = submitter;
+        });
 
         let row = paper_corrected_list_submitter(&store).unwrap();
         assert!(!row.last_name.differs());
@@ -160,11 +160,10 @@ mod tests {
             state_or_province: Some("Antwerpen".parse().unwrap()),
             ..Default::default()
         });
-        {
-            let mut data = store.data.write();
-            data.imported_data.list_submitter = submitter;
-            data.paper_corrected_data.list_submitter = corrected;
-        }
+        store.edit(|data| {
+            data.imported_mut().list_submitter = submitter;
+            data.paper_corrected_mut().list_submitter = corrected;
+        });
 
         let row = paper_corrected_list_submitter(&store).unwrap();
         assert!(row.country.differs());
@@ -178,11 +177,10 @@ mod tests {
         let store = CsbStore::new_for_test();
         let kept = sample_list_submitter(ListSubmitterId::new());
         let deleted = sample_list_submitter(ListSubmitterId::new());
-        {
-            let mut data = store.data.write();
-            data.imported_data.substitute_submitters = vec![kept.clone(), deleted];
-            data.paper_corrected_data.substitute_submitters = vec![kept];
-        }
+        store.edit(|data| {
+            data.imported_mut().substitute_submitters = vec![kept.clone(), deleted];
+            data.paper_corrected_mut().substitute_submitters = vec![kept];
+        });
 
         let rows = paper_corrected_substitute_submitters(&store);
         assert_eq!(rows.len(), 1);
@@ -232,11 +230,10 @@ mod tests {
             state_or_province: Some("Antwerpen".parse().unwrap()),
             ..Default::default()
         });
-        {
-            let mut data = store.data.write();
-            data.paper_corrected_data.list_submitter = added.clone();
-            data.paper_corrected_data.substitute_submitters = vec![added];
-        }
+        store.edit(|data| {
+            data.paper_corrected_mut().list_submitter = added.clone();
+            data.paper_corrected_mut().substitute_submitters = vec![added];
+        });
 
         assert!(paper_corrected_list_submitter(&store).unwrap().is_foreign);
         assert!(paper_corrected_substitute_submitters(&store)[0].is_foreign);

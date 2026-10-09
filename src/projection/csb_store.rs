@@ -303,7 +303,7 @@ mod tests {
 
         store.update(CsbAction::SetFinished(true)).await?;
 
-        let events = store.data.read().events.clone();
+        let events = store.snapshot().events.clone();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].payload.csb_user(), &user);
 

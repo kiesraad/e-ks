@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
-    AppError, ElectionConfig, ElectoralDistrict, PgEvent, PgStore,
+    AppError, ElectionConfig, ElectoralDistrict, OrNotFound, PgEvent, PgStore, PgStoreData,
     structs::{
         candidate_lists::{
             CandidateList, CandidateListId, CandidateListSummary, FullCandidateList,
@@ -15,23 +15,21 @@ use crate::{
 };
 
 impl CandidateList {
-    pub fn used_districts(store: &PgStore) -> Result<Vec<ElectoralDistrict>, AppError> {
-        let used: BTreeSet<ElectoralDistrict> = store
-            .get_candidate_lists()
+    pub fn used_districts(data: &PgStoreData) -> Vec<ElectoralDistrict> {
+        let used: BTreeSet<ElectoralDistrict> = data
+            .candidate_lists()
             .into_iter()
-            .flat_map(|list| list.electoral_districts.into_iter())
+            .flat_map(|list| list.electoral_districts.iter().copied())
             .collect();
 
-        Ok(used.into_iter().collect())
+        used.into_iter().collect()
     }
 
     pub fn available_districts(
-        store: &PgStore,
+        data: &PgStoreData,
         election: &ElectionConfig,
     ) -> Vec<ElectoralDistrict> {
-        let used = CandidateList::used_districts(store).unwrap_or_default();
-
-        election.available_districts(used)
+        election.available_districts(CandidateList::used_districts(data))
     }
 
     pub async fn update_order(
@@ -202,7 +200,8 @@ impl CandidateList {
     }
 
     pub(crate) fn build_full_candidate_list(
-        store: &PgStore,
+        data: &PgStoreData,
+        election: ElectionConfig,
         list: CandidateList,
     ) -> Result<FullCandidateList, AppError> {
         let candidates = list
@@ -210,9 +209,9 @@ impl CandidateList {
             .iter()
             .enumerate()
             .map(|(index, person_id)| {
-                let person = store.get_person(*person_id)?;
+                let person = data.person(*person_id).cloned().or_not_found()?;
                 Ok(CandidateWithProblems {
-                    problems: person.get_problems(store.election),
+                    problems: person.get_problems(election),
                     data: Candidate {
                         list_id: list.id,
                         position: index + 1,
@@ -227,25 +226,29 @@ impl CandidateList {
 }
 
 impl FullCandidateList {
-    pub fn get(store: &PgStore, list_id: CandidateListId) -> Result<FullCandidateList, AppError> {
-        let list = store.get_candidate_list(list_id)?;
+    pub fn get(
+        data: &PgStoreData,
+        election: ElectionConfig,
+        list_id: CandidateListId,
+    ) -> Result<FullCandidateList, AppError> {
+        let list = data.candidate_list(list_id).cloned().or_not_found()?;
 
-        CandidateList::build_full_candidate_list(store, list)
+        CandidateList::build_full_candidate_list(data, election, list)
     }
 }
 
 impl CandidateListSummary {
     /// A list is usable once it holds at least one candidate and neither the
     /// list nor any of its candidates have errors
-    pub fn is_usable(&self, store: &PgStore) -> bool {
+    pub fn is_usable(&self, data: &PgStoreData, election: ElectionConfig) -> bool {
         self.candidate_count() > 0
             && !self
                 .get_problems(())
                 .has_severity_or_higher(Severity::Error)
             && !self.list.candidates.iter().any(|id| {
-                store.get_person(*id).is_ok_and(|person| {
+                data.person(*id).is_some_and(|person| {
                     person
-                        .get_problems(store.election)
+                        .get_problems(election)
                         .has_severity_or_higher(Severity::Error)
                 })
             })

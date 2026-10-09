@@ -277,16 +277,29 @@ impl PgStoreData {
         }
     }
 
+    /// Set the (unpersisted) substitute flag from the field a submitter is
+    /// stored in, so reads need not fix it up.
+    pub(crate) fn normalise_submitter_flags(&mut self) {
+        self.list_submitter.is_substitute = false;
+        for submitter in &mut self.substitute_submitters {
+            submitter.is_substitute = true;
+        }
+    }
+
     /// Apply a list-submitter event. Routed here exclusively by [`Self::apply`].
+    /// The substitute flag is set here rather than trusted from the event.
     fn apply_submitter_event(&mut self, event: PgEvent) {
         match event {
-            PgEvent::UpdateListSubmitter(ls) => {
+            PgEvent::UpdateListSubmitter(mut ls) => {
+                ls.is_substitute = false;
                 self.list_submitter = ls;
             }
-            PgEvent::CreateSubstituteSubmitter(ss) => {
+            PgEvent::CreateSubstituteSubmitter(mut ss) => {
+                ss.is_substitute = true;
                 self.substitute_submitters.push(ss);
             }
-            PgEvent::UpdateSubstituteSubmitter(ss) => {
+            PgEvent::UpdateSubstituteSubmitter(mut ss) => {
+                ss.is_substitute = true;
                 let ss_id = ss.id;
                 if let Some(existing) = self
                     .substitute_submitters
@@ -700,7 +713,7 @@ mod tests {
 
         // The event lands on the CSB stream, wrapped as a paper correction.
         {
-            let data = csb_store.data.read();
+            let data = csb_store.snapshot();
             assert!(matches!(
                 &data.events.last().unwrap().payload.action,
                 CsbAction::PaperCorrectedUpdate(inner)

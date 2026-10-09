@@ -167,7 +167,7 @@ async fn imported_appellation(
     source_stream_id: StreamId,
 ) -> Result<Option<String>, AppError> {
     for store in registry.stores_for_election(election).await? {
-        let already_imported_and_not_deleted = store.data.read().events.first().is_some_and(|e| {
+        let already_imported_and_not_deleted = store.snapshot().events.first().is_some_and(|e| {
             matches!(&e.payload.action, CsbAction::Import { source_stream_id: sid, .. } if *sid == source_stream_id) &&
             !store.is_deleted()
         });
@@ -231,7 +231,7 @@ async fn do_import<S: AppRequestState>(
         .await?;
     source_store.load().await?;
 
-    let events = source_store.data.read().events.clone();
+    let events = source_store.snapshot().events.clone();
     let full_hash = events
         .iter()
         .find(|e| e.event_id == event_id)
@@ -389,7 +389,7 @@ async fn record_brp_result(
 
     for _ in 0..ATTEMPTS {
         // the event id first: a change landing after it is caught by the append
-        let expected = store.data.read().last_event_id();
+        let expected = store.snapshot().last_event_id();
         if store.get_person(checked.id, WithCorrections::All).as_ref() != Some(checked) {
             return Ok(false);
         }
@@ -519,7 +519,7 @@ mod tests {
             .await?;
         source_store.update(PgEvent::HideDownloadWarning).await?;
 
-        let hash = source_store.data.read().events[0].hash;
+        let hash = source_store.snapshot().events[0].hash;
         Ok((source_stream, format_hash(&hash, false)))
     }
 
@@ -625,7 +625,7 @@ mod tests {
         // The import is recorded under a fresh CSB stream, carrying the source.
         let csb_stores = state.csb_store_registry().stores_by_scope().await?;
         assert_eq!(csb_stores.len(), 1);
-        let imported = csb_stores[0].data.read().events.first().is_some_and(|e| {
+        let imported = csb_stores[0].snapshot().events.first().is_some_and(|e| {
             matches!(&e.payload.action, CsbAction::Import { source_stream_id, .. } if *source_stream_id == source_stream)
         });
         assert!(imported);
@@ -735,7 +735,7 @@ mod tests {
         // A single CSB store is recorded carrying the CreateEmpty event.
         let csb_stores = state.csb_store_registry().stores_by_scope().await?;
         assert_eq!(csb_stores.len(), 1);
-        let data = csb_stores[0].data.read();
+        let data = csb_stores[0].snapshot();
         assert!(matches!(
             data.events.first().unwrap().payload.action,
             CsbAction::CreateEmpty
@@ -812,7 +812,7 @@ mod tests {
             ]
         );
         // A BRP difference is for the committee to weigh, not a verzuim.
-        assert!(csb_store.data.read().omissions.is_empty());
+        assert!(csb_store.snapshot().omissions.is_empty());
 
         Ok(())
     }
@@ -1080,7 +1080,7 @@ mod tests {
         for store in csb_stores {
             if let CsbAction::Import {
                 hash: import_hash, ..
-            } = store.data.read().events.first().unwrap().payload.action
+            } = store.snapshot().events.first().unwrap().payload.action
             {
                 assert_eq!(hash.clone(), format_hash(&import_hash, false));
             } else {

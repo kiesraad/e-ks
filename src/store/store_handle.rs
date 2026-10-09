@@ -20,8 +20,9 @@ pub struct Store<D> {
     /// Persistence target paired with its cipher. Persisting backends are
     /// always encrypted; see [`StoreBackend`].
     pub(crate) backend: StoreBackend,
-    /// In-memory projection for the stream.
-    pub(crate) data: Arc<parking_lot::RwLock<D>>,
+    /// In-memory projection for the stream, copy-on-write: readers clone the
+    /// inner `Arc` ([`Store::snapshot`]), writers `make_mut` it ([`Store::write`]).
+    pub(super) data: Arc<parking_lot::RwLock<Arc<D>>>,
 }
 
 impl<D> Clone for Store<D> {
@@ -71,14 +72,39 @@ where
     /// An in-memory store never writes events out, so it has no cipher
     /// (see [`StoreBackend::Memory`]).
     pub fn new_for_temp_stream(election: ElectionConfig) -> Self {
+        Self::new_temp(StreamId::new(), election, Arc::default())
+    }
+
+    /// An in-memory store over `data`: temp streams, request-local
+    /// projections and tests.
+    pub(crate) fn new_temp(stream_id: StreamId, election: ElectionConfig, data: Arc<D>) -> Self {
         Store {
-            stream_id: StreamId::new(),
+            stream_id,
             election,
             backend: StoreBackend::Memory {
                 store: MemoryStore::default(),
             },
-            data: Arc::new(parking_lot::RwLock::new(D::default())),
+            data: Arc::new(parking_lot::RwLock::new(data)),
         }
+    }
+
+    /// The current projection. The read lock is held only for the `Arc`
+    /// clone, so a snapshot can be kept for a whole request and never blocks
+    /// a writer; a later write leaves it unchanged.
+    pub fn snapshot(&self) -> Arc<D> {
+        Arc::clone(&self.data.read())
+    }
+
+    /// Mutable access to the projection, cloning it first when a snapshot is
+    /// still alive. Never hold the guard across an `.await`.
+    #[cfg(test)]
+    pub(crate) fn write(&self) -> parking_lot::MappedRwLockWriteGuard<'_, D> {
+        parking_lot::RwLockWriteGuard::map(self.data.write(), Arc::make_mut)
+    }
+
+    /// Replace the projection wholesale.
+    pub(crate) fn replace(&self, data: Arc<D>) {
+        *self.data.write() = data;
     }
 
     /// Apply a single event to the in-memory projection.
@@ -93,7 +119,7 @@ where
             return;
         }
 
-        data.apply(store_event);
+        Arc::make_mut(&mut data).apply(store_event);
     }
 
     /// Build a [`StoreEvent`] for a freshly persisted event and apply it to the
@@ -115,13 +141,13 @@ where
 
     /// Last event ID applied to the in-memory projection, or 0 if none.
     pub fn current_event_id(&self) -> usize {
-        self.data.read().last_event_id()
+        self.snapshot().last_event_id()
     }
 
     /// Chain hash of the last applied event, or
     /// [`GENESIS_HASH`](crate::store::GENESIS_HASH) if none.
     pub fn current_event_hash(&self) -> EventHash {
-        self.data.read().last_event_hash()
+        self.snapshot().last_event_hash()
     }
 
     /// Whether `prefix` names any event in this chain: the check download and
@@ -131,8 +157,7 @@ where
         if prefix.is_genesis() {
             return false;
         }
-        self.data
-            .read()
+        self.snapshot()
             .events()
             .iter()
             .any(|event| prefix.matches(&event.hash))
@@ -144,8 +169,7 @@ where
         if prefix.is_genesis() {
             return false;
         }
-        self.data
-            .read()
+        self.snapshot()
             .events()
             .iter()
             .any(|event| event.event_id == event_id && prefix.matches(&event.hash))
@@ -160,7 +184,7 @@ mod tests {
 
     const TEST_ELECTION: ElectionConfig = ElectionConfig::EK27;
 
-    #[derive(Default)]
+    #[derive(Default, Clone)]
     struct TestData {
         events: Vec<StoreEvent<usize>>,
         applied: Vec<usize>,
@@ -202,14 +226,7 @@ mod tests {
     }
 
     fn test_store() -> Store<TestData> {
-        Store {
-            stream_id: StreamId::new(),
-            election: TEST_ELECTION,
-            backend: StoreBackend::Memory {
-                store: MemoryStore::default(),
-            },
-            data: Arc::new(parking_lot::RwLock::new(TestData::default())),
-        }
+        Store::new_temp(StreamId::new(), TEST_ELECTION, Arc::default())
     }
 
     #[test]
@@ -227,9 +244,27 @@ mod tests {
 
         store.apply_event(StoreEvent::new(1, 42));
 
-        let data = store.data.read();
+        let data = store.snapshot();
         assert_eq!(data.last_event_id(), 1);
         assert_eq!(data.applied, vec![42]);
+    }
+
+    /// A snapshot is a copy of the projection as it was: a later write
+    /// neither changes it nor waits for it.
+    #[test]
+    fn a_snapshot_is_unaffected_by_later_writes() {
+        let store = test_store();
+        store.apply_event(StoreEvent::new(1, 1));
+
+        let before = store.snapshot();
+        store.apply_event(StoreEvent::new(2, 2));
+
+        assert_eq!(before.applied, vec![1]);
+        assert_eq!(store.snapshot().applied, vec![1, 2]);
+        // Without a live snapshot the write mutates in place.
+        drop(before);
+        let shared = store.snapshot();
+        assert_eq!(Arc::strong_count(&shared), 2);
     }
 
     /// Applies an event carrying `hash` as its chain hash.
@@ -271,14 +306,11 @@ mod tests {
     fn apply_event_skips_when_already_up_to_date() {
         let store = test_store();
 
-        {
-            let mut data = store.data.write();
-            data.events.push(StoreEvent::new(2, 0));
-        }
+        store.write().events.push(StoreEvent::new(2, 0));
 
         store.apply_event(StoreEvent::new(1, 7));
 
-        let data = store.data.read();
+        let data = store.snapshot();
         assert_eq!(data.last_event_id(), 2);
         assert!(data.applied.is_empty());
     }

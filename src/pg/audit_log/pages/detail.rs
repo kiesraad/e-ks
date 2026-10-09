@@ -8,12 +8,14 @@ use askama::Template;
 use axum::response::IntoResponse;
 
 use crate::{
-    AppError, Context, EventHashPrefix, HtmlTemplate, Overlay, PgStore, QueryParamState,
+    AppError, Context, EventHashPrefix, HtmlTemplate, OrNotFound, Overlay, PgStore,
+    QueryParamState,
     audit_log::{
         AuditLogDetail, AuditLogPath,
         paths::{AuditLogDetailPath, AuditLogDownloadDocumentsPath},
     },
     filters,
+    store::StoreData,
 };
 
 #[derive(Template)]
@@ -33,21 +35,21 @@ pub async fn audit_log_detail(
     context: Context,
     store: PgStore,
 ) -> Result<impl IntoResponse, AppError> {
-    let events = store.get_events();
+    let data = store.snapshot();
+    let events = data.events();
     let locale = context.session.locale;
 
     let base = store.imported_snapshot().unwrap_or_default();
-    let detail = AuditLogDetail::compute(&base, &events, event_id, locale)
-        .ok_or(AppError::GenericNotFound)?;
+    let detail = AuditLogDetail::compute(&base, events, event_id, locale).or_not_found()?;
 
-    let temp_store = create_temp_store(&store, event_id);
-    let is_downloadable_state = AllProblems::find_all(&temp_store)?.models_downloadable();
+    let replayed = AuditLogDetail::replay_until(&base, events, event_id);
+    let is_downloadable_state =
+        AllProblems::find_all(&replayed, store.election)?.models_downloadable();
 
-    let hash = store
-        .get_events()
+    let hash = events
         .iter()
         .find(|e| e.event_id == event_id)
-        .ok_or(AppError::GenericNotFound)?
+        .or_not_found()?
         .hash;
 
     let event_hash = EventHashPrefix::of(&hash);
@@ -95,37 +97,22 @@ pub async fn audit_log_gen_documents(
         return Err(AppError::GenericNotFound);
     }
 
-    let temp_store = create_temp_store(&store, event_id);
+    // The projection as it was back then. In paper-corrections mode the
+    // replay starts from the imported snapshot the corrections were applied
+    // on top of.
+    let base = store.imported_snapshot().unwrap_or_default();
+    let replayed = AuditLogDetail::replay_until(&base, store.snapshot().events(), event_id);
 
-    if !AllProblems::find_all(&temp_store)?.models_downloadable() {
+    if !AllProblems::find_all(&replayed, store.election)?.models_downloadable() {
         return Err(AppError::IncompleteData(
             "Documents cannot be downloaded for this version",
         ));
     }
     store.check_download_limit()?;
 
-    let (bundles, filename) = DocumentData::from_store_and_context(&temp_store, &context, locale)?;
+    let (bundles, filename) = DocumentData::from_store_and_context(&replayed, &context, locale)?;
 
-    DocumentData::serve_download(bundles, filename, path.to_string(), &store, &temp_store).await
-}
-
-/// Replay the event stream up to and including `event_id` into a throwaway
-/// in-memory store, so document state can be inspected as it was back then.
-/// In paper-corrections mode the replay starts from the imported snapshot the
-/// corrections were applied on top of.
-fn create_temp_store(store: &PgStore, event_id: usize) -> PgStore {
-    let temp_store = PgStore::new_for_temp_stream(store.election);
-    if let Some(imported) = store.imported_snapshot() {
-        *temp_store.data.write() = imported;
-    }
-
-    store
-        .get_events()
-        .iter()
-        .take_while(|e| e.event_id <= event_id)
-        .for_each(|e| temp_store.apply_event(e.clone()));
-
-    temp_store
+    DocumentData::serve_download(bundles, filename, path.to_string(), &store, &replayed).await
 }
 
 #[cfg(test)]
@@ -348,7 +335,7 @@ mod tests {
         let person_id = person.id;
         person.create(&source).await?;
 
-        let events = source.data.read().events.clone();
+        let events = source.snapshot().events.clone();
         let snapshot = crate::PgStoreData::snapshot_until(&events, usize::MAX);
         let csb_store = CsbStore::new_for_test();
         csb_store

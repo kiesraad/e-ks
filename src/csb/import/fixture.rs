@@ -144,7 +144,7 @@ async fn has_fixture_import(
     election: ElectionConfig,
 ) -> Result<bool, AppError> {
     for store in registry.stores_for_election(election).await? {
-        let comes_from_fixtures = store.data.read().events.first().is_some_and(
+        let comes_from_fixtures = store.snapshot().events.first().is_some_and(
             |e| matches!(&e.payload.action, CsbAction::Import { hash, .. } if *hash == FIXTURE_IMPORT_HASH),
         );
         if comes_from_fixtures {
@@ -257,7 +257,7 @@ async fn import_fixture_group<S: AppRequestState>(
     let pg_store = PgStore::own(app_store.clone());
     crate::fixtures::load_for_group(&pg_store, group.political_group()).await?;
     fit_lists_to_maximum(&pg_store, group).await?;
-    let events = app_store.data.read().events.clone();
+    let events = app_store.snapshot().events.clone();
     let snapshot = PgStoreData::snapshot_until(&events, usize::MAX);
 
     let store = CsbStore::acting_as(
@@ -1107,7 +1107,7 @@ mod tests {
     #[tokio::test]
     async fn fixture_import_adds_omissions_in_every_category() {
         let store = fixture_store(ElectionConfig::EK27).await;
-        let omissions: Vec<Omission> = store.data.read().omissions.values().cloned().collect();
+        let omissions: Vec<Omission> = store.snapshot().omissions.values().cloned().collect();
 
         assert_eq!(omissions.len(), 7);
         assert!(
@@ -1170,7 +1170,7 @@ mod tests {
     #[tokio::test]
     async fn fixture_omissions_refer_to_imported_lists_and_candidates() {
         let store = fixture_store(ElectionConfig::EK27).await;
-        let omissions: Vec<Omission> = store.data.read().omissions.values().cloned().collect();
+        let omissions: Vec<Omission> = store.snapshot().omissions.values().cloned().collect();
 
         for omission in &omissions {
             for district in omission.electoral_districts(&store.election) {
@@ -1197,7 +1197,7 @@ mod tests {
     #[tokio::test]
     async fn single_district_election_gets_omissions_for_its_one_list() {
         let store = fixture_store(ElectionConfig::WS27(WaterCouncil::Rivierenland)).await;
-        let omissions: Vec<Omission> = store.data.read().omissions.values().cloned().collect();
+        let omissions: Vec<Omission> = store.snapshot().omissions.values().cloned().collect();
 
         // No other districts, and no candidate on more than one list.
         assert_eq!(omissions.len(), 7);

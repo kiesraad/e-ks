@@ -17,8 +17,9 @@ use super::{
     render_blocking,
 };
 use crate::{
-    AppError, Context, ElectionConfig, PgStore,
+    AppError, Context, ElectionConfig, PgStore, PgStoreData,
     core::{ModelLocale, ZipResponseWriter},
+    store::StoreData,
     structs::{
         candidate_lists::{CandidateListId, FullCandidateList},
         common::{HasSeverity, Problematic, Severity},
@@ -84,15 +85,15 @@ impl DocumentData {
     /// If there are fewer name authorisations than required, we add fill-ins that show up as
     /// empty spaces on the models.
     fn name_authorisations_with_fill_ins(
-        store: &PgStore,
+        data: &PgStoreData,
     ) -> Result<Vec<NameAuthorisation>, AppError> {
-        let name_authorisations = store.get_name_authorisations();
+        let name_authorisations = data.name_authorisations();
 
-        match store.get_political_group().list_designation {
+        match data.political_group().list_designation {
             Some(ListDesignation::Blank) => Ok(Vec::new()),
             Some(ListDesignation::Combined) => {
                 let mut auths: Vec<NameAuthorisation> =
-                    name_authorisations.iter().map(Into::into).collect();
+                    name_authorisations.iter().map(|na| (*na).into()).collect();
 
                 while auths.len() < 2 {
                     auths.push(NameAuthorisation::default());
@@ -109,7 +110,7 @@ impl DocumentData {
 
                 let auth = name_authorisations
                     .first()
-                    .map(Into::into)
+                    .map(|na| (*na).into())
                     .unwrap_or_default();
 
                 Ok(vec![auth])
@@ -122,7 +123,7 @@ impl DocumentData {
     /// Collecting the data first prevents errors popping up while the ZIP is streaming,
     /// and it is more efficient because we only collect everything once.
     pub fn new(
-        store: &PgStore,
+        data: &PgStoreData,
         context: &Context,
         list_id: CandidateListId,
         locale: ModelLocale,
@@ -134,10 +135,11 @@ impl DocumentData {
             ));
         }
 
-        let event_id = store.current_event_id();
-        let event_hash = store.current_event_hash();
+        let event_id = data.last_event_id();
+        let event_hash = data.last_event_hash();
 
-        let FullCandidateList { list, candidates } = FullCandidateList::get(store, list_id)?;
+        let FullCandidateList { list, candidates } =
+            FullCandidateList::get(data, election, list_id)?;
         let mut candidates = candidates.into_iter().map(|c| c.data).collect::<Vec<_>>();
 
         let ordered_candidates = ordered_candidates(&mut candidates, locale)?;
@@ -148,18 +150,19 @@ impl DocumentData {
 
         let electoral_districts = ElectoralDistricts::from(&list, &context.election);
 
-        let group = store.get_political_group();
+        let group = data.political_group();
         let appellation = group.pg_appellation()?;
 
-        let list_submitter = Self::complete_list_submitter(store)?;
+        let list_submitter = Self::complete_list_submitter(data)?;
 
-        let substitute_submitters = store
-            .get_substitute_submitters()
-            .into_iter()
+        let substitute_submitters = data
+            .substitute_submitters()
+            .iter()
+            .cloned()
             .map(Person::from)
             .collect();
 
-        let nomination = eml210(store, &election, &group, list_id, locale)?;
+        let nomination = eml210(data, &election, group, list_id, locale)?;
         let folder_name = format!(
             "{}-{}",
             match locale {
@@ -188,15 +191,15 @@ impl DocumentData {
             list_designation: group.list_designation.unwrap_or_default(),
             list_submitter,
             substitute_submitters,
-            name_authorisations: Self::name_authorisations_with_fill_ins(store)?,
+            name_authorisations: Self::name_authorisations_with_fill_ins(data)?,
             nomination,
         })
     }
 
     /// The list submitter as a model person, or an error when it is missing
     /// or incomplete.
-    fn complete_list_submitter(store: &PgStore) -> Result<Person, AppError> {
-        let list_submitter = store.get_list_submitter();
+    fn complete_list_submitter(data: &PgStoreData) -> Result<Person, AppError> {
+        let list_submitter = data.list_submitter().clone();
         if list_submitter.is_empty()
             || list_submitter
                 .get_problems(())
@@ -208,12 +211,12 @@ impl DocumentData {
     }
 
     pub fn from_store_and_context(
-        store: &PgStore,
+        data: &PgStoreData,
         context: &Context,
         locale: ModelLocale,
     ) -> Result<(Vec<Self>, String), AppError> {
-        let list_ids = store
-            .get_candidate_lists()
+        let list_ids = data
+            .candidate_lists()
             .into_iter()
             .map(|list| list.id)
             .collect::<Vec<_>>();
@@ -223,14 +226,14 @@ impl DocumentData {
         }
 
         let bundles = if list_ids.len() == 1 {
-            let mut bundle = Self::new(store, context, list_ids[0], locale)?;
+            let mut bundle = Self::new(data, context, list_ids[0], locale)?;
             bundle.folder_name = None;
 
             vec![bundle]
         } else {
             list_ids
                 .iter()
-                .map(|&list_id| Self::new(store, context, list_id, locale))
+                .map(|&list_id| Self::new(data, context, list_id, locale))
                 .collect::<Result<Vec<_>, _>>()?
         };
         let filename = bundles[0].archive_filename();
@@ -240,21 +243,21 @@ impl DocumentData {
     /// Record a document download as a `DownloadFile` audit event and stream
     /// the bundles as a zip response.
     ///
-    /// The audit event is written to `event_store`. `document_store` is the
-    /// (possibly historical) store the bundles were generated from; it is only
-    /// used for the candidate-list count in the log line, which differs from
-    /// `event_store` when serving documents for a past event.
+    /// The audit event is written to `event_store`. `document_data` is the
+    /// (possibly historical) projection the bundles were generated from; it
+    /// is only used for the candidate-list count in the log line, which
+    /// differs from the store's when serving documents for a past event.
     pub async fn serve_download(
         bundles: Vec<Self>,
         filename: String,
         download_path: String,
         event_store: &PgStore,
-        document_store: &PgStore,
+        document_data: &PgStoreData,
     ) -> Result<Response, AppError> {
         tracing::info!(
             filename,
             content_type = ZIP_CONTENT_TYPE,
-            lists = document_store.get_candidate_list_count(),
+            lists = document_data.candidate_list_count(),
             "file download served",
         );
 

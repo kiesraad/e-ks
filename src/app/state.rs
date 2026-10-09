@@ -197,7 +197,7 @@ impl AppState {
         {
             self.store_registry
                 .get_or_create_with_init(stream_id, election, |store| async move {
-                    if store.data.read().events.is_empty() && load_fixtures {
+                    if store.snapshot().events.is_empty() && load_fixtures {
                         crate::fixtures::load(&PgStore::own(store), None).await?;
                     }
                     Ok(())

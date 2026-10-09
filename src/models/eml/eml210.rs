@@ -18,9 +18,10 @@ use eml_nl::{
 };
 
 use crate::{
-    AppError, ElectionConfig, PgStore,
+    AppError, ElectionConfig, PgStoreData,
     core::ModelLocale,
     models::eml::candidate_identifier,
+    store::StoreData,
     structs::{
         candidate_lists::{CandidateList, CandidateListId, FullCandidateList},
         candidates::Candidate,
@@ -151,19 +152,19 @@ fn nomination_proposer(
 
 /// The list submitter and its deputies as nomination proposers
 fn nominated_proposers(
-    store: &PgStore,
+    data: &PgStoreData,
 ) -> Result<Vec<eml_nl::documents::nomination::NominationProposer>, AppError> {
-    let substitutes = store.get_substitute_submitters();
+    let substitutes = data.substitute_submitters();
     let mut nominated = Vec::with_capacity(1 + substitutes.len());
     nominated.push(nomination_proposer(
-        store.get_list_submitter(),
+        data.list_submitter().clone(),
         eml_nl::documents::nomination::NominationJobTitle::Submitter,
         None,
     )?);
 
-    for (i, sub) in substitutes.into_iter().enumerate() {
+    for (i, sub) in substitutes.iter().enumerate() {
         nominated.push(nomination_proposer(
-            sub,
+            sub.clone(),
             eml_nl::documents::nomination::NominationJobTitle::DeputySubmitter,
             Some((i + 1).to_string().into()),
         )?);
@@ -196,21 +197,21 @@ fn list_data(list: &CandidateList, locale: ModelLocale) -> Result<ListData, AppE
 
 /// Build the EML 210 candidate nomination XML for a candidate list
 pub fn eml210(
-    store: &PgStore,
+    data: &PgStoreData,
     election: &ElectionConfig,
     political_group: &PoliticalGroup,
     list_id: CandidateListId,
     locale: ModelLocale,
 ) -> Result<Vec<u8>, AppError> {
-    let FullCandidateList { list, candidates } = FullCandidateList::get(store, list_id)?;
+    let FullCandidateList { list, candidates } = FullCandidateList::get(data, *election, list_id)?;
 
-    let nominated = nominated_proposers(store)?;
+    let nominated = nominated_proposers(data)?;
     let list_data = list_data(&list, locale)?;
 
     let now = chrono::Utc::now();
     let nomination = Nomination::builder()
         .transaction_id(
-            u64::try_from(store.current_event_id()).map_err(|_| AppError::InternalServerError)?,
+            u64::try_from(data.last_event_id()).map_err(|_| AppError::InternalServerError)?,
         )
         .managing_authority(
             ManagingAuthority::new(AuthorityIdentifier::new(AuthorityId::new("0000")?))
@@ -314,7 +315,7 @@ mod tests {
 
         list.create(store).await?;
 
-        FullCandidateList::get(store, list_id)
+        FullCandidateList::get(&store.snapshot(), store.election, list_id)
     }
 
     async fn check_eml(response: &str, expected: &str) {
@@ -341,7 +342,7 @@ mod tests {
 
         // test
         let eml = eml210(
-            &store,
+            &store.snapshot(),
             &context.election,
             &store.get_political_group(),
             list.id(),
@@ -369,7 +370,7 @@ mod tests {
 
         // test
         let eml = eml210(
-            &store,
+            &store.snapshot(),
             &context.election,
             &store.get_political_group(),
             list.id(),
@@ -398,7 +399,7 @@ mod tests {
 
         // test
         let eml = eml210(
-            &store,
+            &store.snapshot(),
             &context.election,
             &store.get_political_group(),
             list.id(),
@@ -426,7 +427,7 @@ mod tests {
 
         // test
         let eml = eml210(
-            &store,
+            &store.snapshot(),
             &context.election,
             &store.get_political_group(),
             list.id(),

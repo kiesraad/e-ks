@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 use uuid::Uuid;
 
 use crate::{
-    AppError, PgStore,
+    AppError, ElectionConfig, ElectoralDistrict, PgStore,
     pagination::SortDirection,
     structs::{
         candidate_lists::CandidateList,
@@ -15,6 +15,18 @@ const FIXTURE_CANDIDATE_LIST_SIZE: usize = 55;
 
 fn collect_person_ids(persons: Vec<Person>) -> Vec<PersonId> {
     persons.into_iter().map(|person| person.id).collect()
+}
+
+/// The first `count` districts no list claims yet.
+fn next_available_districts(
+    store: &PgStore,
+    election: &ElectionConfig,
+    count: usize,
+) -> BTreeSet<ElectoralDistrict> {
+    CandidateList::available_districts(&store.snapshot(), election)
+        .into_iter()
+        .take(count)
+        .collect()
 }
 
 pub async fn load(store: &PgStore) -> Result<(), AppError> {
@@ -53,10 +65,7 @@ pub async fn load(store: &PgStore) -> Result<(), AppError> {
         return Ok(());
     }
 
-    let second_districts: BTreeSet<_> = CandidateList::available_districts(store, &election)
-        .into_iter()
-        .take(2)
-        .collect();
+    let second_districts = next_available_districts(store, &election, 2);
 
     CandidateList {
         id: Uuid::new_v5(&Uuid::NAMESPACE_OID, b"the_second_fixture_candidate_list").into(),
@@ -67,10 +76,7 @@ pub async fn load(store: &PgStore) -> Result<(), AppError> {
     .create(store)
     .await?;
 
-    let remaining: BTreeSet<_> = CandidateList::available_districts(store, &election)
-        .into_iter()
-        .take(4)
-        .collect();
+    let remaining = next_available_districts(store, &election, 4);
 
     if remaining.is_empty() {
         return Ok(());
@@ -102,7 +108,7 @@ mod tests {
         crate::fixtures::persons::load(&store).await.unwrap();
         load(&store).await.unwrap();
 
-        let lists = CandidateListSummary::list(&store);
+        let lists = CandidateListSummary::list(&store.snapshot(), store.election);
 
         assert_eq!(lists.len(), 3);
         assert_eq!(lists[0].candidate_count(), FIXTURE_CANDIDATE_LIST_SIZE);
@@ -124,7 +130,7 @@ mod tests {
         crate::fixtures::persons::load(&store).await.unwrap();
         load(&store).await.unwrap();
 
-        let lists = CandidateListSummary::list(&store);
+        let lists = CandidateListSummary::list(&store.snapshot(), store.election);
 
         assert_eq!(lists.len(), 1);
         assert_eq!(
@@ -144,7 +150,7 @@ mod tests {
         crate::fixtures::persons::load(&store).await.unwrap();
         load(&store).await.unwrap();
 
-        let lists = CandidateListSummary::list(&store);
+        let lists = CandidateListSummary::list(&store.snapshot(), store.election);
 
         assert_eq!(lists.len(), 2);
         for list in &lists {

@@ -27,6 +27,8 @@ pub use stream_id::StreamId;
 
 pub(crate) use event::{chain_hash, event_aad};
 
+use std::sync::Arc;
+
 use chrono::{DateTime, Utc};
 use serde::de::DeserializeOwned;
 
@@ -48,7 +50,7 @@ pub struct StreamMeta {
     pub last_event_at: Option<DateTime<Utc>>,
 }
 
-pub trait StoreData: Default + Send + Sync + 'static {
+pub trait StoreData: Default + Clone + Send + Sync + 'static {
     type Event: Event;
 
     /// Apply a fully wrapped store event to the data projection.
@@ -119,14 +121,15 @@ pub(crate) fn check_expected_event_id(
 ///
 /// `events` yields the stored events in ascending event order; events at or
 /// below the projection's last ID are skipped. Shared by the filesystem and
-/// database backends.
+/// database backends. The projection is only cloned (see [`Store::write`])
+/// when an event is actually applied, so a replay with nothing new is free.
 ///
 /// A payload this build can no longer decode does not fail the load: replay
 /// stops there and reports the id in [`Replay::truncated_at`], leaving the
 /// projection deliberately incomplete, so callers must refuse to append on top
 /// of it. Unreadable bytes and a broken hash chain stay hard errors.
 pub(crate) fn apply_encrypted_events<D>(
-    data: &mut D,
+    data: &mut Arc<D>,
     cipher: &EventCipher,
     events: impl IntoIterator<Item = EncryptedEvent>,
 ) -> Result<Replay, AppError>
@@ -173,7 +176,7 @@ where
         }
 
         match cipher.decrypt::<D::Event>(encrypted_payload, &aad) {
-            Ok(payload) => data.apply(StoreEvent {
+            Ok(payload) => Arc::make_mut(data).apply(StoreEvent {
                 event_id,
                 payload,
                 created_at,

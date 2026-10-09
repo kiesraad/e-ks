@@ -12,6 +12,17 @@ use std::{
 /// Type alias for application responses
 pub type AppResponse<T> = Result<T, AppError>;
 
+/// Turn a missing value into a not-found response.
+pub trait OrNotFound<T> {
+    fn or_not_found(self) -> Result<T, AppError>;
+}
+
+impl<T> OrNotFound<T> for Option<T> {
+    fn or_not_found(self) -> Result<T, AppError> {
+        self.ok_or(AppError::GenericNotFound)
+    }
+}
+
 /// Application wide error enum
 #[derive(Default, Debug)]
 pub enum AppError {

@@ -113,7 +113,8 @@ mod tests {
         person.create(&store).await?;
         list.clone().update_order(&store, &[person.id]).await?;
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
         let candidate = store
             .get_candidate_list(list_id)?
             .get_candidate(&store, person.id)
@@ -151,7 +152,8 @@ mod tests {
         person.create(&store).await?;
         list.clone().update_order(&store, &[person.id]).await?;
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
         let candidate = store
             .get_candidate_list(list_id)?
             .get_candidate(&store, person.id)
@@ -193,7 +195,8 @@ mod tests {
         person.create(&store).await?;
         list.clone().update_order(&store, &[person.id]).await?;
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
         let candidate = store
             .get_candidate_list(list_id)?
             .get_candidate(&store, person.id)
@@ -251,7 +254,8 @@ mod tests {
         person.create(&store).await?;
         list.clone().update_order(&store, &[person.id]).await?;
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
         let candidate = store
             .get_candidate_list(list_id)?
             .get_candidate(&store, person.id)

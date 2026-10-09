@@ -330,7 +330,7 @@ where
             stream_id,
             election,
             backend,
-            data: Arc::new(parking_lot::RwLock::new(D::default())),
+            data: Arc::new(parking_lot::RwLock::new(Arc::default())),
         })
     }
 
@@ -424,7 +424,7 @@ where
                 // Record the hash in the shared index so cross-stream lookups
                 // (by scope, by hash prefix) resolve like the other backends.
                 memory::record_event(store, self.stream_id, self.election, event_id, hash);
-                data.apply(StoreEvent {
+                Arc::make_mut(&mut data).apply(StoreEvent {
                     event_id,
                     payload: event,
                     created_at,
@@ -508,7 +508,7 @@ mod tests {
         }
     }
 
-    #[derive(Default)]
+    #[derive(Default, Clone)]
     struct TestData {
         events: Vec<StoreEvent<usize>>,
         applied: Vec<usize>,
@@ -532,14 +532,7 @@ mod tests {
     }
 
     fn test_store() -> Store<TestData> {
-        Store {
-            stream_id: StreamId::new(),
-            election: TEST_ELECTION,
-            backend: StoreBackend::Memory {
-                store: MemoryStore::default(),
-            },
-            data: std::sync::Arc::new(parking_lot::RwLock::new(TestData::default())),
-        }
+        Store::new_temp(StreamId::new(), TEST_ELECTION, Arc::default())
     }
 
     #[tokio::test]
@@ -549,7 +542,7 @@ mod tests {
         store.update(10).await?;
         store.update(11).await?;
 
-        let data = store.data.read();
+        let data = store.snapshot();
         assert_eq!(data.last_event_id(), 2);
         assert_eq!(data.applied, vec![10, 11]);
 
@@ -583,7 +576,7 @@ mod tests {
         .await?;
         fresh.load().await?;
 
-        let data = fresh.data.read();
+        let data = fresh.snapshot();
         assert_eq!(data.last_event_id(), 2);
         assert_eq!(data.applied, vec![10, 20]);
 
@@ -700,7 +693,7 @@ mod tests {
             .await
             .expect_err("load must fail for events encrypted with another stream's key");
         assert!(matches!(err, AppError::EventDecodeError(_)));
-        assert!(store_b.data.read().applied.is_empty());
+        assert!(store_b.snapshot().applied.is_empty());
 
         Ok(())
     }

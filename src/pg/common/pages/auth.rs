@@ -336,7 +336,7 @@ mod tests {
         let token = Cookie::parse(cookie).unwrap().value().to_string();
 
         let recorded = |store: &PgStore, want: fn(&PgEvent) -> bool| {
-            store.data.read().events().iter().any(|e| want(&e.payload))
+            store.snapshot().events().iter().any(|e| want(&e.payload))
         };
         assert!(
             recorded(&store, |e| matches!(e, PgEvent::Login)),

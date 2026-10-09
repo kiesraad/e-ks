@@ -790,8 +790,8 @@ parameterized over a projection type `D`:
   package on the CSB side), and `CsbMainStoreData` (committee-wide events).
 - **`Store<D>`** is a handle scoped to a single `(stream_id, election)` pair. It
   owns the persistence backend, the per-stream encryption cipher, and the
-  in-memory projection as an `Arc<RwLock<D>>`. Cloning a `Store` is cheap: the
-  clone shares the same projection and persistence.
+  in-memory projection as an `Arc<RwLock<Arc<D>>>`. Cloning a `Store` is cheap:
+  the clone shares the same projection and persistence.
 - **`StoreRegistry<D>`** caches one `Store` per `(stream_id, election)` in a
   map behind a `RwLock`. `AppState` holds three registries, one per projection
   type, all sharing a single `StorePersistence` backend and master key.
@@ -831,8 +831,13 @@ Two operations drive a `Store`:
   writer already advanced the projection past this event's id, the duplicate
   apply is skipped.
 
-The projection sits behind a `parking_lot::RwLock`: reads take a read lock,
-event application takes a write lock.
+The projection sits behind a `parking_lot::RwLock` and is copy-on-write.
+`snapshot()` clones the inner `Arc` under the read lock and releases it at
+once, so a request works on one immutable snapshot and never holds the lock
+while computing; a snapshot taken before a write does not observe it. Event
+application takes the write lock and mutates in place, cloning the projection
+first only when a snapshot is still alive (`Arc::make_mut`). Replaying
+persisted events clones lazily too: a `load()` with nothing new is free.
 
 ### Storage backend
 

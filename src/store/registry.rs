@@ -279,8 +279,7 @@ where
             cached
                 .iter()
                 .filter_map(|((id, election), entry)| {
-                    (*id == stream_id && entry.store.data.read().last_event_id() > 0)
-                        .then_some(*election)
+                    (*id == stream_id && entry.store.current_event_id() > 0).then_some(*election)
                 })
                 .collect()
         };

@@ -367,7 +367,7 @@ mod tests {
             .await
             .expect("main store");
         assert!(matches!(
-            store.data.read().events.as_slice(),
+            store.snapshot().events.as_slice(),
             &[StoreEvent {
                 payload: crate::CsbMainEvent {
                     user: CsbUser::Github { .. },
@@ -409,7 +409,7 @@ mod tests {
             .await
             .expect("main store");
         assert!(
-            store.data.read().events.iter().any(|event| matches!(
+            store.snapshot().events.iter().any(|event| matches!(
                 event.payload,
                 crate::CsbMainEvent {
                     user: CsbUser::Github { .. },

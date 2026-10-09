@@ -6,9 +6,11 @@ pub use event::{CsbAction, CsbEvent};
 pub use getters::WithCorrections;
 pub use scrapped::Scrapped;
 
-use std::collections::{HashMap, hash_map::Entry};
+use std::{
+    collections::{HashMap, hash_map::Entry},
+    sync::Arc,
+};
 
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[cfg(test)]
@@ -29,10 +31,18 @@ use crate::{
 
 /// Event-sourced domain projection for a single (stream, election) pair on the
 /// CSB side.
-#[derive(Debug, Default, Serialize, Deserialize)]
+///
+/// The political group's data is kept in three versions, picked by
+/// [`WithCorrections`] through [`CsbStoreData::view`]. They are shared by
+/// `Arc` so a paper-corrections [`crate::PgStore`] can serve one without
+/// copying it; [`Self::paper_corrected_mut`] copies on write.
+#[derive(Debug, Default, Clone)]
 pub struct CsbStoreData {
-    pub(crate) imported_data: PgStoreData,
-    pub(crate) paper_corrected_data: PgStoreData,
+    pub(crate) imported_data: Arc<PgStoreData>,
+    pub(crate) paper_corrected_data: Arc<PgStoreData>,
+    /// `paper_corrected_data` with the ambtshalve corrections applied; derived
+    /// again after every event that touches either.
+    pub(crate) csb_corrected_data: Arc<PgStoreData>,
     pub(crate) events: Vec<StoreEvent<CsbEvent>>,
     pub(crate) is_examination_finished: bool,
     pub(crate) is_deleted: bool,
@@ -123,17 +133,74 @@ impl StoreData for CsbStoreData {
 }
 
 impl CsbStoreData {
+    /// The political group's data with the given corrections applied.
+    pub fn view(&self, corrections: WithCorrections) -> &PgStoreData {
+        self.shared_view(corrections)
+    }
+
+    /// [`Self::view`], as the shared pointer a request-local projection can
+    /// hold on to.
+    pub(crate) fn shared_view(&self, corrections: WithCorrections) -> &Arc<PgStoreData> {
+        match corrections {
+            WithCorrections::None => &self.imported_data,
+            WithCorrections::Paper => &self.paper_corrected_data,
+            WithCorrections::All => &self.csb_corrected_data,
+        }
+    }
+
+    /// Mutable paper-corrected projection, copied first when a snapshot still
+    /// shares it. Follow up with [`Self::refresh_derived`].
+    pub(crate) fn paper_corrected_mut(&mut self) -> &mut PgStoreData {
+        Arc::make_mut(&mut self.paper_corrected_data)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn imported_mut(&mut self) -> &mut PgStoreData {
+        Arc::make_mut(&mut self.imported_data)
+    }
+
     /// Derive what is scrapped from the current omissions and corrected data.
     pub(crate) fn refresh_scrapped(&mut self) {
         self.scrapped = Scrapped::derive(&self.paper_corrected_data, &self.omissions);
     }
 
+    /// Derive the CSB-corrected projection: the paper-corrected data with the
+    /// ambtshalve corrections on top. Shares the paper data while there are
+    /// none.
+    pub(crate) fn refresh_csb_corrected(&mut self) {
+        if self.csb_corrected_persons.is_empty() && self.csb_corrected_appellation.is_none() {
+            self.csb_corrected_data = Arc::clone(&self.paper_corrected_data);
+            return;
+        }
+
+        let mut data = (*self.paper_corrected_data).clone();
+        if let Some(appellation) = &self.csb_corrected_appellation {
+            data.political_group.appellation = Some(appellation.clone());
+        }
+        for (person_id, delta) in &self.csb_corrected_persons {
+            if let Some(person) = data.persons.get_mut(person_id) {
+                delta.apply(person);
+            }
+        }
+        self.csb_corrected_data = Arc::new(data);
+    }
+
+    /// Everything derived from the projections and the overlay.
+    #[cfg(test)]
+    pub(crate) fn refresh_derived(&mut self) {
+        self.refresh_csb_corrected();
+        self.refresh_scrapped();
+    }
+
     /// Take over an imported package as both projections. `import` becomes
     /// event #1 of the corrected one, starting its audit log.
-    fn apply_import(&mut self, snapshot: PgStoreData, import: StoreEvent<crate::PgEvent>) {
-        self.imported_data = snapshot;
-        self.paper_corrected_data = self.imported_data.clone();
-        self.paper_corrected_data.apply(import);
+    fn apply_import(&mut self, mut snapshot: PgStoreData, import: StoreEvent<crate::PgEvent>) {
+        snapshot.normalise_submitter_flags();
+        let mut corrected = snapshot.clone();
+        corrected.apply(import);
+        self.imported_data = Arc::new(snapshot);
+        self.paper_corrected_data = Arc::new(corrected);
+        self.refresh_csb_corrected();
     }
 
     /// Flag every finding of this candidate that is `finding`; a finding that
@@ -293,7 +360,8 @@ impl CsbStoreData {
             self.forget_brp_check(person_id);
         }
 
-        self.paper_corrected_data.apply(event);
+        self.paper_corrected_mut().apply(event);
+        self.refresh_csb_corrected();
     }
 
     /// Record a CSB correction. Correcting a value back to the one already in
@@ -316,6 +384,8 @@ impl CsbStoreData {
                 self.apply_person_correction(person_id, correction)
             }
         }
+
+        self.refresh_csb_corrected();
     }
 
     fn apply_person_correction(&mut self, person_id: PersonId, correction: PersonCorrection) {
@@ -374,55 +444,78 @@ fn candidates_changed_by(event: &PgEvent) -> Vec<PersonId> {
 #[cfg(test)]
 impl crate::CsbStream {
     pub fn new_for_test() -> Self {
-        use crate::StreamId;
-
-        crate::store::Store {
-            stream_id: StreamId::new(),
-            election: crate::ElectionConfig::EK27,
-            backend: crate::store::StoreBackend::Memory {
-                store: crate::store::memory::MemoryStore::default(),
-            },
-            data: std::sync::Arc::new(parking_lot::RwLock::new(CsbStoreData::default())),
-        }
+        Self::new_for_test_with_election(crate::ElectionConfig::EK27)
     }
 
-    /// Test setters write both projections, mirroring the state right after an
-    /// import (which seeds `paper_corrected_data` from the imported snapshot).
+    pub fn new_for_test_with_election(election: crate::ElectionConfig) -> Self {
+        crate::store::Store::new_temp(crate::StreamId::new(), election, Arc::default())
+    }
+
+    /// Mutate the projection directly, then refresh what is derived from it.
+    pub fn edit(&self, f: impl FnOnce(&mut CsbStoreData)) {
+        let mut data = self.write();
+        f(&mut data);
+        data.refresh_derived();
+    }
+
     pub fn set_political_group(&self, political_group: PoliticalGroup) {
-        let mut data = self.data.write();
-        data.imported_data.political_group = political_group.clone();
-        data.paper_corrected_data.political_group = political_group;
-        data.refresh_scrapped();
+        self.edit(|data| data.set_political_group(political_group));
     }
 
     pub fn add_candidate_list(&self, list: crate::structs::candidate_lists::CandidateList) {
-        let mut data = self.data.write();
-        data.imported_data
-            .candidate_lists
-            .insert(list.id, list.clone());
-        data.paper_corrected_data
-            .candidate_lists
-            .insert(list.id, list);
-        data.refresh_scrapped();
+        self.edit(|data| data.add_candidate_list(list));
     }
 
-    /// Test setter writing only the corrected projection, mirroring a list
-    /// added during paper corrections.
     pub fn set_paper_corrected_candidate_list(
         &self,
         list: crate::structs::candidate_lists::CandidateList,
     ) {
-        let mut data = self.data.write();
-        data.paper_corrected_data
-            .candidate_lists
-            .insert(list.id, list);
-        data.refresh_scrapped();
+        self.edit(|data| data.set_paper_corrected_candidate_list(list));
     }
 
     pub fn add_person(&self, person: crate::structs::persons::Person) {
-        let mut data = self.data.write();
-        data.imported_data.persons.insert(person.id, person.clone());
-        data.paper_corrected_data.persons.insert(person.id, person);
+        self.edit(|data| data.add_person(person));
+    }
+}
+
+/// Test setters write both projections, mirroring the state right after an
+/// import (which seeds `paper_corrected_data` from the imported snapshot).
+#[cfg(test)]
+impl CsbStoreData {
+    pub fn set_political_group(&mut self, political_group: PoliticalGroup) {
+        self.imported_mut().political_group = political_group.clone();
+        self.paper_corrected_mut().political_group = political_group;
+        self.refresh_derived();
+    }
+
+    pub fn add_candidate_list(&mut self, list: crate::structs::candidate_lists::CandidateList) {
+        self.imported_mut()
+            .candidate_lists
+            .insert(list.id, list.clone());
+        self.paper_corrected_mut()
+            .candidate_lists
+            .insert(list.id, list);
+        self.refresh_derived();
+    }
+
+    /// Writes only the corrected projection, mirroring a list added during
+    /// paper corrections.
+    pub fn set_paper_corrected_candidate_list(
+        &mut self,
+        list: crate::structs::candidate_lists::CandidateList,
+    ) {
+        self.paper_corrected_mut()
+            .candidate_lists
+            .insert(list.id, list);
+        self.refresh_derived();
+    }
+
+    pub fn add_person(&mut self, person: crate::structs::persons::Person) {
+        self.imported_mut()
+            .persons
+            .insert(person.id, person.clone());
+        self.paper_corrected_mut().persons.insert(person.id, person);
+        self.refresh_derived();
     }
 }
 
@@ -573,6 +666,59 @@ mod tests {
         assert_eq!(data.omissions[&omission.id].status, OmissionStatus::Pending);
     }
 
+    /// The CSB-corrected projection shares the paper data until an ambtshalve
+    /// correction lands, and goes back to sharing it once undone.
+    #[test]
+    fn csb_corrected_data_is_shared_until_corrected() {
+        let person = sample_person(PersonId::new());
+        let mut data = CsbStoreData::default();
+        data.apply(StoreEvent::new(1, import_event_with_person(person.clone())));
+        assert!(Arc::ptr_eq(
+            &data.paper_corrected_data,
+            &data.csb_corrected_data
+        ));
+
+        data.apply(StoreEvent::new(
+            2,
+            CsbAction::UpdateCorrection(Correction::Person(
+                person.id,
+                PersonCorrection::LastName(LastName::from_str("Smit").unwrap()),
+            ))
+            .by(CsbUser::new_test()),
+        ));
+        assert!(!Arc::ptr_eq(
+            &data.paper_corrected_data,
+            &data.csb_corrected_data
+        ));
+        assert_eq!(
+            data.view(WithCorrections::All).persons[&person.id]
+                .name
+                .last_name
+                .to_string(),
+            "Smit"
+        );
+        assert_eq!(
+            data.view(WithCorrections::Paper).persons[&person.id]
+                .name
+                .last_name
+                .to_string(),
+            "Jansen"
+        );
+
+        data.apply(StoreEvent::new(
+            3,
+            CsbAction::UpdateCorrection(Correction::Person(
+                person.id,
+                PersonCorrection::LastName(person.name.last_name),
+            ))
+            .by(CsbUser::new_test()),
+        ));
+        assert!(Arc::ptr_eq(
+            &data.paper_corrected_data,
+            &data.csb_corrected_data
+        ));
+    }
+
     #[test]
     fn import_seeds_paper_corrected_data_from_the_snapshot() {
         let mut data = CsbStoreData::default();
@@ -616,7 +762,7 @@ mod tests {
         let mut data = CsbStoreData::default();
         let person = sample_person(PersonId::new());
 
-        data.paper_corrected_data
+        data.paper_corrected_mut()
             .persons
             .insert(person.id, person.clone());
         data.apply(StoreEvent::new(
@@ -723,7 +869,7 @@ mod tests {
     #[test]
     fn undoing_csb_correction_on_appellation_removes_csb_correction() {
         let mut data = CsbStoreData::default();
-        data.paper_corrected_data.political_group.appellation =
+        data.paper_corrected_mut().political_group.appellation =
             Some(Appellation::from_str("Partij").unwrap());
         data.csb_corrected_appellation =
             Some(Appellation::from_str("Gecorrigeerde Partij").unwrap());

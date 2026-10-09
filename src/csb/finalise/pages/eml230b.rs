@@ -193,10 +193,7 @@ mod tests {
     /// A test [`CsbMainStore`] scoped to `election`, since
     /// [`CsbMainStore::new_for_test`] always scopes to EK27.
     fn main_store_for(election: ElectionConfig) -> CsbMainStore {
-        CsbMainStore {
-            election,
-            ..CsbMainStore::new_for_test()
-        }
+        CsbMainStore::new_for_test_with_election(election)
     }
 
     /// A blank list ("Blanco") has no `RegisteredName`, the way the

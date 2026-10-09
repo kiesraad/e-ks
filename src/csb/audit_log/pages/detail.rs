@@ -6,8 +6,8 @@ use axum::{
 use chrono::{DateTime, Utc};
 
 use crate::{
-    AppError, AppRequestState, Context, CsbAction, CsbContext, CsbEvent, CsbMainStore, CsbStream,
-    ElectionConfig, Event, HasCsbUser, HtmlTemplate, Locale, Overlay, QueryParamState,
+    AppError, AppRequestState, Context, CsbAction, CsbContext, CsbEvent, CsbMainStore,
+    CsbStoreData, Event, HasCsbUser, HtmlTemplate, Locale, Overlay, QueryParamState,
     csb::audit_log::pages::CsbAuditLogDetailPath,
     filters,
     projection::{CSB_MAIN_STREAM_ID, WithCorrections},
@@ -56,7 +56,6 @@ impl CsbEventDetail {
 fn correction_changes(
     events: &[StoreEvent<CsbEvent>],
     event_id: usize,
-    election: ElectionConfig,
     locale: Locale,
 ) -> Vec<FieldChange> {
     let Some(index) = events.iter().position(|e| e.event_id == event_id) else {
@@ -66,28 +65,26 @@ fn correction_changes(
         return vec![];
     };
 
-    let before = CsbStream::new_for_temp_stream(election);
-    {
-        let mut data = before.data.write();
-        for event in &events[..index] {
-            data.apply(event.clone());
-        }
+    let mut before = CsbStoreData::default();
+    for event in &events[..index] {
+        before.apply(event.clone());
     }
+    let before = before.view(WithCorrections::All);
 
     let change = match correction {
         Correction::Appellation(appellation) => FieldChange::Regular {
             field: trans!("audit_log.detail.fields.appellation", locale),
             old_value: before
-                .get_political_group(WithCorrections::All)
+                .political_group()
                 .appellation
-                .map(|a| a.to_string())
+                .as_ref()
+                .map(ToString::to_string)
                 .unwrap_or_default(),
             new_value: appellation.to_string(),
         },
-        Correction::Person(person_id, person_correction) => person_correction.change(
-            before.get_person(*person_id, WithCorrections::All).as_ref(),
-            locale,
-        ),
+        Correction::Person(person_id, person_correction) => {
+            person_correction.change(before.person(*person_id), locale)
+        }
     };
     vec![change]
 }
@@ -111,7 +108,7 @@ pub async fn csb_audit_log_detail<S: AppRequestState>(
 ) -> Result<impl IntoResponse, AppError> {
     let locale = context.session.locale;
     let detail = if stream_id == CSB_MAIN_STREAM_ID {
-        let data = main_store.data.read();
+        let data = main_store.snapshot();
         CsbEventDetail::find(
             &data.events,
             event_id,
@@ -141,9 +138,9 @@ pub async fn csb_audit_log_detail<S: AppRequestState>(
         } else {
             trans!("audit_log.filter.pre_submission_stream", locale, label)
         };
-        let data = store.data.read();
+        let data = store.snapshot();
         let mut detail = CsbEventDetail::find(&data.events, event_id, label, locale)?;
-        detail.changes = correction_changes(&data.events, event_id, context.election, locale);
+        detail.changes = correction_changes(&data.events, event_id, locale);
         detail
     };
 
@@ -223,7 +220,7 @@ mod tests {
         let submission = crate::PgStore::new_for_test();
         let person = sample_person(PersonId::new());
         person.create(&submission).await?;
-        let snapshot = Box::new(submission.data.read().clone());
+        let snapshot = Box::new((*submission.snapshot()).clone());
         store
             .update(
                 CsbAction::Import {

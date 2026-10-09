@@ -433,7 +433,7 @@ mod tests {
         }
     }
 
-    #[derive(Default)]
+    #[derive(Default, Clone)]
     struct TestData {
         events: Vec<StoreEvent<TestEvent>>,
     }
@@ -480,7 +480,7 @@ mod tests {
         }
     }
 
-    #[derive(Default)]
+    #[derive(Default, Clone)]
     struct WiderTestData {
         events: Vec<StoreEvent<WiderTestEvent>>,
     }
@@ -536,14 +536,7 @@ mod tests {
     }
 
     fn test_store(stream_id: StreamId) -> Store<TestData> {
-        Store {
-            stream_id,
-            election: TEST_ELECTION,
-            backend: crate::store::StoreBackend::Memory {
-                store: super::super::memory::MemoryStore::default(),
-            },
-            data: Arc::new(RwLock::new(TestData::default())),
-        }
+        Store::new_temp(stream_id, TEST_ELECTION, Arc::default())
     }
 
     /// A fresh stream cipher, as a real store would unwrap from its key file.
@@ -564,7 +557,7 @@ mod tests {
                 dir: dir.to_path_buf(),
                 cipher: Box::new(cipher.clone()),
             },
-            data: Arc::new(RwLock::new(D::default())),
+            data: Arc::new(RwLock::new(Arc::default())),
         }
     }
 
@@ -606,7 +599,7 @@ mod tests {
         let fresh = test_store(stream_id);
         replay_from_file(&fresh, &dir, &cipher).await?;
 
-        let data = fresh.data.read();
+        let data = fresh.snapshot();
         assert_eq!(data.last_event_id(), 2);
         assert_ne!(data.last_event_hash(), GENESIS_HASH);
         let applied: Vec<(usize, TestEvent)> = data
@@ -669,7 +662,7 @@ mod tests {
             .await
             .expect_err("tampering must be detected");
         assert!(matches!(err, AppError::EventDecodeError(_)));
-        assert!(fresh.data.read().events.is_empty());
+        assert!(fresh.snapshot().events.is_empty());
 
         Ok(())
     }
@@ -717,8 +710,8 @@ mod tests {
         assert_eq!(replay.truncated_at, Some(2));
         // The chain tip is the last stored event, not the last applied one.
         assert_eq!(replay.chain_tip, hash2);
-        assert_eq!(store.data.read().last_event_id(), 1);
-        assert_eq!(store.data.read().last_event_hash(), hash1);
+        assert_eq!(store.snapshot().last_event_id(), 1);
+        assert_eq!(store.snapshot().last_event_hash(), hash1);
 
         // Reading degraded gracefully, but appending must not: the new event
         // would sit behind the gap and never be applied again.
@@ -783,7 +776,7 @@ mod tests {
             .await
             .expect_err("rewritten hash must be detected");
         assert!(matches!(err, AppError::EventDecodeError(_)));
-        assert!(fresh.data.read().events.is_empty());
+        assert!(fresh.snapshot().events.is_empty());
 
         Ok(())
     }
@@ -900,7 +893,7 @@ mod tests {
             })
             .await?;
 
-        let target_hash = store.data.read().last_event_hash();
+        let target_hash = store.snapshot().last_event_hash();
 
         // Full hash resolves to the single event.
         assert_eq!(
@@ -963,7 +956,7 @@ mod tests {
         let fresh = test_store(store.stream_id);
         replay_from_file(&fresh, &dir, &cipher).await?;
 
-        let data = fresh.data.read();
+        let data = fresh.snapshot();
         assert_eq!(data.last_event_id(), 6);
         assert_eq!(data.events.len(), 2);
         assert_eq!(data.events[1].event_id, 6);
@@ -993,7 +986,7 @@ mod tests {
             .await
             .expect_err("replay must fail with the wrong key");
         assert!(matches!(err, AppError::EventDecodeError(_)));
-        assert!(wrong_store.data.read().events.is_empty());
+        assert!(wrong_store.snapshot().events.is_empty());
 
         Ok(())
     }
