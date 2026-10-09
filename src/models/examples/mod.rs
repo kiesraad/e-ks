@@ -11,6 +11,7 @@ mod i1;
 mod i4;
 mod omission_letter;
 mod osv3_2;
+mod osv3_9;
 
 pub use brp_overview::{brp_overview_example_1, brp_overview_example_2};
 pub use h1::{h1_example_1, h1_example_2, h1_example_3};
