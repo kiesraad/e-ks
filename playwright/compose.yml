@@ -15,6 +15,8 @@ services:
       # instead of as a wall of connection-refused test failures.
       application:
         condition: service_healthy
+      personen-mock:
+        condition: service_healthy
     networks: [pw_network]
 
   application:
@@ -30,13 +32,23 @@ services:
       # Tests authenticate via the /dev/login bypass; skip the live auth-service
       # so the container boots without reaching the TVS for IdP metadata.
       DISABLE_AUTH_SERVICE: "true"
-      # No BRP is reachable from this network, so the check would abort; the
-      # tests do not exercise it.
-      BRP_BASE_URL: http://127.0.0.1:1
+      BRP_BASE_URL: http://personen-mock:5010
     # /lb-health answers before the database gate and without the eks key, so
     # it reports exactly what this needs to know: the server is up and serving.
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/lb-health"]
+      interval: 1s
+      timeout: 2s
+      retries: 60
+    networks: [pw_network]
+
+  personen-mock:
+    image: ghcr.io/brp-api/personen-mock:2.7.0-latest
+    environment:
+      ASPNETCORE_ENVIRONMENT: Release
+      ASPNETCORE_URLS: http://+:5010
+    healthcheck:
+      test: ["CMD", "nc", "-z", "127.0.0.1", "5010"]
       interval: 1s
       timeout: 2s
       retries: 60
