@@ -150,19 +150,17 @@ pub(crate) fn candidate_identifier(position: usize) -> Result<CandidateIdentifie
     Ok(CandidateIdentifier::new(candidate_id(position)?))
 }
 
-impl From<&Person> for Option<Contact> {
-    fn from(person: &Person) -> Self {
-        (!person.needs_representative()).then(|| (&Address::Dutch(person.address.clone())).into())
-    }
+/// The candidate's own mailing address, unless they need a representative
+pub(crate) fn contact(person: &Person) -> Option<Contact> {
+    (!person.needs_representative()).then(|| (&Address::Dutch(person.address.clone())).into())
 }
 
-impl From<&Person> for Option<Agent> {
-    fn from(person: &Person) -> Self {
-        person
-            .needs_representative()
-            .then(|| person.representative.as_ref().map(Into::into))
-            .flatten()
-    }
+/// The candidate's representative ("gemachtigde"), when they need one
+pub(crate) fn agent(person: &Person) -> Option<Agent> {
+    person
+        .needs_representative()
+        .then(|| person.representative.as_ref().map(Into::into))
+        .flatten()
 }
 
 impl From<&ElectionConfig> for ElectionSubcategory {
@@ -199,8 +197,10 @@ impl From<&ElectionConfig> for ElectionSubcategory {
     }
 }
 
-impl From<ElectionConfig> for ElectionId {
-    fn from(value: ElectionConfig) -> Self {
+impl TryFrom<ElectionConfig> for ElectionId {
+    type Error = AppError;
+
+    fn try_from(value: ElectionConfig) -> Result<Self, Self::Error> {
         let category = ElectionCategory::from(value.election_type());
         let year = value.election_date().year();
 
@@ -215,7 +215,7 @@ impl From<ElectionConfig> for ElectionId {
             format!("{}{}", category.to_eml_value(), year)
         };
 
-        ElectionId::new(id).expect("election ID should follow the expected format")
+        Ok(ElectionId::new(id)?)
     }
 }
 
@@ -226,7 +226,7 @@ impl TryFrom<ElectionConfig> for ElectionIdentifierBuilder {
         let category = ElectionCategory::from(value.election_type());
 
         let mut election_id = ElectionIdentifierBuilder::new()
-            .id(ElectionId::from(value))
+            .id(ElectionId::try_from(value)?)
             .name(value.full_formal_title(ModelLocale::Nl))
             .category(category)
             .subcategory(&value)

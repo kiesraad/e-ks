@@ -11,7 +11,6 @@ use std::{
 };
 
 use eml_nl::{
-    common::{Agent, Contact},
     documents::candidate_lists::{
         CandidateListsCandidate, CandidateListsContest, CandidateListsType,
     },
@@ -22,7 +21,7 @@ use regex::Regex;
 use crate::{
     AppError, CsbStream, ElectionConfig, StreamId,
     models::eml::{
-        candidate_id, candidate_identifier,
+        agent, candidate_id, candidate_identifier, contact,
         eml230b::{
             candidate_lists_document, contest_affiliations, contests, public_candidate_details,
         },
@@ -110,10 +109,10 @@ impl ShortCodes {
         let builder = CandidateListsCandidate::builder()
             .identifier(candidate_identifier(position)?.with_short_code(short_code));
         let mut builder = public_candidate_details(builder, person)?;
-        if let Some(contact) = Option::<Contact>::from(person) {
+        if let Some(contact) = contact(person) {
             builder = builder.contact(contact);
         }
-        if let Some(agent) = Option::<Agent>::from(person) {
+        if let Some(agent) = agent(person) {
             builder = builder.agent(agent);
         }
 
@@ -122,7 +121,7 @@ impl ShortCodes {
 
     /// The letters of the last name (without prefix) followed by those of the
     /// initials, e.g. `DijkAB` for "A.B. van Dijk", numbered from 2 onwards
-    /// when already taken
+    /// when already taken; a name without any letters is just numbered
     fn new_short_code(&mut self, name: &FullName) -> Result<NameShortCode, AppError> {
         let initials = name
             .initials
@@ -135,7 +134,7 @@ impl ShortCodes {
             .collect();
 
         for number in 1u32.. {
-            let suffix = if number == 1 {
+            let suffix = if number == 1 && !letters.is_empty() {
                 String::new()
             } else {
                 number.to_string()
@@ -149,9 +148,6 @@ impl ShortCodes {
                 code.push(c);
             }
             code.push_str(&suffix);
-            if code.is_empty() {
-                continue;
-            }
 
             let code = NameShortCode::new(code)?;
             if self.taken.insert(code.clone()) {
@@ -229,6 +225,17 @@ mod tests {
         // Non-ASCII letters take more than one byte
         let name = full_name("Çağatayöğüşçııı", None, "A.");
         assert_eq!(short_code(&mut short_codes, &name), "Çağatayöğü");
+    }
+
+    #[test]
+    fn short_code_without_letters_is_a_number() {
+        let mut short_codes = ShortCodes::default();
+        let name = FullName {
+            initials: None,
+            ..full_name("123", None, "A.")
+        };
+        assert_eq!(short_code(&mut short_codes, &name), "1");
+        assert_eq!(short_code(&mut short_codes, &name), "2");
     }
 
     fn check_eml(response: &str, expected: &str) {

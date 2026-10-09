@@ -114,11 +114,11 @@ async fn eml230_files(
             continue;
         };
 
-        files.push((eml230b_filename(&election, district), bytes));
+        files.push((eml230b_filename(&election, district)?, bytes));
     }
 
     if let Some(bytes) = eml230c(&election, &numbered_groups)? {
-        files.push((eml230c_filename(&election), bytes));
+        files.push((eml230c_filename(&election)?, bytes));
     }
 
     Ok(files)
@@ -127,24 +127,27 @@ async fn eml230_files(
 /// The file name for the EML 230b of `district`, e.g.
 /// `Kandidatenlijsten_EK2027_Drenthe.eml.xml`, or without district when the
 /// election has only one
-fn eml230b_filename(election: &ElectionConfig, district: Option<ElectoralDistrict>) -> String {
-    let election_id = ElectionId::from(*election);
-    match district {
+fn eml230b_filename(
+    election: &ElectionConfig,
+    district: Option<ElectoralDistrict>,
+) -> Result<String, AppError> {
+    let election_id = ElectionId::try_from(*election)?;
+    Ok(match district {
         Some(district) => format!(
             "Kandidatenlijsten_{}_{}.eml.xml",
             election_id.value(),
             slugify_teletex(district.title(), false)
         ),
         None => format!("Kandidatenlijsten_{}.eml.xml", election_id.value()),
-    }
+    })
 }
 
 /// The file name for the EML 230c, e.g. `Totaallijsten_EK2027.eml.xml`
-fn eml230c_filename(election: &ElectionConfig) -> String {
-    format!(
+fn eml230c_filename(election: &ElectionConfig) -> Result<String, AppError> {
+    Ok(format!(
         "Totaallijsten_{}.eml.xml",
-        ElectionId::from(*election).value()
-    )
+        ElectionId::try_from(*election)?.value()
+    ))
 }
 
 #[cfg(test)]
@@ -354,22 +357,23 @@ mod tests {
     #[test]
     fn filename_uses_election_id_and_district() {
         assert_eq!(
-            eml230b_filename(&ElectionConfig::EK27, Some(ElectoralDistrict::Drenthe)),
+            eml230b_filename(&ElectionConfig::EK27, Some(ElectoralDistrict::Drenthe)).unwrap(),
             "Kandidatenlijsten_EK2027_Drenthe.eml.xml"
         );
         assert_eq!(
-            eml230b_filename(&ElectionConfig::EK27, Some(ElectoralDistrict::Fryslan)),
+            eml230b_filename(&ElectionConfig::EK27, Some(ElectoralDistrict::Fryslan)).unwrap(),
             "Kandidatenlijsten_EK2027_Fryslan.eml.xml"
         );
         assert_eq!(
-            eml230b_filename(&ElectionConfig::PS27(Province::Groningen), None),
+            eml230b_filename(&ElectionConfig::PS27(Province::Groningen), None).unwrap(),
             "Kandidatenlijsten_PS2027_Groningen.eml.xml"
         );
         assert_eq!(
             eml230b_filename(
                 &ElectionConfig::PS27(Province::Limburg),
                 Some(ElectoralDistrict::PsMaastricht)
-            ),
+            )
+            .unwrap(),
             "Kandidatenlijsten_PS2027_Limburg_Maastricht.eml.xml"
         );
     }
@@ -377,11 +381,11 @@ mod tests {
     #[test]
     fn filename_uses_election_id() {
         assert_eq!(
-            eml230c_filename(&ElectionConfig::EK27),
+            eml230c_filename(&ElectionConfig::EK27).unwrap(),
             "Totaallijsten_EK2027.eml.xml"
         );
         assert_eq!(
-            eml230c_filename(&ElectionConfig::PS27(Province::Groningen)),
+            eml230c_filename(&ElectionConfig::PS27(Province::Groningen)).unwrap(),
             "Totaallijsten_PS2027_Groningen.eml.xml"
         );
     }

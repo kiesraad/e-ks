@@ -17,7 +17,7 @@ use eml_nl::{
 use crate::{
     AppError, ElectionConfig, PgStore,
     core::ModelLocale,
-    models::eml::candidate_identifier,
+    models::eml::{agent, candidate_identifier, contact},
     structs::{
         candidate_lists::{CandidateList, CandidateListId, FullCandidateList},
         candidates::Candidate,
@@ -43,8 +43,8 @@ impl TryInto<eml_nl::documents::nomination::NominationCandidate> for &Candidate 
             gender: Some(StringValue::from_value((&self.person.personal_data).into())),
             gender_annex: None,
             qualifying_address: (&self.person.personal_data).try_into()?,
-            contact: (&self.person).into(),
-            agent: (&self.person).into(),
+            contact: contact(&self.person),
+            agent: agent(&self.person),
             date_of_birth_annex: None,
             national_identification_number: match self.person.personal_data.bsn.as_ref() {
                 Some(BsnOrNoneConfirmed::Bsn(bsn)) => Some(bsn.to_exposed_string().into()),
