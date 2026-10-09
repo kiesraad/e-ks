@@ -9,13 +9,12 @@ assignees: ''
 ## [DOR](/docs/definition-of-ready.md) checklist
 
 ### Issue Maintainer
-- [ ] I have discussed the issue with at least one (other) developer
-- [ ] I have described the acceptance criteria for this issue
-- [ ] I have provided test cases to validate the acceptance criteria
+- I have discussed the issue with at least one (other) developer
+- I have described the acceptance criteria for this issue
+- I have provided test cases to validate the acceptance criteria
 
 ### Product Owner
-- [ ] I confirm that this issue will improve the product
-
+- I confirm that this issue will improve the product
 
 # Issue Description
 _describe the issue here_

@@ -35,7 +35,7 @@ pub fn create(state: AppState) -> Router<AppState> {
 }
 
 pub fn create_with(state: AppState, csb_routes: WithCsbRoutes) -> Router<AppState> {
-    let app_router = app_feature_router();
+    let app_router = session_router(&state, csb_routes);
 
     #[cfg(feature = "dev-features")]
     let dev_router = Router::new().route(
@@ -43,45 +43,17 @@ pub fn create_with(state: AppState, csb_routes: WithCsbRoutes) -> Router<AppStat
         get(crate::app::middleware::dev_login::dev_login),
     );
 
-    let app_router = app_router
-        .fallback(get(common::not_found))
-        .layer(middleware::from_fn_with_state(
-            state.clone(),
-            render_error_pages,
-        ))
-        .layer(middleware::from_fn_with_state(
-            state.clone(),
-            store_middleware,
-        ));
-
-    // These routes need a session but NOT store middleware: select-election runs
-    // before a stream_id is chosen, and /language must stay reachable for CSB
-    // (committee) sessions that store_middleware redirects off app routes.
-    // `bag::router()` joins them: scanning the embedded BAG database is too
-    // expensive to expose anonymously, and it is only called from a logged-in
-    // form. The session middleware also verifies the CSRF token of every mutating
-    // request (see `auth::csrf_guard`), so no handler can forget the check.
-    let app_router = app_router
-        .merge(common::session_only_router())
-        .merge(bag::router());
-
-    let app_router = match csb_routes {
-        WithCsbRoutes::Included => app_router.merge(csb_router(&state)),
-        WithCsbRoutes::Excluded => app_router,
-    };
-
-    let app_router = app_router.layer(middleware::from_fn_with_state(
-        state.clone(),
-        session_middleware,
-    ));
-
     #[cfg(feature = "dev-features")]
     let router = Router::new().merge(dev_router).merge(app_router);
 
     #[cfg(not(feature = "dev-features"))]
     let router = app_router;
 
-    let router = router.merge(public_router(csb_routes));
+    // Reads the session cookie itself and must not extend a session, so it
+    // sits with the public routes.
+    let router = router
+        .merge(public_router(csb_routes))
+        .merge(super::blocked_notification::router());
 
     let router = router
         .layer(middleware::from_fn_with_state(
@@ -131,6 +103,42 @@ pub fn create_with(state: AppState, csb_routes: WithCsbRoutes) -> Router<AppStat
     let router = router.merge(crate::acme::acme_challenge_router());
 
     apply_security_headers(router)
+}
+
+/// Routes behind the session middleware: the feature routes with their store
+/// middleware, the session-only routes and, when included, the CSB section.
+fn session_router(state: &AppState, csb_routes: WithCsbRoutes) -> Router<AppState> {
+    let app_router = app_feature_router()
+        .fallback(get(common::not_found))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            render_error_pages,
+        ))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            store_middleware,
+        ));
+
+    // These routes need a session but NOT store middleware: select-election runs
+    // before a stream_id is chosen, and /language must stay reachable for CSB
+    // (committee) sessions that store_middleware redirects off app routes.
+    // `bag::router()` joins them: scanning the embedded BAG database is too
+    // expensive to expose anonymously, and it is only called from a logged-in
+    // form. The session middleware also verifies the CSRF token of every mutating
+    // request (see `auth::csrf_guard`), so no handler can forget the check.
+    let app_router = app_router
+        .merge(common::session_only_router())
+        .merge(bag::router());
+
+    let app_router = match csb_routes {
+        WithCsbRoutes::Included => app_router.merge(csb_router(state)),
+        WithCsbRoutes::Excluded => app_router,
+    };
+
+    app_router.layer(middleware::from_fn_with_state(
+        state.clone(),
+        session_middleware,
+    ))
 }
 
 /// Global fetch-metadata CSRF protection, backstopping the session
@@ -362,6 +370,21 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
         assert!(body.contains("Kiesraad - Kandidaatstelling"));
+    }
+
+    /// Reachable without a session: `204`, not a login redirect.
+    #[tokio::test]
+    async fn blocked_notification_needs_no_session() {
+        let state = AppState::new_for_tests().await;
+        let app: Router = create(state.clone()).with_state(state);
+
+        let request = Request::builder()
+            .uri("/blocked-notification?kind=block&path=/")
+            .body(Body::empty())
+            .unwrap();
+        let response = app.oneshot(request).await.expect("response");
+
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
     }
 
     /// Insert a committee session and build a GET request for `uri` that

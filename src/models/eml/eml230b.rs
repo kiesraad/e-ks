@@ -1,6 +1,6 @@
 //! The EML 230b established candidate lists export, built with [`eml_nl`].
 
-use std::{collections::HashSet, num::NonZeroU64};
+use std::num::NonZeroU64;
 
 use eml_nl::{
     common::{AuthorityIdentifier, ContestIdentifier, ManagingAuthority, QualifyingAddress},
@@ -20,65 +20,10 @@ use eml_nl::{
 
 use crate::{
     AppError, CsbStream, ElectionConfig, ElectoralDistrict,
-    models::{csb_model_inputs, eml::candidate_identifier},
+    models::{csb_model_inputs, eml::candidate_identifier, established_lists::EstablishedLists},
     projection::WithCorrections,
-    structs::{
-        candidate_lists::{CandidateList, CandidateListId},
-        list_designation::ListDesignation,
-        persons::Person,
-    },
+    structs::{list_designation::ListDesignation, persons::Person},
 };
-
-/// The group's non-scrapped list that covers `district`, or its first
-/// remaining list for a single-district election (`district: None`)
-fn current_list(
-    valid: &[(ElectoralDistrict, CandidateList)],
-    district: Option<ElectoralDistrict>,
-) -> Option<CandidateList> {
-    match district {
-        Some(district) => valid.iter().find(|(d, _)| *d == district),
-        None => valid.first(),
-    }
-    .map(|(_, list)| list.clone())
-}
-
-/// Get the affiliation type for a set of lists
-fn affiliation_type(
-    valid: &[(ElectoralDistrict, CandidateList)],
-    list_id: CandidateListId,
-) -> AffiliationType {
-    let distinct_lists: HashSet<CandidateListId> = valid.iter().map(|(_, list)| list.id).collect();
-
-    if distinct_lists.len() > 1 {
-        AffiliationType::GroupOfLists
-    } else if valid.iter().filter(|(_, list)| list.id == list_id).count() > 1 {
-        AffiliationType::SetOfEqualLists
-    } else {
-        AffiliationType::StandAloneList
-    }
-}
-
-/// 1-based position among this group's shared lists
-fn shared_list_set_number(
-    valid: &[(ElectoralDistrict, CandidateList)],
-    list_id: CandidateListId,
-) -> Option<NonZeroU64> {
-    // gather lists that occur in multiple districts
-    let mut list_sets: Vec<&CandidateList> = Vec::new();
-    for (_, list) in valid {
-        if list_sets.iter().any(|shared| shared.id == list.id) {
-            continue;
-        }
-        if valid.iter().filter(|(_, list)| list.id == list_id).count() > 1 {
-            list_sets.push(list);
-        }
-    }
-    list_sets.sort_by_key(|list| list.created_at);
-
-    // position
-    let position = list_sets.iter().position(|list| list.id == list_id)?;
-    NonZeroU64::new(position as u64 + 1)
-}
 
 /// The contests of `election`: a single `geen` contest when it has only one
 /// district, otherwise one contest per district
@@ -146,14 +91,13 @@ pub(super) fn contest_affiliations(
     let mut affiliations = Vec::new();
     for (position, store) in numbered_groups {
         let scrapped = store.get_scrapped();
-        let valid_lists = csb_model_inputs::valid_lists_by_district(store, &scrapped);
-        let Some(list) = current_list(&valid_lists, district) else {
+        let Some(established) = EstablishedLists::new(store, &scrapped)? else {
             continue;
         };
-        let candidates = csb_model_inputs::valid_candidates(store, &scrapped, &list)?;
-        if candidates.is_empty() {
+        let Some((list_district, list)) = established.list(district) else {
             continue;
-        }
+        };
+        let candidates = csb_model_inputs::valid_candidates(store, &scrapped, list)?;
 
         // A blank list ("Blanco") leaves RegisteredName empty
         let is_blank = scrapped.is_appellation_scrapped()
@@ -173,8 +117,8 @@ pub(super) fn contest_affiliations(
             position,
             appellation,
             candidates,
-            affiliation_type(&valid_lists, list.id),
-            shared_list_set_number(&valid_lists, list.id),
+            established.sets().affiliation_type(),
+            established.sets().set_number(&list_district),
         )?);
     }
 
@@ -282,7 +226,10 @@ mod tests {
 
     use crate::{
         Province, WaterCouncil,
-        structs::{common::CountryCode, persons::PersonId, political_groups::PoliticalGroup},
+        structs::{
+            candidate_lists::CandidateList, common::CountryCode, persons::PersonId,
+            political_groups::PoliticalGroup,
+        },
         test_utils::sample_person,
     };
 
@@ -297,149 +244,6 @@ mod tests {
             remove_variable_fields(expected),
             "received XML:\n{}",
             response
-        );
-    }
-
-    /// A list covering `districts`, for [`affiliation_type`] and
-    /// [`shared_list_set_number`] tests; other fields don't matter for
-    /// classification.
-    fn sample_list_for(
-        id: CandidateListId,
-        districts: impl IntoIterator<Item = ElectoralDistrict>,
-    ) -> CandidateList {
-        CandidateList {
-            id,
-            electoral_districts: districts.into_iter().collect(),
-            ..Default::default()
-        }
-    }
-
-    /// A group with only one list, covering only the district it is being
-    /// classified for: "op zichzelf staande lijst", e.g. a party in PS23
-    /// Limburg that only ran in Maastricht, and nowhere else in the
-    /// province.
-    #[test]
-    fn single_district_participation_is_standalone() {
-        let list = sample_list_for(CandidateListId::new(), [ElectoralDistrict::PsMaastricht]);
-        let valid = vec![(ElectoralDistrict::PsMaastricht, list.clone())];
-
-        assert_eq!(
-            affiliation_type(&valid, list.id),
-            AffiliationType::StandAloneList
-        );
-        assert_eq!(shared_list_set_number(&valid, list.id), None);
-    }
-
-    /// A group with a single list declared identical across several
-    /// districts: "stel gelijkluidende lijsten", e.g. every party in EK23,
-    /// which all used one list for every kieskring.
-    #[test]
-    fn one_list_across_several_districts_is_a_set_of_equal_lists() {
-        let list = sample_list_for(
-            CandidateListId::new(),
-            [ElectoralDistrict::PsMaastricht, ElectoralDistrict::PsVenlo],
-        );
-        let valid = vec![
-            (ElectoralDistrict::PsMaastricht, list.clone()),
-            (ElectoralDistrict::PsVenlo, list.clone()),
-        ];
-
-        assert_eq!(
-            affiliation_type(&valid, list.id),
-            AffiliationType::SetOfEqualLists
-        );
-        assert_eq!(shared_list_set_number(&valid, list.id), NonZeroU64::new(1));
-    }
-
-    /// A group running different lists in different districts is a
-    /// "lijstengroep" for every one of its lists, e.g. most parties in PS23
-    /// Limburg, which had separate lists for Maastricht and Venlo.
-    #[test]
-    fn different_lists_per_district_is_a_group_of_lists() {
-        let list1 = sample_list_for(CandidateListId::new(), [ElectoralDistrict::PsMaastricht]);
-        let list2 = sample_list_for(CandidateListId::new(), [ElectoralDistrict::PsVenlo]);
-        let valid = vec![
-            (ElectoralDistrict::PsMaastricht, list1.clone()),
-            (ElectoralDistrict::PsVenlo, list2.clone()),
-        ];
-
-        assert_eq!(
-            affiliation_type(&valid, list1.id),
-            AffiliationType::GroupOfLists
-        );
-        assert_eq!(
-            affiliation_type(&valid, list2.id),
-            AffiliationType::GroupOfLists
-        );
-        assert_eq!(shared_list_set_number(&valid, list1.id), None);
-        assert_eq!(shared_list_set_number(&valid, list2.id), None);
-    }
-
-    /// Within a "lijstengroep", a list can still be declared identical
-    /// across a subset of its districts, and also gets a `BelongsToSet`,
-    /// on its shared lists.
-    #[test]
-    fn shared_subset_within_a_group_of_lists_still_gets_a_set() {
-        let shared_list = sample_list_for(
-            CandidateListId::new(),
-            [ElectoralDistrict::PsMaastricht, ElectoralDistrict::PsVenlo],
-        );
-        let solo_list = sample_list_for(CandidateListId::new(), [ElectoralDistrict::Limburg]);
-        let valid = vec![
-            (ElectoralDistrict::PsMaastricht, shared_list.clone()),
-            (ElectoralDistrict::PsVenlo, shared_list.clone()),
-            (ElectoralDistrict::Limburg, solo_list.clone()),
-        ];
-
-        assert_eq!(
-            affiliation_type(&valid, shared_list.id),
-            AffiliationType::GroupOfLists
-        );
-        assert_eq!(
-            affiliation_type(&valid, solo_list.id),
-            AffiliationType::GroupOfLists
-        );
-        assert_eq!(
-            shared_list_set_number(&valid, shared_list.id),
-            NonZeroU64::new(1)
-        );
-        assert_eq!(shared_list_set_number(&valid, solo_list.id), None);
-    }
-
-    /// A group that registers more than one shared-list group in the same
-    /// election gets each numbered in turn, by creation order.
-    #[test]
-    fn numbers_several_shared_list_groups_in_creation_order() {
-        // Created later, but listed first in `valid`, to prove ordering
-        // follows `created_at` rather than list order.
-        let created_second = CandidateList {
-            created_at: chrono::DateTime::from_timestamp(1, 0).unwrap().into(),
-            ..sample_list_for(
-                CandidateListId::new(),
-                [ElectoralDistrict::PsMaastricht, ElectoralDistrict::PsVenlo],
-            )
-        };
-        let created_first = CandidateList {
-            created_at: chrono::DateTime::from_timestamp(0, 0).unwrap().into(),
-            ..sample_list_for(
-                CandidateListId::new(),
-                [ElectoralDistrict::Limburg, ElectoralDistrict::WsFryslan],
-            )
-        };
-        let valid = vec![
-            (ElectoralDistrict::PsMaastricht, created_second.clone()),
-            (ElectoralDistrict::PsVenlo, created_second.clone()),
-            (ElectoralDistrict::Limburg, created_first.clone()),
-            (ElectoralDistrict::WsFryslan, created_first.clone()),
-        ];
-
-        assert_eq!(
-            shared_list_set_number(&valid, created_first.id),
-            NonZeroU64::new(1)
-        );
-        assert_eq!(
-            shared_list_set_number(&valid, created_second.id),
-            NonZeroU64::new(2)
         );
     }
 
@@ -641,6 +445,46 @@ mod tests {
             &String::from_utf8(eml).unwrap(),
             include_str!("testdata/230b-ws27.eml.xml"),
         );
+    }
+
+    /// Lists submitted separately, but with the same candidates, form a set of
+    /// equal lists
+    #[test]
+    fn separate_lists_with_the_same_candidates_are_a_set_of_equal_lists() {
+        let districts = &ElectionConfig::EK27.electoral_districts()[..2];
+        let candidate = sample_person(PersonId::new());
+        let store = CsbStream {
+            election: ElectionConfig::EK27,
+            ..CsbStream::new_for_test()
+        };
+        store.set_political_group(PoliticalGroup {
+            appellation: Some("Kiesraad Demo".parse().unwrap()),
+            list_designation: Some(ListDesignation::Standalone),
+            ..Default::default()
+        });
+        store.add_person(candidate.clone());
+        for district in districts {
+            store.add_candidate_list(CandidateList {
+                electoral_districts: BTreeSet::from([*district]),
+                candidates: vec![candidate.id],
+                ..Default::default()
+            });
+        }
+
+        let eml = eml230b(
+            &ElectionConfig::EK27,
+            ContestIdentifier::geen(),
+            Some(districts[1]),
+            &[(NonZeroU64::MIN, &store)],
+        )
+        .unwrap()
+        .unwrap();
+        let eml = String::from_utf8(eml).unwrap();
+        assert!(
+            eml.contains("<Type>stel gelijkluidende lijsten</Type>"),
+            "{eml}"
+        );
+        assert!(eml.contains(r#"BelongsToSet="1""#), "{eml}");
     }
 
     /// A contest with no established groups produces nothing.

@@ -17,9 +17,11 @@
 //! need, from the live [`crate::CsbStream`]s.
 
 pub mod brp_overview;
+pub mod candidate_list_overview;
 pub(crate) mod csb_model_inputs;
 pub(crate) mod documents;
 pub(crate) mod eml;
+pub(crate) mod established_lists;
 pub mod examples;
 mod fonts;
 pub mod h1;
@@ -33,7 +35,6 @@ mod layout;
 mod markdown;
 pub mod omission_letter;
 pub mod osv3_2;
-
 pub use examples::{Example, examples};
 pub use fonts::fonts;
 
@@ -152,7 +153,7 @@ mod tests {
             assert_pdf(&example.render().expect("render example"), name);
             rendered += 1;
         }
-        assert_eq!(rendered, 24, "expected to render every example input");
+        assert_eq!(rendered, 25, "expected to render every example input");
     }
 
     /// Every example input also exports as a Word document, which exercises the
