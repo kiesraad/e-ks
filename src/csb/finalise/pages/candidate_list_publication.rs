@@ -3,9 +3,9 @@ use axum::{extract::State, response::Response};
 use crate::{
     AppError, AppRequestState, CsbMainStore,
     core::{ModelLocale, constants::DEFAULT_DATE_FORMAT},
-    csb::examination::{
+    csb::finalise::{
         numbering::list_numbering,
-        pages::{
+        paths::{
             CsbCandidateListPublicationDocxDownloadPath, CsbCandidateListPublicationDownloadPath,
         },
     },

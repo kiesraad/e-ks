@@ -4,7 +4,7 @@ use crate::{
     AppError, AppRequestState, CsbMainStore,
     constants::DEFAULT_DATE_FORMAT,
     core::ModelLocale,
-    csb::examination::{
+    csb::finalise::{
         numbering::list_numbering,
         paths::{CsbCandidateListOverviewDocxDownloadPath, CsbCandidateListOverviewDownloadPath},
     },

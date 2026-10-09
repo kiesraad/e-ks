@@ -16,8 +16,8 @@ use crate::{
     ElectoralDistrict,
     core::ZipResponseWriter,
     csb::{
-        examination::{extractors::CsbPoliticalGroup, numbering::ListNumbering},
-        finalise::paths::CsbEmlZipDownloadPath,
+        examination::extractors::CsbPoliticalGroup,
+        finalise::{numbering::ListNumbering, paths::CsbEmlZipDownloadPath},
     },
     models::{
         documents::ZIP_CONTENT_TYPE,

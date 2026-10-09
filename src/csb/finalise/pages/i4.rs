@@ -1,14 +1,14 @@
 use axum::{extract::State, response::Response};
 
 use crate::{
-    AppError, AppRequestState, CsbMainStore,
+    AppError, AppRequestState, CsbContext, CsbMainAction, CsbMainStore,
     core::{ModelLocale, constants::DEFAULT_DATE_FORMAT},
     csb::{
-        examination::{
+        examination::paths::{CsbI4DraftDocxDownloadPath, CsbI4DraftDownloadPath},
+        finalise::{
             numbering::list_numbering,
-            paths::{CsbI4DraftDocxDownloadPath, CsbI4DraftDownloadPath},
+            paths::{CsbI4FinalDocxDownloadPath, CsbI4FinalDownloadPath},
         },
-        finalise::paths::{CsbI4FinalDocxDownloadPath, CsbI4FinalDownloadPath},
     },
     models::{
         Pdf,
@@ -21,6 +21,7 @@ use crate::{
 
 /// Collect the store data the I 4 model needs.
 async fn i4_model<S: AppRequestState>(
+    context: CsbContext,
     main_store: CsbMainStore,
     state: &S,
     is_draft: bool,
@@ -28,6 +29,16 @@ async fn i4_model<S: AppRequestState>(
     let election = main_store.election;
     let registry = state.csb_store_registry();
     let numbering = list_numbering(registry, &main_store).await?;
+
+    // Set the numbering if it has not been set before. This occurs when this is
+    // the first download and no drag event has taken place. Only applies when
+    // the document is not downloaded as a draft
+    if !numbering.is_complete() && !is_draft {
+        main_store
+            .update(CsbMainAction::UpdateListOrder(numbering.stream_ids()).by(context.user()?))
+            .await?;
+    }
+
     let I4Inputs {
         found_omissions,
         recovered_omissions,
@@ -86,10 +97,11 @@ async fn i4_model<S: AppRequestState>(
 
 pub async fn gen_i4_final<S: AppRequestState>(
     _: CsbI4FinalDownloadPath,
+    context: CsbContext,
     main_store: CsbMainStore,
     State(state): State<S>,
 ) -> Result<Response, AppError> {
-    i4_model(main_store, &state, false)
+    i4_model(context, main_store, &state, false)
         .await?
         .pdf_response()
         .await
@@ -98,10 +110,11 @@ pub async fn gen_i4_final<S: AppRequestState>(
 /// The same I 4 as [`gen_i4_final`], exported as a Word document.
 pub async fn gen_i4_final_docx<S: AppRequestState>(
     _: CsbI4FinalDocxDownloadPath,
+    context: CsbContext,
     main_store: CsbMainStore,
     State(state): State<S>,
 ) -> Result<Response, AppError> {
-    i4_model(main_store, &state, false)
+    i4_model(context, main_store, &state, false)
         .await?
         .docx_response()
         .await
@@ -109,10 +122,11 @@ pub async fn gen_i4_final_docx<S: AppRequestState>(
 
 pub async fn gen_i4_draft<S: AppRequestState>(
     _: CsbI4DraftDownloadPath,
+    context: CsbContext,
     main_store: CsbMainStore,
     State(state): State<S>,
 ) -> Result<Response, AppError> {
-    i4_model(main_store, &state, true)
+    i4_model(context, main_store, &state, true)
         .await?
         .pdf_response()
         .await
@@ -121,10 +135,11 @@ pub async fn gen_i4_draft<S: AppRequestState>(
 /// The same I 4 as [`gen_i4_draft`], exported as a Word document.
 pub async fn gen_i4_draft_docx<S: AppRequestState>(
     _: CsbI4DraftDocxDownloadPath,
+    context: CsbContext,
     main_store: CsbMainStore,
     State(state): State<S>,
 ) -> Result<Response, AppError> {
-    i4_model(main_store, &state, true)
+    i4_model(context, main_store, &state, true)
         .await?
         .docx_response()
         .await
@@ -191,6 +206,7 @@ mod tests {
 
     #[tokio::test]
     async fn i4_session_uses_the_stored_hearing_details() -> Result<(), AppError> {
+        let context = CsbContext::new_test();
         let state = AppState::new_for_tests().await;
         let main_store = CsbMainStore::new_for_test();
         main_store
@@ -210,7 +226,7 @@ mod tests {
             )
             .await?;
 
-        let model = i4_model(main_store, &state, false).await?;
+        let model = i4_model(context, main_store, &state, false).await?;
 
         assert_eq!(model.public_session.date, "09-04-2027");
         assert_eq!(model.public_session.time, "10:15");
@@ -223,6 +239,7 @@ mod tests {
     /// The I 1 hearing is a different hearing: it must not leak into the I 4.
     #[tokio::test]
     async fn i4_session_ignores_the_i1_hearing_details() -> Result<(), AppError> {
+        let context = CsbContext::new_test();
         let state = AppState::new_for_tests().await;
         let main_store = CsbMainStore::new_for_test();
         main_store
@@ -239,7 +256,7 @@ mod tests {
             )
             .await?;
 
-        let model = i4_model(main_store, &state, false).await?;
+        let model = i4_model(context, main_store, &state, false).await?;
 
         let configured = ElectionConfig::EK27.public_session();
         assert_eq!(model.public_session.date, configured.formatted_date());
@@ -250,9 +267,10 @@ mod tests {
 
     #[tokio::test]
     async fn gen_i4_returns_pdf_response() -> Result<(), AppError> {
+        let context = CsbContext::new_test();
         let main_store = CsbMainStore::new_for_test();
         let state = AppState::new_for_tests().await;
-        let response = gen_i4_final(CsbI4FinalDownloadPath, main_store, State(state))
+        let response = gen_i4_final(CsbI4FinalDownloadPath, context, main_store, State(state))
             .await?
             .into_response();
 
@@ -278,11 +296,17 @@ mod tests {
 
     #[tokio::test]
     async fn gen_i4_docx_returns_word_response() -> Result<(), AppError> {
+        let context = CsbContext::new_test();
         let main_store = CsbMainStore::new_for_test();
         let state = AppState::new_for_tests().await;
-        let response = gen_i4_final_docx(CsbI4FinalDocxDownloadPath, main_store, State(state))
-            .await?
-            .into_response();
+        let response = gen_i4_final_docx(
+            CsbI4FinalDocxDownloadPath,
+            context,
+            main_store,
+            State(state),
+        )
+        .await?
+        .into_response();
 
         assert_eq!(response.status(), StatusCode::OK);
         let headers = response.headers();
@@ -310,6 +334,7 @@ mod tests {
     /// lot order.
     #[tokio::test]
     async fn i4_model_numbers_the_lists_on_votes_and_by_lot() -> Result<(), AppError> {
+        let context = CsbContext::new_test();
         let state = AppState::new_for_tests().await;
         let seated = seed_group(&state, "Gezeteld").await;
         let first_by_lot = seed_group(&state, "Eerste Loting").await;
@@ -331,7 +356,7 @@ mod tests {
             )
             .await?;
 
-        let model = i4_model(main_store, &state, false).await?;
+        let model = i4_model(context, main_store, &state, false).await?;
 
         let on_votes: Vec<_> = model
             .numbered_based_on_votes
@@ -352,9 +377,63 @@ mod tests {
         Ok(())
     }
 
+    /// The number of times a list order was recorded on `main_store`.
+    fn list_order_events(main_store: &CsbMainStore) -> usize {
+        main_store
+            .data
+            .read()
+            .events
+            .iter()
+            .filter(|event| matches!(event.payload.action, CsbMainAction::UpdateListOrder(_)))
+            .count()
+    }
+
+    /// The first final download records the list order when none was
+    /// recorded yet; further downloads leave it alone.
+    #[tokio::test]
+    async fn i4_model_records_the_list_order_once() -> Result<(), AppError> {
+        let state = AppState::new_for_tests().await;
+        let first = seed_group(&state, "Eerste").await;
+        let second = seed_group(&state, "Tweede").await;
+        let main_store = CsbMainStore::new_for_test();
+        assert_eq!(list_order_events(&main_store), 0);
+
+        i4_model(CsbContext::new_test(), main_store.clone(), &state, false).await?;
+        assert_eq!(list_order_events(&main_store), 1);
+        let mut recorded = main_store.list_order();
+        recorded.sort();
+        let mut expected = vec![first, second];
+        expected.sort();
+        assert_eq!(recorded, expected);
+
+        i4_model(CsbContext::new_test(), main_store.clone(), &state, false).await?;
+        i4_model(CsbContext::new_test(), main_store.clone(), &state, true).await?;
+        assert_eq!(list_order_events(&main_store), 1);
+
+        Ok(())
+    }
+
+    /// A draft never records the list order, not even when none was recorded.
+    #[tokio::test]
+    async fn i4_draft_does_not_record_the_list_order() -> Result<(), AppError> {
+        let state = AppState::new_for_tests().await;
+        seed_group(&state, "Eerste").await;
+        seed_group(&state, "Tweede").await;
+        let main_store = CsbMainStore::new_for_test();
+
+        i4_model(CsbContext::new_test(), main_store.clone(), &state, true).await?;
+        i4_model(CsbContext::new_test(), main_store.clone(), &state, true).await?;
+
+        assert_eq!(list_order_events(&main_store), 0);
+        assert!(main_store.list_order().is_empty());
+
+        Ok(())
+    }
+
     /// Render once with omissions, a scrapped candidate and a valid list.
     #[tokio::test]
     async fn gen_i4_renders_the_omissions_and_the_valid_lists() -> Result<(), AppError> {
+        let context = CsbContext::new_test();
         let state = AppState::new_for_tests().await;
         let store = state
             .csb_store_for_stream(StreamId::new(), ElectionConfig::EK27)
@@ -406,7 +485,7 @@ mod tests {
             .await?;
 
         let main_store = CsbMainStore::new_for_test();
-        let response = gen_i4_final(CsbI4FinalDownloadPath, main_store, State(state))
+        let response = gen_i4_final(CsbI4FinalDownloadPath, context, main_store, State(state))
             .await?
             .into_response();
 

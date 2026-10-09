@@ -3,6 +3,7 @@
 //! model I 4 downloads, records the order drawn by lot for the lists that are
 //! not numbered on votes, and the objections raised.
 mod forms;
+pub(in crate::csb) mod numbering;
 mod pages;
 mod paths;
 

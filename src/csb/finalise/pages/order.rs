@@ -6,8 +6,8 @@ use serde::Deserialize;
 use crate::{
     AppError, CsbContext, CsbMainAction, CsbMainStore, StreamId,
     csb::{
-        examination::{extractors::CsbPoliticalGroups, numbering::ListNumbering},
-        finalise::paths::CsbListOrderPath,
+        examination::extractors::CsbPoliticalGroups,
+        finalise::{numbering::ListNumbering, paths::CsbListOrderPath},
     },
 };
 

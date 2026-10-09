@@ -21,6 +21,34 @@ pub struct CsbListOrderPath;
 #[typed_path("/csb/finalise/objection/add", rejection(AppError))]
 pub struct CsbAddObjectionPath;
 
+#[derive(TypedPath)]
+#[typed_path(
+    "/csb/examination/publicatie-kandidatenlijsten.pdf",
+    rejection(AppError)
+)]
+pub struct CsbCandidateListPublicationDownloadPath;
+
+#[derive(TypedPath)]
+#[typed_path(
+    "/csb/examination/publicatie-kandidatenlijsten.docx",
+    rejection(AppError)
+)]
+pub struct CsbCandidateListPublicationDocxDownloadPath;
+
+#[derive(TypedPath, Deserialize)]
+#[typed_path(
+    "/csb/examination/overzicht-kandidatenlijsten.pdf",
+    rejection(AppError)
+)]
+pub struct CsbCandidateListOverviewDownloadPath;
+
+#[derive(TypedPath, Deserialize)]
+#[typed_path(
+    "/csb/examination/overzicht-kandidatenlijsten.docx",
+    rejection(AppError)
+)]
+pub struct CsbCandidateListOverviewDocxDownloadPath;
+
 #[derive(TypedPath, Deserialize)]
 #[typed_path("/csb/finalise/objection/update/{id}", rejection(AppError))]
 pub struct CsbUpdateObjectionPath {

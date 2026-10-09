@@ -4,7 +4,8 @@ use axum::response::{IntoResponse, Response};
 use crate::{
     AppError, Context, CsbContext, CsbMainStore, HtmlTemplate,
     csb::{
-        examination::{extractors::CsbPoliticalGroups, numbering::ListNumbering},
+        examination::extractors::CsbPoliticalGroups,
+        finalise::numbering::ListNumbering,
         finalise::paths::{CsbFinalisePath, CsbListOrderPath},
     },
     filters,
