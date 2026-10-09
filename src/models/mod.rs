@@ -33,6 +33,7 @@ mod layout;
 mod markdown;
 pub mod omission_letter;
 pub mod osv3_2;
+pub mod osv3_9;
 
 pub use examples::{Example, examples};
 pub use fonts::fonts;
