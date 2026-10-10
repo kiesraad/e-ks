@@ -557,7 +557,7 @@ Runtime configuration is read from environment variables once at startup into a
 
 | Variable | Purpose |
 |----------|---------|
-| `STORAGE_URL` | Persistence backend: `memory://`, `local://<dir>`, or `postgres://<connection_string>`. |
+| `STORAGE_URL` | Persistence backend: `memory://` or `postgres://<connection_string>`. |
 | `ID_DERIVATION_KEY` | Master secret for stream-id derivation. |
 | `MASTER_ENCRYPTION_KEY` | Master secret from which the key-wrapping key for the per-stream encryption keys is derived. |
 | `TLS_CERT_PATH` / `TLS_KEY_PATH` | HTTPS certificate and key; both or neither. |
@@ -837,16 +837,14 @@ event application takes a write lock.
 ### Storage backend
 
 All domain changes are stored as an append-only stream of events, partitioned per
-`(stream_id, election)`. Three backends exist (selected via `STORAGE_URL`):
-in-memory (`memory://`), local files (`local://`), and PostgreSQL (`postgres://`).
-On the file and database backends each event payload is encrypted at rest; the
-in-memory backend keeps plaintext only.
+`(stream_id, election)`. Two backends exist (selected via `STORAGE_URL`):
+in-memory (`memory://`) and PostgreSQL (`postgres://`). On the database backend
+each event payload is encrypted at rest; the in-memory backend keeps plaintext
+only.
 
 Every stream is additionally recorded with its `Scope` (`political_group`,
 `central_electoral_committee`, or `imported_by_csb`), and a registry only ever
-sees streams of its own scope. The local file backend accepts only
-political-group streams: CSB data lives exclusively in the database (the
-in-memory backend supports all scopes for development and tests).
+sees streams of its own scope.
 
 ### Stream IDs and not leaking the BSN
 
@@ -877,7 +875,7 @@ key.
 
 ### Event encoding
 
-Event payloads and the on-disk stream frames are serialized as CBOR, through
+Event payloads are serialized as CBOR, through
 the small wrapper in `src/store/encoding.rs` (built on `ciborium`). CBOR is
 self-describing: struct fields and enum variants are stored by name, not by
 position. That is what lets the event types evolve without corrupting an
@@ -917,8 +915,7 @@ the CSB main stream each get their own independent key. The stream key is
 stored *wrapped*: encrypted under a key-wrapping key derived at startup with
 HKDF-SHA256 from a master secret (`MASTER_ENCRYPTION_KEY`, distinct from the
 ID-derivation secret). The wrapped key lives next to the stream: the
-`streams.encrypted_key` column on the database backend, a
-`{stream_id}_{election}.key` sidecar file on the file backend. The
+`streams.encrypted_key` column on the database backend. The
 consequences:
 
 - Every `(user, election)` pair gets its own independent random key, so a key
@@ -956,12 +953,12 @@ hash_n = SHA256( hash_{n-1} ‖ event_id_n (u64 LE) ‖ created_at_n (i64 LE, mi
 - `hash_0` (the predecessor of the first event) is the all-zero "genesis" hash
   (`GENESIS_HASH`).
 - `body_n` is the *persisted* representation of the payload: the
-  `nonce ‖ ciphertext ‖ tag` AES-GCM blob for the file/database backends, or the
+  `nonce ‖ ciphertext ‖ tag` AES-GCM blob for the database backend, or the
   CBOR encoding of the plaintext for the in-memory backend. Hashing the
   *encrypted* blob (which is indistinguishable from random and carries a fresh
   nonce) is deliberate: it lets the hash be stored **unencrypted** without leaking
   anything about the plaintext, while still committing to the exact stored bytes.
-- `created_at` is hashed at microsecond precision because that is the precision that remains after a round-trip through the on-disk frame format and Postgres `timestamptz`.
+- `created_at` is hashed at microsecond precision because that is the precision that remains after a round-trip through Postgres `timestamptz`.
 
 In addition, the AES-GCM *associated data* for each event is
 `event_id ‖ created_at ‖ hash_{n-1}`. This authenticates the cleartext metadata

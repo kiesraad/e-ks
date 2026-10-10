@@ -28,11 +28,10 @@ impl Default for PendingRequestStore {
 }
 
 impl PendingRequestStore {
-    /// Construct from `STORAGE_URL`. Same scheme rules as [`crate::SessionStore`];
-    /// disk is not a valid backend and falls back to in-memory.
+    /// Construct from `STORAGE_URL`. Same scheme rules as [`crate::SessionStore`].
     pub fn from_storage_url(storage_url: &str) -> Result<Self, AppError> {
         match StorageScheme::parse(storage_url)? {
-            StorageScheme::Memory | StorageScheme::Local => Ok(Self::default()),
+            StorageScheme::Memory => Ok(Self::default()),
             StorageScheme::Postgres => {
                 #[cfg(feature = "database")]
                 {
@@ -97,12 +96,6 @@ mod tests {
     #[test]
     fn from_storage_url_memory_is_in_memory() {
         let store = PendingRequestStore::from_storage_url("memory://").unwrap();
-        assert!(matches!(store, PendingRequestStore::InMemory(_)));
-    }
-
-    #[test]
-    fn from_storage_url_local_falls_back_to_memory() {
-        let store = PendingRequestStore::from_storage_url("local:///whatever").unwrap();
         assert!(matches!(store, PendingRequestStore::InMemory(_)));
     }
 

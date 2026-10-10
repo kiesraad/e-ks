@@ -8,7 +8,6 @@ use crate::AppError;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StorageScheme {
     Memory,
-    Local,
     Postgres,
 }
 
@@ -20,10 +19,9 @@ impl StorageScheme {
 
         match url.scheme() {
             "memory" => Ok(Self::Memory),
-            "local" => Ok(Self::Local),
             "postgres" | "postgresql" => Ok(Self::Postgres),
             scheme => Err(AppError::ConfigLoadError(format!(
-                "Unsupported storage scheme: {scheme}, supported schemes are: memory://, local://, postgres://"
+                "Unsupported storage scheme: {scheme}, supported schemes are: memory://, postgres://"
             ))),
         }
     }

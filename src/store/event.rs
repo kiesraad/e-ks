@@ -18,6 +18,7 @@ pub type EventHash = [u8; 32];
 pub const GENESIS_HASH: EventHash = [0u8; 32];
 
 /// One event as it sits in a backend's storage: payload still encrypted.
+#[cfg(feature = "database")]
 pub(crate) struct EncryptedEvent {
     pub event_id: usize,
     pub created_at: DateTime<Utc>,
@@ -91,6 +92,7 @@ impl<E: Event> StoreEvent<E> {
 /// (`event_id`, `created_at`) and pins the ciphertext to its position in the
 /// chain (`prev_hash`), so a ciphertext cannot be replayed at a different
 /// offset without the tag check failing.
+#[cfg(feature = "database")]
 pub(crate) fn event_aad(
     event_id: usize,
     created_at: DateTime<Utc>,
@@ -106,7 +108,7 @@ pub(crate) fn event_aad(
 /// Compute the chain hash for an event.
 ///
 /// `body` is the bytes that get persisted for this event: the `nonce ‖ ciphertext
-/// ‖ tag` blob for the file and database backends, or the CBOR encoding of the
+/// ‖ tag` blob for the database backend, or the CBOR encoding of the
 /// plaintext payload for the in-memory backend. Hashing the *encrypted* blob (which
 /// is indistinguishable from random and carries a fresh nonce) is what makes it
 /// safe to store the hash unencrypted: it commits to the stored event without
@@ -175,7 +177,7 @@ mod tests {
     #[test]
     fn chain_hash_only_uses_microsecond_precision() {
         // created_at sub-microsecond digits don't survive a round-trip through
-        // the file frame / Postgres timestamptz, so they must not affect the hash.
+        // Postgres timestamptz, so they must not affect the hash.
         let micros = DateTime::from_timestamp_micros(1_700_000_000_123_456).unwrap();
         let with_nanos = micros + chrono::Duration::nanoseconds(789);
         assert_eq!(
@@ -184,6 +186,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "database")]
     #[test]
     fn event_aad_is_stable_and_distinct() {
         let ts = DateTime::from_timestamp(1_700_000_000, 0).unwrap();
