@@ -13,6 +13,8 @@
 //! changed PDFs go to `tmp/diffs/` and a summary to `tmp/results.md`.
 //!
 //! Requires `diff-pdf` (`apt-get install diff-pdf-wx` / `brew install diff-pdf`).
+//!
+//! Run with `cargo run -p eks-development --bin pdf_diff`
 
 use std::{
     collections::BTreeSet,
