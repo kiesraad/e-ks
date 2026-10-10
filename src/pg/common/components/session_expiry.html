@@ -1,0 +1,27 @@
+{# The session-expiry warning. Closed until the script opens it shortly
+   before the session runs out; the data attributes carry the remaining
+   lifetime as rendered, so the script never hard-codes a duration. #}
+{% import "pg/common/components/macros.html" as session_macros %}
+{% let expiry = "session_expiry"|session_expiry_value %}
+<dialog class="modal session-expiry"
+        data-expires-in="{{ expiry.expires_in_secs }}"
+        data-warning-lead="{{ expiry.warning_lead_secs }}"
+        data-extendable="{{ expiry.extendable }}"
+        data-status-url="{{ crate::common::SessionExpiryPath }}"
+        data-expired-url="{{ crate::common::LoginStartPath::expired_url() }}"
+        aria-labelledby="session-expiry-title">
+  <h3 id="session-expiry-title">{{ "auth.session_expiry.title"|trans }}</h3>
+  <p class="session-expiry-message">{{ "auth.session_expiry.message"|trans }}</p>
+  <p class="session-expiry-message-final hidden">{{ "auth.session_expiry.message_final"|trans }}</p>
+  <p class="session-expiry-countdown">
+    <span>{{ "auth.session_expiry.remaining"|trans }}</span>
+    <strong class="session-expiry-timer" role="timer">--:--</strong>
+  </p>
+  <div class="session-expiry-actions">
+    <button type="button" class="button session-expiry-extend">{{ "auth.session_expiry.extend"|trans }}</button>
+    <form method="post" action="{{ crate::common::LogoutPath }}">
+      {{ session_macros::csrf_field() }}
+      <button type="submit" class="button secondary">{{ "auth.session_expiry.logout"|trans }}</button>
+    </form>
+  </div>
+</dialog>

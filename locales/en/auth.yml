@@ -11,6 +11,14 @@ confirm_logout:
 error:
   message: Logging in to this organisation did not succeed. Please try again later. Still not working? Log in to Mijn DigiD to check that your DigiD works correctly. There may be a malfunction at the organisation you are logging in to.
   title: Login failed
+session_expiry:
+  expired: "Your session has expired because you were inactive for {} minutes. Log in again to continue."
+  extend: Stay logged in
+  logout: Log out now
+  message: You have been inactive for a while. For security reasons you will be logged out automatically if you do nothing. Changes that have not been saved will then be lost.
+  message_final: Your session has reached its maximum duration and cannot be extended. Save your work; after that you will have to log in again.
+  remaining: Time remaining
+  title: Your session is about to expire
 signed_out:
   message: "You have been logged out. Close your browser to end the session completely, or log in again."
   title: You have been logged out

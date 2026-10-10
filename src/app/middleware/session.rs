@@ -17,7 +17,7 @@ use super::maintenance::handle_db_error;
 use crate::{
     AppError, AppState, CsbStore, PgStore, SESSION_COOKIE_NAME, Session, SessionUser,
     auth::{csrf_guard::enforce_csrf, session_extractor::user_agent_hash},
-    common::{LoginStartPath, PgIndexPath, SelectElectionPath},
+    common::{LoginStartPath, PgIndexPath, SelectElectionPath, SessionExpiryPath},
     csb::index::CsbIndexPath,
     csrf_rejection_response,
     finalise::FinalisePath,
@@ -59,8 +59,12 @@ pub async fn session_middleware(
         Err(rejection) => return csrf_rejection_response(rejection, session.locale),
     };
 
-    session.last_activity = Utc::now();
-    state.sessions.touch(&session).await;
+    // Every request is activity, except the expiry-warning script peeking at
+    // how much time is left: that must not keep an idle session alive.
+    if !SessionExpiryPath::is_activity_free(&request) {
+        session.last_activity = Utc::now();
+        state.sessions.touch(&session).await;
+    }
 
     super::csb_access::report_alert_hours_activity(&state, &session, &request);
     request.extensions_mut().insert(session);
@@ -283,6 +287,83 @@ mod tests {
         assert!(!sets_cookie);
         // Session reused: the handler saw it, keyed by the cookie token's hash.
         assert_eq!(returned_hash, hash_token(&token));
+    }
+
+    /// Inserts a session that has been idle for `idle_minutes` and returns its
+    /// cookie header value.
+    async fn insert_idle_session(state: &AppState, idle_minutes: i64) -> String {
+        let mut session = Session::new_test();
+        session.last_activity = Utc::now() - chrono::Duration::minutes(idle_minutes);
+        let token = session.token_string();
+        state.sessions.insert(session).await;
+        format!("{SESSION_COOKIE_NAME}={token}")
+    }
+
+    /// Seconds the stored session behind `cookie` has left.
+    async fn stored_expires_in(state: &AppState, cookie: &str) -> u64 {
+        let token = cookie.split_once('=').expect("cookie pair").1;
+        state
+            .sessions
+            .get_existing(Some(token))
+            .await
+            .expect("load session")
+            .expect("session present")
+            .expiry()
+            .expires_in_secs
+    }
+
+    /// A regular request refreshes the session's activity.
+    #[tokio::test]
+    async fn middleware_refreshes_activity_on_a_regular_request() {
+        let state = AppState::new_for_tests().await;
+        let cookie = insert_idle_session(&state, 10).await;
+        assert!(stored_expires_in(&state, &cookie).await <= 5 * 60);
+
+        let response = session_app(state.clone())
+            .oneshot(
+                HttpRequest::builder()
+                    .uri("/")
+                    .header(header::COOKIE, &cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .expect("response");
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(stored_expires_in(&state, &cookie).await > 14 * 60);
+    }
+
+    /// The expiry peek passes the middleware (session, UA checks) but leaves
+    /// the activity timestamp alone, so an idle tab cannot keep a session alive.
+    #[tokio::test]
+    async fn middleware_does_not_refresh_activity_on_the_expiry_peek() {
+        let state = AppState::new_for_tests().await;
+        let cookie = insert_idle_session(&state, 10).await;
+        let app = Router::new()
+            .route(
+                SessionExpiryPath::PATH,
+                get(|session: Session| async move { session.token_hash().to_string() }),
+            )
+            .layer(middleware::from_fn_with_state(
+                state.clone(),
+                session_middleware,
+            ))
+            .with_state(state.clone());
+
+        let response = app
+            .oneshot(
+                HttpRequest::builder()
+                    .uri(SessionExpiryPath::PATH)
+                    .header(header::COOKIE, &cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .expect("response");
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(stored_expires_in(&state, &cookie).await <= 5 * 60);
     }
 
     /// Builds an app whose only route echoes the session token hash behind the

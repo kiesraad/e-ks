@@ -3,7 +3,7 @@
 use chrono::{DateTime, Utc};
 
 use crate::{
-    ElectionConfig, ElectoralDistrict, Locale,
+    ElectionConfig, ElectoralDistrict, Locale, SessionExpiry,
     constants::{DATE_TIME_SECONDS_FORMAT, DEFAULT_DATE_TIME_FORMAT, DEFAULT_TIMEZONE},
     core::AnyLocale,
     form::FormData,
@@ -66,6 +66,16 @@ pub fn election_value(
 #[askama::filter_fn]
 pub fn integer_value(value_name: &str, values: &dyn askama::Values) -> askama::Result<usize> {
     let value = askama::get_value::<usize>(values, value_name)?;
+
+    Ok(*value)
+}
+
+#[askama::filter_fn]
+pub fn session_expiry_value(
+    value_name: &str,
+    values: &dyn askama::Values,
+) -> askama::Result<SessionExpiry> {
+    let value = askama::get_value::<SessionExpiry>(values, value_name)?;
 
     Ok(*value)
 }

@@ -30,5 +30,5 @@ pub use locale::Locale;
 pub use model_locale::{AnyLocale, ModelLocale};
 pub use rate_limit::{RateLimit, RateLimits};
 pub use scope::Scope;
-pub use templates::{HtmlTemplate, LocaleValues, SessionPageValues};
+pub use templates::{HtmlTemplate, LocaleValues};
 pub use zip::ZipResponseWriter;

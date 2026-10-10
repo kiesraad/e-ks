@@ -18,5 +18,5 @@ pub use pages::{
 };
 pub use paths::{
     HideDownloadWarningPath, LoginStartPath, LogoutPath, PgIndexPath, SelectElectionPath,
-    SwitchElectionPath, SwitchLanguagePath,
+    SessionExpiryPath, SwitchElectionPath, SwitchLanguagePath,
 };

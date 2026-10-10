@@ -6,7 +6,7 @@ mod context;
 mod error_response;
 pub mod filters;
 
-pub use context::Context;
+pub use context::{Context, SessionPageValues};
 pub use error_response::ErrorPage;
 // Only the `pg` and `csb` guard tests read these; see `context.rs`.
 #[cfg(test)]

@@ -123,6 +123,21 @@ mod tests {
         assert!(body.contains(ElectionConfig::EK27.title(AnyLocale::En)));
     }
 
+    /// The layout carries the session-expiry warning with the remaining
+    /// lifetime for the script that opens it.
+    #[tokio::test]
+    async fn index_includes_the_session_expiry_warning() {
+        let body = render_index(PgStore::new_for_test()).await;
+        assert!(body.contains(r#"class="modal session-expiry""#), "{body}");
+        assert!(body.contains(r#"data-warning-lead="60""#), "{body}");
+        assert!(body.contains(r#"data-status-url="/session""#), "{body}");
+        assert!(
+            body.contains(r#"data-expired-url="/login?expired=true""#),
+            "{body}"
+        );
+        assert!(body.contains("Your session is about to expire"), "{body}");
+    }
+
     fn general_information_card_link(initial: bool) -> String {
         format!(
             "\"{}\"",
