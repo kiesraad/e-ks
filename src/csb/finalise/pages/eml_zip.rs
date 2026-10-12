@@ -166,13 +166,12 @@ mod tests {
     use axum::body::to_bytes;
 
     use crate::{
-        AppState, CsbAction, CsbMainAction, CsbUser, ElectionConfig, ElectoralDistrict,
-        PgStoreData, Province, StreamId,
+        AppState, CsbMainAction, CsbUser, ElectionConfig, ElectoralDistrict, Province, StreamId,
         structs::{
             candidate_lists::CandidateList, csb::sample_registered_political_group,
             list_designation::ListDesignation, persons::PersonId, political_groups::PoliticalGroup,
         },
-        test_utils::sample_person,
+        test_utils::{sample_person, sample_political_group_named, seed_csb_group},
     };
 
     /// Import a group with one candidate on a list in each of the districts
@@ -182,40 +181,21 @@ mod tests {
         appellation: &str,
         districts: impl IntoIterator<Item = ElectoralDistrict>,
     ) -> StreamId {
-        let stream_id = StreamId::new();
-        let store = state
-            .csb_store_for_stream(stream_id, election)
-            .await
-            .unwrap()
-            .acting_as_test_user();
-
         let candidate = sample_person(PersonId::new());
-        let mut snapshot = PgStoreData {
-            political_group: PoliticalGroup {
-                appellation: Some(appellation.parse().unwrap()),
-                list_designation: Some(ListDesignation::Standalone),
-                ..Default::default()
-            },
-            ..PgStoreData::default()
-        };
-        snapshot.persons.insert(candidate.id, candidate.clone());
         let list = CandidateList {
             electoral_districts: districts.into_iter().collect(),
             candidates: vec![candidate.id],
             ..Default::default()
         };
-        snapshot.candidate_lists.insert(list.id, list);
-
-        store
-            .update(CsbAction::Import {
-                hash: [0u8; 32],
-                source_stream_id: StreamId::new(),
-                snapshot: Box::new(snapshot),
-            })
-            .await
-            .unwrap();
-
-        stream_id
+        seed_csb_group(
+            state,
+            election,
+            sample_political_group_named(appellation),
+            vec![candidate],
+            vec![list],
+        )
+        .await
+        .stream_id
     }
 
     /// A test [`CsbMainStore`] scoped to `election`, since
@@ -237,35 +217,24 @@ mod tests {
         let context = CsbContext::new_test();
 
         let state = AppState::new_for_tests().await;
-        let stream_id = StreamId::new();
-        let store = state
-            .csb_store_for_stream(stream_id, election)
-            .await?
-            .acting_as_test_user();
-
         let candidate = sample_person(PersonId::new());
-        let mut snapshot = PgStoreData {
-            political_group: PoliticalGroup {
-                appellation: None,
-                list_designation: Some(ListDesignation::Blank),
-                ..Default::default()
-            },
-            ..PgStoreData::default()
-        };
-        snapshot.persons.insert(candidate.id, candidate.clone());
         let list = CandidateList {
             electoral_districts: election.electoral_districts().iter().copied().collect(),
             candidates: vec![candidate.id],
             ..Default::default()
         };
-        snapshot.candidate_lists.insert(list.id, list);
-        store
-            .update(CsbAction::Import {
-                hash: [0u8; 32],
-                source_stream_id: StreamId::new(),
-                snapshot: Box::new(snapshot),
-            })
-            .await?;
+        seed_csb_group(
+            &state,
+            election,
+            PoliticalGroup {
+                appellation: None,
+                list_designation: Some(ListDesignation::Blank),
+                ..Default::default()
+            },
+            vec![candidate],
+            vec![list],
+        )
+        .await;
 
         let main_store = main_store_for(election);
         let files = eml230_files(context, state.csb_store_registry(), &main_store).await?;
@@ -449,19 +418,6 @@ mod tests {
     async fn download_eml_zip_skips_groups_without_valid_candidates() -> Result<(), AppError> {
         let context = CsbContext::new_test();
         let state = AppState::new_for_tests().await;
-        let stream_id = StreamId::new();
-        let store = state
-            .csb_store_for_stream(stream_id, ElectionConfig::EK27)
-            .await?
-            .acting_as_test_user();
-        let mut snapshot = PgStoreData {
-            political_group: PoliticalGroup {
-                appellation: Some("Leeg".parse().unwrap()),
-                list_designation: Some(ListDesignation::Standalone),
-                ..Default::default()
-            },
-            ..PgStoreData::default()
-        };
         let list = CandidateList {
             electoral_districts: ElectionConfig::EK27.electoral_districts()[0..1]
                 .iter()
@@ -469,14 +425,14 @@ mod tests {
                 .collect(),
             ..Default::default()
         };
-        snapshot.candidate_lists.insert(list.id, list);
-        store
-            .update(CsbAction::Import {
-                hash: [0u8; 32],
-                source_stream_id: StreamId::new(),
-                snapshot: Box::new(snapshot),
-            })
-            .await?;
+        seed_csb_group(
+            &state,
+            ElectionConfig::EK27,
+            sample_political_group_named("Leeg"),
+            vec![],
+            vec![list],
+        )
+        .await;
 
         let main_store = CsbMainStore::new_for_test();
         let files = eml230_files(context, state.csb_store_registry(), &main_store).await?;

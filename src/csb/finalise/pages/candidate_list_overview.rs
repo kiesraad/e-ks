@@ -73,43 +73,26 @@ mod tests {
     use std::collections::BTreeSet;
 
     use crate::{
-        AppState, CsbAction, ElectionConfig, ElectoralDistrict, PgStoreData, StreamId,
-        structs::{
-            candidate_lists::CandidateList, list_designation::ListDesignation,
-            political_groups::PoliticalGroup,
-        },
+        AppState, ElectionConfig, ElectoralDistrict, StreamId,
+        structs::candidate_lists::CandidateList,
+        test_utils::{sample_political_group_named, seed_csb_group},
     };
 
     /// Import a group named `appellation` with one list in Groningen.
     async fn seed_group(state: &AppState, appellation: &str) -> StreamId {
-        let stream_id = StreamId::new();
-        let store = state
-            .csb_store_for_stream(stream_id, ElectionConfig::EK27)
-            .await
-            .unwrap()
-            .acting_as_test_user();
-        let mut snapshot = PgStoreData {
-            political_group: PoliticalGroup {
-                appellation: Some(appellation.parse().unwrap()),
-                list_designation: Some(ListDesignation::Standalone),
-                ..Default::default()
-            },
-            ..PgStoreData::default()
-        };
         let list = CandidateList {
             electoral_districts: BTreeSet::from([ElectoralDistrict::Groningen]),
             ..Default::default()
         };
-        snapshot.candidate_lists.insert(list.id, list);
-        store
-            .update(CsbAction::Import {
-                hash: [0u8; 32],
-                source_stream_id: StreamId::new(),
-                snapshot: Box::new(snapshot),
-            })
-            .await
-            .unwrap();
-        stream_id
+        seed_csb_group(
+            state,
+            ElectionConfig::EK27,
+            sample_political_group_named(appellation),
+            vec![],
+            vec![list],
+        )
+        .await
+        .stream_id
     }
 
     /// The first download records the list order when none was recorded yet;

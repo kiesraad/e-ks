@@ -88,14 +88,12 @@ mod tests {
     use std::collections::BTreeSet;
 
     use crate::{
-        AppState, CsbAction, CsbMainAction, CsbUser, ElectionConfig, ElectoralDistrict,
-        PgStoreData, StreamId,
+        AppState, CsbMainAction, CsbUser, ElectionConfig, ElectoralDistrict, StreamId,
         structs::{
             candidate_lists::CandidateList,
             csb::{OmissionCategory, OmissionStatus, sample_omission},
-            list_designation::ListDesignation,
-            political_groups::PoliticalGroup,
         },
+        test_utils::{sample_political_group_named, seed_csb_group},
     };
 
     /// Import a group named `appellation` with one list in `districts`. The
@@ -106,34 +104,19 @@ mod tests {
         appellation: &str,
         districts: &[ElectoralDistrict],
     ) -> StreamId {
-        let stream_id = StreamId::new();
-        let store = state
-            .csb_store_for_stream(stream_id, ElectionConfig::EK27)
-            .await
-            .unwrap()
-            .acting_as_test_user();
-        let mut snapshot = PgStoreData {
-            political_group: PoliticalGroup {
-                appellation: Some(appellation.parse().unwrap()),
-                list_designation: Some(ListDesignation::Standalone),
-                ..Default::default()
-            },
-            ..PgStoreData::default()
-        };
         let list = CandidateList {
             electoral_districts: districts.iter().copied().collect::<BTreeSet<_>>(),
             ..Default::default()
         };
-        snapshot.candidate_lists.insert(list.id, list);
-        store
-            .update(CsbAction::Import {
-                hash: [0u8; 32],
-                source_stream_id: StreamId::new(),
-                snapshot: Box::new(snapshot),
-            })
-            .await
-            .unwrap();
-        stream_id
+        seed_csb_group(
+            state,
+            ElectionConfig::EK27,
+            sample_political_group_named(appellation),
+            vec![],
+            vec![list],
+        )
+        .await
+        .stream_id
     }
 
     /// A main store with `order` recorded as the list order.

@@ -157,51 +157,33 @@ mod tests {
     use std::collections::BTreeSet;
 
     use crate::{
-        AppState, CsbAction, CsbMainAction, CsbUser, ElectionConfig, ElectoralDistrict,
-        PgStoreData, StreamId,
+        AppState, CsbMainAction, CsbUser, ElectionConfig, ElectoralDistrict, StreamId,
         structs::{
             candidate_lists::CandidateList,
             csb::{
                 HearingDetails, OmissionCategory, OmissionStatus, sample_omission,
                 sample_registered_political_group,
             },
-            list_designation::ListDesignation,
             persons::PersonId,
-            political_groups::PoliticalGroup,
         },
-        test_utils::sample_person,
+        test_utils::{sample_person, sample_political_group_named, seed_csb_group},
     };
 
     /// Import a group named `appellation` with one list in Groningen.
     async fn seed_group(state: &AppState, appellation: &str) -> StreamId {
-        let stream_id = StreamId::new();
-        let store = state
-            .csb_store_for_stream(stream_id, ElectionConfig::EK27)
-            .await
-            .unwrap()
-            .acting_as_test_user();
-        let mut snapshot = PgStoreData {
-            political_group: PoliticalGroup {
-                appellation: Some(appellation.parse().unwrap()),
-                list_designation: Some(ListDesignation::Standalone),
-                ..Default::default()
-            },
-            ..PgStoreData::default()
-        };
         let list = CandidateList {
             electoral_districts: BTreeSet::from([ElectoralDistrict::Groningen]),
             ..Default::default()
         };
-        snapshot.candidate_lists.insert(list.id, list);
-        store
-            .update(CsbAction::Import {
-                hash: [0u8; 32],
-                source_stream_id: StreamId::new(),
-                snapshot: Box::new(snapshot),
-            })
-            .await
-            .unwrap();
-        stream_id
+        seed_csb_group(
+            state,
+            ElectionConfig::EK27,
+            sample_political_group_named(appellation),
+            vec![],
+            vec![list],
+        )
+        .await
+        .stream_id
     }
 
     #[tokio::test]
@@ -424,37 +406,22 @@ mod tests {
     async fn gen_i4_renders_the_omissions_and_the_valid_lists() -> Result<(), AppError> {
         let context = CsbContext::new_test();
         let state = AppState::new_for_tests().await;
-        let store = state
-            .csb_store_for_stream(StreamId::new(), ElectionConfig::EK27)
-            .await?
-            .acting_as_test_user();
-
         let first = sample_person(PersonId::new());
         let second = sample_person(PersonId::new());
-        let mut snapshot = PgStoreData {
-            political_group: PoliticalGroup {
-                appellation: Some("Kiesraad Demo".parse().unwrap()),
-                list_designation: Some(ListDesignation::Standalone),
-                ..Default::default()
-            },
-            ..PgStoreData::default()
-        };
-        snapshot.persons.insert(first.id, first.clone());
-        snapshot.persons.insert(second.id, second.clone());
         let list = CandidateList {
             electoral_districts: BTreeSet::from([ElectoralDistrict::Groningen]),
             candidates: vec![first.id, second.id],
             ..Default::default()
         };
         let list_id = list.id;
-        snapshot.candidate_lists.insert(list.id, list);
-        store
-            .update(CsbAction::Import {
-                hash: [0u8; 32],
-                source_stream_id: StreamId::new(),
-                snapshot: Box::new(snapshot),
-            })
-            .await?;
+        let store = seed_csb_group(
+            &state,
+            ElectionConfig::EK27,
+            sample_political_group_named("Kiesraad Demo"),
+            vec![first.clone(), second.clone()],
+            vec![list],
+        )
+        .await;
 
         let recovered = sample_omission(OmissionCategory::Candidate {
             person: first.id,

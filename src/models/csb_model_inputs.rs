@@ -701,7 +701,7 @@ mod tests {
     use super::*;
     use crate::{
         AppRequestState, AppState, CsbAction, CsbStore, ElectionConfig, ElectoralDistrict,
-        PgStoreData, Province, StreamId,
+        Province, StreamId,
         structs::{
             candidate_lists::{CandidateList, CandidateListId},
             common::UtcDateTime,
@@ -710,7 +710,9 @@ mod tests {
             persons::{Person, PersonId},
             political_groups::PoliticalGroup,
         },
-        test_utils::{sample_person, sample_person_with},
+        test_utils::{
+            sample_person, sample_person_with, sample_political_group_named, seed_csb_group,
+        },
     };
     use eml_nl::utils::AffiliationType;
     use std::collections::BTreeSet;
@@ -733,50 +735,6 @@ mod tests {
             .parse::<chrono::DateTime<chrono::Utc>>()
             .expect("rfc3339 timestamp")
             .into()
-    }
-
-    fn named_group(appellation: &str) -> PoliticalGroup {
-        PoliticalGroup {
-            appellation: Some(appellation.parse().unwrap()),
-            list_designation: Some(ListDesignation::Standalone),
-            ..Default::default()
-        }
-    }
-
-    /// An imported stream in the test registry.
-    async fn seed_csb_store(
-        state: &AppState,
-        political_group: PoliticalGroup,
-        persons: Vec<Person>,
-        lists: Vec<CandidateList>,
-    ) -> CsbStore {
-        let store = state
-            .csb_store_for_stream(StreamId::new(), EK)
-            .await
-            .unwrap()
-            .acting_as_test_user();
-
-        let mut snapshot = PgStoreData {
-            political_group,
-            ..PgStoreData::default()
-        };
-        for person in persons {
-            snapshot.persons.insert(person.id, person);
-        }
-        for list in lists {
-            snapshot.candidate_lists.insert(list.id, list);
-        }
-
-        store
-            .update(CsbAction::Import {
-                hash: [0u8; 32],
-                source_stream_id: StreamId::new(),
-                snapshot: Box::new(snapshot),
-            })
-            .await
-            .unwrap();
-
-        store
     }
 
     /// Aarts, de Boer and Cornelissen.
@@ -802,9 +760,10 @@ mod tests {
             candidates: persons.iter().map(|person| person.id).collect(),
             ..Default::default()
         };
-        let store = seed_csb_store(
+        let store = seed_csb_group(
             state,
-            named_group(appellation),
+            EK,
+            sample_political_group_named(appellation),
             persons.clone(),
             vec![list.clone()],
         )
@@ -1165,9 +1124,10 @@ mod tests {
     async fn submitted_lists_groups_the_rows_by_district_in_district_order() {
         let state = AppState::new_for_tests().await;
         let person = sample_person(PersonId::new());
-        seed_csb_store(
+        seed_csb_group(
             &state,
-            named_group("Kiesraad Demo"),
+            EK,
+            sample_political_group_named("Kiesraad Demo"),
             vec![person.clone()],
             vec![CandidateList {
                 // Named in reverse district order on purpose.
@@ -1234,9 +1194,10 @@ mod tests {
     #[tokio::test]
     async fn found_omissions_groups_the_descriptions_per_district() {
         let state = AppState::new_for_tests().await;
-        let store = seed_csb_store(
+        let store = seed_csb_group(
             &state,
-            named_group("De Geconstateerde Partij"),
+            EK,
+            sample_political_group_named("De Geconstateerde Partij"),
             vec![],
             vec![],
         )
@@ -1272,11 +1233,25 @@ mod tests {
         let state = AppState::new_for_tests().await;
 
         // An irreparable omission does not put the group in the I 1 table.
-        let without = seed_csb_store(&state, named_group("Zonder Verzuimen"), vec![], vec![]).await;
+        let without = seed_csb_group(
+            &state,
+            EK,
+            sample_political_group_named("Zonder Verzuimen"),
+            vec![],
+            vec![],
+        )
+        .await;
         create_irreparable_omission(&without, OmissionCategory::PoliticalGroup, "Onherstelbaar")
             .await;
 
-        let with = seed_csb_store(&state, named_group("Met Verzuimen"), vec![], vec![]).await;
+        let with = seed_csb_group(
+            &state,
+            EK,
+            sample_political_group_named("Met Verzuimen"),
+            vec![],
+            vec![],
+        )
+        .await;
         create_omission(
             &with,
             OmissionCategory::PoliticalGroup,
@@ -1676,9 +1651,10 @@ mod tests {
     async fn i4_groups_the_valid_lists_per_district_in_district_order() {
         let state = AppState::new_for_tests().await;
         let person = sample_person(PersonId::new());
-        seed_csb_store(
+        seed_csb_group(
             &state,
-            named_group("Alleen Bonaire"),
+            EK,
+            sample_political_group_named("Alleen Bonaire"),
             vec![person.clone()],
             vec![CandidateList {
                 electoral_districts: BTreeSet::from([ElectoralDistrict::Bonaire]),
@@ -1715,9 +1691,10 @@ mod tests {
     async fn i4_valid_lists_follow_the_established_list_order() {
         let state = AppState::new_for_tests().await;
         let person1 = sample_person(PersonId::new());
-        let first_created = seed_csb_store(
+        let first_created = seed_csb_group(
             &state,
-            named_group("Eerst Aangemaakt"),
+            EK,
+            sample_political_group_named("Eerst Aangemaakt"),
             vec![person1.clone()],
             vec![CandidateList {
                 electoral_districts: BTreeSet::from([ElectoralDistrict::Groningen]),
@@ -1727,9 +1704,10 @@ mod tests {
         )
         .await;
         let person2 = sample_person(PersonId::new());
-        let second_created = seed_csb_store(
+        let second_created = seed_csb_group(
             &state,
-            named_group("Later Aangemaakt"),
+            EK,
+            sample_political_group_named("Later Aangemaakt"),
             vec![person2.clone()],
             vec![CandidateList {
                 electoral_districts: BTreeSet::from([ElectoralDistrict::Groningen]),
@@ -1962,9 +1940,10 @@ mod tests {
                 ..Default::default()
             })
             .collect();
-        let store = seed_csb_store(
+        let store = seed_csb_group(
             state,
-            named_group(appellation),
+            EK,
+            sample_political_group_named(appellation),
             persons.clone(),
             lists.clone(),
         )
