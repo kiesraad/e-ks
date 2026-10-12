@@ -1,7 +1,7 @@
 use axum::{extract::State, response::Response};
 
 use crate::{
-    AppError, AppRequestState, CsbMainStore,
+    AppError, AppRequestState, CsbContext, CsbMainAction, CsbMainStore,
     core::{ModelLocale, constants::DEFAULT_DATE_FORMAT},
     csb::finalise::{
         numbering::list_numbering,
@@ -18,6 +18,7 @@ use crate::{
 
 /// Collect the store data the candidate list publication model needs.
 async fn candidate_list_publication_model<S: AppRequestState>(
+    context: CsbContext,
     main_store: CsbMainStore,
     state: &S,
 ) -> Result<CandidateListPublication, AppError> {
@@ -25,9 +26,12 @@ async fn candidate_list_publication_model<S: AppRequestState>(
     let registry = state.csb_store_registry();
     let numbering = list_numbering(registry, &main_store).await?;
 
+    // Set the numbering if it has not been set before. This occurs when this is
+    // the first download and no drag event has taken place
     if !numbering.is_complete() {
-        // TODO: should not result in error, see #1319
-        return Err(AppError::IncompleteData("List order not recorded"));
+        main_store
+            .update(CsbMainAction::UpdateListOrder(numbering.stream_ids()).by(context.user()?))
+            .await?;
     }
 
     let mut public_session = PublicSession::from(election.public_session());
@@ -49,10 +53,11 @@ async fn candidate_list_publication_model<S: AppRequestState>(
 /// The publication of the candidate lists, as PDF.
 pub async fn gen_candidate_list_publication<S: AppRequestState>(
     _: CsbCandidateListPublicationDownloadPath,
+    context: CsbContext,
     main_store: CsbMainStore,
     State(state): State<S>,
 ) -> Result<Response, AppError> {
-    candidate_list_publication_model(main_store, &state)
+    candidate_list_publication_model(context, main_store, &state)
         .await?
         .pdf_response()
         .await
@@ -61,10 +66,11 @@ pub async fn gen_candidate_list_publication<S: AppRequestState>(
 /// The same publication as [`gen_candidate_list_publication`], exported as a Word document.
 pub async fn gen_candidate_list_publication_docx<S: AppRequestState>(
     _: CsbCandidateListPublicationDocxDownloadPath,
+    context: CsbContext,
     main_store: CsbMainStore,
     State(state): State<S>,
 ) -> Result<Response, AppError> {
-    candidate_list_publication_model(main_store, &state)
+    candidate_list_publication_model(context, main_store, &state)
         .await?
         .docx_response()
         .await
@@ -160,6 +166,7 @@ mod tests {
     #[tokio::test]
     async fn document_uses_global_ordering_even_when_list_not_present_in_district()
     -> Result<(), AppError> {
+        let context = CsbContext::new_test();
         let state = AppState::new_for_tests().await;
         let both = seed_group(
             &state,
@@ -171,7 +178,7 @@ mod tests {
             seed_group(&state, "Alleen Groningen", &[ElectoralDistrict::Groningen]).await;
         let main_store = main_store_with_order(vec![groningen, both]).await?;
 
-        let model = candidate_list_publication_model(main_store, &state).await?;
+        let model = candidate_list_publication_model(context, main_store, &state).await?;
 
         assert_eq!(
             rows(&model),
@@ -190,6 +197,7 @@ mod tests {
     #[tokio::test]
     async fn document_uses_global_ordering_even_when_list_scrapped_in_district()
     -> Result<(), AppError> {
+        let context = CsbContext::new_test();
         let state = AppState::new_for_tests().await;
         let districts = [ElectoralDistrict::Groningen, ElectoralDistrict::Drenthe];
         let first = seed_group(&state, "Eerste", &districts).await;
@@ -210,7 +218,7 @@ mod tests {
             .set_status(&store, OmissionStatus::NotRecovered)
             .await?;
 
-        let model = candidate_list_publication_model(main_store, &state).await?;
+        let model = candidate_list_publication_model(context, main_store, &state).await?;
 
         assert_eq!(
             rows(&model),
@@ -229,10 +237,12 @@ mod tests {
     /// Without a recorded order the lists numbered by lot have no number yet
     #[tokio::test]
     async fn candidate_list_publication_model_requires_the_recorded_order() {
+        let context = CsbContext::new_test();
         let state = AppState::new_for_tests().await;
         seed_group(&state, "Ongenummerd", &[ElectoralDistrict::Groningen]).await;
 
-        let result = candidate_list_publication_model(CsbMainStore::new_for_test(), &state).await;
+        let result =
+            candidate_list_publication_model(context, CsbMainStore::new_for_test(), &state).await;
 
         // TODO: should not result in error, see: #1319
         assert!(matches!(result, Err(AppError::IncompleteData(_))));
@@ -240,12 +250,14 @@ mod tests {
 
     #[tokio::test]
     async fn gen_candidate_list_publication_returns_pdf_response() -> Result<(), AppError> {
+        let context = CsbContext::new_test();
         let state = AppState::new_for_tests().await;
         let stream_id = seed_group(&state, "Kiesraad Demo", &[ElectoralDistrict::Groningen]).await;
         let main_store = main_store_with_order(vec![stream_id]).await?;
 
         let response = gen_candidate_list_publication(
             CsbCandidateListPublicationDownloadPath,
+            context,
             main_store,
             State(state),
         )
@@ -278,9 +290,11 @@ mod tests {
 
     #[tokio::test]
     async fn gen_candidate_list_publication_docx_returns_word_response() -> Result<(), AppError> {
+        let context = CsbContext::new_test();
         let state = AppState::new_for_tests().await;
         let response = gen_candidate_list_publication_docx(
             CsbCandidateListPublicationDocxDownloadPath,
+            context,
             CsbMainStore::new_for_test(),
             State(state),
         )

@@ -1,7 +1,7 @@
 use axum::{extract::State, response::Response};
 
 use crate::{
-    AppError, AppRequestState, CsbMainStore,
+    AppError, AppRequestState, CsbContext, CsbMainAction, CsbMainStore,
     constants::DEFAULT_DATE_FORMAT,
     core::ModelLocale,
     csb::finalise::{
@@ -14,19 +14,20 @@ use crate::{
 };
 
 async fn candidate_list_overview_model<S: AppRequestState>(
+    context: CsbContext,
     main_store: CsbMainStore,
     state: &S,
 ) -> Result<CandidateListOverview, AppError> {
     let election = main_store.election;
     let registry = state.csb_store_registry();
     let numbering = list_numbering(registry, &main_store).await?;
-    if numbering
-        .groups
-        .iter()
-        .any(|group| group.position.is_none())
-    {
-        // TODO: should not result in error, see #1319
-        return Err(AppError::IncompleteData("List order not recorded"));
+
+    // Set the numbering if it has not been set before. This occurs when this is
+    // the first download and no drag event has taken place
+    if !numbering.is_complete() {
+        main_store
+            .update(CsbMainAction::UpdateListOrder(numbering.stream_ids()).by(context.user()?))
+            .await?;
     }
 
     Ok(CandidateListOverview {
@@ -43,10 +44,11 @@ async fn candidate_list_overview_model<S: AppRequestState>(
 /// The overview of the candidate lists, as PDF
 pub async fn gen_candidate_list_overview<S: AppRequestState>(
     _: CsbCandidateListOverviewDownloadPath,
+    context: CsbContext,
     main_store: CsbMainStore,
     State(state): State<S>,
 ) -> Result<Response, AppError> {
-    candidate_list_overview_model(main_store, &state)
+    candidate_list_overview_model(context, main_store, &state)
         .await?
         .pdf_response()
         .await
@@ -55,10 +57,11 @@ pub async fn gen_candidate_list_overview<S: AppRequestState>(
 /// The overview of the candidate lists, as Word
 pub async fn gen_candidate_list_overview_docx<S: AppRequestState>(
     _: CsbCandidateListOverviewDocxDownloadPath,
+    context: CsbContext,
     main_store: CsbMainStore,
     State(state): State<S>,
 ) -> Result<Response, AppError> {
-    candidate_list_overview_model(main_store, &state)
+    candidate_list_overview_model(context, main_store, &state)
         .await?
         .docx_response()
         .await

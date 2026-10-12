@@ -85,6 +85,7 @@ examination: Examination
 finalise:
   add_objection: Add objection
   district_count: Electoral districts
+  download_candidate_list_overview: Download candidate list overview
   download_eml_zip: Download EML files
   draft_title: Draft version
   final_title: Final version
