@@ -11,7 +11,7 @@ use std::{
 
 use secrecy::SecretString;
 
-use super::{CsbAlertHours, CsbIpAllowList, RateLimits};
+use super::{CsbAlertHours, CsbIpAllowList, ProxyProtocolPeers, RateLimits};
 use crate::{
     AppError, ElectionConfig, GithubUserId,
     constants::{BRP_PERSONS_ENDPOINT, BRP_TIMEOUT, STORE_CACHE_IDLE_MINUTES},
@@ -122,6 +122,10 @@ pub struct Config {
     /// refused with `403` and reported. Requires `csb_bind_address`, since
     /// only that listener is gated. Set via `CSB_IP_ALLOW_LIST`.
     pub csb_ip_allow_list: Option<CsbIpAllowList>,
+    /// Proxies that announce the client with a PROXY protocol v2 header.
+    /// Requires `csb_bind_address` and `tls`. Set via
+    /// `CSB_PROXY_PROTOCOL_FROM`.
+    pub csb_proxy_protocol_from: Option<ProxyProtocolPeers>,
     /// Local hours in which committee activity is reported (not blocked). Set
     /// via `CSB_ALERT_HOURS`, e.g. `22:00-06:00`.
     pub csb_alert_hours: Option<CsbAlertHours>,
@@ -411,6 +415,34 @@ where
     Ok(allow_list)
 }
 
+/// `CSB_PROXY_PROTOCOL_FROM`: needs the CSB listener and TLS.
+fn csb_proxy_protocol_from_env<F>(
+    lookup: &mut F,
+    csb_bind_address: Option<SocketAddr>,
+    has_tls: bool,
+) -> Result<Option<ProxyProtocolPeers>, AppError>
+where
+    F: FnMut(&'static str) -> Result<String, env::VarError>,
+{
+    let peers =
+        parse_optional_env_with("CSB_PROXY_PROTOCOL_FROM", lookup, ProxyProtocolPeers::parse)?;
+    if peers.is_some() && csb_bind_address.is_none() {
+        return Err(AppError::ConfigLoadError(
+            "CSB_PROXY_PROTOCOL_FROM requires CSB_BIND_ADDRESS: the PROXY protocol header is \
+             read on the dedicated CSB listener only"
+                .to_string(),
+        ));
+    }
+    if peers.is_some() && !has_tls {
+        return Err(AppError::ConfigLoadError(
+            "CSB_PROXY_PROTOCOL_FROM requires TLS_CERT_PATH and TLS_KEY_PATH: only the TLS \
+             server reads the PROXY protocol header"
+                .to_string(),
+        ));
+    }
+    Ok(peers)
+}
+
 impl Config {
     pub fn from_env() -> Result<Self, AppError> {
         Self::from_env_with(env::var)
@@ -441,6 +473,8 @@ impl Config {
             parse_optional_env_with("CSB_BIND_ADDRESS", &mut lookup, parse_csb_bind_address)?;
         let csb_domain = lookup("CSB_DOMAIN").ok().filter(|s| !s.is_empty());
         let csb_ip_allow_list = csb_ip_allow_list_from_env(&mut lookup, csb_bind_address)?;
+        let csb_proxy_protocol_from =
+            csb_proxy_protocol_from_env(&mut lookup, csb_bind_address, tls.is_some())?;
         let csb_alert_hours =
             parse_optional_env_with("CSB_ALERT_HOURS", &mut lookup, CsbAlertHours::parse)?;
 
@@ -467,6 +501,7 @@ impl Config {
             csb_bind_address,
             csb_domain,
             csb_ip_allow_list,
+            csb_proxy_protocol_from,
             csb_alert_hours,
             disable_auth_service,
             brp_client,
@@ -512,6 +547,7 @@ impl Config {
             csb_bind_address: None,
             csb_domain: None,
             csb_ip_allow_list: None,
+            csb_proxy_protocol_from: None,
             csb_alert_hours: None,
             disable_auth_service: false,
             brp_client: BrpConfig {
@@ -968,10 +1004,40 @@ mod tests {
         );
     }
 
+    /// The PROXY protocol peers need the CSB listener and TLS.
+    #[test]
+    fn from_env_reads_proxy_protocol_peers_with_csb_listener_and_tls() {
+        let tls = [
+            ("TLS_CERT_PATH", "/tmp/cert.pem"),
+            ("TLS_KEY_PATH", "/tmp/key.pem"),
+        ];
+        let peers = ("CSB_PROXY_PROTOCOL_FROM", "172.16.12.9");
+
+        let mut vars = tls.to_vec();
+        vars.extend([("CSB_BIND_ADDRESS", "8443"), peers]);
+        let config = Config::from_env_with(lookup_from(&config_env(vars))).expect("config");
+        let from = config.csb_proxy_protocol_from.expect("peers");
+        assert!(from.contains("172.16.12.9".parse().unwrap()));
+        assert!(!from.contains("172.16.12.5".parse().unwrap()));
+
+        let mut without_listener = tls.to_vec();
+        without_listener.push(peers);
+        let err = Config::from_env_with(lookup_from(&config_env(without_listener)))
+            .expect_err("no listener");
+        assert!(
+            matches!(err, AppError::ConfigLoadError(ref msg) if msg.contains("CSB_BIND_ADDRESS"))
+        );
+
+        let without_tls = config_env([("CSB_BIND_ADDRESS", "8443"), peers]);
+        let err = Config::from_env_with(lookup_from(&without_tls)).expect_err("no tls");
+        assert!(matches!(err, AppError::ConfigLoadError(ref msg) if msg.contains("TLS_CERT_PATH")));
+    }
+
     #[test]
     fn from_env_rejects_malformed_csb_guards() {
         for entry in [
             ("CSB_IP_ALLOW_LIST", "office"),
+            ("CSB_PROXY_PROTOCOL_FROM", "lb"),
             ("CSB_ALERT_HOURS", "night"),
         ] {
             let map = config_env([("CSB_BIND_ADDRESS", "8081"), entry]);

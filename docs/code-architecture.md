@@ -579,7 +579,8 @@ Runtime configuration is read from environment variables once at startup into a
 | `BIND_ADDRESS` | Address the server binds to (also accepted as a CLI argument). |
 | `CSB_BIND_ADDRESS` | Serve the CSB section on a second listener, so it can be published on a domain of its own: a port number (bound on `0.0.0.0`) or an `address:port` with a numeric address. `/csb` is then unreachable on `BIND_ADDRESS`. The second listener serves the whole application, since a committee session correcting paper documents uses the political-group routes as well. It is not behind the `EKS_KEY` gate. |
 | `CSB_DOMAIN` | Domain the CSB listener is published on. With ACME it gets a certificate of its own, stored next to the `TLS_CERT_PATH` / `TLS_KEY_PATH` files with a `csb-` name prefix; without it the CSB listener presents the certificate ordered for `ACME_DOMAIN`. |
-| `CSB_IP_ALLOW_LIST` | Comma-separated IP addresses and CIDR ranges (IPv4 or IPv6) allowed to reach the CSB section. Any other peer gets a `403` and a warning with `event="csb.ip_denied"`. Gates the whole CSB listener except `/lb-health` and the ACME challenge, and therefore requires `CSB_BIND_ADDRESS` (startup fails without it). Matched against the TCP peer address, so a proxy in front must not sit between the listener and the committee. Unset leaves the section open. |
+| `CSB_IP_ALLOW_LIST` | Comma-separated IP addresses and CIDR ranges (IPv4 or IPv6) allowed to reach the CSB section. Any other peer gets a `403` and a warning with `event="csb.ip_denied"`. Gates the whole CSB listener except `/lb-health` and the ACME challenge, and therefore requires `CSB_BIND_ADDRESS` (startup fails without it). Matched against the TCP peer address, or against the client a proxy listed in `CSB_PROXY_PROTOCOL_FROM` announces; any other proxy in front hides the committee behind its own address. Unset leaves the section open. |
+| `CSB_PROXY_PROTOCOL_FROM` | Comma-separated IP addresses and CIDR ranges of proxies in front of the CSB listener that announce the client with a [PROXY protocol](https://www.haproxy.org/download/2.9/doc/proxy-protocol.txt) v2 header. The announced address stands in for the TCP peer; a `LOCAL` header (health checks) keeps the TCP peer. A listed proxy without a valid header within 5 seconds is dropped and reported with `event="csb.proxy_protocol_rejected"`; a header from any other peer is left for the TLS handshake to reject. Requires `CSB_BIND_ADDRESS` and TLS. Unset reads no header. |
 | `CSB_ALERT_HOURS` | Local (Europe/Amsterdam) time range, `HH:MM-HH:MM` (e.g. `22:00-06:00`, wrapping midnight), in which committee activity is unexpected. A committee session active in that window logs a warning with `event="csb.alert_hours_activity"`, at most once per user and peer address per 30 minutes; nothing is blocked. Unset disables the check. |
 | `RATE_LIMIT_DOWNLOADS` / `RATE_LIMIT_DOWNLOADS_WINDOW_SECS` | Document downloads allowed per stream per window (default 60 per 3600s). |
 | `RATE_LIMIT_EVENTS` / `RATE_LIMIT_EVENTS_WINDOW_SECS` | Events one stream may record per window (default 2000 per 3600s). |
@@ -659,8 +660,8 @@ notification, so those cases never reach the log.
 
 ### CSB access alerts
 
-Two further markers guard the CSB section, both off until configured (see
-`CSB_IP_ALLOW_LIST` and `CSB_ALERT_HOURS` above):
+Three markers guard the CSB section, all off until configured (see
+`CSB_IP_ALLOW_LIST`, `CSB_ALERT_HOURS` and `CSB_PROXY_PROTOCOL_FROM` above):
 
 - `event="csb.ip_denied"`: a request to the CSB listener from a peer address
   off the allow list, refused with `403`. Carries the peer address (`unknown`
@@ -670,6 +671,12 @@ Two further markers guard the CSB section, both off until configured (see
   (`CSB_ALERT_HOURS_REPEAT_INTERVAL`) so a working session reports once, not
   on every request. Carries the committee user, peer address, method, path
   and the local time. The request itself is served as usual.
+- `event="csb.proxy_protocol_rejected"`: a connection from a proxy in
+  `CSB_PROXY_PROTOCOL_FROM` without a valid PROXY protocol v2 header, dropped
+  before the TLS handshake. Carries the proxy's address and the error.
+
+The peer address in all of these is the TCP peer, or the client a listed
+proxy announced.
 
 ### Cargo features
 
