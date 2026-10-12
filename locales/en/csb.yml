@@ -86,6 +86,7 @@ finalise:
   add_objection: Add objection
   district_count: Electoral districts
   download_candidate_list_overview: Download candidate list overview
+  download_candidate_list_publication: Download candidate list publication
   download_eml_zip: Download EML files
   draft_title: Draft version
   final_title: Final version
@@ -96,6 +97,7 @@ finalise:
   objections_title: Enter objection
   order_note: "Political groups that obtained one or more seats at the previous election start at the top, in the order of their votes. Drag the lists into the order determined during the session."
   order_title: Party order
+  other_documents: Other documents
   position: Position
   title: Finalise candidate lists
 finish_examination:

@@ -5,7 +5,7 @@
 //! on the finalise page, where the committee records the final order.
 
 use crate::{
-    AppError, CsbMainStore, CsbStoreData, StreamId,
+    AppError, CsbContext, CsbMainAction, CsbMainStore, CsbStoreData, StreamId,
     csb::examination::extractors::CsbPoliticalGroup, store::StoreRegistry,
     structs::csb::RegisteredPoliticalGroup,
 };
@@ -125,6 +125,23 @@ impl ListNumbering {
     /// Returns true if all groups are numbered, false otherwise
     pub fn is_complete(&self) -> bool {
         self.groups.iter().all(|group| group.position.is_some())
+    }
+
+    /// Record the current order on `main_store` if it has not been recorded
+    /// before. This occurs when a document is first downloaded before any
+    /// drag event has taken place.
+    pub async fn record_if_incomplete(
+        &self,
+        context: &CsbContext,
+        main_store: &CsbMainStore,
+    ) -> Result<(), AppError> {
+        if !self.is_complete() {
+            main_store
+                .update(CsbMainAction::UpdateListOrder(self.stream_ids()).by(context.user()?))
+                .await?;
+        }
+
+        Ok(())
     }
 }
 

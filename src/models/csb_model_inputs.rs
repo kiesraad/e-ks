@@ -13,7 +13,8 @@ use crate::{
         candidate_list_overview::OverviewGroup,
         candidate_list_publication::{NumberedList, PublishedCandidate},
         established_lists::EstablishedLists,
-        i1, i4,
+        i1,
+        i4::{self, I4},
         inputs::{DistrictLists, OmissionGroup, ValidList, ValidListCandidate},
         omission_letter,
     },
@@ -295,6 +296,21 @@ pub async fn i4_inputs(
         .collect();
 
     Ok(inputs)
+}
+
+impl From<I4Inputs> for I4 {
+    fn from(val: I4Inputs) -> I4 {
+        I4 {
+            found_omissions: val.found_omissions,
+            recovered_omissions: val.recovered_omissions,
+            invalid_lists: val.invalid_lists,
+            removed_candidates: val.removed_candidates,
+            removed_appellations: val.removed_appellations,
+            corrected_appellations: val.corrected_appellations,
+            valid_lists: val.valid_lists,
+            ..Default::default()
+        }
+    }
 }
 
 /// The candidate list overview groups, numbered on their position in

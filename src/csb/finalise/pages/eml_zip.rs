@@ -12,8 +12,8 @@ use tokio::io::{DuplexStream, duplex};
 use tokio_util::io::ReaderStream;
 
 use crate::{
-    AppError, AppRequestState, CsbContext, CsbMainAction, CsbMainStore, CsbStoreData, CsbStream,
-    ElectionConfig, ElectoralDistrict,
+    AppError, AppRequestState, CsbContext, CsbMainStore, CsbStoreData, CsbStream, ElectionConfig,
+    ElectoralDistrict,
     core::ZipResponseWriter,
     csb::{
         examination::extractors::CsbPoliticalGroup,
@@ -94,13 +94,7 @@ async fn eml230_files(
         &main_store.list_order(),
     );
 
-    // Set the numbering if it has not been set before. This occurs when this is
-    // the first download and no drag event has taken place
-    if !numbering.is_complete() {
-        main_store
-            .update(CsbMainAction::UpdateListOrder(numbering.stream_ids()).by(context.user()?))
-            .await?;
-    }
+    numbering.record_if_incomplete(&context, main_store).await?;
 
     // Each group's established, final list number, paired with its store
     let numbered_groups: Vec<(NonZeroU64, &CsbStream)> = numbering

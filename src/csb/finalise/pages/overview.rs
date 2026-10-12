@@ -7,7 +7,10 @@ use crate::{
         examination::extractors::CsbPoliticalGroups,
         finalise::{
             numbering::ListNumbering,
-            paths::{CsbCandidateListOverviewDownloadPath, CsbFinalisePath, CsbListOrderPath},
+            paths::{
+                CsbCandidateListOverviewDownloadPath, CsbCandidateListPublicationDownloadPath,
+                CsbFinalisePath, CsbListOrderPath,
+            },
         },
     },
     filters,

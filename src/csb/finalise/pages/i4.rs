@@ -1,7 +1,7 @@
 use axum::{extract::State, response::Response};
 
 use crate::{
-    AppError, AppRequestState, CsbContext, CsbMainAction, CsbMainStore,
+    AppError, AppRequestState, CsbContext, CsbMainStore,
     core::{ModelLocale, constants::DEFAULT_DATE_FORMAT},
     csb::{
         examination::paths::{CsbI4DraftDocxDownloadPath, CsbI4DraftDownloadPath},
@@ -12,7 +12,7 @@ use crate::{
     },
     models::{
         Pdf,
-        csb_model_inputs::{I4Inputs, i4_inputs},
+        csb_model_inputs::i4_inputs,
         i4::{I4, NumberedOnDistricts, NumberedOnVotes},
         inputs::PublicSession,
     },
@@ -30,24 +30,14 @@ async fn i4_model<S: AppRequestState>(
     let registry = state.csb_store_registry();
     let numbering = list_numbering(registry, &main_store).await?;
 
-    // Set the numbering if it has not been set before. This occurs when this is
-    // the first download and no drag event has taken place. Only applies when
-    // the document is not downloaded as a draft
-    if !numbering.is_complete() && !is_draft {
-        main_store
-            .update(CsbMainAction::UpdateListOrder(numbering.stream_ids()).by(context.user()?))
+    // A draft does not record the numbering
+    if !is_draft {
+        numbering
+            .record_if_incomplete(&context, &main_store)
             .await?;
     }
 
-    let I4Inputs {
-        found_omissions,
-        recovered_omissions,
-        invalid_lists,
-        removed_candidates,
-        removed_appellations,
-        corrected_appellations,
-        valid_lists,
-    } = i4_inputs(registry, &election, &numbering.stream_ids()).await?;
+    let i4_inputs = i4_inputs(registry, &election, &numbering.stream_ids()).await?;
 
     let mut public_session = PublicSession::from(election.public_session());
     if let Some(hearing_details) = main_store.get_hearing_details(HearingModel::I4) {
@@ -61,13 +51,6 @@ async fn i4_model<S: AppRequestState>(
             .format(DEFAULT_DATE_FORMAT)
             .to_string(),
         public_session,
-        found_omissions,
-        recovered_omissions,
-        invalid_lists,
-        removed_candidates,
-        removed_appellations,
-        corrected_appellations,
-        valid_lists,
         numbered_based_on_votes: numbering
             .on_votes()
             .map(|group| NumberedOnVotes {
@@ -92,6 +75,7 @@ async fn i4_model<S: AppRequestState>(
             .collect(),
         response_objections: None,
         is_draft,
+        ..i4_inputs.into()
     })
 }
 

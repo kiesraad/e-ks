@@ -1,7 +1,7 @@
 use axum::{extract::State, response::Response};
 
 use crate::{
-    AppError, AppRequestState, CsbContext, CsbMainAction, CsbMainStore,
+    AppError, AppRequestState, CsbContext, CsbMainStore,
     core::{ModelLocale, constants::DEFAULT_DATE_FORMAT},
     csb::finalise::{
         numbering::list_numbering,
@@ -26,13 +26,9 @@ async fn candidate_list_publication_model<S: AppRequestState>(
     let registry = state.csb_store_registry();
     let numbering = list_numbering(registry, &main_store).await?;
 
-    // Set the numbering if it has not been set before. This occurs when this is
-    // the first download and no drag event has taken place
-    if !numbering.is_complete() {
-        main_store
-            .update(CsbMainAction::UpdateListOrder(numbering.stream_ids()).by(context.user()?))
-            .await?;
-    }
+    numbering
+        .record_if_incomplete(&context, &main_store)
+        .await?;
 
     let mut public_session = PublicSession::from(election.public_session());
     if let Some(hearing_details) = main_store.get_hearing_details(HearingModel::I4) {
