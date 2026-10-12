@@ -94,8 +94,8 @@ mod tests {
 
         let mut generated = Vec::new();
         for batch in persons.chunks(BRP_BSN_BATCH_SIZE) {
-            for (person_id, findings) in client.verify_batch(batch).await.expect("the mock answers")
-            {
+            let checked = client.verify_batch(batch).await;
+            for (person_id, findings) in checked.outcome.expect("the mock answers") {
                 if findings.is_empty() {
                     continue;
                 }
