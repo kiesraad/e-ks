@@ -32,7 +32,7 @@ acme = ["eks/acme"]
 [dependencies]
 anyhow = { workspace = true }
 dotenvy = { workspace = true }
-tokio = { workspace = true, features = ["process"] }
+tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 saphyr = { workspace = true }

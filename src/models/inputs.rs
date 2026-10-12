@@ -1,7 +1,7 @@
 //! Input data types shared by the PDF models, and their conversions from the
 //! application store types. The H models share [`ModelData`]; the central
-//! voting bureau models (I 1, I 4, OSV 3-2) share the session, omission and
-//! [`DistrictLists`] types.
+//! voting bureau models (I 1, I 4, candidate-list-publication) share the
+//! session, omission and [`DistrictLists`] types.
 //!
 //! Type-checked example values live in `super::examples`.
 
@@ -303,9 +303,10 @@ pub struct DistrictLists<L> {
 }
 
 /// A valid candidate list with its candidates, as reproduced by the I 4 and
-/// OSV 3-2 models. `C` is the per-candidate row, e.g. [`ValidListCandidate`]
-/// or [`super::osv3_2::PublishedCandidate`]. This abstraction is necessary,
-/// because the former document lists initials separately, while the latter
+/// candidate-list-publication models. `C` is the per-candidate row, e.g.
+/// [`ValidListCandidate`] or [`super::candidate_list_publication::PublishedCandidate`]. This
+/// abstraction is necessary, because the former document lists initials
+/// separately, while the latter
 /// lists the name as displayed on the ballot.
 #[derive(Debug, Clone)]
 pub struct ValidList<C = ValidListCandidate> {

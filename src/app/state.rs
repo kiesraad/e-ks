@@ -7,6 +7,7 @@ use auth_service::AuthServiceState;
 use axum::extract::FromRef;
 use secrecy::ExposeSecret;
 
+use super::blocked_notification::BlockedNotificationThrottle;
 use crate::{
     AppError, AppRequestState, Config, CsbMainStore, CsbMainStoreData, CsbStoreData, CsbStream,
     CsbUser, DbHealth, ElectionConfig, IdDeriver, PendingRequestStore, PgStoreData, Scope,
@@ -49,6 +50,8 @@ pub struct AppState {
     pub auth_service_state: AuthServiceState,
     pub db_health: DbHealth,
     pub brp_client: BrpClient,
+    /// Per-user cap on CDN block notifications.
+    pub blocked_notifications: BlockedNotificationThrottle,
     /// Keeps the `CSB_ALERT_HOURS` warning to one per committee user and peer
     /// address per [`CSB_ALERT_HOURS_REPEAT_INTERVAL`].
     pub csb_alert_throttle: AlertThrottle<(CsbUser, Option<IpAddr>)>,
@@ -179,6 +182,7 @@ impl AppState {
             auth_service_state,
             db_health: DbHealth::default(),
             brp_client,
+            blocked_notifications: BlockedNotificationThrottle::default(),
             csb_alert_throttle: AlertThrottle::new(CSB_ALERT_HOURS_REPEAT_INTERVAL),
         })
     }
@@ -298,6 +302,7 @@ impl AppState {
             auth_service_state,
             db_health: DbHealth::default(),
             brp_client,
+            blocked_notifications: BlockedNotificationThrottle::default(),
             csb_alert_throttle: AlertThrottle::new(CSB_ALERT_HOURS_REPEAT_INTERVAL),
         }
     }

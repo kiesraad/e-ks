@@ -43,7 +43,7 @@ De voorzitter van het centraal stembureau voor de verkiezing van de leden van
 
 { style = "data", striped = false, flush-first, widths = "5 4 6" }
 | Datum | {{ public_session.date|cell }} |  |
-| Ondertekeningsplaats | {{ public_session.date|cell }} |  |
+| Ondertekeningsplaats | {{ public_session.location|cell }} |  |
 
 { style = "data", striped = false, flush-first, widths = "5 4 6", row-height = "3.5em" }
 | Naam en handtekening voorzitter | {{ public_session.chair|cell }} | ________ |

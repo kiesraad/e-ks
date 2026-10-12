@@ -2,7 +2,7 @@ name: PR checks
 
 permissions: {}
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-pr-title-check
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 on:
@@ -17,9 +17,9 @@ on:
 
 
 jobs:
-  pr-title-check:
+  link-issues:
     if: github.event.pull_request.draft == false
-    name: PR title check
+    name: Link issues named in PR title
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write # Need to be able to edit the PR body
@@ -28,13 +28,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Issue number(s) included in PR title
-        run: bash .github/scripts/check-pr-title.sh
-        env:
-          TITLE: ${{ github.event.pull_request.title }}
-          AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
-
-      - name: Link issues to numbers
+      - name: Add "Closes #N" for issues in PR title
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
@@ -42,6 +36,7 @@ jobs:
             await fn({ github, context, core })
         env:
           TITLE: ${{ github.event.pull_request.title }}
+
   all-checkboxes-checked:
     if: github.event.pull_request.draft == false
     name: All checkboxes of the DoD checklist have been checked
