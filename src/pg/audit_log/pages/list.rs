@@ -110,6 +110,7 @@ struct AuditLogTemplate {
     pagination: crate::pagination::PaginationInfo,
     filter: AuditLogFilter,
     event_types_by_category: &'static [EventTypeCategory],
+    return_url: String,
 }
 
 pub async fn audit_log(
@@ -156,12 +157,20 @@ pub async fn audit_log(
         .take(pagination.limit())
         .collect();
 
+    let return_url = format!(
+        "{}{}{}",
+        AuditLogPath,
+        pagination.url(pagination.page, pagination.per_page),
+        filter.as_query_suffix()
+    );
+
     Ok(HtmlTemplate(
         AuditLogTemplate {
             entries,
             pagination,
             filter,
             event_types_by_category: EVENT_TYPES_BY_CATEGORY,
+            return_url,
         },
         context,
     ))
@@ -291,6 +300,41 @@ mod tests {
         // Count table rows - should be PER_PAGE
         let row_count = body.matches("<td>Created person</td>").count();
         assert_eq!(row_count, PER_PAGE);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn detail_links_preserve_page_and_filter_as_redirect() -> Result<(), AppError> {
+        let store = PgStore::new_for_test();
+        for _ in 0..PER_PAGE + 5 {
+            sample_person(PersonId::new()).create(&store).await?;
+        }
+
+        let response = audit_log(
+            AuditLogPath {},
+            Context::new_test_without_db(),
+            store,
+            Pagination {
+                page: 2,
+                ..Default::default()
+            },
+            Query(AuditLogFilter {
+                event_type: Some("person".to_string()),
+                search: None,
+            }),
+        )
+        .await
+        .unwrap()
+        .into_response();
+
+        let body = response_body_string(response).await;
+        // Closing the detail overlay must return to this page with its filter.
+        let encoded = urlencoding::encode("/audit-log?page=2&per_page=20&event_type=person");
+        assert!(
+            body.contains(&format!("redirect_to={encoded}")),
+            "expected detail links to encode the paginated, filtered return URL"
+        );
 
         Ok(())
     }

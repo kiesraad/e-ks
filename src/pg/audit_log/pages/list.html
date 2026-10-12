@@ -53,7 +53,7 @@
                 {% endif %}
               </td>
               <td>
-                <a href="{{ entry.detail_path() }}">
+                <a href="{{ entry.detail_path_with_return(return_url.as_str() ) }}">
                   <span>{{ "audit_log.fields.details"|trans }}</span>
                 </a>
               </td>

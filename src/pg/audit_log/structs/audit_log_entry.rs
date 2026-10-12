@@ -1,7 +1,9 @@
 use axum_extra::routing::TypedPath;
 use chrono::{DateTime, Utc};
 
-use crate::{Event, Locale, PgEvent, audit_log::AuditLogDetailPath, store::StoreEvent};
+use crate::{
+    Event, Locale, PgEvent, QueryParamState, audit_log::AuditLogDetailPath, store::StoreEvent,
+};
 
 /// A single entry in the audit log, representing one application event.
 pub struct AuditLogEntry {
@@ -26,10 +28,12 @@ impl AuditLogEntry {
         }
     }
 
-    pub fn detail_path(&self) -> impl TypedPath {
+    pub fn detail_path_with_return(&self, return_to: &str) -> String {
         AuditLogDetailPath {
             event_id: self.event_id,
         }
+        .with_query_params(QueryParamState::redirect_to(return_to.to_string()))
+        .to_string()
     }
 
     /// Check whether this entry matches a search query (case-insensitive).
