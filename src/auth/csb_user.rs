@@ -15,13 +15,11 @@ pub enum CsbUser {
     /// Dev-login bypass, with no identity beyond the login method itself.
     #[cfg(any(feature = "dev-features", test))]
     Developer,
-    /// GitHub OAuth login, identified by the account's numeric id.
+    /// GitHub OAuth login, identified by the account's numeric id. The login
+    /// at sign-in is kept so the audit log reads well.
     Github {
         user_id: GithubUserId,
-        /// The account's login when they signed in, so the audit log reads
-        /// well; absent on events recorded before it was kept.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        login: Option<GithubLogin>,
+        login: GithubLogin,
     },
 }
 
@@ -37,20 +35,11 @@ impl CsbUser {
         match self {
             #[cfg(any(feature = "dev-features", test))]
             CsbUser::Developer => trans!("audit_log.user.developer", locale),
-            CsbUser::Github {
-                user_id,
-                login: Some(login),
-            } => {
+            CsbUser::Github { user_id, login } => {
                 format!(
                     "{} {login} ({user_id})",
                     trans!("audit_log.user.github", locale)
                 )
-            }
-            CsbUser::Github {
-                user_id,
-                login: None,
-            } => {
-                format!("{} {user_id}", trans!("audit_log.user.github", locale))
             }
         }
     }
@@ -69,18 +58,11 @@ mod tests {
     fn describe_shows_login_method_and_identity() {
         let github = CsbUser::Github {
             user_id: "583231".parse().expect("valid id"),
-            login: None,
+            login: "octocat".parse().expect("valid login"),
         };
-        assert_eq!(github.describe(Locale::En), "GitHub user 583231");
-        assert_eq!(github.describe(Locale::Nl), "GitHub-gebruiker 583231");
-
-        let named = CsbUser::Github {
-            user_id: "583231".parse().expect("valid id"),
-            login: Some("octocat".parse().expect("valid login")),
-        };
-        assert_eq!(named.describe(Locale::En), "GitHub user octocat (583231)");
+        assert_eq!(github.describe(Locale::En), "GitHub user octocat (583231)");
         assert_eq!(
-            named.describe(Locale::Nl),
+            github.describe(Locale::Nl),
             "GitHub-gebruiker octocat (583231)"
         );
 
@@ -91,24 +73,10 @@ mod tests {
     fn serde_roundtrips() {
         let user = CsbUser::Github {
             user_id: "42".parse().expect("valid id"),
-            login: Some("octocat".parse().expect("valid login")),
+            login: "octocat".parse().expect("valid login"),
         };
         let json = serde_json::to_string(&user).expect("serialize");
         let back: CsbUser = serde_json::from_str(&json).expect("deserialize");
         assert_eq!(back, user);
-    }
-
-    /// Events recorded before the login was kept carry the id alone.
-    #[test]
-    fn reads_a_user_recorded_without_a_login() {
-        let back: CsbUser =
-            serde_json::from_str(r#"{"Github":{"user_id":42}}"#).expect("deserialize");
-        assert_eq!(
-            back,
-            CsbUser::Github {
-                user_id: "42".parse().expect("valid id"),
-                login: None,
-            }
-        );
     }
 }

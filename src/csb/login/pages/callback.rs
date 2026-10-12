@@ -174,7 +174,7 @@ mod tests {
     fn allowed_identity() -> GithubIdentity {
         GithubIdentity {
             id: test_support::allowed_user_id(),
-            login: Some("octocat".parse().expect("valid login")),
+            login: "octocat".parse().expect("valid login"),
         }
     }
 
@@ -331,7 +331,7 @@ mod tests {
         let config = state.config.github_oauth.clone().expect("github config");
         let intruder = GithubIdentity {
             id: "999".parse().expect("valid id"),
-            login: Some("intruder".parse().expect("valid login")),
+            login: "intruder".parse().expect("valid login"),
         };
 
         let response = complete_login(

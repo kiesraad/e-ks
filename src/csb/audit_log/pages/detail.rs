@@ -154,7 +154,7 @@ impl CsbEventDetail {
 }
 
 /// The field change of a correction: the value it replaced, as the stream
-/// stood before it, against the corrected one.
+/// state was before it, against the corrected one.
 fn correction_change(before: &CsbStream, correction: &Correction, locale: Locale) -> FieldChange {
     match correction {
         Correction::Appellation(appellation) => FieldChange::Regular {
@@ -258,7 +258,7 @@ fn query_facts(query: &BrpQuery, locale: Locale) -> Vec<Fact> {
             fields,
         } => (
             trans!("audit_log.detail.brp.query_search", locale),
-            search_facts(
+            search_criteria_facts(
                 last_name,
                 date_of_birth,
                 last_name_prefix.as_deref(),
@@ -287,7 +287,7 @@ fn query_facts(query: &BrpQuery, locale: Locale) -> Vec<Fact> {
 }
 
 /// The personal details a search was made on, as they were sent.
-fn search_facts(
+fn search_criteria_facts(
     last_name: &str,
     date_of_birth: &str,
     last_name_prefix: Option<&str>,
@@ -591,8 +591,8 @@ mod tests {
 
         let body = detail_body(state, stream_id, 2).await?;
 
-        assert!(body.contains("Consulted the BRP"), "{body}");
-        assert!(body.contains(&person.name.display()), "{body}");
+        assert!(body.contains("Consulted the BRP"));
+        assert!(body.contains(&person.name.display()));
         assert!(body.contains("Search by last name and date of birth"));
         assert!(body.contains("Jansen"));
         assert!(body.contains("1980-01-02"));
@@ -628,7 +628,7 @@ mod tests {
 
         let body = detail_body(state, stream_id, 2).await?;
 
-        assert!(body.contains("Lookup by social security number"), "{body}");
+        assert!(body.contains("Lookup by citizen service number"));
         assert!(body.contains("999992806"));
         assert!(body.contains("connection refused"));
 
@@ -661,11 +661,11 @@ mod tests {
 
         let body = detail_body(state, stream_id, 2).await?;
 
-        assert!(body.contains("Checked candidate against the BRP"), "{body}");
+        assert!(body.contains("Checked candidate against the BRP"));
         assert!(body.contains(&person.name.display()));
         assert!(body.contains("Value on the list"));
         assert!(body.contains("Value in the BRP"));
-        assert!(body.contains("<td>Juinen</td>"), "{body}");
+        assert!(body.contains("<td>Juinen</td>"));
         assert!(body.contains("<td>Utrecht</td>"));
         assert!(body.contains("The BRP records no Dutch nationality for this candidate."));
         // A comparison is not a diff, so no row is coloured as one.
@@ -692,10 +692,7 @@ mod tests {
 
         let body = detail_body(state, stream_id, 2).await?;
 
-        assert!(
-            body.contains("The BRP agrees on every checked field."),
-            "{body}"
-        );
+        assert!(body.contains("The BRP matches every checked field."));
 
         Ok(())
     }
@@ -720,8 +717,8 @@ mod tests {
 
         let body = detail_body(state, stream_id, 2).await?;
 
-        assert!(body.contains(&person.name.display()), "{body}");
-        assert!(body.contains("No person in the BRP has this social security number."));
+        assert!(body.contains(&person.name.display()));
+        assert!(body.contains("No person in the BRP has this citizen service number."));
         assert!(body.contains("<dt>Handled</dt>"));
 
         Ok(())

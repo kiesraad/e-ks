@@ -35,33 +35,12 @@ struct TokenResponse {
     error: Option<String>,
 }
 
-#[derive(Deserialize)]
-struct UserResponse {
-    id: GithubUserId,
-    login: Option<String>,
-}
-
 /// The authenticated GitHub account: the stable id the allowlist is checked
-/// against, plus the login for the audit log when GitHub returned one this
-/// application can hold.
+/// against, plus the login for the audit log.
+#[derive(Deserialize)]
 pub(super) struct GithubIdentity {
     pub id: GithubUserId,
-    pub login: Option<GithubLogin>,
-}
-
-impl From<UserResponse> for GithubIdentity {
-    fn from(user: UserResponse) -> Self {
-        let login = user
-            .login
-            .and_then(|login| match login.parse::<GithubLogin>() {
-                Ok(login) => Some(login),
-                Err(err) => {
-                    warn!("GitHub user {}: {err}; recording the id alone", user.id);
-                    None
-                }
-            });
-        Self { id: user.id, login }
-    }
+    pub login: GithubLogin,
 }
 
 /// URL of GitHub's consent page for this app and `state` nonce. No scopes are
@@ -134,7 +113,7 @@ async fn fetch_user(
     client: &reqwest::Client,
     access_token: &SecretString,
 ) -> Result<GithubIdentity, AppError> {
-    let user: UserResponse = client
+    Ok(client
         .get(USER_URL)
         .bearer_auth(access_token.expose_secret())
         .header(reqwest::header::ACCEPT, API_ACCEPT)
@@ -143,8 +122,7 @@ async fn fetch_user(
         .await?
         .error_for_status()?
         .json()
-        .await?;
-    Ok(user.into())
+        .await?)
 }
 
 #[cfg(test)]
@@ -189,29 +167,20 @@ mod tests {
 
     #[test]
     fn user_response_parses_numeric_account_id_and_login() {
-        let user: UserResponse =
+        let identity: GithubIdentity =
             serde_json::from_str(r#"{"login":"octocat","id":583231,"type":"User"}"#)
                 .expect("user json");
-        assert_eq!(user.id, "583231".parse().expect("valid id"));
-
-        let identity = GithubIdentity::from(user);
         assert_eq!(identity.id, "583231".parse().expect("valid id"));
-        assert_eq!(
-            identity.login,
-            Some("octocat".parse().expect("valid login"))
-        );
+        assert_eq!(identity.login, "octocat".parse().expect("valid login"));
     }
 
-    /// A login this application cannot hold costs the login, not the sign-in.
     #[test]
-    fn an_unusable_login_is_dropped_rather_than_refused() {
-        let user: UserResponse =
-            serde_json::from_str(r#"{"login":"not a login","id":583231}"#).expect("user json");
-        let identity = GithubIdentity::from(user);
-        assert_eq!(identity.id, "583231".parse().expect("valid id"));
-        assert_eq!(identity.login, None);
-
-        let user: UserResponse = serde_json::from_str(r#"{"id":583231}"#).expect("user json");
-        assert_eq!(GithubIdentity::from(user).login, None);
+    fn user_response_without_a_valid_login_is_refused() {
+        for json in [r#"{"login":"not a login","id":583231}"#, r#"{"id":583231}"#] {
+            assert!(
+                serde_json::from_str::<GithubIdentity>(json).is_err(),
+                "{json}"
+            );
+        }
     }
 }

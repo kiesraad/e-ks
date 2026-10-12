@@ -6,7 +6,7 @@ autoformat_initials: Auto-format initials
 correspondence_address: Correspondence address
 correspondence_address_info: This is the address to which the letter of appointment will be sent.
 fields:
-  bsn: Social security number (BSN)
+  bsn: Citizen service number (BSN)
   country: Country code
   date_of_birth: Date of birth
   first_name: First name

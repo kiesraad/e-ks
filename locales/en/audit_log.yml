@@ -1,8 +1,8 @@
 detail:
   brp:
-    agrees: The BRP agrees on every checked field.
+    agrees: The BRP matches every checked field.
     brp_value: Value in the BRP
-    bsns_sent: Social security numbers sent
+    bsns_sent: Citizen service numbers sent
     candidate: Candidate
     candidates: Candidates
     error: Error
@@ -12,15 +12,15 @@ detail:
     include_deceased: Including deceased persons
     list_value: Value on the list
     query: Request
-    query_consult: Lookup by social security number
+    query_consult: Lookup by citizen service number
     query_search: Search by last name and date of birth
     result: Result
-    returned: "Persons returned, by social security number"
+    returned: "Persons returned, by citizen service number"
     returned_none: None
   field: Field
   fields:
     appellation: Appellation
-    bsn: Social security number (BSN)
+    bsn: Citizen service number (BSN)
     candidates: Candidates
     country: Country code
     created_persons: Created candidates
@@ -59,7 +59,7 @@ detail:
   values:
     bool_false: "No"
     bool_true: "Yes"
-    bsn_none_confirmed: "Confirmed: no social security number"
+    bsn_none_confirmed: "Confirmed: no citizen service number"
 documents:
   download: Download documents
   no_download: This version was not in a state where downloading documents was possible.

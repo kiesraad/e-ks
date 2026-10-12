@@ -192,7 +192,7 @@ mod tests {
         let sid = stream_id();
         let user = CsbUser::Github {
             user_id: "583231".parse().expect("valid id"),
-            login: Some("octocat".parse().expect("valid login")),
+            login: "octocat".parse().expect("valid login"),
         };
         let event = StoreEvent::new(1, CsbMainAction::Login.by(user));
 

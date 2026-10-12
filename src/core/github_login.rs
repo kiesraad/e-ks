@@ -4,8 +4,9 @@ use std::{fmt::Display, str::FromStr};
 
 use serde::{Deserialize, Serialize};
 
-/// A GitHub login: one to 39 characters, letters, digits and hyphens, with
-/// no hyphen at either end and none doubled, as GitHub itself requires.
+/// A GitHub login: one to 39 characters, letters, digits and hyphens. Where a
+/// hyphen may go is left to GitHub, as older accounts predate its current
+/// rules.
 ///
 /// Recorded next to the stable numeric id purely so the audit log reads well.
 /// A login can be released and re-registered by someone else, so it never
@@ -21,13 +22,7 @@ impl TryFrom<String> for GithubLogin {
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         let valid_chars = value.chars().all(|c| c.is_ascii_alphanumeric() || c == '-');
-        if value.is_empty()
-            || value.len() > MAX_LENGTH
-            || !valid_chars
-            || value.starts_with('-')
-            || value.ends_with('-')
-            || value.contains("--")
-        {
+        if value.is_empty() || value.len() > MAX_LENGTH || !valid_chars {
             return Err(format!("invalid GitHub login: {value:?}"));
         }
         Ok(Self(value))
@@ -60,7 +55,15 @@ mod tests {
 
     #[test]
     fn accepts_github_logins() {
-        for login in ["octocat", "a", "mona-lisa", "User123", &"x".repeat(39)] {
+        for login in [
+            "octocat",
+            "a",
+            "mona-lisa",
+            "User123",
+            "legacy-",
+            "mona--lisa",
+            &"x".repeat(39),
+        ] {
             assert!(login.parse::<GithubLogin>().is_ok(), "{login}");
         }
         assert_eq!(
@@ -71,16 +74,7 @@ mod tests {
 
     #[test]
     fn rejects_what_github_rejects() {
-        for login in [
-            "",
-            "-octocat",
-            "octocat-",
-            "mona--lisa",
-            "mona lisa",
-            "mona_lisa",
-            "octo/cat",
-            &"x".repeat(40),
-        ] {
+        for login in ["", "mona lisa", "mona_lisa", "octo/cat", &"x".repeat(40)] {
             assert!(login.parse::<GithubLogin>().is_err(), "{login:?}");
         }
     }
@@ -91,6 +85,6 @@ mod tests {
         assert_eq!(serde_json::to_string(&login).unwrap(), "\"octocat\"");
         let back: GithubLogin = serde_json::from_str("\"octocat\"").unwrap();
         assert_eq!(back, login);
-        assert!(serde_json::from_str::<GithubLogin>("\"-nope\"").is_err());
+        assert!(serde_json::from_str::<GithubLogin>("\"no_pe\"").is_err());
     }
 }
