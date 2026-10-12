@@ -16,8 +16,12 @@ export class CsbFinalizeExaminationPage {
       exact: true,
     });
     this.downloadI1pdf = this.page.getByRole("link", { name: "Download PDF" });
-    this.downloadI1word = this.page.getByRole("link", { name: "Download Word" });
-    this.downloadOmissionLetters = this.page.getByRole("link", { name: "Download ZIP" });
+    this.downloadI1word = this.page.getByRole("link", {
+      name: "Download Word",
+    });
+    this.downloadOmissionLetters = this.page.getByRole("link", {
+      name: "Download ZIP",
+    });
   }
 
   async selectPoliticalGroup(politicalgroup: string) {

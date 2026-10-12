@@ -6,20 +6,19 @@
 // CSB maakt een concept proces-verbaal model I4 aan in e-KS
 
 import { stat } from "node:fs/promises";
-import { expect, type Page } from "@playwright/test";
+import { expect } from "@playwright/test";
 import { test } from "./fixtures.ts";
-import { CsbHearingDetailsPage } from "./pages/csb/csbHearingDetailsPage.ts";
-import { CsbFinalizeExaminationPage } from "./pages/csb/csbFinalizeExaminationPage.ts";
 import { CsbExaminationPage } from "./pages/csb/csbExaminationPage.ts";
-import { CsbPoliticalGroupPage } from "./pages/csb/csbPoliticalGroupPage.ts";
-import { CsbOmissionsDeclarationsOfSupportPage } from "./pages/csb/csbOmissionsDeclarationsOfSupport.ts";
-import { CsbOmissionLetterPage } from "./pages/csb/csbOmissionLetterPage.ts";
 import { CsbFinalizeCandidateListsPage } from "./pages/csb/csbFinalizeCandidateListsPage.ts";
+import { CsbFinalizeExaminationPage } from "./pages/csb/csbFinalizeExaminationPage.ts";
+import { CsbHearingDetailsPage } from "./pages/csb/csbHearingDetailsPage.ts";
+import { CsbOmissionLetterPage } from "./pages/csb/csbOmissionLetterPage.ts";
+import { CsbOmissionsDeclarationsOfSupportPage } from "./pages/csb/csbOmissionsDeclarationsOfSupport.ts";
 import { CsbOverviewPage } from "./pages/csb/csbOverviewPage.ts";
+import { CsbPoliticalGroupPage } from "./pages/csb/csbPoliticalGroupPage.ts";
 
 test.describe("create documents", async () => {
-
-  test ("Election definition", async ({ csbLogin }) => {
+  test("Election definition", async ({ csbLogin }) => {
     const { page } = csbLogin;
     const overviewPage = new CsbOverviewPage(page);
     await expect(overviewPage.headerElection).toBeVisible();
@@ -30,12 +29,12 @@ test.describe("create documents", async () => {
     expect((await stat(await download.path())).size).toBeGreaterThan(1024);
   });
 
-   test("I 1", async ({ csbImport }) => {
-    const { page, groupName } = csbImport;
+  test("I 1", async ({ csbImport }) => {
+    const { page } = csbImport;
     const finalizeExaminationPage = new CsbFinalizeExaminationPage(page);
     const hearingDetailsPage = new CsbHearingDetailsPage(page);
     const examinationPage = new CsbExaminationPage(page);
-    
+
     await page.goto("/csb/examination");
     await examinationPage.buttonFinalise.click();
     await expect(finalizeExaminationPage.headerExamination).toBeVisible();
@@ -46,10 +45,10 @@ test.describe("create documents", async () => {
     await hearingDetailsPage.setDateOfHearing("30", "11", "2027");
     await hearingDetailsPage.textfieldTimeOfHearing.fill("10:57");
     await hearingDetailsPage.textfieldNameOfChairperson.fill("Vera van Veen");
-    await page.locator('#signer_0').fill('Jan Jansen');
-    await page.locator('#signer_1').fill('Diede de Bruin');
+    await page.locator("#signer_0").fill("Jan Jansen");
+    await page.locator("#signer_1").fill("Diede de Bruin");
     await hearingDetailsPage.buttonSave.click();
-    await expect(finalizeExaminationPage.headerExamination).toBeVisible();  
+    await expect(finalizeExaminationPage.headerExamination).toBeVisible();
 
     // download I 1 in pdf format
     const pdfPromise = page.waitForEvent("download");
@@ -64,18 +63,17 @@ test.describe("create documents", async () => {
     const wordDownload = await wordPromise;
     expect(wordDownload.suggestedFilename()).toMatch(/i1-proces-verbaal\.docx/);
     expect((await stat(await wordDownload.path())).size).toBeGreaterThan(1024);
-    
   });
 
- test("Omission letters", async ({ csbImport }) => {
+  test("Omission letters", async ({ csbImport }) => {
     const { page, groupName } = csbImport;
     const finalizeExaminationPage = new CsbFinalizeExaminationPage(page);
     const examinationPage = new CsbExaminationPage(page);
     const politicalGroupPage = new CsbPoliticalGroupPage(page);
     const omissionPage = new CsbOmissionsDeclarationsOfSupportPage(page);
     const omissionLetterPage = new CsbOmissionLetterPage(page);
-    const expectedName = groupName.toLowerCase().replace(/\s+/g, '-');
-    
+    const expectedName = groupName.toLowerCase().replace(/\s+/g, "-");
+
     await page.goto("/csb/examination");
 
     // add omission and finalize investigation
@@ -85,7 +83,11 @@ test.describe("create documents", async () => {
     await omissionPage.checkboxAllLists.check();
     await omissionPage.buttonMissingAllDistricts.click();
     await omissionPage.buttonAddAndClose.click();
-    await expect(page.getByText("Voor alle kieskringen ontbreken ondersteuningsverklaringen")).toBeVisible();
+    await expect(
+      page.getByText(
+        "Voor alle kieskringen ontbreken ondersteuningsverklaringen",
+      ),
+    ).toBeVisible();
     await politicalGroupPage.switchFinalize.click();
     await politicalGroupPage.buttonBack.click();
 
@@ -93,20 +95,28 @@ test.describe("create documents", async () => {
     await examinationPage.buttonFinalise.click();
     await expect(finalizeExaminationPage.headerExamination).toBeVisible();
     await finalizeExaminationPage.selectPoliticalGroup(groupName);
-    await expect(page.getByText("Voor alle kieskringen ontbreken ondersteuningsverklaringen")).toBeVisible();
+    await expect(
+      page.getByText(
+        "Voor alle kieskringen ontbreken ondersteuningsverklaringen",
+      ),
+    ).toBeVisible();
 
     // download omission letter in pdf format
     const pdfPromise = page.waitForEvent("download");
     await omissionLetterPage.downloadPdf.click();
     const pdfDownload = await pdfPromise;
-    expect(pdfDownload.suggestedFilename()).toBe(`verzuimbrief-${expectedName}-ek27.pdf`);
+    expect(pdfDownload.suggestedFilename()).toBe(
+      `verzuimbrief-${expectedName}-ek27.pdf`,
+    );
     expect((await stat(await pdfDownload.path())).size).toBeGreaterThan(1024);
 
     // download omission letter in word format
     const wordPromise = page.waitForEvent("download");
     await omissionLetterPage.downloadWord.click();
     const wordDownload = await wordPromise;
-    expect(wordDownload.suggestedFilename()).toBe(`verzuimbrief-${expectedName}-ek27.docx`);
+    expect(wordDownload.suggestedFilename()).toBe(
+      `verzuimbrief-${expectedName}-ek27.docx`,
+    );
     expect((await stat(await wordDownload.path())).size).toBeGreaterThan(1024);
 
     // download omission letters in zip format
@@ -115,15 +125,13 @@ test.describe("create documents", async () => {
     await finalizeExaminationPage.downloadOmissionLetters.click();
     const zipDownload = await zipPromise;
     expect(zipDownload.suggestedFilename()).toMatch(/verzuimbrieven-ek27\.zip/);
-    expect((await stat(await zipDownload.path())).size).toBeGreaterThan(1024);  
-    
+    expect((await stat(await zipDownload.path())).size).toBeGreaterThan(1024);
   });
-  
+
   test("I 4", async ({ csbImport }) => {
-    const { page, groupName } = csbImport;
+    const { page } = csbImport;
     const finalizeCandidateListsPage = new CsbFinalizeCandidateListsPage(page);
     const hearingDetailsPage = new CsbHearingDetailsPage(page);
-    const finalizeExaminationPage = new CsbFinalizeExaminationPage(page);
 
     await page.goto("/csb/finalise");
 
@@ -133,15 +141,17 @@ test.describe("create documents", async () => {
     await hearingDetailsPage.setDateOfHearing("22", "03", "2027");
     await hearingDetailsPage.textfieldTimeOfHearing.fill("09:17");
     await hearingDetailsPage.textfieldNameOfChairperson.fill("Jan Jansen");
-    await page.locator('#signer_0').fill("Vera van Veen");
-    await page.locator('#signer_1').fill("Diede de Bruin");
+    await page.locator("#signer_0").fill("Vera van Veen");
+    await page.locator("#signer_1").fill("Diede de Bruin");
     await hearingDetailsPage.buttonSave.click();
-    await expect(finalizeCandidateListsPage.headerFinalize).toBeVisible();  
+    await expect(finalizeCandidateListsPage.headerFinalize).toBeVisible();
 
     // add objections, then delete one and verify that the other is still present
     await finalizeCandidateListsPage.addObjection("Dit is een testbezwaar");
     await expect(page.getByText("Dit is een testbezwaar")).toBeVisible();
-    await finalizeCandidateListsPage.addObjection("Dit is een tweede testbezwaar");
+    await finalizeCandidateListsPage.addObjection(
+      "Dit is een tweede testbezwaar",
+    );
     await expect(page.getByText("Dit is een tweede testbezwaar")).toBeVisible();
     await finalizeCandidateListsPage.deleteObjection("Dit is een testbezwaar");
     await expect(page.getByText("Dit is een testbezwaar")).not.toBeVisible();
@@ -149,27 +159,28 @@ test.describe("create documents", async () => {
 
     // download I 4 in pdf format
     const pdfPromise = page.waitForEvent("download");
-    await finalizeCandidateListsPage.downloadPdf.click();
+    await finalizeCandidateListsPage.downloadPdfFinal.click();
     const pdfDownload = await pdfPromise;
     expect(pdfDownload.suggestedFilename()).toMatch(/i4-proces-verbaal\.pdf/);
     expect((await stat(await pdfDownload.path())).size).toBeGreaterThan(1024);
 
     // download I 4 in word format
     const wordPromise = page.waitForEvent("download");
-    await finalizeCandidateListsPage.downloadWord.click();
+    await finalizeCandidateListsPage.downloadWordFinal.click();
     const wordDownload = await wordPromise;
     expect(wordDownload.suggestedFilename()).toMatch(/i4-proces-verbaal\.docx/);
     expect((await stat(await wordDownload.path())).size).toBeGreaterThan(1024);
 
-    // download eml230b in zip format
+    // download emls in zip format
     const zipPromise = page.waitForEvent("download");
     await finalizeCandidateListsPage.downloadEml.click();
     const zipDownload = await zipPromise;
-    expect(zipDownload.suggestedFilename()).toMatch(/eml230b-ek27\.zip/);
+    expect(zipDownload.suggestedFilename()).toMatch(/eml-ek27\.zip/);
     expect((await stat(await zipDownload.path())).size).toBeGreaterThan(1024);
-    
-    // delete objection for clean up
-    await finalizeCandidateListsPage.deleteObjection("Dit is een tweede testbezwaar");
-  });
-  });
 
+    // delete objection for clean up
+    await finalizeCandidateListsPage.deleteObjection(
+      "Dit is een tweede testbezwaar",
+    );
+  });
+});

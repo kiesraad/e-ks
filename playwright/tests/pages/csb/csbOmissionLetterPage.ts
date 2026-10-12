@@ -10,7 +10,9 @@ export class CsbOmissionLetterPage {
     this.buttonBack = this.page.getByRole("link", {
       name: "Terug",
     });
-    this.headerSubtext = this.page.getByText("In de verzuimbrief staan alle verzuimen die bij deze politieke groepering zijn vastgesteld.");
+    this.headerSubtext = this.page.getByText(
+      "In de verzuimbrief staan alle verzuimen die bij deze politieke groepering zijn vastgesteld.",
+    );
     this.downloadPdf = this.page.getByRole("link", { name: "Download PDF" });
     this.downloadWord = this.page.getByRole("link", { name: "Download Word" });
   }

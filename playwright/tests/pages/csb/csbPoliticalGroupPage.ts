@@ -55,7 +55,7 @@ export class CsbPoliticalGroupPage {
       name: "Pagina verversen",
     });
     this.buttonHome = this.page.getByLabel("Start", {
-      exact: true
+      exact: true,
     });
   }
 
@@ -72,6 +72,4 @@ export class CsbPoliticalGroupPage {
     // the delete request is still in flight
     await this.page.waitForURL(/\/csb\/examination$/);
   }
-
-
 }
