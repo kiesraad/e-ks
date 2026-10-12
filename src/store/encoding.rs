@@ -1,5 +1,4 @@
-//! CBOR encoding of everything this crate persists: event payloads and the
-//! on-disk stream frames.
+//! CBOR encoding of everything this crate persists: event payloads.
 //!
 //! CBOR is self-describing: struct fields and enum variants travel as names,
 //! not as positions, so adding, removing or reordering either cannot make

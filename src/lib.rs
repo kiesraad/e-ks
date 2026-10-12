@@ -9,7 +9,6 @@
 //! **Persistence configuration**
 //! - `STORAGE_URL` selects the persistence backend used by [`PgStore`].
 //! - Supported scheme `memory:` disables persistence (in-memory only).
-//! - Supported scheme `local://<dir>` stores event streams as files under the provided directory.
 //! - Supported scheme `postgres://` or `postgresql://` uses PostgreSQL (requires the `database` feature).
 //! - Default (dev) is `postgres://eks@localhost/eks` (see [`Config`]).
 //!
@@ -30,7 +29,7 @@
 //!
 //! **Event integrity & confidentiality**
 //! - Event payloads are encrypted at rest (AES-256-GCM, a random key per stream,
-//!   wrapped by a master key) for the file and database backends; see `crypto`.
+//!   wrapped by a master key) for the database backend; see `crypto`.
 //! - Persisted events form a hash chain: each event hashes the previous event's
 //!   hash plus its own metadata and stored body, making tampering detectable.
 //! - Generated PDFs/exports embed the current event ID and chain hash (shown in
