@@ -37,7 +37,6 @@ test.describe("check for BRP errors", async () => {
     await page.goto("/csb/examination");
     await examinationPage.linkAddPoliticalGroup.click();
     await importPage.buttonAddNew.click();
-    await groupPage.buttonPaperCorrections.click();
     await page.goto("/candidate-lists");
     await new CandidateListsOverviewPage(page).buttonAddList.click();
     await new EditListDetailsPage(page).addDistricts([
@@ -102,7 +101,6 @@ test.describe("check for BRP errors", async () => {
         "Geslacht wijkt af van de BRP, waarin staat: man",
         "Geboortedatum wijkt af van de BRP, waarin staat: 06-06-1975",
         "Woonplaats wijkt af van de BRP, waarin staat: Ede",
-        "Adres niet gevonden in de BAG",
         "Er is geen persoon in de BRP met dit burgerservicenummer",
         "Op de overige persoonsgegevens is precies één persoon in de BRP gevonden, met burgerservicenummer 999991929. De gegevens hieronder zijn met die persoon vergeleken.",
         "De BRP bevat geen Woonplaats voor deze kandidaat",
@@ -113,7 +111,6 @@ test.describe("check for BRP errors", async () => {
     await page.goto("/csb/examination");
     await examinationPage.linkAddPoliticalGroup.click();
     await importPage.buttonAddNew.click();
-    await groupPage.buttonPaperCorrections.click();
     await page.goto("/candidate-lists");
     await new CandidateListsOverviewPage(page).buttonAddList.click();
     await new EditListDetailsPage(page).addDistricts([
@@ -126,12 +123,23 @@ test.describe("check for BRP errors", async () => {
     await expect(page.getByText("De kandidaten zijn nog niet tegen de BRP gecontroleerd.")).toBeVisible();
     await groupPage.buttonBRPCheck.click();
     await expect(page.getByText("Bezig met controleren")).toBeVisible();
-    await page.waitForTimeout(3000); // wait 3 seconds for check to run in background, as we don't have a way to know when it is finished
+    await page.waitForTimeout(3000); // wait 3 seconds for check to run in background
     await groupPage.linkRefresh.click();
     await expect(page.getByText("9 BRP fouten")).toBeVisible();
     await groupPage.linkAllErrors.click();
+
+    // check that all expected errors are present and mark as handled
     for (const error of expectedErrors) {
       await expect(page.getByText(error)).toBeVisible();
+      await expect(page.getByText(error)).toHaveCSS("color", "rgb(176, 45, 69)");
+      await page.getByRole("link", { name: error }).click();
+      await page
+        .getByRole('row')
+        .filter({ hasText: error })
+        .getByRole('button', { name: "Afgehandeld", exact: true })
+        .click();
+      await page.getByRole("link", { name: "Naar alle fouten" }).click();
+      await expect(page.getByText(error)).toHaveCSS("color", "rgb(102, 112, 133)");
     }
 
     // delete group to clean up

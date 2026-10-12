@@ -18,15 +18,28 @@
        ).toBeVisible();
      }
 
-  async recoverOmission(district: string, recovered: boolean) {
+
+async recoverOmission(district: string, recovered: boolean) {
   const buttonName = recovered ? 'Hersteld' : 'Niet hersteld';
-  await this.page
+
+  // Layout 1: table row with multiple districts
+  const tableRow = this.page
     .getByRole('row')
-    .filter({ hasText: district })
-    .getByRole('button', { name: buttonName, exact: true })
-    .click();
+    .filter({ has: this.page.getByRole('rowheader', { name: district }) });
+
+  // Layout 2: single district list item 
+  const singleItem = this.page
+    .locator('li.omission-status-row')
+    .filter({ has: this.page.locator('.omission-districts', { hasText: district }) });
+
+  const button = tableRow.or(singleItem).getByRole('button', { name: buttonName, exact: true });
+
+  await button.click();
+  await expect(button).toHaveClass(/\bselected\b/);
 }
   
  }
+
+ 
  
  
