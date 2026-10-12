@@ -133,8 +133,10 @@ workspace-level dependency list.
 - **`development/`** (`eks-development`): a sibling crate that is *not* a
   dependency of `eks`. It ships local-only tooling: the `dev` orchestrator
   that brings up Docker dependencies and runs the app, the `setup` binary,
-  `update_locales`, and `pdf_diff` (used by CI to to visualize PDF document
-  differences).
+  `update_locales`, and `pdf_diff` (used by CI to visualize PDF document
+  differences). `pdf_diff` is run with `cargo run` rather than installed into
+  `bin/`, because the PDF models are compiled into it and a cached copy goes
+  stale as soon as `src/` changes.
 - **`tools/locales/`** (`eks-locales`): shared locale tooling, used by the `eks`
   build script (locale codegen), the `eks` test suite (used-key scanning) and
   the `update_locales` binary.

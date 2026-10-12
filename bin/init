@@ -20,7 +20,6 @@ cargo build --locked --release -p eks-development
 cp target/release/dev bin/dev
 cp target/release/setup bin/setup
 cp target/release/update_locales bin/update_locales
-cp target/release/pdf_diff bin/pdf_diff
 
 echo "$CARGO_VERSION" > bin/version
 bin/setup "$@"
