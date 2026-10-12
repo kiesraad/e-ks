@@ -317,11 +317,8 @@ mod tests {
             "{markdown}"
         );
         assert!(markdown.contains("| Aanduiding |"), "{markdown}");
-        // Punctuation is escaped, so it renders literally.
-        assert!(
-            markdown.contains("#### Kandidaat nr\\. 1\\: "),
-            "{markdown}"
-        );
+        // Plain punctuation is not escaped, so the text reads as written.
+        assert!(markdown.contains("#### Kandidaat nr. 1: "), "{markdown}");
         assert!(
             markdown.contains("\n- De woonplaats verschilt"),
             "{markdown}"
