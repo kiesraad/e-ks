@@ -40,7 +40,7 @@ impl<D> Clone for Store<D> {
 /// A store's resolved backend: a persistence target paired with the
 /// per-stream [`EventCipher`].
 ///
-/// The persisting variant (`Database`) cannot be constructed without a
+/// `Database` cannot be constructed without a
 /// cipher (see `StorePersistence::into_backend_for_stream`), so events
 /// written to the database are *always* encrypted. `Memory` carries
 /// no cipher because it never writes events out; it keeps only the shared
