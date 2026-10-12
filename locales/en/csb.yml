@@ -28,11 +28,11 @@ brp:
   correct: Correct
   errors: Errors
   finding:
-    bsn_matched_by_personal_details: "The candidate's other personal details match exactly one person in the BRP, with social security number {}. The data below was compared against that person."
-    bsn_missing: "No social security number was recorded, so this candidate could not be looked up in the BRP."
-    bsn_none_confirmed: "This candidate is recorded as having no social security number, so they could not be looked up in the BRP."
-    bsn_not_unique: More than one person in the BRP has this social security number.
-    bsn_unknown: No person in the BRP has this social security number.
+    bsn_matched_by_personal_details: "The candidate's other personal details match exactly one person in the BRP, with citizen service number {}. The data below was compared against that person."
+    bsn_missing: "No citizen service number was recorded, so this candidate could not be looked up in the BRP."
+    bsn_none_confirmed: "This candidate is recorded as having no citizen service number, so they could not be looked up in the BRP."
+    bsn_not_unique: More than one person in the BRP has this citizen service number.
+    bsn_unknown: No person in the BRP has this citizen service number.
     deceased: "The BRP records this candidate as deceased on {}."
     deceased_date_unknown: "The BRP records this candidate as deceased, without a full date of death."
     excluded_from_suffrage: The BRP records this candidate as excluded from the right to vote.
@@ -64,6 +64,8 @@ brp:
     in_progress: "The check against the BRP is still running, so not every candidate has been checked yet."
     interrupted: "The check against the BRP stopped before it finished, so not every candidate was checked. Start it again to check the rest."
     not_started: The candidates have not been checked against the BRP yet.
+brp_errors:
+  download_title: Download BRP errors
 candidate:
   add_candidate_text: Add omissions for this candidate
   personal_details: Personal details
@@ -83,7 +85,7 @@ examination: Examination
 finalise:
   add_objection: Add objection
   district_count: Electoral districts
-  download_eml230b: Download EML230b
+  download_eml_zip: Download EML files
   draft_title: Draft version
   final_title: Final version
   i4_note: Official report on the validity and numbering of the candidate lists. Create the form for the report of the public session.
@@ -96,6 +98,7 @@ finalise:
   position: Position
   title: Finalise candidate lists
 finish_examination:
+  download_markdown: Download Markdown
   download_note: Download all letters of omission as Word and PDF files in a single ZIP
   download_pdf: Download PDF
   download_word: Download Word

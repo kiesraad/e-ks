@@ -3,6 +3,8 @@
 //! development tool.
 
 mod brp_overview;
+mod candidate_list_overview;
+mod candidate_list_publication;
 mod h1;
 mod h3;
 mod h4;
@@ -10,10 +12,9 @@ mod h9;
 mod i1;
 mod i4;
 mod omission_letter;
-mod osv3_2;
-mod osv3_9;
 
 pub use brp_overview::{brp_overview_example_1, brp_overview_example_2};
+pub use candidate_list_publication::candidate_list_publication_example_1;
 pub use h1::{h1_example_1, h1_example_2, h1_example_3};
 pub use h3::{
     h3_1_example_1, h3_1_example_2, h3_1_example_3, h3_2_example_1, h3_2_example_2, h3_2_example_3,
@@ -23,7 +24,6 @@ pub use h9::{h9_example_1, h9_example_2, h9_example_3};
 pub use i1::{i1_example_1, i1_example_2};
 pub use i4::{i4_example_1, i4_example_2};
 pub use omission_letter::{omission_letter_example_1, omission_letter_example_2};
-pub use osv3_2::osv3_2_example_1;
 
 use textris_pdf::build::Textris;
 
@@ -34,6 +34,7 @@ use super::{
 use crate::{
     AppError,
     core::{ElectionType, ModelLocale},
+    models::examples::candidate_list_overview::candidate_list_summary_example_1,
 };
 
 /// A named example input, renderable to a PDF. `name` matches the former JSON
@@ -87,7 +88,14 @@ pub fn examples() -> Vec<Example> {
         example("model-i1-example-2", i1_example_2()),
         example("model-i4-example-1", i4_example_1()),
         example("model-i4-example-2", i4_example_2()),
-        example("model-osv3-2-example-1", osv3_2_example_1()),
+        example(
+            "overzicht-kandidatenlijsten-example-1",
+            candidate_list_summary_example_1(),
+        ),
+        example(
+            "publicatie-kandidatenlijsten-example-1",
+            candidate_list_publication_example_1(),
+        ),
         example("verzuimbrief-example-1", omission_letter_example_1()),
         example("verzuimbrief-example-2", omission_letter_example_2()),
         example("brp-overzicht-example-1", brp_overview_example_1()),

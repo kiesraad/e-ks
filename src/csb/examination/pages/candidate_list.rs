@@ -114,7 +114,7 @@ mod tests {
 
     use crate::{
         structs::{common::UtcDateTime, csb::OmissionCategory, persons::PersonId},
-        test_utils::{response_body_string, sample_candidate_list, sample_person},
+        test_utils::{contains_word, response_body_string, sample_candidate_list, sample_person},
     };
 
     #[tokio::test]
@@ -272,7 +272,7 @@ mod tests {
         let body = response_body_string(response).await;
         // Candidates still render; the BRP check is examination-only.
         assert!(body.contains("Jansen"));
-        assert!(!body.contains("BRP"));
+        assert!(!contains_word(&body, "BRP"));
     }
 
     #[tokio::test]

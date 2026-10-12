@@ -43,10 +43,10 @@ impl Objection {
     }
 }
 
-/// Temporary EML230b ZIP endpoint, should be replaced by one zip that contains everything
+/// Temporary EML ZIP endpoint, that should eventually be expanded to contain everything
 #[derive(TypedPath)]
-#[typed_path("/csb/finalise/eml230b.zip", rejection(AppError))]
-pub struct CsbEml230bDownloadPath;
+#[typed_path("/csb/finalise/eml.zip", rejection(AppError))]
+pub struct CsbEmlZipDownloadPath;
 
 #[derive(TypedPath)]
 #[typed_path("/csb/finalise/i4.pdf", rejection(AppError))]

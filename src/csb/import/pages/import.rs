@@ -431,7 +431,12 @@ async fn verify_candidates(store: CsbStore, brp_client: BrpClient) -> Result<(),
     for batch in unchecked.chunks(BRP_BSN_BATCH_SIZE) {
         ticker.tick().await;
 
-        for (person_id, findings) in brp_client.verify_batch(batch).await? {
+        let checked = brp_client.verify_batch(batch).await;
+        // Every request goes on record first, answered or failed.
+        for lookup in checked.lookups {
+            store.update(CsbAction::BrpLookup(lookup)).await?;
+        }
+        for (person_id, findings) in checked.outcome? {
             if let Some(checked) = batch.iter().find(|person| person.id == person_id) {
                 record_brp_result(&store, checked, findings).await?;
             }
@@ -462,7 +467,7 @@ mod tests {
         CsbAction::Delete,
         CsbContext, ElectionConfig, PgEvent, Province,
         brp_stub::{BrpStub, matching_record},
-        structs::brp::{BrpFindingKind, BrpValue},
+        structs::brp::{BrpFindingKind, BrpLookup, BrpLookupOutcome, BrpQuery, BrpValue},
         test_utils::{response_body_string, sample_person_from_brp},
         utils::format_hash,
     };
@@ -839,6 +844,87 @@ mod tests {
         // Present in the map with no findings: checked, and nothing found.
         let findings = csb_store.get_brp_findings();
         assert_eq!(findings.get(&person_id), Some(&Vec::new()));
+
+        Ok(())
+    }
+
+    /// The lookups recorded on the stream, in order.
+    fn recorded_lookups(store: &CsbStore) -> Vec<BrpLookup> {
+        store
+            .data
+            .read()
+            .events
+            .iter()
+            .filter_map(|event| match &event.payload.action {
+                CsbAction::BrpLookup(lookup) => Some(lookup.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// Every request to the BRP goes on the stream before the findings it
+    /// led to, so the audit log shows what was sent and what came back.
+    #[tokio::test]
+    async fn every_brp_request_is_recorded_on_the_stream() -> Result<(), AppError> {
+        let state = AppState::new_for_tests().await;
+        let person = sample_person_from_brp();
+        let person_id = person.id;
+        let bsn = exposed_bsn(&person);
+        let csb_store = store_with_candidate(&state, person).await?;
+        let stub = BrpStub::serving(vec![matching_record(&bsn)]).await;
+
+        do_brp_verification(&csb_store, &stub.client).await?;
+        wait_for_brp_status(&csb_store, |status| matches!(status, BrpStatus::Finished)).await;
+
+        let lookups = recorded_lookups(&csb_store);
+        assert_eq!(lookups.len(), stub.query_count());
+        assert_eq!(lookups.len(), 1);
+        assert_eq!(lookups[0].persons, vec![person_id]);
+        assert!(matches!(
+            &lookups[0].query,
+            BrpQuery::ConsultWithBsn { bsn: sent, .. }
+                if sent.len() == 1 && sent[0].expose() == bsn
+        ));
+        assert_eq!(
+            lookups[0].outcome,
+            BrpLookupOutcome::Returned {
+                bsns: vec![bsn.clone()]
+            }
+        );
+
+        let events = csb_store.data.read().events.clone();
+        let position = |is_it: fn(&CsbAction) -> bool| {
+            events
+                .iter()
+                .position(|event| is_it(&event.payload.action))
+                .unwrap()
+        };
+        let lookup_at = position(|action| matches!(action, CsbAction::BrpLookup(_)));
+        let checked_at = position(|action| matches!(action, CsbAction::BrpPersonChecked { .. }));
+        assert!(lookup_at < checked_at, "the request precedes its result");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn a_failed_brp_request_is_recorded_with_its_error() -> Result<(), AppError> {
+        let state = AppState::new_for_tests().await;
+        let person = sample_person_from_brp();
+        let person_id = person.id;
+        let csb_store = store_with_candidate(&state, person).await?;
+        // Port 1 on loopback refuses connections.
+        let brp_client = BrpClient::new_for_test("http://127.0.0.1:1");
+
+        do_brp_verification(&csb_store, &brp_client).await?;
+        wait_for_brp_status(&csb_store, |status| matches!(status, BrpStatus::Aborted(_))).await;
+
+        let lookups = recorded_lookups(&csb_store);
+        assert_eq!(lookups.len(), 1);
+        assert_eq!(lookups[0].persons, vec![person_id]);
+        assert!(matches!(
+            &lookups[0].outcome,
+            BrpLookupOutcome::Failed { error } if !error.is_empty()
+        ));
 
         Ok(())
     }

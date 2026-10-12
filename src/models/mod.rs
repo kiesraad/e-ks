@@ -17,9 +17,12 @@
 //! need, from the live [`crate::CsbStream`]s.
 
 pub mod brp_overview;
+pub mod candidate_list_overview;
+pub mod candidate_list_publication;
 pub(crate) mod csb_model_inputs;
 pub(crate) mod documents;
 pub(crate) mod eml;
+pub(crate) mod established_lists;
 pub mod examples;
 mod fonts;
 pub mod h1;
@@ -32,9 +35,6 @@ pub mod inputs;
 mod layout;
 mod markdown;
 pub mod omission_letter;
-pub mod osv3_2;
-pub mod osv3_9;
-
 pub use examples::{Example, examples};
 pub use fonts::fonts;
 
@@ -49,6 +49,7 @@ use crate::{AppError, utils::no_cache_headers};
 pub const PDF_CONTENT_TYPE: &str = "application/pdf";
 pub const DOCX_CONTENT_TYPE: &str =
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+pub const MARKDOWN_CONTENT_TYPE: &str = "text/markdown; charset=utf-8";
 
 /// A document that renders to a PDF: it can build a [`Textris`] document and
 /// knows its download file name.
@@ -108,6 +109,28 @@ pub trait Pdf: Sized {
         )?;
         Ok((headers, self.generate_docx_bytes().await?).into_response())
     }
+
+    /// [`Self::filename`] with the `.md` extension.
+    fn markdown_filename(&self) -> String {
+        let filename = self.filename();
+        format!("{}.md", filename.strip_suffix(".pdf").unwrap_or(&filename))
+    }
+
+    /// Export the document as GitHub-flavored Markdown. Like the Word export
+    /// this keeps the content and coarse structure, not the PDF's styling.
+    fn generate_markdown(&self) -> Result<String, AppError> {
+        Ok(self.document()?.to_markdown())
+    }
+
+    /// The Markdown export as a download response under
+    /// [`Self::markdown_filename`].
+    fn markdown_response(&self) -> Result<Response, AppError> {
+        let headers = no_cache_headers::generate_attachment_headers(
+            &self.markdown_filename(),
+            HeaderValue::from_static(MARKDOWN_CONTENT_TYPE),
+        )?;
+        Ok((headers, self.generate_markdown()?).into_response())
+    }
 }
 
 /// Run a PDF render on a blocking thread
@@ -153,7 +176,7 @@ mod tests {
             assert_pdf(&example.render().expect("render example"), name);
             rendered += 1;
         }
-        assert_eq!(rendered, 24, "expected to render every example input");
+        assert_eq!(rendered, 25, "expected to render every example input");
     }
 
     /// Every example input also exports as a Word document, which exercises the
@@ -276,6 +299,29 @@ mod tests {
         assert_eq!(
             brp_overview_example_1().docx_filename(),
             "brp-overzicht-kiesraad-demo-ek27.docx"
+        );
+        assert_eq!(
+            brp_overview_example_1().markdown_filename(),
+            "brp-overzicht-kiesraad-demo-ek27.md"
+        );
+    }
+
+    /// The Markdown export carries the document's content, with its tables
+    /// and lists.
+    #[test]
+    fn brp_overview_exports_as_markdown() {
+        let markdown = brp_overview_example_1().generate_markdown().unwrap();
+
+        assert!(
+            markdown.starts_with("# Overzicht controle voorinlevering"),
+            "{markdown}"
+        );
+        assert!(markdown.contains("| Aanduiding |"), "{markdown}");
+        // Plain punctuation is not escaped, so the text reads as written.
+        assert!(markdown.contains("#### Kandidaat nr. 1: "), "{markdown}");
+        assert!(
+            markdown.contains("\n- De woonplaats verschilt"),
+            "{markdown}"
         );
     }
 }

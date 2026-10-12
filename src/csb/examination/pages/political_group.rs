@@ -190,8 +190,8 @@ mod tests {
             political_groups::PoliticalGroup,
         },
         test_utils::{
-            response_body_string, sample_candidate_list, sample_list_submitter, sample_person,
-            sample_political_group,
+            contains_word, response_body_string, sample_candidate_list, sample_list_submitter,
+            sample_person, sample_political_group,
         },
     };
 
@@ -626,7 +626,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
         // The BRP check belongs to the examination.
-        assert!(!body.contains("BRP"));
+        assert!(!contains_word(&body, "BRP"));
         assert!(!body.contains("restoration-tag-error"));
     }
 

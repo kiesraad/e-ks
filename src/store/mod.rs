@@ -7,13 +7,13 @@ pub(crate) mod persistence;
 mod encoding;
 mod event;
 mod event_hash_prefix;
-mod filesystem;
 mod health;
 pub(crate) mod memory;
 mod registry;
 mod store_handle;
 mod stream_id;
 
+#[cfg(feature = "database")]
 pub(crate) use event::EncryptedEvent;
 pub use event::{Event, EventHash, GENESIS_HASH, StoreEvent};
 pub use event_hash_prefix::EventHashPrefix;
@@ -25,15 +25,17 @@ pub use store_handle::Store;
 pub(crate) use store_handle::StoreBackend;
 pub use stream_id::StreamId;
 
-pub(crate) use event::{chain_hash, event_aad};
+pub(crate) use event::chain_hash;
+#[cfg(feature = "database")]
+pub(crate) use event::event_aad;
 
 use chrono::{DateTime, Utc};
+#[cfg(feature = "database")]
 use serde::de::DeserializeOwned;
 
-use crate::{
-    AppError, ElectionConfig, Scope,
-    crypto::{EventCipher, EventDecryptError},
-};
+#[cfg(feature = "database")]
+use crate::crypto::{EventCipher, EventDecryptError};
+use crate::{AppError, ElectionConfig, Scope};
 
 /// Decryption-free metadata about a persisted stream, read from the backend's
 /// index without replaying (or warming) it. The political group name is absent:
@@ -75,6 +77,7 @@ pub trait StoreData: Default + Send + Sync + 'static {
 ///
 /// Callers need `chain_tip` (not the projection's last applied hash) to append
 /// a new event, because the two differ once a replay was truncated.
+#[cfg(feature = "database")]
 #[derive(Clone, Debug)]
 pub(crate) struct Replay {
     /// Chain hash of the highest-numbered *stored* event seen, applied or not.
@@ -84,6 +87,7 @@ pub(crate) struct Replay {
     pub truncated_at: Option<usize>,
 }
 
+#[cfg(feature = "database")]
 impl Replay {
     /// Refuse to append to a stream whose replay was truncated.
     ///
@@ -118,13 +122,13 @@ pub(crate) fn check_expected_event_id(
 /// Decrypt persisted events and apply the ones `data` has not seen yet.
 ///
 /// `events` yields the stored events in ascending event order; events at or
-/// below the projection's last ID are skipped. Shared by the filesystem and
-/// database backends.
+/// below the projection's last ID are skipped.
 ///
 /// A payload this build can no longer decode does not fail the load: replay
 /// stops there and reports the id in [`Replay::truncated_at`], leaving the
 /// projection deliberately incomplete, so callers must refuse to append on top
 /// of it. Unreadable bytes and a broken hash chain stay hard errors.
+#[cfg(feature = "database")]
 pub(crate) fn apply_encrypted_events<D>(
     data: &mut D,
     cipher: &EventCipher,
@@ -197,4 +201,183 @@ where
         chain_tip,
         truncated_at,
     })
+}
+
+#[cfg(all(test, feature = "database"))]
+mod tests {
+    use serde::Serialize;
+
+    use super::*;
+    use crate::crypto::StreamKey;
+
+    #[derive(Default)]
+    struct TestData {
+        events: Vec<StoreEvent<usize>>,
+    }
+
+    impl StoreData for TestData {
+        type Event = usize;
+
+        fn apply(&mut self, event: StoreEvent<usize>) {
+            self.events.push(event);
+        }
+
+        fn events(&self) -> &[StoreEvent<usize>] {
+            &self.events
+        }
+
+        fn scope() -> Scope {
+            Scope::PoliticalGroup
+        }
+    }
+
+    impl TestData {
+        fn payloads(&self) -> Vec<usize> {
+            self.events.iter().map(|e| e.payload).collect()
+        }
+    }
+
+    fn created_at() -> DateTime<Utc> {
+        DateTime::from_timestamp(1_700_000_000, 0).expect("valid timestamp")
+    }
+
+    /// Encrypt and chain one event as a backend stores it.
+    fn seal(
+        cipher: &EventCipher,
+        event_id: usize,
+        prev_hash: &EventHash,
+        payload: &impl Serialize,
+    ) -> EncryptedEvent {
+        let aad = event_aad(event_id, created_at(), prev_hash);
+        let payload = cipher.encrypt(payload, &aad).expect("encrypt");
+        EncryptedEvent {
+            event_id,
+            created_at: created_at(),
+            hash: chain_hash(prev_hash, event_id, created_at(), &payload),
+            payload,
+        }
+    }
+
+    /// Seal `payloads` as events `1..=n` of one stream.
+    fn seal_chain(cipher: &EventCipher, payloads: &[usize]) -> Vec<EncryptedEvent> {
+        let mut prev_hash = GENESIS_HASH;
+        (1..)
+            .zip(payloads)
+            .map(|(event_id, payload)| {
+                let event = seal(cipher, event_id, &prev_hash, payload);
+                prev_hash = event.hash;
+                event
+            })
+            .collect()
+    }
+
+    #[test]
+    fn replay_applies_events_in_order() -> Result<(), AppError> {
+        let cipher = StreamKey::generate().cipher();
+        let events = seal_chain(&cipher, &[10, 20]);
+        let tip = events[1].hash;
+
+        let mut data = TestData::default();
+        let replay = apply_encrypted_events(&mut data, &cipher, events)?;
+
+        assert_eq!(data.payloads(), vec![10, 20]);
+        assert_eq!(data.last_event_id(), 2);
+        assert_eq!(data.last_event_hash(), tip);
+        assert_eq!(replay.chain_tip, tip);
+        assert_eq!(replay.truncated_at, None);
+
+        Ok(())
+    }
+
+    #[test]
+    fn replay_skips_events_already_applied() -> Result<(), AppError> {
+        let cipher = StreamKey::generate().cipher();
+        let events = seal_chain(&cipher, &[10, 20]);
+
+        // Another instance already applied event 1.
+        let mut data = TestData::default();
+        data.apply(StoreEvent {
+            event_id: 1,
+            payload: 10,
+            created_at: created_at(),
+            hash: events[0].hash,
+        });
+        apply_encrypted_events(&mut data, &cipher, events)?;
+
+        assert_eq!(data.payloads(), vec![10, 20]);
+
+        Ok(())
+    }
+
+    #[test]
+    fn a_tampered_payload_fails_the_replay() {
+        let cipher = StreamKey::generate().cipher();
+        let mut events = seal_chain(&cipher, &[10, 20]);
+        // Flip the last byte of event 1 (its GCM tag).
+        if let Some(byte) = events[0].payload.last_mut() {
+            *byte ^= 0x01;
+        }
+
+        let mut data = TestData::default();
+        let err = apply_encrypted_events(&mut data, &cipher, events)
+            .expect_err("tampering must be detected");
+
+        assert!(matches!(err, AppError::EventDecodeError(_)));
+        assert!(data.events.is_empty());
+    }
+
+    #[test]
+    fn another_streams_key_cannot_replay_events() {
+        let events = seal_chain(&StreamKey::generate().cipher(), &[10]);
+
+        let mut data = TestData::default();
+        let err = apply_encrypted_events(&mut data, &StreamKey::generate().cipher(), events)
+            .expect_err("replay must fail with the wrong key");
+
+        assert!(matches!(err, AppError::EventDecodeError(_)));
+        assert!(data.events.is_empty());
+    }
+
+    #[test]
+    fn an_undecodable_payload_truncates_the_replay() -> Result<(), AppError> {
+        let cipher = StreamKey::generate().cipher();
+        // Event 2 decrypts but is not a `usize`, as after an event type change.
+        let first = seal(&cipher, 1, &GENESIS_HASH, &10usize);
+        let second = seal(&cipher, 2, &first.hash, &"unreadable");
+        let third = seal(&cipher, 3, &second.hash, &30usize);
+        let (hash1, hash3) = (first.hash, third.hash);
+
+        let mut data = TestData::default();
+        let replay = apply_encrypted_events(&mut data, &cipher, [first, second, third])?;
+
+        assert_eq!(replay.truncated_at, Some(2));
+        // The chain is walked past the gap: the tip is the last stored event.
+        assert_eq!(replay.chain_tip, hash3);
+        assert_eq!(data.payloads(), vec![10]);
+        assert_eq!(data.last_event_hash(), hash1);
+
+        // Reading degrades gracefully, appending must not.
+        assert!(matches!(
+            replay.reject_append(StreamId::new()),
+            Err(AppError::EventDecodeError(_))
+        ));
+
+        Ok(())
+    }
+
+    #[cfg(feature = "verify-event-hash-chain")]
+    #[test]
+    fn a_rewritten_hash_fails_the_replay() {
+        let cipher = StreamKey::generate().cipher();
+        let mut events = seal_chain(&cipher, &[10]);
+        // AES-GCM does not cover the stored hash; only the chain check does.
+        events[0].hash[0] ^= 0x01;
+
+        let mut data = TestData::default();
+        let err = apply_encrypted_events(&mut data, &cipher, events)
+            .expect_err("a rewritten hash must be detected");
+
+        assert!(matches!(err, AppError::EventDecodeError(_)));
+        assert!(data.events.is_empty());
+    }
 }

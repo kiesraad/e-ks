@@ -146,6 +146,7 @@ impl PgStore {
             downloads,
             events: event_limit,
             events_total,
+            ..
         }) = self.limits
         else {
             return Ok(());

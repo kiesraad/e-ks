@@ -1,6 +1,6 @@
-//! Model OSV 3-2: Publicatie kandidatenlijsten.
-//! This model is Dutch-only; the document text lives in the `templates/osv3-2.md`
-//! Markdown template.
+//! Model: Publicatie kandidatenlijsten. This model is Dutch-only; the document
+//! text lives in the `templates/candidate-list-publication.md` Markdown
+//! template.
 
 use textris_pdf::build::Textris;
 
@@ -13,7 +13,7 @@ use super::{
 use crate::{AppError, core::AnyLocale, models::inputs::PublicSession, structs::persons::Person};
 
 #[derive(Debug)]
-pub struct OSV3_2 {
+pub struct CandidateListPublication {
     pub election_name: String,
     pub election_date: String,
     /// Per district, the lists in list number order.
@@ -21,8 +21,8 @@ pub struct OSV3_2 {
     pub public_session: PublicSession,
 }
 
-/// A valid list with its number in the district: the lists of a district
-/// are numbered sequentially, without gaps.
+/// A valid list with its group's list number, the same in every district;
+/// numbers of groups without a valid list in the district are skipped.
 #[derive(Debug)]
 pub struct NumberedList {
     pub number: usize,
@@ -30,7 +30,7 @@ pub struct NumberedList {
 }
 
 /// A candidate row, with the name as printed on the candidate list.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct PublishedCandidate {
     pub position: usize,
     /// E.g. `Kierkegaard, G.J. (Geertruda Johanna) (v)`.
@@ -48,14 +48,18 @@ impl PublishedCandidate {
     }
 }
 
-model_template!(OSV3_2Template, OSV3_2, "models/templates/osv3-2.md");
+model_template!(
+    CandidateListPublicationTemplate,
+    CandidateListPublication,
+    "models/templates/candidate-list-publication.md"
+);
 
-impl Pdf for OSV3_2 {
+impl Pdf for CandidateListPublication {
     fn document(&self) -> Result<Textris, AppError> {
-        markdown_document(OSV3_2Template(self))
+        markdown_document(CandidateListPublicationTemplate(self))
     }
 
     fn filename(&self) -> String {
-        "OSV_3-2_publicatie_kandidatenlijsten.pdf".to_string()
+        "publicatie-kandidatenlijsten.pdf".to_string()
     }
 }

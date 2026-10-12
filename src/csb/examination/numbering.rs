@@ -121,6 +121,11 @@ impl ListNumbering {
     pub fn stream_ids(&self) -> Vec<StreamId> {
         self.groups.iter().map(|group| group.stream_id).collect()
     }
+
+    /// Returns true if all groups are numbered, false otherwise
+    pub fn is_complete(&self) -> bool {
+        self.groups.iter().all(|group| group.position.is_some())
+    }
 }
 
 /// The numbering of the election's imported groups, as recorded on the main

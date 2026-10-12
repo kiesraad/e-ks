@@ -47,12 +47,32 @@ pub struct CsbI4DraftDownloadPath;
 pub struct CsbI4DraftDocxDownloadPath;
 
 #[derive(TypedPath)]
-#[typed_path("/csb/examination/osv3-2.pdf", rejection(AppError))]
-pub struct CsbOsv3_2DownloadPath;
+#[typed_path(
+    "/csb/examination/publicatie-kandidatenlijsten.pdf",
+    rejection(AppError)
+)]
+pub struct CsbCandidateListPublicationDownloadPath;
 
 #[derive(TypedPath)]
-#[typed_path("/csb/examination/osv3-2.docx", rejection(AppError))]
-pub struct CsbOsv3_2DocxDownloadPath;
+#[typed_path(
+    "/csb/examination/publicatie-kandidatenlijsten.docx",
+    rejection(AppError)
+)]
+pub struct CsbCandidateListPublicationDocxDownloadPath;
+
+#[derive(TypedPath, Deserialize)]
+#[typed_path(
+    "/csb/examination/overzicht-kandidatenlijsten.pdf",
+    rejection(AppError)
+)]
+pub struct CsbCandidateListOverviewDownloadPath;
+
+#[derive(TypedPath, Deserialize)]
+#[typed_path(
+    "/csb/examination/overzicht-kandidatenlijsten.docx",
+    rejection(AppError)
+)]
+pub struct CsbCandidateListOverviewDocxDownloadPath;
 
 #[derive(TypedPath, Deserialize)]
 #[typed_path("/csb/examination/{stream_id}", rejection(AppError))]
@@ -87,6 +107,28 @@ pub struct CsbAllBrpFindingsPath {
 #[derive(TypedPath, Deserialize)]
 #[typed_path("/csb/examination/{stream_id}/brp-check", rejection(AppError))]
 pub struct CsbBrpCheckPath {
+    pub stream_id: StreamId,
+}
+
+/// The overview of the BRP findings of one group for the political group, as
+/// PDF: the same document the pre-submission check offers.
+#[derive(TypedPath, Deserialize)]
+#[typed_path("/csb/examination/{stream_id}/brp-overzicht.pdf", rejection(AppError))]
+pub struct CsbBrpOverviewDownloadPath {
+    pub stream_id: StreamId,
+}
+
+/// The same overview as [`CsbBrpOverviewDownloadPath`], as Word document.
+#[derive(TypedPath, Deserialize)]
+#[typed_path("/csb/examination/{stream_id}/brp-overzicht.docx", rejection(AppError))]
+pub struct CsbBrpOverviewDocxDownloadPath {
+    pub stream_id: StreamId,
+}
+
+/// The same overview as [`CsbBrpOverviewDownloadPath`], as Markdown.
+#[derive(TypedPath, Deserialize)]
+#[typed_path("/csb/examination/{stream_id}/brp-overzicht.md", rejection(AppError))]
+pub struct CsbBrpOverviewMarkdownDownloadPath {
     pub stream_id: StreamId,
 }
 
@@ -350,6 +392,30 @@ impl CsbPoliticalGroup {
 
     pub fn start_brp_check_path(&self) -> impl TypedPath {
         CsbBrpCheckPath {
+            stream_id: self.stream_id,
+        }
+    }
+
+    /// Download of the overview of the BRP findings for the political group,
+    /// as PDF.
+    pub fn brp_overview_pdf_path(&self) -> impl TypedPath {
+        CsbBrpOverviewDownloadPath {
+            stream_id: self.stream_id,
+        }
+    }
+
+    /// Download of the overview of the BRP findings for the political group,
+    /// as Word document.
+    pub fn brp_overview_docx_path(&self) -> impl TypedPath {
+        CsbBrpOverviewDocxDownloadPath {
+            stream_id: self.stream_id,
+        }
+    }
+
+    /// Download of the overview of the BRP findings for the political group,
+    /// as Markdown.
+    pub fn brp_overview_markdown_path(&self) -> impl TypedPath {
+        CsbBrpOverviewMarkdownDownloadPath {
             stream_id: self.stream_id,
         }
     }

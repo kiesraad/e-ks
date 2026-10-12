@@ -6,7 +6,8 @@ use crate::{
         examination::structs::BrpCheckState,
         pre_submission::paths::{
             CsbPreSubmissionBrpCheckPath, CsbPreSubmissionBrpOverviewDocxPath,
-            CsbPreSubmissionBrpOverviewPdfPath, CsbPreSubmissionGroupPath,
+            CsbPreSubmissionBrpOverviewMarkdownPath, CsbPreSubmissionBrpOverviewPdfPath,
+            CsbPreSubmissionGroupPath,
         },
     },
     projection::WithCorrections,
@@ -50,6 +51,13 @@ impl PreSubmissionGroup {
     /// Download of the overview of what was found, as Word document.
     pub fn brp_overview_docx_path(&self) -> CsbPreSubmissionBrpOverviewDocxPath {
         CsbPreSubmissionBrpOverviewDocxPath {
+            stream_id: self.stream_id,
+        }
+    }
+
+    /// Download of the overview of what was found, as Markdown.
+    pub fn brp_overview_markdown_path(&self) -> CsbPreSubmissionBrpOverviewMarkdownPath {
+        CsbPreSubmissionBrpOverviewMarkdownPath {
             stream_id: self.stream_id,
         }
     }

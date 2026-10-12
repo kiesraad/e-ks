@@ -133,8 +133,10 @@ workspace-level dependency list.
 - **`development/`** (`eks-development`): a sibling crate that is *not* a
   dependency of `eks`. It ships local-only tooling: the `dev` orchestrator
   that brings up Docker dependencies and runs the app, the `setup` binary,
-  `update_locales`, and `pdf_diff` (used by CI to to visualize PDF document
-  differences).
+  `update_locales`, and `pdf_diff` (used by CI to visualize PDF document
+  differences). `pdf_diff` is run with `cargo run` rather than installed into
+  `bin/`, because the PDF models are compiled into it and a cached copy goes
+  stale as soon as `src/` changes.
 - **`tools/locales/`** (`eks-locales`): shared locale tooling, used by the `eks`
   build script (locale codegen), the `eks` test suite (used-key scanning) and
   the `update_locales` binary.
@@ -170,7 +172,7 @@ modules:
 | `src/error/` | `AppError`, the application-wide error type. Its mapping to a response lives in `src/view/`, the page layouts in `src/pg/` and `src/csb/`. |
 | `src/form/` | Generic form extraction and validation: the `Form<T>` extractor, CSRF tokens, file uploads, string validators. |
 | `src/pagination/` | Reusable list-pagination helpers (params, page links, page info). |
-| `src/fixtures/` | Sample data loaded into the store on startup in development/test (`fixtures` feature). The CSB counterpart, `src/csb/import/fixture.rs`, registers sample political groups with their previous election result and imports several of them, one with omissions and one with paper corrections; one is also imported for the pre-submission check, its BRP check done and some candidates found wanting. |
+| `src/fixtures/` | Sample data loaded into the store on startup in development/test (`fixtures` feature). The CSB counterpart, `src/csb/import/fixture.rs`, registers sample political groups with their previous election result and imports several of them, one with omissions, one with paper corrections and one with a list of too many candidates; one is also imported for the pre-submission check, its BRP check done and some candidates found wanting. |
 | `src/utils/` | Small standalone helpers (id newtypes, redirects, health check, embedding helpers, etc.). |
 
 ### `src/pg/` domain modules
@@ -303,10 +305,11 @@ The CSB section has two projections of its own on the shared store machinery
   imports it by hash (the same routine as `import`, into the
   `PreSubmittedToCsb` registry), runs the BRP check, and reads the findings
   per candidate off one page, so the group can fix them before the official
-  submission. That page offers an overview for the group as PDF and Word
+  submission. That page offers an overview for the group as PDF, Word and Markdown
   (`models/brp_overview.rs`): every candidate with BRP findings or with
   warnings from the group's own data entry, with the details the check
-  compares. No omissions, corrections or examination state.
+  compares. The examination's BRP errors page offers the same document for an
+  imported list. No omissions, corrections or examination state.
 - **`examination`**: the examination of the imported lists. An overview
   groups the imported political groups by finished/unfinished; detail pages
   render the imported data read-only; omissions and corrections are recorded
@@ -331,7 +334,12 @@ The CSB section has two projections of its own on the shared store machinery
   is decrypted, so monitoring works without touching any political group's
   data.
 - **`audit_log`**: the CSB audit log, a read view over either the main
-  committee stream or a single imported stream.
+  committee stream or a single imported stream. Every request to the BRP is
+  on the stream as a `CsbAction::BrpLookup` (the candidates it was for, the
+  request as sent, and the burgerservicenummers returned or the error), ahead
+  of the `BrpPersonChecked` findings it led to; the detail page sets a
+  candidate's values against the BRP's and names the committee member, by
+  GitHub login and id, who started the check.
 - **`registered_political_groups`**: administration of the political groups
   registered for the election with their result at the previous election of
   the same body (appellation, votes, seats), kept on the CSB main stream. The
@@ -557,7 +565,7 @@ Runtime configuration is read from environment variables once at startup into a
 
 | Variable | Purpose |
 |----------|---------|
-| `STORAGE_URL` | Persistence backend: `memory://`, `local://<dir>`, or `postgres://<connection_string>`. |
+| `STORAGE_URL` | Persistence backend: `memory://` or `postgres://<connection_string>`. |
 | `ID_DERIVATION_KEY` | Master secret for stream-id derivation. |
 | `MASTER_ENCRYPTION_KEY` | Master secret from which the key-wrapping key for the per-stream encryption keys is derived. |
 | `TLS_CERT_PATH` / `TLS_KEY_PATH` | HTTPS certificate and key; both or neither. |
@@ -576,6 +584,7 @@ Runtime configuration is read from environment variables once at startup into a
 | `RATE_LIMIT_DOWNLOADS` / `RATE_LIMIT_DOWNLOADS_WINDOW_SECS` | Document downloads allowed per stream per window (default 60 per 3600s). |
 | `RATE_LIMIT_EVENTS` / `RATE_LIMIT_EVENTS_WINDOW_SECS` | Events one stream may record per window (default 2000 per 3600s). |
 | `RATE_LIMIT_EVENTS_TOTAL` | Absolute cap on the number of events in one stream (default 20000). |
+| `RATE_LIMIT_BLOCKED_NOTIFICATIONS` / `RATE_LIMIT_BLOCKED_NOTIFICATIONS_WINDOW_SECS` | CDN block notifications logged per logged-in user per window (default 10 per 3600s); see [Blocked-user notifications](#blocked-user-notifications). |
 | `STORE_CACHE_IDLE_MINUTES` | Evict cached political-group stores not used for this many minutes (default 1440, i.e. 24 hours); evicted streams reload from persistence on their next use. |
 
 The binary itself only reads `env::var`, but the deployment can supply these
@@ -619,6 +628,34 @@ corrections, is not rate limited.
 Every refused write logs a warning with `event="rate_limit.hit"`, the limit
 name (`downloads`, `events`, `events_total`) and the stream id; monitoring
 alerts on that marker.
+
+### Blocked-user notifications
+
+Bunny Shield, the CDN in front of the app, serves a custom page when it
+blocks a request. Blocked anonymous visitors are expected; a blocked logged-in
+user should raise an alert. The page's script therefore calls
+`GET /blocked-notification` with the page type (`block`, `challenge`,
+`rate_limit`), the blocked path, the referrer path and, where the browser
+exposes it, the response status. Bunny offers no template variables, so that
+is all the page can send.
+
+The handler (`src/app/blocked_notification.rs`) answers `204` to everyone and
+sits outside the session middleware: it reads the cookie itself, so anonymous
+calls are cheap and never logged, and a call is not session activity. For a
+logged-in user it logs a warning with `event="blocked_notification"`, the
+stream id (or committee member), the election, the page's fields and the
+headers Bunny adds to every proxied request: CDN request id, country code,
+bot classification and JA4 fingerprint. Client text is stripped of control
+characters and capped in length.
+
+It is a `GET` because the block page has no CSRF token and the handler
+changes nothing but a counter. That counter guards against flooding: each
+user is held to `RATE_LIMIT_BLOCKED_NOTIFICATIONS` per fixed window, per
+process. The first refusal logs `event="blocked_notification.throttled"`;
+the rest of the window is silent.
+
+A block on the client as a whole (IP block, rate limit) also blocks the
+notification, so those cases never reach the log.
 
 ### CSB access alerts
 
@@ -808,16 +845,14 @@ event application takes a write lock.
 ### Storage backend
 
 All domain changes are stored as an append-only stream of events, partitioned per
-`(stream_id, election)`. Three backends exist (selected via `STORAGE_URL`):
-in-memory (`memory://`), local files (`local://`), and PostgreSQL (`postgres://`).
-On the file and database backends each event payload is encrypted at rest; the
-in-memory backend keeps plaintext only.
+`(stream_id, election)`. Two backends exist (selected via `STORAGE_URL`):
+in-memory (`memory://`) and PostgreSQL (`postgres://`). On the database backend
+each event payload is encrypted at rest; the in-memory backend keeps plaintext
+only.
 
 Every stream is additionally recorded with its `Scope` (`political_group`,
 `central_electoral_committee`, or `imported_by_csb`), and a registry only ever
-sees streams of its own scope. The local file backend accepts only
-political-group streams: CSB data lives exclusively in the database (the
-in-memory backend supports all scopes for development and tests).
+sees streams of its own scope.
 
 ### Stream IDs and not leaking the BSN
 
@@ -848,7 +883,7 @@ key.
 
 ### Event encoding
 
-Event payloads and the on-disk stream frames are serialized as CBOR, through
+Event payloads are serialized as CBOR, through
 the small wrapper in `src/store/encoding.rs` (built on `ciborium`). CBOR is
 self-describing: struct fields and enum variants are stored by name, not by
 position. That is what lets the event types evolve without corrupting an
@@ -888,8 +923,7 @@ the CSB main stream each get their own independent key. The stream key is
 stored *wrapped*: encrypted under a key-wrapping key derived at startup with
 HKDF-SHA256 from a master secret (`MASTER_ENCRYPTION_KEY`, distinct from the
 ID-derivation secret). The wrapped key lives next to the stream: the
-`streams.encrypted_key` column on the database backend, a
-`{stream_id}_{election}.key` sidecar file on the file backend. The
+`streams.encrypted_key` column on the database backend. The
 consequences:
 
 - Every `(user, election)` pair gets its own independent random key, so a key
@@ -927,12 +961,12 @@ hash_n = SHA256( hash_{n-1} ‖ event_id_n (u64 LE) ‖ created_at_n (i64 LE, mi
 - `hash_0` (the predecessor of the first event) is the all-zero "genesis" hash
   (`GENESIS_HASH`).
 - `body_n` is the *persisted* representation of the payload: the
-  `nonce ‖ ciphertext ‖ tag` AES-GCM blob for the file/database backends, or the
+  `nonce ‖ ciphertext ‖ tag` AES-GCM blob for the database backend, or the
   CBOR encoding of the plaintext for the in-memory backend. Hashing the
   *encrypted* blob (which is indistinguishable from random and carries a fresh
   nonce) is deliberate: it lets the hash be stored **unencrypted** without leaking
   anything about the plaintext, while still committing to the exact stored bytes.
-- `created_at` is hashed at microsecond precision because that is the precision that remains after a round-trip through the on-disk frame format and Postgres `timestamptz`.
+- `created_at` is hashed at microsecond precision because that is the precision that remains after a round-trip through Postgres `timestamptz`.
 
 In addition, the AES-GCM *associated data* for each event is
 `event_id ‖ created_at ‖ hash_{n-1}`. This authenticates the cleartext metadata

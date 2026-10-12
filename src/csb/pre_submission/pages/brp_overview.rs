@@ -1,4 +1,4 @@
-//! The overview of one pre-submitted package, as PDF and Word download: the
+//! The overview of one pre-submitted package, as PDF, Word and Markdown download: the
 //! candidates with BRP discrepancies or flagged by the application, with
 //! their details and what was found.
 
@@ -11,7 +11,10 @@ use crate::{
         examination::structs::BrpCheckState,
         pre_submission::{
             extractors::PreSubmissionStore,
-            pages::{CsbPreSubmissionBrpOverviewDocxPath, CsbPreSubmissionBrpOverviewPdfPath},
+            pages::{
+                CsbPreSubmissionBrpOverviewDocxPath, CsbPreSubmissionBrpOverviewMarkdownPath,
+                CsbPreSubmissionBrpOverviewPdfPath,
+            },
         },
     },
     models::{
@@ -23,8 +26,9 @@ use crate::{
 };
 
 /// Collect the store data the overview needs. The document is Dutch, whatever
-/// the session's locale, as it is handed to the political group.
-pub(super) fn brp_overview_model(store: &CsbStream) -> BrpOverview {
+/// the session's locale, as it is handed to the political group. The
+/// examination offers the same document, so it is shared with that module.
+pub(in crate::csb) fn brp_overview_model(store: &CsbStream) -> BrpOverview {
     let locale = Locale::Nl;
     let election = store.election;
     let findings = store.get_brp_findings();
@@ -131,6 +135,14 @@ pub async fn gen_brp_overview_docx(
     brp_overview_model(&store).docx_response().await
 }
 
+/// The same overview as [`gen_brp_overview`], exported as Markdown.
+pub async fn gen_brp_overview_markdown(
+    _: CsbPreSubmissionBrpOverviewMarkdownPath,
+    store: PreSubmissionStore,
+) -> Result<Response, AppError> {
+    brp_overview_model(&store).markdown_response()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -141,7 +153,7 @@ mod tests {
 
     use crate::{
         CsbAction, CsbStore,
-        models::DOCX_CONTENT_TYPE,
+        models::{DOCX_CONTENT_TYPE, MARKDOWN_CONTENT_TYPE},
         structs::{
             brp::{BrpFindingKind, BrpStatus, BrpValue},
             candidate_lists::CandidateListId,
@@ -315,6 +327,45 @@ mod tests {
             .await
             .expect("read body");
         assert!(body.starts_with(b"PK"), "body is not a ZIP archive");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn gen_brp_overview_markdown_returns_the_document_as_markdown() -> Result<(), AppError> {
+        let store = store_with_candidates().await;
+
+        let response = gen_brp_overview_markdown(
+            CsbPreSubmissionBrpOverviewMarkdownPath {
+                stream_id: store.stream_id,
+            },
+            store,
+        )
+        .await?;
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let headers = response.headers().clone();
+        assert_eq!(
+            headers.get(header::CONTENT_TYPE).expect("content type"),
+            MARKDOWN_CONTENT_TYPE
+        );
+        assert_eq!(
+            headers
+                .get(header::CONTENT_DISPOSITION)
+                .expect("content disposition"),
+            "attachment; filename=\"brp-overzicht-kiesraad-demo-ek27.md\""
+        );
+        let body = to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("read body");
+        let body = String::from_utf8(body.to_vec()).expect("utf-8");
+        assert!(
+            body.starts_with("# Overzicht controle voorinlevering"),
+            "{body}"
+        );
+        assert!(body.contains("#### Kandidaat nr"), "{body}");
+        assert!(body.contains("Eerste"), "{body}");
+        assert!(body.contains("Utrecht"), "{body}");
 
         Ok(())
     }
