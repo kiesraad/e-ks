@@ -215,13 +215,13 @@ export default function setupSessionExpiry() {
     event.preventDefault();
   });
   // Cancel event is inconsistent in browsers, add extra escape key guard
-  // Still dismisses the dialog when in an overlay, 
+  // Still dismisses the dialog when in an overlay,
   // Closing an overlay causes a page load anyway, so this is okay
   dialog.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
-        event.preventDefault();
+      event.preventDefault();
     }
-});
+  });
 
   // Another tab extended the session (or loaded a page, which also counts as
   // activity on the server): adopt its deadline.

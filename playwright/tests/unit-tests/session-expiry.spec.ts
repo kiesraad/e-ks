@@ -1,4 +1,10 @@
-import { expect, type Page, type Route, test } from "@playwright/test";
+import {
+  type BrowserContext,
+  expect,
+  type Page,
+  type Route,
+  test,
+} from "@playwright/test";
 
 import setupSessionExpiry from "../../../frontend/scripts/generic-ui/session-expiry";
 
@@ -27,7 +33,7 @@ const pageMarkup = `
             data-warning-lead="${WARNING_LEAD}"
             data-extendable="true"
             data-status-url="/session"
-            data-expired-url="/login?expired=true">
+            data-expired-url="/login?session_expired=true">
       <h3>Uw sessie verloopt bijna</h3>
       <p class="session-expiry-message">U bent een tijd niet actief geweest.</p>
       <p class="session-expiry-message-final hidden">Kan niet worden verlengd.</p>
@@ -55,8 +61,9 @@ type Server = {
 
 // Serve the page, the session endpoint and the login page from one origin so
 // the script's relative fetches work, and install the fake clock before the
-// script schedules anything.
-async function openPage(page: Page, server: Server) {
+// script schedules anything. Routes and clock are shared by every tab of the
+// context.
+async function serve(context: BrowserContext, server: Server) {
   const json = (route: Route, body: Expiry) =>
     route.fulfill({
       contentType: "application/json",
@@ -68,7 +75,7 @@ async function openPage(page: Page, server: Server) {
   const gone = (route: Route) =>
     route.fulfill({ contentType: "text/html", body: "<h2>Inloggen</h2>" });
 
-  await page.route(`${ORIGIN}/**`, async (route) => {
+  await context.route(`${ORIGIN}/**`, async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
 
@@ -97,9 +104,17 @@ async function openPage(page: Page, server: Server) {
     return route.fulfill({ status: 404 });
   });
 
-  await page.clock.install({ time: new Date("2026-10-08T10:00:00") });
+  await context.clock.install({ time: new Date("2026-10-08T10:00:00") });
+}
+
+async function openTab(page: Page) {
   await page.goto(`${ORIGIN}/page`);
   await page.evaluate(setupSessionExpiry);
+}
+
+async function openPage(page: Page, server: Server) {
+  await serve(page.context(), server);
+  await openTab(page);
 }
 
 const minutes = (count: number) => count * 60 * 1000;
@@ -128,11 +143,11 @@ test.describe("session-expiry", () => {
     await expect(timer).toHaveText("0:59");
   });
 
-  test("stays closed while another tab keeps the session alive", async ({
+  test("stays closed while the server reports a later expiry", async ({
     page,
   }) => {
-    // The server has seen activity from another tab: ten minutes left when
-    // this tab asks, one minute left the next time.
+    // The server saw activity this tab never heard about (no broadcast reached
+    // it): ten minutes left when this tab asks, one minute left the next time.
     await openPage(page, {
       peeks: [expiry(10 * 60), expiry(WARNING_LEAD)],
       extend: expiry(IDLE_TIMEOUT),
@@ -175,9 +190,34 @@ test.describe("session-expiry", () => {
     await expect(dialog).toBeVisible();
   });
 
-  test("closes when the countdown runs out but another tab extended", async ({
+  test("closes when another tab stays logged in", async ({ context }) => {
+    await serve(context, {
+      peeks: [expiry(WARNING_LEAD)],
+      extend: expiry(IDLE_TIMEOUT),
+      extendTokens: [],
+    });
+    const first = await context.newPage();
+    const second = await context.newPage();
+    await openTab(first);
+    await openTab(second);
+    const firstDialog = first.locator("dialog.session-expiry");
+    const secondDialog = second.locator("dialog.session-expiry");
+
+    await context.clock.fastForward(minutes(14));
+    await expect(firstDialog).toBeVisible();
+    await expect(secondDialog).toBeVisible();
+
+    // The second tab's broadcast closes the first tab's warning too.
+    await secondDialog.locator(".session-expiry-extend").click();
+    await expect(secondDialog).toBeHidden();
+    await expect(firstDialog).toBeHidden();
+  });
+
+  test("closes when the countdown runs out but the server reports a later expiry", async ({
     page,
   }) => {
+    // The session was extended elsewhere without a broadcast reaching this
+    // tab: the final peek is the only way it finds out.
     await openPage(page, {
       peeks: [expiry(WARNING_LEAD), expiry(IDLE_TIMEOUT)],
       extend: expiry(IDLE_TIMEOUT),
@@ -205,7 +245,7 @@ test.describe("session-expiry", () => {
     await expect(dialog).toBeVisible();
 
     await page.clock.runFor(minutes(1));
-    await expect(page).toHaveURL(`${ORIGIN}/login?expired=true`);
+    await expect(page).toHaveURL(`${ORIGIN}/login?session_expired=true`);
   });
 
   test("tells the user to log in again when the session cannot be extended", async ({

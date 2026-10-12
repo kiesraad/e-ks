@@ -5,18 +5,18 @@
 use askama::Template;
 use auth_service::{AuthFailure, AuthServiceState, AuthState, RedirectTarget, handle_logout};
 use axum::{
-    extract::{FromRef, State},
-    http::{HeaderName, HeaderValue, Uri},
+    extract::{FromRef, Query, State},
+    http::{HeaderName, HeaderValue},
     response::{IntoResponse, Response},
 };
 use axum_extra::extract::CookieJar;
 
 use axum_extra::routing::TypedPath;
 
-use super::{LoggedOutPath, LoginStartPath, LogoutPath};
+use super::{LoggedOutPath, LogoutPath};
 use crate::{
-    AppRequestState, Context, HtmlTemplate, Locale, LocaleValues, Session, SessionPageValues,
-    auth::session::session_idle_timeout, filters,
+    AppRequestState, Context, HtmlTemplate, Locale, LocaleValues, QueryParamState, Session,
+    SessionPageValues, auth::session::session_idle_timeout, filters,
 };
 
 #[derive(Template)]
@@ -50,12 +50,12 @@ struct AuthCancelledTemplate;
 struct AuthUnavailableTemplate;
 
 /// GET `/login`: DigiD start page with login button and flow explanation.
-/// With the flag of [`LoginStartPath::expired_url`] it also tells the user
-/// their session expired through inactivity.
-pub async fn login_start(uri: Uri) -> impl IntoResponse {
+/// With the flag of [`super::LoginStartPath::expired_url`] it also tells the
+/// user their session expired through inactivity.
+pub async fn login_start(Query(query): Query<QueryParamState>) -> impl IntoResponse {
     HtmlTemplate(
         LoginStartTemplate {
-            session_expired: LoginStartPath::asks_for_expired_notice(&uri),
+            session_expired: query.is_session_expired(),
             idle_minutes: session_idle_timeout().num_minutes().to_string(),
         },
         LocaleValues {
@@ -137,13 +137,14 @@ mod tests {
     use crate::common::PgIndexPath;
 
     use crate::{
-        auth::session_extractor::SESSION_COOKIE_NAME, common::SelectElectionPath,
+        auth::session_extractor::SESSION_COOKIE_NAME,
+        common::{LoginStartPath, SelectElectionPath},
         test_utils::response_body_string,
     };
 
     #[tokio::test]
     async fn login_start_shows_digid_button_and_explanation() {
-        let response = login_start(Uri::from_static("/login"))
+        let response = login_start(Query(QueryParamState::default()))
             .await
             .into_response();
         let body = response_body_string(response).await;
@@ -159,30 +160,19 @@ mod tests {
     /// is back on the login page, naming the idle timeout.
     #[tokio::test]
     async fn login_start_explains_an_expired_session() {
-        let uri: Uri = LoginStartPath::expired_url().parse().expect("valid url");
-        let response = login_start(uri).await.into_response();
+        let state = crate::AppState::new_for_tests().await;
+        let app = crate::app::router::create(state.clone()).with_state(state);
+
+        let request = Request::builder()
+            .uri(LoginStartPath::expired_url().to_string())
+            .body(Body::empty())
+            .unwrap();
+        let response = app.oneshot(request).await.expect("response");
+
+        assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
         assert!(body.contains("Uw sessie is verlopen omdat u 15 minuten niet actief bent geweest"));
         assert!(body.contains("Inloggen"));
-    }
-
-    /// Only the exact flag triggers the notice; other query strings leave the
-    /// start page as it is rather than failing the request.
-    #[test]
-    fn expired_notice_needs_the_exact_flag() {
-        for (uri, expected) in [
-            ("/login", false),
-            ("/login?expired=true", true),
-            ("/login?foo=bar&expired=true", true),
-            ("/login?expired=banana", false),
-            ("/login?expired=true-ish", false),
-        ] {
-            assert_eq!(
-                LoginStartPath::asks_for_expired_notice(&Uri::from_static(uri)),
-                expected,
-                "{uri}"
-            );
-        }
     }
 
     #[tokio::test]

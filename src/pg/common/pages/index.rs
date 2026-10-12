@@ -132,7 +132,7 @@ mod tests {
         assert!(body.contains(r#"data-warning-lead="60""#), "{body}");
         assert!(body.contains(r#"data-status-url="/session""#), "{body}");
         assert!(
-            body.contains(r#"data-expired-url="/login?expired=true""#),
+            body.contains(r#"data-expired-url="/login?&#38;session_expired=true""#),
             "{body}"
         );
         assert!(body.contains("Your session is about to expire"), "{body}");
