@@ -1,6 +1,7 @@
 mod config;
 mod csb_access;
 mod csv;
+mod github_login;
 mod github_user_id;
 
 pub mod election;
@@ -25,6 +26,7 @@ pub use config::{Config, GithubOauthConfig};
 pub use csb_access::{AlertThrottle, CsbAlertHours, CsbIpAllowList};
 pub use csv::{Csv, CsvError, reader_from_bytes};
 pub use election::{ElectionConfig, ElectionType, ElectoralDistrict, Province, WaterCouncil};
+pub use github_login::GithubLogin;
 pub use github_user_id::GithubUserId;
 pub use locale::Locale;
 pub use model_locale::{AnyLocale, ModelLocale};

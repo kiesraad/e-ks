@@ -202,7 +202,7 @@ mod tests {
     fn value_confirmed_absent_bsn_is_translated() {
         assert_eq!(
             field_value("personal_data.bsn", "NoneConfirmed", EN),
-            "Confirmed: no social security number"
+            "Confirmed: no citizen service number"
         );
     }
 

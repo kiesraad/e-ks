@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     CsbUser, Event, HasCsbUser, PgEvent, PgStoreData, StreamId,
     structs::{
-        brp::{BrpFinding, BrpFindingKind, BrpStatus},
+        brp::{BrpFinding, BrpFindingKind, BrpLookup, BrpStatus},
         csb::{Correction, Omission, OmissionId, OmissionPart, OmissionStatus},
         persons::PersonId,
     },
@@ -104,6 +104,9 @@ pub enum CsbAction {
         status: OmissionStatus,
     },
     UpdateCorrection(Correction),
+    /// One request to the BRP, recorded whether it succeeded or not, so the
+    /// log shows what was sent to the BRP and what came back.
+    BrpLookup(BrpLookup),
     /// Empty `findings` means checked, with the BRP agreeing on every field.
     BrpPersonChecked {
         person: PersonId,
@@ -133,7 +136,8 @@ impl CsbAction {
             | CsbAction::SetOmissionStatus { .. }
             | CsbAction::SetOmissionPartStatus { .. } => "omission",
             CsbAction::UpdateCorrection(_) => "correction",
-            CsbAction::BrpPersonChecked { .. }
+            CsbAction::BrpLookup(_)
+            | CsbAction::BrpPersonChecked { .. }
             | CsbAction::SetBrpFindingHandled { .. }
             | CsbAction::SetBrpStatus(_) => "brp_validation",
         }
@@ -152,9 +156,10 @@ impl CsbAction {
             CsbAction::SetOmissionStatus { .. } => "set_omission_status",
             CsbAction::SetOmissionPartStatus { .. } => "set_omission_part_status",
             CsbAction::UpdateCorrection(_) => "update_correction",
+            CsbAction::BrpLookup(_) => "brp_lookup",
             CsbAction::BrpPersonChecked { .. } => "brp_person_checked",
             CsbAction::SetBrpFindingHandled { .. } => "set_brp_finding_handled",
-            CsbAction::SetBrpStatus(_) => "brp_validation",
+            CsbAction::SetBrpStatus(_) => "set_brp_status",
         }
     }
 
@@ -177,15 +182,14 @@ impl CsbAction {
             CsbAction::UpdateCorrection { .. } => {
                 trans!("audit_log.event.update_correction", locale)
             }
+            CsbAction::BrpLookup(_) => trans!("audit_log.event.brp_lookup", locale),
             CsbAction::BrpPersonChecked { .. } => {
-                trans!("audit_log.event.brp_validation", locale)
+                trans!("audit_log.event.brp_person_checked", locale)
             }
             CsbAction::SetBrpFindingHandled { .. } => {
                 trans!("audit_log.event.set_brp_finding_handled", locale)
             }
-            CsbAction::SetBrpStatus(_) => {
-                trans!("audit_log.event.set_brp_validation_state", locale)
-            }
+            CsbAction::SetBrpStatus(_) => trans!("audit_log.event.set_brp_status", locale),
         }
     }
 
@@ -223,12 +227,11 @@ impl CsbAction {
                 format!("{omission_id}: {part:?} {status:?}")
             }
             CsbAction::UpdateCorrection(_) => String::new(),
-            CsbAction::BrpPersonChecked { person, .. } => person.to_string(),
-            CsbAction::SetBrpFindingHandled {
-                person,
-                finding,
-                handled,
-            } => format!("{person}: {finding:?} handled={handled}"),
+            // What a lookup sent and got back, and what a check found, is
+            // read off the stream by the detail page.
+            CsbAction::BrpLookup(_) => String::new(),
+            CsbAction::BrpPersonChecked { person, .. }
+            | CsbAction::SetBrpFindingHandled { person, .. } => person.to_string(),
             CsbAction::SetBrpStatus(value) => value.to_string(),
         }
     }

@@ -122,7 +122,7 @@ impl<'de> Deserialize<'de> for Bsn {
 
 pub const BSN_NONE_CONFIRMATION: &str = "none-confirmed";
 
-/// This enum represents the state of a person's BSN (Dutch social security number):
+/// This enum represents the state of a person's BSN (Dutch citizen service number):
 /// - `Bsn`: A BSN has been provided and confirmed valid.
 /// - `NoneConfirmed`: It is confirmed that this person does not have a BSN.
 #[derive(Debug, Serialize, Eq, PartialEq, Deserialize, Clone)]

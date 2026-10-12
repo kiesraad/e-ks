@@ -539,8 +539,8 @@ mod tests {
 
         assert_eq!(value_of("Gender"), "Female");
         assert_eq!(
-            value_of("Social security number (BSN)"),
-            "Confirmed: no social security number"
+            value_of("Citizen service number (BSN)"),
+            "Confirmed: no citizen service number"
         );
         assert_eq!(value_of("Date of birth"), "01-02-1990");
         assert_eq!(value_of("Known in the BAG"), "Yes");

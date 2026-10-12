@@ -3,10 +3,11 @@ use std::{str::FromStr, sync::Arc, time::Duration};
 use chrono::NaiveDate;
 use reqwest::Client;
 use secrecy::{ExposeSecret, SecretString};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use super::{
-    BrpCheckedField, BrpField, BrpFinding, BrpFindingKind, BrpLastName, BrpPerson, BrpValue,
+    BrpCheckedField, BrpField, BrpFinding, BrpFindingKind, BrpLastName, BrpLookup,
+    BrpLookupOutcome, BrpPerson, BrpQuery, BrpValue,
     person::{BrpName, BrpResidence},
 };
 use crate::{
@@ -118,15 +119,52 @@ impl BrpClient {
         }
     }
 
+    /// Send `query` on behalf of `persons` and add it to `lookups` with what
+    /// came back, so a failed request is on record as much as an answered one.
+    async fn consult(
+        &self,
+        query: BrpQuery,
+        persons: Vec<PersonId>,
+        lookups: &mut Vec<BrpLookup>,
+    ) -> Result<Vec<BrpPerson>, AppError> {
+        let result = self.get_persons(&query).await;
+
+        let outcome = match &result {
+            Ok(found) => BrpLookupOutcome::Returned {
+                bsns: found
+                    .iter()
+                    .map(|brp_person| brp_person.bsn.clone().unwrap_or_default())
+                    .collect(),
+            },
+            Err(err) => BrpLookupOutcome::Failed {
+                error: err.to_string(),
+            },
+        };
+        lookups.push(BrpLookup {
+            persons,
+            query,
+            outcome,
+        });
+
+        result
+    }
+
     /// Check up to [`BRP_BSN_BATCH_SIZE`] candidates in a single BRP request
-    /// and return the findings per candidate.
+    /// and return the findings per candidate, along with every request sent.
     ///
-    /// An `Err` means the BRP could not be consulted at all, so the caller has
-    /// to stop rather than treat the batch as clean. Anything wrong with an
-    /// individual candidate is a [`BrpFindingKind`], not an error.
-    pub async fn verify_batch(
+    /// A failed `outcome` means the BRP could not be consulted at all, so the
+    /// caller has to stop rather than treat the batch as clean. Anything wrong
+    /// with an individual candidate is a [`BrpFindingKind`], not an error.
+    pub async fn verify_batch(&self, persons: &[Person]) -> BrpBatch {
+        let mut lookups = Vec::new();
+        let outcome = self.verify_batch_recording(persons, &mut lookups).await;
+        BrpBatch { lookups, outcome }
+    }
+
+    async fn verify_batch_recording(
         &self,
         persons: &[Person],
+        lookups: &mut Vec<BrpLookup>,
     ) -> Result<Vec<(PersonId, Vec<BrpFinding>)>, AppError> {
         if persons.len() > BRP_BSN_BATCH_SIZE {
             return Err(AppError::BrpError(format!(
@@ -147,7 +185,8 @@ impl BrpClient {
                 bsn: with_bsn.iter().filter_map(|p| bsn_of(p).cloned()).collect(),
                 fields: CANDIDATE_FIELDS.to_vec(),
             };
-            self.get_persons(&query).await?
+            let persons = with_bsn.iter().map(|person| person.id).collect();
+            self.consult(query, persons, lookups).await?
         };
 
         let mut results = Vec::with_capacity(persons.len());
@@ -166,7 +205,7 @@ impl BrpClient {
                 // Nobody to compare against yet: a burgerservicenummer that is
                 // missing or wrong should still not leave the candidate
                 // unchecked, so their other details are searched on.
-                [] => self.findings_without_a_bsn_match(person).await?,
+                [] => self.findings_without_a_bsn_match(person, lookups).await?,
                 [brp_person] => findings_for(person, brp_person),
                 _ => vec![BrpFindingKind::BsnNotUnique],
             };
@@ -186,6 +225,7 @@ impl BrpClient {
     async fn findings_without_a_bsn_match(
         &self,
         person: &Person,
+        lookups: &mut Vec<BrpLookup>,
     ) -> Result<Vec<BrpFindingKind>, AppError> {
         let reason = match person.personal_data.bsn {
             Some(BsnOrNoneConfirmed::Bsn(_)) => BrpFindingKind::BsnUnknown,
@@ -194,7 +234,7 @@ impl BrpClient {
         };
         let mut findings = vec![reason];
 
-        let Some(found) = self.search_by_personal_details(person).await? else {
+        let Some(found) = self.search_by_personal_details(person, lookups).await? else {
             return Ok(findings);
         };
 
@@ -202,7 +242,7 @@ impl BrpClient {
             [] => {}
             [bsn] => {
                 findings.push(BrpFindingKind::BsnMatchedByPersonalDetails { bsn: bsn.clone() });
-                if let Some(brp_person) = self.get_person_by_bsn(bsn).await? {
+                if let Some(brp_person) = self.get_person_by_bsn(bsn, person.id, lookups).await? {
                     findings.extend(findings_for(person, &brp_person));
                 }
             }
@@ -220,6 +260,7 @@ impl BrpClient {
     async fn search_by_personal_details(
         &self,
         person: &Person,
+        lookups: &mut Vec<BrpLookup>,
     ) -> Result<Option<Vec<Bsn>>, AppError> {
         let Some(date_of_birth) = person.personal_data.date_of_birth.as_ref() else {
             return Ok(None);
@@ -252,16 +293,17 @@ impl BrpClient {
 
         let mut found = Vec::new();
         for (prefix, gender) in narrowings {
+            let query = BrpQuery::SearchByLastNameAndDateOfBirth {
+                last_name: last_name.clone(),
+                date_of_birth: date_of_birth.clone(),
+                last_name_prefix: prefix,
+                gender: gender.map(str::to_string),
+                // A deceased candidate has to stay findable.
+                include_deceased: true,
+                fields: vec![BrpField::Bsn],
+            };
             found = self
-                .get_persons(&BrpQuery::SearchByLastNameAndDateOfBirth {
-                    last_name: last_name.clone(),
-                    date_of_birth: date_of_birth.clone(),
-                    last_name_prefix: prefix,
-                    gender: gender.map(str::to_string),
-                    // A deceased candidate has to stay findable.
-                    include_deceased: true,
-                    fields: vec![BrpField::Bsn],
-                })
+                .consult(query, vec![person.id], lookups)
                 .await?
                 .into_iter()
                 // A number this application cannot read is a number it cannot
@@ -281,16 +323,31 @@ impl BrpClient {
 
     /// The full record of one person, for comparing every checked field after
     /// a search identified them.
-    async fn get_person_by_bsn(&self, bsn: &Bsn) -> Result<Option<BrpPerson>, AppError> {
+    async fn get_person_by_bsn(
+        &self,
+        bsn: &Bsn,
+        person: PersonId,
+        lookups: &mut Vec<BrpLookup>,
+    ) -> Result<Option<BrpPerson>, AppError> {
+        let query = BrpQuery::ConsultWithBsn {
+            bsn: vec![bsn.clone()],
+            fields: CANDIDATE_FIELDS.to_vec(),
+        };
         Ok(self
-            .get_persons(&BrpQuery::ConsultWithBsn {
-                bsn: vec![bsn.clone()],
-                fields: CANDIDATE_FIELDS.to_vec(),
-            })
+            .consult(query, vec![person], lookups)
             .await?
             .into_iter()
             .next())
     }
+}
+
+/// The outcome of checking one batch of candidates: every request sent to the
+/// BRP, for the audit log, and the findings per candidate, or why the batch
+/// could not be checked. The lookups are there even when the check failed, so
+/// the request that failed is on record too.
+pub struct BrpBatch {
+    pub lookups: Vec<BrpLookup>,
+    pub outcome: Result<Vec<(PersonId, Vec<BrpFinding>)>, AppError>,
 }
 
 /// The candidate's burgerservicenummer, if they have one recorded.
@@ -580,34 +637,6 @@ fn parse_brp_date(raw: &str) -> Option<NaiveDate> {
     NaiveDate::parse_from_str(raw.trim(), BRP_DATE_FORMAT).ok()
 }
 
-#[derive(Debug, Serialize)]
-#[serde(tag = "type")]
-pub enum BrpQuery {
-    #[serde(rename = "RaadpleegMetBurgerservicenummer")]
-    ConsultWithBsn {
-        #[serde(rename = "burgerservicenummer")]
-        bsn: Vec<Bsn>,
-        fields: Vec<BrpField>,
-    },
-    /// Search on personal details, for a candidate whose burgerservicenummer
-    /// resolves to nobody. The BRP matches `geslachtsnaam` exactly and expects
-    /// the prefix separately, and it leaves deceased people out unless asked.
-    #[serde(rename = "ZoekMetGeslachtsnaamEnGeboortedatum")]
-    SearchByLastNameAndDateOfBirth {
-        #[serde(rename = "geslachtsnaam")]
-        last_name: String,
-        #[serde(rename = "geboortedatum")]
-        date_of_birth: String,
-        #[serde(rename = "voorvoegsel", skip_serializing_if = "Option::is_none")]
-        last_name_prefix: Option<String>,
-        #[serde(rename = "geslacht", skip_serializing_if = "Option::is_none")]
-        gender: Option<String>,
-        #[serde(rename = "inclusiefOverledenPersonen")]
-        include_deceased: bool,
-        fields: Vec<BrpField>,
-    },
-}
-
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type")]
 pub enum BrpResponse {
@@ -643,6 +672,7 @@ mod tests {
             .client
             .verify_batch(std::slice::from_ref(person))
             .await
+            .outcome
             .expect("the stub BRP answers");
 
         assert_eq!(results.len(), 1);
@@ -1098,6 +1128,7 @@ mod tests {
             .client
             .verify_batch(std::slice::from_ref(&person))
             .await
+            .outcome
             .unwrap();
 
         assert_eq!(
@@ -1123,6 +1154,7 @@ mod tests {
             .client
             .verify_batch(std::slice::from_ref(&person))
             .await
+            .outcome
             .unwrap();
 
         assert_eq!(
@@ -1154,6 +1186,7 @@ mod tests {
             .client
             .verify_batch(std::slice::from_ref(&person))
             .await
+            .outcome
             .unwrap();
 
         assert_eq!(kinds_of(&results[0].1), vec![BrpFindingKind::BsnMissing]);
@@ -1169,6 +1202,7 @@ mod tests {
             .client
             .verify_batch(std::slice::from_ref(&person))
             .await
+            .outcome
             .unwrap();
 
         assert_eq!(kinds_of(&results[0].1), vec![BrpFindingKind::BsnNotUnique]);
@@ -1186,6 +1220,7 @@ mod tests {
             .client
             .verify_batch(&[without.clone(), none_confirmed.clone()])
             .await
+            .outcome
             .unwrap();
 
         // Neither is in the BRP under any of their details, so the reason the
@@ -1304,7 +1339,7 @@ mod tests {
             .collect();
 
         let stub = BrpStub::serving(Vec::new()).await;
-        let results = stub.client.verify_batch(&candidates).await.unwrap();
+        let results = stub.client.verify_batch(&candidates).await.outcome.unwrap();
 
         let lookups = stub.queries_of_type("RaadpleegMetBurgerservicenummer");
         assert_eq!(lookups.len(), 1);
@@ -1329,9 +1364,14 @@ mod tests {
             .collect();
 
         let stub = BrpStub::serving(Vec::new()).await;
-        let result = stub.client.verify_batch(&candidates).await;
+        let batch = stub.client.verify_batch(&candidates).await;
 
-        assert!(matches!(result, Err(AppError::BrpError(_))), "{result:?}");
+        assert!(
+            matches!(batch.outcome, Err(AppError::BrpError(_))),
+            "{:?}",
+            batch.outcome
+        );
+        assert!(batch.lookups.is_empty(), "nothing was sent");
     }
 
     #[tokio::test]
@@ -1340,12 +1380,19 @@ mod tests {
         // Port 1 on loopback refuses connections.
         let client = BrpClient::new_for_test("http://127.0.0.1:1");
 
-        let result = client.verify_batch(std::slice::from_ref(&person)).await;
+        let batch = client.verify_batch(std::slice::from_ref(&person)).await;
 
         assert!(
-            result.is_err(),
+            batch.outcome.is_err(),
             "an unreachable BRP must not look like a candidate with no findings"
         );
+        // The failed request is on record, with why it failed.
+        assert_eq!(batch.lookups.len(), 1);
+        assert_eq!(batch.lookups[0].persons, vec![person.id]);
+        assert!(matches!(
+            &batch.lookups[0].outcome,
+            BrpLookupOutcome::Failed { error } if !error.is_empty()
+        ));
     }
 
     #[tokio::test]
@@ -1360,10 +1407,85 @@ mod tests {
 
         let (person, _) = candidate();
         let client = BrpClient::new_for_test(&format!("http://{addr}"));
-        let result = client.verify_batch(std::slice::from_ref(&person)).await;
+        let batch = client.verify_batch(std::slice::from_ref(&person)).await;
 
         server.abort();
-        assert!(result.is_err(), "a 503 from the BRP must not be ignored");
+        assert!(
+            batch.outcome.is_err(),
+            "a 503 from the BRP must not be ignored"
+        );
+    }
+
+    /// Every request is on record: the lookup by burgerservicenummer, the
+    /// search on personal details it fell back to, and the fetch of the one
+    /// person that search found.
+    #[tokio::test]
+    async fn every_request_to_the_brp_is_recorded_as_a_lookup() {
+        let (person, _) = candidate();
+        let stub = BrpStub::serving(vec![matching_record("999992806")]).await;
+
+        let batch = stub
+            .client
+            .verify_batch(std::slice::from_ref(&person))
+            .await;
+
+        assert!(batch.outcome.is_ok());
+        assert_eq!(batch.lookups.len(), stub.query_count());
+        assert_eq!(batch.lookups.len(), 3);
+        for lookup in &batch.lookups {
+            assert_eq!(lookup.persons, vec![person.id]);
+        }
+
+        let [by_bsn, by_details, found] = batch.lookups.as_slice() else {
+            unreachable!()
+        };
+        assert!(matches!(
+            &by_bsn.query,
+            BrpQuery::ConsultWithBsn { bsn, fields }
+                if *bsn == vec![bsn_of(&person).unwrap().clone()] && fields == CANDIDATE_FIELDS
+        ));
+        assert_eq!(
+            by_bsn.outcome,
+            BrpLookupOutcome::Returned { bsns: Vec::new() }
+        );
+        assert!(matches!(
+            &by_details.query,
+            BrpQuery::SearchByLastNameAndDateOfBirth { last_name, date_of_birth, .. }
+                if last_name == "Bruin" && date_of_birth == "1990-12-11"
+        ));
+        assert_eq!(
+            by_details.outcome,
+            BrpLookupOutcome::Returned {
+                bsns: vec!["999992806".to_string()]
+            }
+        );
+        assert!(matches!(
+            &found.query,
+            BrpQuery::ConsultWithBsn { bsn, .. } if *bsn == vec!["999992806".parse().unwrap()]
+        ));
+    }
+
+    #[tokio::test]
+    async fn a_batch_lookup_is_recorded_for_every_candidate_in_it() {
+        let candidates: Vec<Person> = valid_bsns(3)
+            .into_iter()
+            .map(|bsn| {
+                let mut person = sample_person(PersonId::new());
+                person.personal_data.bsn = Some(BsnOrNoneConfirmed::Bsn(bsn));
+                // Nothing to fall back on, so the batch lookup is all there is.
+                person.personal_data.date_of_birth = None;
+                person
+            })
+            .collect();
+
+        let stub = BrpStub::serving(Vec::new()).await;
+        let batch = stub.client.verify_batch(&candidates).await;
+
+        assert_eq!(batch.lookups.len(), 1);
+        assert_eq!(
+            batch.lookups[0].persons,
+            candidates.iter().map(|c| c.id).collect::<Vec<_>>()
+        );
     }
 
     /// Smoke test against the real mock, which `cargo test` does not start.

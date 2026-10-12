@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{GithubUserId, Locale, trans};
+use crate::{GithubLogin, GithubUserId, Locale, trans};
 
 /// The committee member behind a CSB session, recorded on every CSB event so
 /// the audit log can show who triggered it.
@@ -15,8 +15,12 @@ pub enum CsbUser {
     /// Dev-login bypass, with no identity beyond the login method itself.
     #[cfg(any(feature = "dev-features", test))]
     Developer,
-    /// GitHub OAuth login, identified by the account's numeric id.
-    Github { user_id: GithubUserId },
+    /// GitHub OAuth login, identified by the account's numeric id. The login
+    /// at sign-in is kept so the audit log reads well.
+    Github {
+        user_id: GithubUserId,
+        login: GithubLogin,
+    },
 }
 
 /// Implemented by the CSB store events, which all record the committee member
@@ -31,8 +35,11 @@ impl CsbUser {
         match self {
             #[cfg(any(feature = "dev-features", test))]
             CsbUser::Developer => trans!("audit_log.user.developer", locale),
-            CsbUser::Github { user_id } => {
-                format!("{} {user_id}", trans!("audit_log.user.github", locale))
+            CsbUser::Github { user_id, login } => {
+                format!(
+                    "{} {login} ({user_id})",
+                    trans!("audit_log.user.github", locale)
+                )
             }
         }
     }
@@ -51,9 +58,13 @@ mod tests {
     fn describe_shows_login_method_and_identity() {
         let github = CsbUser::Github {
             user_id: "583231".parse().expect("valid id"),
+            login: "octocat".parse().expect("valid login"),
         };
-        assert_eq!(github.describe(Locale::En), "GitHub user 583231");
-        assert_eq!(github.describe(Locale::Nl), "GitHub-gebruiker 583231");
+        assert_eq!(github.describe(Locale::En), "GitHub user octocat (583231)");
+        assert_eq!(
+            github.describe(Locale::Nl),
+            "GitHub-gebruiker octocat (583231)"
+        );
 
         assert_eq!(CsbUser::Developer.describe(Locale::En), "Developer");
     }
@@ -62,6 +73,7 @@ mod tests {
     fn serde_roundtrips() {
         let user = CsbUser::Github {
             user_id: "42".parse().expect("valid id"),
+            login: "octocat".parse().expect("valid login"),
         };
         let json = serde_json::to_string(&user).expect("serialize");
         let back: CsbUser = serde_json::from_str(&json).expect("deserialize");

@@ -26,19 +26,30 @@
           <pre>{{ detail.details }}</pre>
         </dd>
       {% endif %}
+      {% for fact in detail.facts %}
+        <dt>{{ fact.label }}</dt>
+        <dd>
+          {{ fact.value }}
+        </dd>
+      {% endfor %}
     </dl>
     {% if !detail.changes.is_empty() %}
       <table class="diff-table mb-md">
         <thead>
           <tr>
             <th scope="col">{{ "audit_log.detail.field"|trans }}</th>
-            <th scope="col">{{ "audit_log.detail.old_value"|trans }}</th>
-            <th scope="col">{{ "audit_log.detail.new_value"|trans }}</th>
+            {% if detail.brp_comparison %}
+              <th scope="col">{{ "audit_log.detail.brp.list_value"|trans }}</th>
+              <th scope="col">{{ "audit_log.detail.brp.brp_value"|trans }}</th>
+            {% else %}
+              <th scope="col">{{ "audit_log.detail.old_value"|trans }}</th>
+              <th scope="col">{{ "audit_log.detail.new_value"|trans }}</th>
+            {% endif %}
           </tr>
         </thead>
         <tbody>
           {% for change in detail.changes %}
-            <tr class="{{ change.change_kind() }}">
+            <tr class="{{ detail.row_class(change) }}">
               {% match change %}
               {% when FieldChange::Regular with { field, old_value, new_value } %}
               <td>{{ field }}</td>

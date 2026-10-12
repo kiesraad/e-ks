@@ -99,6 +99,8 @@ impl StoreData for CsbStoreData {
                 status,
             } => self.set_omission_part_status(omission_id, part, status, event_id, event_time),
             CsbAction::UpdateCorrection(correction) => self.apply_correction(correction),
+            // Kept for the audit log only; the findings carry the result.
+            CsbAction::BrpLookup(_) => {}
             CsbAction::BrpPersonChecked { person, findings } => {
                 self.brp_findings.insert(person, findings);
             }
