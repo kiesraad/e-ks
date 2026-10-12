@@ -5,26 +5,31 @@ use crate::AppRequestState;
 
 use super::paths::{
     CsbAddOmissionPath, CsbAllBrpFindingsPath, CsbAllRestorationsPath,
-    CsbAppellationCorrectionPath, CsbBrpCheckPath, CsbCandidateBrpCheckPath, CsbCandidateListPath,
+    CsbAppellationCorrectionPath, CsbBrpCheckPath, CsbBrpOverviewDocxDownloadPath,
+    CsbBrpOverviewDownloadPath, CsbBrpOverviewMarkdownDownloadPath, CsbCandidateBrpCheckPath,
+    CsbCandidateBrpFindingHandledPath, CsbCandidateListPath,
+    CsbCandidateListPublicationDocxDownloadPath, CsbCandidateListPublicationDownloadPath,
     CsbCandidatePath, CsbDeleteOmissionPath, CsbExaminationOverviewPath, CsbFinishExaminationPath,
-    CsbGeneralInformationPath, CsbI1DocxDownloadPath, CsbI1DownloadPath, CsbI4DocxDownloadPath,
-    CsbI4DownloadPath, CsbOmissionLetterDocxDownloadPath, CsbOmissionLetterDownloadPath,
-    CsbOmissionLetterPath, CsbOmissionLettersDownloadPath, CsbOmissionOverviewPath,
-    CsbPaperCorrectionsStartPath, CsbPaperCorrectionsStopPath, CsbPersonCorrectionPath,
-    CsbPoliticalGroupPath, CsbPoliticalGroupToggleFinishPath, OmissionListQuery, PgIndexPath,
+    CsbGeneralInformationPath, CsbI1DocxDownloadPath, CsbI1DownloadPath,
+    CsbOmissionLetterDocxDownloadPath, CsbOmissionLetterDownloadPath, CsbOmissionLetterPath,
+    CsbOmissionLettersDownloadPath, CsbOmissionOverviewPath, CsbPaperCorrectionsStartPath,
+    CsbPaperCorrectionsStopPath, CsbPersonCorrectionPath, CsbPoliticalGroupPath,
+    CsbPoliticalGroupToggleFinishPath, OmissionListQuery, PgIndexPath,
 };
 
 mod all_brp_findings;
 mod all_restorations;
+mod brp_overview;
 pub(in crate::csb) mod candidate;
 pub(in crate::csb) mod candidate_list;
+mod candidate_list_overview;
+mod candidate_list_publication;
 mod correction;
 mod delete;
 pub(in crate::csb) mod finish_examination;
 pub(in crate::csb) mod general_information;
 pub(in crate::csb) mod hearing_details;
 mod i1;
-mod i4;
 mod omission;
 mod omission_letter;
 mod overview;
@@ -36,8 +41,10 @@ pub fn router<S: AppRequestState>() -> Router<S> {
         .typed_get(overview::overview)
         .typed_get(i1::gen_i1::<S>)
         .typed_get(i1::gen_i1_docx::<S>)
-        .typed_get(i4::gen_i4::<S>)
-        .typed_get(i4::gen_i4_docx::<S>)
+        .typed_get(candidate_list_overview::gen_candidate_list_overview_docx::<S>)
+        .typed_get(candidate_list_overview::gen_candidate_list_overview::<S>)
+        .typed_get(candidate_list_publication::gen_candidate_list_publication::<S>)
+        .typed_get(candidate_list_publication::gen_candidate_list_publication_docx::<S>)
         .typed_get(omission_letter::overview)
         .typed_get(omission_letter::gen_omission_letter)
         .typed_get(omission_letter::gen_omission_letter_docx)
@@ -53,12 +60,16 @@ pub fn router<S: AppRequestState>() -> Router<S> {
         .typed_get(candidate_list::overview)
         .typed_get(candidate::overview)
         .typed_post(candidate::check_against_brp::<S>)
+        .typed_post(candidate::set_brp_finding_handled)
         .typed_get(omission::add_omission)
         .typed_post(omission::add_omission_submit)
         .typed_get(omission::overview)
         .typed_post(omission::delete_omission)
         .typed_get(all_restorations::all_restorations)
         .typed_get(all_brp_findings::all_brp_findings)
+        .typed_get(brp_overview::gen_brp_overview)
+        .typed_get(brp_overview::gen_brp_overview_docx)
+        .typed_get(brp_overview::gen_brp_overview_markdown)
         .typed_get(correction::appellation_name_correction)
         .typed_post(correction::appellation_correction_submit)
         .typed_get(correction::person_correction)

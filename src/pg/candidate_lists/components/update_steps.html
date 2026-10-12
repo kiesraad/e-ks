@@ -1,19 +1,13 @@
-<div class="steps-nav">
-  <ul>
-    {% let election = "election"|election_value %}
-    {% if !election.has_only_one_district() %}
+{% let election = "election"|election_value %}
+{% if !election.has_only_one_district() %}
+  <div class="steps-nav">
+    <ul>
       <li>
         <a href="{{ overlay.forward(candidate_list.update_path() ) }}"
            class="{% if should_warn|default(true) %}{% if candidate_list.electoral_districts.is_empty() %}warning{% else %}ok{% endif %}{% endif %}">
           {{ "candidate_list.fields.electoral_districts"|trans }}
         </a>
       </li>
-    {% endif %}
-  </ul>
-  <ul>
-    <li>
-      <a href="{{ overlay.forward(candidate_list.delete_path() ) }}"
-         class="trash">{{ "candidate_list.actions.delete_list"|trans }}</a>
-    </li>
-  </ul>
-</div>
+    </ul>
+  </div>
+{% endif %}

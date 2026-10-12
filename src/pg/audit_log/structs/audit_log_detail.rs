@@ -241,8 +241,8 @@ mod tests {
 
         assert_eq!(value_of("Gender"), vec!["Female"]);
         assert_eq!(
-            value_of("Social security number (BSN)"),
-            vec!["Confirmed: no social security number"]
+            value_of("Citizen service number (BSN)"),
+            vec!["Confirmed: no citizen service number"]
         );
         assert_eq!(value_of("Date of birth"), vec!["01-02-1990"]);
         assert_eq!(value_of("Known in the BAG"), vec!["Yes"]);
@@ -271,7 +271,7 @@ mod tests {
                     representative: Some(Representative {
                         name: FullName {
                             last_name: "Bos".parse().unwrap(),
-                            initials: "E.".parse().unwrap(),
+                            initials: Some("E.".parse().unwrap()),
                             ..Default::default()
                         },
                         address: DutchAddress {

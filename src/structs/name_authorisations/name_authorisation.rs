@@ -1,10 +1,11 @@
 use crate::{
-    id_newtype,
+    Locale, id_newtype,
     structs::{
         audit_log::audit_fields,
         common::{FullName, LegalName, PotentialProblems, Problematic, Problems, Severity},
         list_designation::ListDesignation,
     },
+    trans,
 };
 use serde::{Deserialize, Serialize};
 
@@ -54,5 +55,13 @@ impl NameAuthorisation {
             }
             _ => None,
         }
+    }
+
+    pub fn display(&self, locale: &Locale) -> String {
+        format!(
+            "{} ({})",
+            self.name.display(),
+            trans!("political_group.authorised_agent", locale)
+        )
     }
 }

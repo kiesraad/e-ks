@@ -168,7 +168,7 @@ mod tests {
         store
             .update(CsbAction::UpdateCorrection(Correction::Person(
                 person_id,
-                PersonCorrection::Initials(Initials::from_str("A.B.").unwrap()),
+                PersonCorrection::Initials(Some(Initials::from_str("A.B.").unwrap())),
             )))
             .await?;
 
@@ -245,7 +245,7 @@ mod tests {
         store
             .update(CsbAction::UpdateCorrection(Correction::Person(
                 person_id,
-                PersonCorrection::Initials(Initials::from_str("A.B.").unwrap()),
+                PersonCorrection::Initials(Some(Initials::from_str("A.B.").unwrap())),
             )))
             .await?;
 

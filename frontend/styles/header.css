@@ -1,15 +1,26 @@
 header {
-  --header-height: 3rem;
   --header-bg: var(--base-brand-blue);
   --header-color: var(--gray-300);
   --header-padding-inline: var(--main-padding-inline);
+
+  /* the nav is out of flow, so the header keeps its space free */
+  padding-top: var(--header-height);
 
   nav {
     background-color: var(--header-bg);
     color: var(--header-color);
     display: flex;
     min-height: var(--header-height);
-    position: relative;
+    min-width: var(--page-min-width);
+
+    /* Reachable from every scroll position, below the overlay backdrop (500)
+       and above the sticky nav (100), which offsets itself by the same height. */
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 400;
+    transition: box-shadow 200ms;
 
     > div {
       margin-inline: auto;
@@ -124,6 +135,11 @@ header {
     }
   }
 
+  /* once content scrolls underneath it, the fixed bar lifts off the page */
+  &.is-scrolled nav {
+    box-shadow: var(--shadow-md);
+  }
+
   .header-content {
     align-items: center;
     display: flex;
@@ -136,6 +152,30 @@ header {
     .tags {
       margin-top: var(--space-6);
       max-width: 50%;
+    }
+
+    /* The districts and the button that manages them share one line below the title */
+    .districts-subtitle {
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-3);
+      margin-top: var(--space-4);
+      max-width: 75%;
+
+      /* sized like the pills it sits next to, not like a form button */
+      .button {
+        font-size: var(--font-size-sm);
+        line-height: var(--leading-sm);
+        min-height: auto;
+        padding-block: var(--space-1);
+        padding-inline: var(--space-2);
+
+        &::before {
+          height: var(--space-4);
+          width: var(--space-4);
+        }
+      }
     }
 
     h1 {

@@ -5,7 +5,7 @@ use crate::{
     CsbStoreData, CsbUser, Event, HasCsbUser, PgEvent, PgStoreData, StreamId,
     structs::{
         audit_log::{Change, diff},
-        brp::{BrpFinding, BrpStatus},
+        brp::{BrpFinding, BrpFindingKind, BrpLookup, BrpStatus},
         csb::{Correction, Omission, OmissionId, OmissionPart, OmissionStatus},
         persons::PersonId,
     },
@@ -108,10 +108,20 @@ pub enum CsbAction {
         status: OmissionStatus,
     },
     UpdateCorrection(Correction),
+    /// One request to the BRP, recorded whether it succeeded or not, so the
+    /// log shows what was sent to the BRP and what came back.
+    BrpLookup(BrpLookup),
     /// Empty `findings` means checked, with the BRP agreeing on every field.
     BrpPersonChecked {
         person: PersonId,
         findings: Vec<BrpFinding>,
+    },
+    /// Record whether the committee dealt with one of a candidate's findings.
+    /// The finding is named in full, so the log says what was handled.
+    SetBrpFindingHandled {
+        person: PersonId,
+        finding: BrpFindingKind,
+        handled: bool,
     },
     SetBrpStatus(BrpStatus),
 }
@@ -145,7 +155,9 @@ impl CsbAction {
             | CsbAction::Delete
             | CsbAction::SetFinished(_)
             | CsbAction::SetOmissionPartStatus { .. }
+            | CsbAction::BrpLookup(_)
             | CsbAction::BrpPersonChecked { .. }
+            | CsbAction::SetBrpFindingHandled { .. }
             | CsbAction::SetBrpStatus(_) => Vec::new(),
         }
     }
@@ -163,7 +175,10 @@ impl CsbAction {
             | CsbAction::SetOmissionStatus { .. }
             | CsbAction::SetOmissionPartStatus { .. } => "omission",
             CsbAction::UpdateCorrection(_) => "correction",
-            CsbAction::BrpPersonChecked { .. } | CsbAction::SetBrpStatus(_) => "brp_validation",
+            CsbAction::BrpLookup(_)
+            | CsbAction::BrpPersonChecked { .. }
+            | CsbAction::SetBrpFindingHandled { .. }
+            | CsbAction::SetBrpStatus(_) => "brp_validation",
         }
     }
 
@@ -180,8 +195,10 @@ impl CsbAction {
             CsbAction::SetOmissionStatus { .. } => "set_omission_status",
             CsbAction::SetOmissionPartStatus { .. } => "set_omission_part_status",
             CsbAction::UpdateCorrection(_) => "update_correction",
+            CsbAction::BrpLookup(_) => "brp_lookup",
             CsbAction::BrpPersonChecked { .. } => "brp_person_checked",
-            CsbAction::SetBrpStatus(_) => "brp_validation",
+            CsbAction::SetBrpFindingHandled { .. } => "set_brp_finding_handled",
+            CsbAction::SetBrpStatus(_) => "set_brp_status",
         }
     }
 
@@ -204,12 +221,14 @@ impl CsbAction {
             CsbAction::UpdateCorrection { .. } => {
                 trans!("audit_log.event.update_correction", locale)
             }
+            CsbAction::BrpLookup(_) => trans!("audit_log.event.brp_lookup", locale),
             CsbAction::BrpPersonChecked { .. } => {
-                trans!("audit_log.event.brp_validation", locale)
+                trans!("audit_log.event.brp_person_checked", locale)
             }
-            CsbAction::SetBrpStatus(_) => {
-                trans!("audit_log.event.set_brp_validation_state", locale)
+            CsbAction::SetBrpFindingHandled { .. } => {
+                trans!("audit_log.event.set_brp_finding_handled", locale)
             }
+            CsbAction::SetBrpStatus(_) => trans!("audit_log.event.set_brp_status", locale),
         }
     }
 
@@ -247,7 +266,11 @@ impl CsbAction {
                 format!("{omission_id}: {part:?} {status:?}")
             }
             CsbAction::UpdateCorrection(_) => String::new(),
-            CsbAction::BrpPersonChecked { person, .. } => person.to_string(),
+            // What a lookup sent and got back, and what a check found, is
+            // read off the stream by the detail page.
+            CsbAction::BrpLookup(_) => String::new(),
+            CsbAction::BrpPersonChecked { person, .. }
+            | CsbAction::SetBrpFindingHandled { person, .. } => person.to_string(),
             CsbAction::SetBrpStatus(value) => value.to_string(),
         }
     }

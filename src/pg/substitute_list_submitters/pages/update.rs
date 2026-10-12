@@ -34,7 +34,7 @@ pub async fn update_substitute_submitter(
             form: FormData::new_with_data(substitute_submitter.clone().into()),
             address_unknown: substitute_submitter.address.is_unknown(),
             substitute_submitter,
-            overlay: Overlay::new(&query),
+            overlay: Overlay::new_edit(&query),
         },
         context,
     )
@@ -55,7 +55,7 @@ pub async fn update_substitute_submitter_submit(
                 address_unknown: substitute_submitter.address.is_unknown(),
                 substitute_submitter,
                 form: *form_data,
-                overlay: Overlay::new(&query),
+                overlay: Overlay::new_edit(&query),
             },
             context,
         )

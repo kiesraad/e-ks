@@ -4,7 +4,8 @@
 {% block overlay_content %}
   <div class="form overlay-content overlay-csv">
     <div class="column">
-      <h2 class="mb-xl">{{ "candidate_list.import_export.import_title"|trans }}</h2>
+      <h2 class="mb-sm">{{ "candidate_list.import_export.import_title"|trans }}</h2>
+      <span class="hint mb-lg">{{ "candidate_list.import_export.import_intro"|trans }}</span>
       <p class="mb-md" data-import-file-field>
         <input type="file"
                name="file_data"
@@ -66,7 +67,8 @@
       </p>
     </div>
     <div class="column">
-      <h2 class="mb-xl">{{ "candidate_list.import_export.export_title"|trans }}</h2>
+      <h2 class="mb-sm">{{ "candidate_list.import_export.export_title"|trans }}</h2>
+      <span class="hint mb-lg">{{ "candidate_list.import_export.export_intro"|trans }}</span>
       <p class="mb-xl">
         <a href="{{ export_path }}" class="button icon-download" type="button">{{ "candidate_list.actions.export_csv"|trans }}</a>
       </p>

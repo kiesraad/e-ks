@@ -1,6 +1,6 @@
 [package]
 name = "eks-development"
-version = "0.5.9"
+version = "0.5.10"
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
@@ -32,7 +32,7 @@ acme = ["eks/acme"]
 [dependencies]
 anyhow = { workspace = true }
 dotenvy = { workspace = true }
-tokio = { workspace = true, features = ["process"] }
+tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 saphyr = { workspace = true }

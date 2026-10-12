@@ -30,7 +30,7 @@ pub async fn delete_substitute_submitter_confirm(
     Ok(HtmlTemplate(
         DeleteSubstituteSubmitterTemplate {
             substitute_submitter,
-            overlay: Overlay::new(&query),
+            overlay: Overlay::new_edit(&query),
         },
         context,
     ))

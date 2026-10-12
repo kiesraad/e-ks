@@ -1,5 +1,5 @@
 use crate::{
-    id_newtype,
+    Locale, id_newtype,
     structs::{
         audit_log::audit_fields,
         common::{
@@ -7,6 +7,7 @@ use crate::{
             PostalCode, Problematic, Problems, Severity,
         },
     },
+    trans,
 };
 use serde::{Deserialize, Serialize};
 
@@ -142,6 +143,16 @@ impl ListSubmitter {
     pub fn address_line_2(&self) -> String {
         self.address.address_line_2().unwrap_or_default()
     }
+
+    pub fn display(&self, locale: &Locale, is_substitute: bool) -> String {
+        let role = if is_substitute {
+            trans!("political_group.substitute_submitter", locale)
+        } else {
+            trans!("political_group.list_submitter", locale)
+        };
+
+        format!("{} ({role})", self.name.display())
+    }
 }
 
 fn try_into_dutch_address(
@@ -206,7 +217,7 @@ mod tests {
         let data = ListSubmitterData {
             name: FullName {
                 last_name: "Bos".parse().expect("last name"),
-                initials: "E.F.".parse().expect("initials"),
+                initials: Some("E.F.".parse().expect("initials")),
                 ..Default::default()
             },
             address: InternationalAddress {

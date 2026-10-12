@@ -26,6 +26,16 @@ pub struct BrpPerson {
     pub suffrage_exclusion: Option<BrpSuffrageExclusion>,
     #[serde(rename = "verblijfplaats")]
     pub residence: Option<BrpResidence>,
+    /// Current and former spouses and registered partners, whose last names
+    /// the candidate may stand under as well.
+    #[serde(rename = "partners", default)]
+    pub partners: Vec<BrpPartner>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct BrpPartner {
+    #[serde(rename = "naam")]
+    pub name: Option<BrpName>,
 }
 
 /// An entry from one of the BRP's national code tables ("waardetabel").

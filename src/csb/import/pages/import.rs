@@ -7,14 +7,16 @@ use std::{
 use askama::Template;
 use axum::{
     extract::State,
-    response::{IntoResponse, Response},
+    response::{IntoResponse, Redirect, Response},
 };
 use serde::Deserialize;
 
 use crate::{
     AppError, AppRequestState, Context, CsbAction, CsbContext, CsbStore, CsbStoreData, CsbUser,
     ElectionConfig, Form, HtmlTemplate, Locale, PgStoreData, StreamId,
-    csb::examination::{CsbExaminationOverviewPath, CsbPoliticalGroupPath},
+    csb::examination::{
+        CsbExaminationOverviewPath, CsbPoliticalGroupPath, extractors::CsbPoliticalGroup,
+    },
     filters,
     projection::WithCorrections,
     redirect_success,
@@ -268,9 +270,13 @@ pub async fn create_empty<S: AppRequestState>(
         context.user()?,
     );
     csb_store.update(CsbAction::CreateEmpty).await?;
-    Ok(redirect_success(CsbPoliticalGroupPath {
-        stream_id: csb_store.stream_id,
-    }))
+    // A temporary (307) redirect preserves the POST method and form body.
+    Ok(Redirect::temporary(
+        &CsbPoliticalGroup::new_from_csb_store(&csb_store)
+            .start_paper_corrections_path()
+            .to_string(),
+    )
+    .into_response())
 }
 
 /// The streams this process is sweeping right now.
@@ -425,7 +431,12 @@ async fn verify_candidates(store: CsbStore, brp_client: BrpClient) -> Result<(),
     for batch in unchecked.chunks(BRP_BSN_BATCH_SIZE) {
         ticker.tick().await;
 
-        for (person_id, findings) in brp_client.verify_batch(batch).await? {
+        let checked = brp_client.verify_batch(batch).await;
+        // Every request goes on record first, answered or failed.
+        for lookup in checked.lookups {
+            store.update(CsbAction::BrpLookup(lookup)).await?;
+        }
+        for (person_id, findings) in checked.outcome? {
             if let Some(checked) = batch.iter().find(|person| person.id == person_id) {
                 record_brp_result(&store, checked, findings).await?;
             }
@@ -456,7 +467,7 @@ mod tests {
         CsbAction::Delete,
         CsbContext, ElectionConfig, PgEvent, Province,
         brp_stub::{BrpStub, matching_record},
-        structs::brp::{BrpFinding, BrpValue},
+        structs::brp::{BrpFindingKind, BrpLookup, BrpLookupOutcome, BrpQuery, BrpValue},
         test_utils::{response_body_string, sample_person_from_brp},
         utils::format_hash,
     };
@@ -490,7 +501,7 @@ mod tests {
         let current = store
             .get_person(person.id, WithCorrections::All)
             .expect("person");
-        assert!(record_brp_result(&store, &current, vec![BrpFinding::NotDutch]).await?);
+        assert!(record_brp_result(&store, &current, vec![BrpFindingKind::NotDutch.into()]).await?);
         assert!(store.is_brp_checked(person.id));
 
         Ok(())
@@ -723,8 +734,8 @@ mod tests {
         .await?
         .into_response();
 
-        // A successful creation redirects to the political group examination page.
-        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        // A successful creation redirects (preserving the POST method) to start paper corrections.
+        assert_eq!(response.status(), StatusCode::TEMPORARY_REDIRECT);
 
         // A single CSB store is recorded carrying the CreateEmpty event.
         let csb_stores = state.csb_store_registry().stores_by_scope().await?;
@@ -798,9 +809,12 @@ mod tests {
 
         assert_eq!(
             csb_store.get_brp_findings_for_person(person_id),
-            vec![BrpFinding::Mismatch {
-                brp_value: BrpValue::PlaceOfResidence("Amsterdam".parse().unwrap()),
-            }]
+            vec![
+                BrpFindingKind::Mismatch {
+                    brp_value: BrpValue::PlaceOfResidence("Amsterdam".parse().unwrap()),
+                }
+                .into()
+            ]
         );
         // A BRP difference is for the committee to weigh, not a verzuim.
         assert!(csb_store.data.read().omissions.is_empty());
@@ -830,6 +844,87 @@ mod tests {
         // Present in the map with no findings: checked, and nothing found.
         let findings = csb_store.get_brp_findings();
         assert_eq!(findings.get(&person_id), Some(&Vec::new()));
+
+        Ok(())
+    }
+
+    /// The lookups recorded on the stream, in order.
+    fn recorded_lookups(store: &CsbStore) -> Vec<BrpLookup> {
+        store
+            .data
+            .read()
+            .events
+            .iter()
+            .filter_map(|event| match &event.payload.action {
+                CsbAction::BrpLookup(lookup) => Some(lookup.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// Every request to the BRP goes on the stream before the findings it
+    /// led to, so the audit log shows what was sent and what came back.
+    #[tokio::test]
+    async fn every_brp_request_is_recorded_on_the_stream() -> Result<(), AppError> {
+        let state = AppState::new_for_tests().await;
+        let person = sample_person_from_brp();
+        let person_id = person.id;
+        let bsn = exposed_bsn(&person);
+        let csb_store = store_with_candidate(&state, person).await?;
+        let stub = BrpStub::serving(vec![matching_record(&bsn)]).await;
+
+        do_brp_verification(&csb_store, &stub.client).await?;
+        wait_for_brp_status(&csb_store, |status| matches!(status, BrpStatus::Finished)).await;
+
+        let lookups = recorded_lookups(&csb_store);
+        assert_eq!(lookups.len(), stub.query_count());
+        assert_eq!(lookups.len(), 1);
+        assert_eq!(lookups[0].persons, vec![person_id]);
+        assert!(matches!(
+            &lookups[0].query,
+            BrpQuery::ConsultWithBsn { bsn: sent, .. }
+                if sent.len() == 1 && sent[0].expose() == bsn
+        ));
+        assert_eq!(
+            lookups[0].outcome,
+            BrpLookupOutcome::Returned {
+                bsns: vec![bsn.clone()]
+            }
+        );
+
+        let events = csb_store.data.read().events.clone();
+        let position = |is_it: fn(&CsbAction) -> bool| {
+            events
+                .iter()
+                .position(|event| is_it(&event.payload.action))
+                .unwrap()
+        };
+        let lookup_at = position(|action| matches!(action, CsbAction::BrpLookup(_)));
+        let checked_at = position(|action| matches!(action, CsbAction::BrpPersonChecked { .. }));
+        assert!(lookup_at < checked_at, "the request precedes its result");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn a_failed_brp_request_is_recorded_with_its_error() -> Result<(), AppError> {
+        let state = AppState::new_for_tests().await;
+        let person = sample_person_from_brp();
+        let person_id = person.id;
+        let csb_store = store_with_candidate(&state, person).await?;
+        // Port 1 on loopback refuses connections.
+        let brp_client = BrpClient::new_for_test("http://127.0.0.1:1");
+
+        do_brp_verification(&csb_store, &brp_client).await?;
+        wait_for_brp_status(&csb_store, |status| matches!(status, BrpStatus::Aborted(_))).await;
+
+        let lookups = recorded_lookups(&csb_store);
+        assert_eq!(lookups.len(), 1);
+        assert_eq!(lookups[0].persons, vec![person_id]);
+        assert!(matches!(
+            &lookups[0].outcome,
+            BrpLookupOutcome::Failed { error } if !error.is_empty()
+        ));
 
         Ok(())
     }

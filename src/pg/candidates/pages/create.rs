@@ -3,8 +3,8 @@ use askama::Template;
 use axum::response::{IntoResponse, Redirect, Response};
 
 use crate::{
-    AppError, Context, Form, HtmlTemplate, Overlay, PgStore, filters, form::FormData,
-    persons::PersonalDataForm, structs::candidate_lists::FullCandidateList,
+    AppError, Context, Form, HtmlTemplate, Overlay, PgStore, QueryParamState, filters,
+    form::FormData, persons::PersonalDataForm, structs::candidate_lists::FullCandidateList,
 };
 
 use super::CreateCandidatePath;
@@ -25,7 +25,7 @@ pub async fn create_person_candidate_list(
         PersonCreateTemplate {
             full_list,
             form: FormData::new(),
-            overlay: Overlay::default(),
+            overlay: Overlay::new_create(&QueryParamState::default()),
         },
         context,
     )
@@ -44,7 +44,7 @@ pub async fn create_person_candidate_list_submit(
             PersonCreateTemplate {
                 full_list,
                 form: *form_data,
-                overlay: Overlay::default(),
+                overlay: Overlay::new_create(&QueryParamState::default()),
             },
             context,
         )

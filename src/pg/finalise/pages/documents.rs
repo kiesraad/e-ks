@@ -1,9 +1,8 @@
 use axum::response::IntoResponse;
 
 use crate::{
-    AppError, Context, PgStore,
-    finalise::{AllProblems, pages::DownloadDocumentsPath},
-    models::documents::DocumentData,
+    AppError, Context, PgStore, finalise::pages::DownloadDocumentsPath,
+    models::documents::DocumentData, structs::problems::AllProblems,
 };
 
 pub async fn gen_documents(
@@ -376,6 +375,7 @@ mod tests {
                     .count(),
                 2
             );
+            assert!(entry_names.contains(&format!("{folder}/h9-instemmingsverklaringen.pdf")));
         }
 
         Ok(())
@@ -407,6 +407,7 @@ mod tests {
                 .count(),
             2
         );
+        assert!(entry_names.contains(&"h9-instemmingsverklaringen.pdf".to_string()));
         assert!(
             entry_names
                 .iter()

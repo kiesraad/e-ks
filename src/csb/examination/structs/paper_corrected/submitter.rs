@@ -1,5 +1,9 @@
 use super::PaperCorrected;
-use crate::{CsbStream, projection::WithCorrections, structs::list_submitters::ListSubmitter};
+use crate::{
+    CsbStream,
+    projection::WithCorrections,
+    structs::list_submitters::{ListSubmitter, ListSubmitterId},
+};
 
 /// A (substitute) list submitter with its rows diffed against the corrections.
 pub struct PaperCorrectedSubmitter {
@@ -13,6 +17,7 @@ pub struct PaperCorrectedSubmitter {
     pub state_or_province: PaperCorrected,
     pub country: PaperCorrected,
     pub is_foreign: bool,
+    pub id: Option<ListSubmitterId>,
 }
 
 impl PaperCorrectedSubmitter {
@@ -23,7 +28,11 @@ impl PaperCorrectedSubmitter {
                 .map(|s| s.name.display())
                 .unwrap_or_default(),
             initials: PaperCorrected::from_field(imported, corrected, |s| {
-                s.name.initials.to_string()
+                s.name
+                    .initials
+                    .as_ref()
+                    .map(ToString::to_string)
+                    .unwrap_or_default()
             }),
             last_name: PaperCorrected::from_field(imported, corrected, |s| {
                 s.name.last_name_with_prefix()
@@ -47,6 +56,7 @@ impl PaperCorrectedSubmitter {
                 s.address.country().unwrap_or_default()
             }),
             is_foreign: Self::is_foreign(imported, corrected),
+            id: corrected.or(imported).map(|s| s.id),
         }
     }
 

@@ -9,7 +9,6 @@
 //! **Persistence configuration**
 //! - `STORAGE_URL` selects the persistence backend used by [`PgStore`].
 //! - Supported scheme `memory:` disables persistence (in-memory only).
-//! - Supported scheme `local://<dir>` stores event streams as files under the provided directory.
 //! - Supported scheme `postgres://` or `postgresql://` uses PostgreSQL (requires the `database` feature).
 //! - Default (dev) is `postgres://eks@localhost/eks` (see [`Config`]).
 //!
@@ -30,7 +29,7 @@
 //!
 //! **Event integrity & confidentiality**
 //! - Event payloads are encrypted at rest (AES-256-GCM, a random key per stream,
-//!   wrapped by a master key) for the file and database backends; see `crypto`.
+//!   wrapped by a master key) for the database backend; see `crypto`.
 //! - Persisted events form a hash chain: each event hashes the previous event's
 //!   hash plus its own metadata and stored body, making tampering detectable.
 //! - Generated PDFs/exports embed the current event ID and chain hash (shown in
@@ -92,14 +91,12 @@ mod fixtures;
 // else is re-exported `pub(crate)` so the flat `crate::X` import style keeps
 // working internally without growing the external interface.
 #[cfg(feature = "acme")]
-pub use acme::{
-    bootstrap_certificate, create_acme_account, parse_acme_account_credentials, run_acme_renewer,
-};
+pub use acme::{create_acme_account, parse_acme_account_credentials, start_acme_renewal};
 pub use app::AppState;
 pub use auth::session_store::run_session_sweeper;
-pub use core::{Config, logging, server};
+pub use core::{Config, CsbIpAllowList, logging, server};
 pub use error::AppError;
-pub use store::run_db_prober;
+pub use store::{run_db_prober, run_store_cache_sweeper};
 
 #[cfg(feature = "acme")]
 pub(crate) use acme::AcmeStore;
@@ -107,8 +104,8 @@ pub(crate) use acme::AcmeStore;
 pub(crate) use core::AcmeConfig;
 
 pub(crate) use app::middleware::{
-    csb_store_middleware, db_gate_middleware, eks_key_middleware, health_router, lb_health_router,
-    session_middleware, store_middleware,
+    csb_ip_allow_list_middleware, csb_store_middleware, db_gate_middleware, eks_key_middleware,
+    health_router, lb_health_router, session_middleware, store_middleware,
 };
 pub(crate) use pg::{
     audit_log, candidate_lists, candidates, common, csrf_rejection_response, finalise,
@@ -136,9 +133,9 @@ pub(crate) use auth::{
 #[cfg(feature = "tls")]
 pub(crate) use core::TlsConfig;
 pub(crate) use core::{
-    AnyLocale, ElectionConfig, ElectionType, ElectoralDistrict, GithubOauthConfig, GithubUserId,
-    HtmlTemplate, Locale, LocaleValues, Province, RateLimit, RateLimits, Scope, SessionPageValues,
-    WaterCouncil,
+    AnyLocale, ElectionConfig, ElectionType, ElectoralDistrict, GithubLogin, GithubOauthConfig,
+    GithubUserId, HtmlTemplate, Locale, LocaleValues, Province, RateLimit, RateLimits, Scope,
+    SessionPageValues, WaterCouncil,
     constants::{self, MAX_CANDIDATES},
     http_trace, translate,
 };

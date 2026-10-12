@@ -21,6 +21,15 @@ struct ListSubmitterUpdateTemplate {
     overlay: Overlay,
 }
 
+/// Filling in the list submitter for the first time creates it
+fn overlay_for(list_submitter: &ListSubmitter, query: &QueryParamState) -> Overlay {
+    if list_submitter.is_empty() {
+        Overlay::new_create(query)
+    } else {
+        Overlay::new_edit(query)
+    }
+}
+
 pub async fn update_list_submitter(
     _: ListSubmitterUpdatePath,
     context: Context,
@@ -30,12 +39,13 @@ pub async fn update_list_submitter(
     let list_submitter = store.get_list_submitter();
     let should_warn = !list_submitter.is_empty();
     let address_unknown = list_submitter.address.is_unknown();
+    let overlay = overlay_for(&list_submitter, &query);
     Ok(HtmlTemplate(
         ListSubmitterUpdateTemplate {
             form: FormData::new_with_data(list_submitter.into()),
             should_warn,
             address_unknown,
-            overlay: Overlay::new(&query),
+            overlay,
         },
         context,
     )
@@ -56,7 +66,7 @@ pub async fn update_list_submitter_submit(
                 form: *form_data,
                 should_warn: true,
                 address_unknown: list_submitter.address.is_unknown(),
-                overlay: Overlay::new(&query),
+                overlay: overlay_for(&list_submitter, &query),
             },
             context,
         )

@@ -1,14 +1,8 @@
 {% extends "pg/common/components/overlay.html" %}
-{% block overlay_title %}{{ "candidate_list.form.update.title"|trans }}{% endblock %}
+{% block overlay_title %}{{ "candidate_list.actions.delete_list"|trans }}{% endblock %}
 {% set close_action = candidate_list.view_path() %}
-{% block overlay_steps %}
-  {% include "pg/candidate_lists/components/update_steps.html" %}
-{% endblock %}
 {% block overlay_form %}
   <fieldset>
-    <legend>
-      <h3>{{ "candidate_list.actions.delete_list"|trans }}</h3>
-    </legend>
     <p>{{ "candidate_list.form.delete_warning_text"|trans }}</p>
   </fieldset>
 {% endblock %}

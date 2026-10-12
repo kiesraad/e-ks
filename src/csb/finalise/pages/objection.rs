@@ -34,11 +34,16 @@ fn render(
     form: FormData<ObjectionForm>,
     objection: Option<Objection>,
 ) -> Response {
+    let overlay = if objection.is_none() {
+        Overlay::new_create(query)
+    } else {
+        Overlay::new_edit(query)
+    };
     HtmlTemplate(
         CsbObjectionTemplate {
             objection,
             close_action: CsbFinalisePath.to_string(),
-            overlay: Overlay::new(query),
+            overlay,
             form,
         },
         context,
@@ -175,7 +180,8 @@ mod tests {
 
         assert!(body.contains("Objection text"));
         assert!(body.contains("Add objection"));
-        assert!(body.contains("<textarea"))
+        assert!(body.contains("<textarea"));
+        assert!(body.contains("data-create"));
     }
 
     #[tokio::test]
@@ -272,6 +278,7 @@ mod tests {
         assert!(body.contains("Objection text"));
         assert!(body.contains("Update objection"));
         assert!(body.contains("<textarea"));
+        assert!(!body.contains("data-create"));
         assert!(body.contains("objection text that should appear in the textarea</textarea>"));
         assert!(body.contains(&CsbDeleteObjectionPath { id }.to_string()));
     }

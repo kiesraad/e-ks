@@ -9,9 +9,9 @@ use crate::{
 #[derive(Template)]
 #[template(path = "csb/index/pages/index.html")]
 struct CsbIndexTemplate {
-    /// The phase whose date window covers today; the homepage highlights its
-    /// card and mutes the others. Every implemented phase stays reachable
-    /// regardless of the date.
+    /// The phase whose date window covers today; each card gets a class
+    /// marking it as completed, active or upcoming. Every implemented phase
+    /// stays reachable regardless of the date.
     current_phase: u8,
 }
 

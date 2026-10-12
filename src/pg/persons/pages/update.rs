@@ -30,7 +30,7 @@ pub async fn update_person(
     Ok(HtmlTemplate(
         PersonUpdateTemplate {
             form: FormData::new_with_data(PersonalDataForm::from(person.clone())),
-            overlay: Overlay::new(&query),
+            overlay: Overlay::new_edit(&query),
             locality_unknown: person
                 .personal_data
                 .show_unknown_place_of_residence_warning(),
@@ -56,7 +56,7 @@ pub async fn update_person_submit(
                     .show_unknown_place_of_residence_warning(),
                 person,
                 form: *form_data,
-                overlay: Overlay::new(&query),
+                overlay: Overlay::new_edit(&query),
             },
             context,
         )

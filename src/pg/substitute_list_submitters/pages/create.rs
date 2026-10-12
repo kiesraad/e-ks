@@ -26,7 +26,7 @@ pub async fn create_substitute_submitter(
     Ok(HtmlTemplate(
         SubstituteSubmitterCreateTemplate {
             form: FormData::new(),
-            overlay: Overlay::new(&query),
+            overlay: Overlay::new_create(&query),
         },
         context,
     ))
@@ -43,7 +43,7 @@ pub async fn create_substitute_submitter_submit(
         Err(form_data) => Ok(HtmlTemplate(
             SubstituteSubmitterCreateTemplate {
                 form: *form_data,
-                overlay: Overlay::new(&query),
+                overlay: Overlay::new_create(&query),
             },
             context,
         )

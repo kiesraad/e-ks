@@ -13,6 +13,7 @@ export class CreatePersonPage {
   readonly textfieldYearOfBirth: Locator;
   readonly checkboxNoBSN: Locator;
   readonly buttonNext: Locator;
+  readonly buttonSave: Locator;
 
   constructor(protected readonly page: Page) {
     this.textfieldInitials = this.page.getByLabel("Voorletters");
@@ -38,6 +39,7 @@ export class CreatePersonPage {
       name: "Ik bevestig dat deze persoon geen BSN heeft.",
     });
     this.buttonNext = this.page.getByRole("button", { name: "Volgende" });
+    this.buttonSave = this.page.getByRole("button", { name: "Opslaan" });
   }
 
   async setPersonalDetails(candidate: Candidate) {

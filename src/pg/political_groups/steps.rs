@@ -124,6 +124,16 @@ impl PoliticalGroupSteps {
         self.list_designation == Some(ListDesignation::Combined)
     }
 
+    /// The authorisation form for the appellation: H 3-2 for a combined
+    /// designation, H 3-1 otherwise
+    pub fn designation_form(&self) -> &'static str {
+        if self.is_combined() {
+            "H\u{A0}3-2"
+        } else {
+            "H\u{A0}3-1"
+        }
+    }
+
     /// Returns the URL for a step link, preserving `?initial=true`
     pub fn step_url(&self, path: impl TypedPath) -> String {
         if self.initial {
@@ -181,6 +191,23 @@ mod tests {
 
         let steps = PoliticalGroupSteps::new(&store, false)?;
         assert_eq!(steps.submitters_state, "error");
+
+        Ok(())
+    }
+
+    #[test]
+    fn designation_form_depends_on_combined() -> Result<(), AppError> {
+        let mut steps = PoliticalGroupSteps::new(&PgStore::new_for_test(), false)?;
+        assert_eq!(steps.designation_form(), "H\u{A0}3-1");
+
+        steps.list_designation = Some(ListDesignation::Standalone);
+        assert_eq!(steps.designation_form(), "H\u{A0}3-1");
+
+        steps.list_designation = Some(ListDesignation::Blank);
+        assert_eq!(steps.designation_form(), "H\u{A0}3-1");
+
+        steps.list_designation = Some(ListDesignation::Combined);
+        assert_eq!(steps.designation_form(), "H\u{A0}3-2");
 
         Ok(())
     }

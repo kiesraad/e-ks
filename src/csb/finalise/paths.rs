@@ -42,3 +42,16 @@ impl Objection {
         CsbDeleteObjectionPath { id: self.id }
     }
 }
+
+/// Temporary EML ZIP endpoint, that should eventually be expanded to contain everything
+#[derive(TypedPath)]
+#[typed_path("/csb/finalise/eml.zip", rejection(AppError))]
+pub struct CsbEmlZipDownloadPath;
+
+#[derive(TypedPath)]
+#[typed_path("/csb/finalise/i4.pdf", rejection(AppError))]
+pub struct CsbI4FinalDownloadPath;
+
+#[derive(TypedPath)]
+#[typed_path("/csb/finalise/i4.docx", rejection(AppError))]
+pub struct CsbI4FinalDocxDownloadPath;

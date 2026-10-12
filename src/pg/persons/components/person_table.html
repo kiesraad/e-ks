@@ -46,7 +46,7 @@
       <tr class="clickable {{ person.problems.highest_severity_class() }}"
           data-id="{{ person.data.id }}">
         <td>{{ person.data.name.last_name_with_prefix_appended() }}</td>
-        <td>{{ person.data.name.initials }}</td>
+        <td>{{ person.data.name.initials|display }}</td>
         <td>{{ person.data.name.first_name|display }}</td>
         <td>{{ person.data.gender_key() |trans }}</td>
         <td>{{ person.data.personal_data.place_of_residence|display }}</td>

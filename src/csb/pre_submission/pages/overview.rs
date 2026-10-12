@@ -57,7 +57,10 @@ mod tests {
 
     #[tokio::test]
     async fn lists_imported_groups_with_their_brp_state_and_page() {
-        let group = group(BrpCheckState::Errors { errors: 2 });
+        let group = group(BrpCheckState::Errors {
+            errors: 2,
+            handled: 0,
+        });
         let stream_id = group.stream_id;
 
         let body = render(vec![group]).await;

@@ -1,2 +1,5 @@
 [workspace.metadata.dylint]
-libraries = [{ path = "tools/dylint/module_dependency_cycles" }]
+libraries = [{ git = "https://github.com/tweedegolf/dylint-module-cycles", tag = "v0.1.0" }]
+
+[module_dependency_cycles]
+excluded_directories = ["bin", "fixtures"]

@@ -54,7 +54,7 @@
 
 .auth-container {
   p {
-    max-width: 50ch;
+    max-width: 42ch;
     margin-top: var(--space-4);
     margin-bottom: var(--space-4);
   }

@@ -2,113 +2,37 @@
 
 use eml_nl::{
     common::{
-        AuthorityIdentifier, CandidateIdentifier, CountryNameCode, CreatedByAuthority, FirstName,
-        LastName, ListData, ListDataContest, ManagingAuthority, NameLineInitials, NamePrefix,
-        PersonName,
+        AuthorityIdentifier, CreatedByAuthority, ListData, ListDataContest, ManagingAuthority,
     },
     documents::{
         EML, ElectionIdentifierBuilder,
-        candidate_lists::QualifyingAddress,
         nomination::{
-            AgentIdentifier, Nomination, NominationAffiliation, NominationContestIdentifier,
-            NominationNominate,
+            Nomination, NominationAffiliation, NominationContestIdentifier, NominationNominate,
         },
     },
     io::EMLWrite,
-    utils::{AffiliationType, AuthorityId, CandidateId, ContestId, StringValue},
+    utils::{AffiliationType, AuthorityId, ContestId, StringValue},
 };
 
 use crate::{
     AppError, ElectionConfig, PgStore,
     core::ModelLocale,
+    models::eml::{agent, candidate_identifier, contact},
     structs::{
         candidate_lists::{CandidateList, CandidateListId, FullCandidateList},
         candidates::Candidate,
-        common::{Address, BsnOrNoneConfirmed, DutchAddress, FullName, Gender},
+        common::BsnOrNoneConfirmed,
         list_submitters::ListSubmitter,
-        persons::Representative,
         political_groups::PoliticalGroup,
     },
 };
-
-impl From<&FullName> for eml_nl::common::PersonNameStructure {
-    fn from(val: &FullName) -> Self {
-        eml_nl::common::PersonNameStructure::new(PersonName {
-            name_line_initials: Some(NameLineInitials::new(val.initials.to_string())),
-            first_name: val
-                .first_name
-                .as_ref()
-                .map(|n| FirstName::new(n.to_string())),
-            name_prefix: val
-                .last_name_prefix
-                .as_ref()
-                .map(|n| NamePrefix::new(n.to_string())),
-            last_name: LastName::new(val.last_name.to_string()),
-            person_name_type: None,
-            code: None,
-            name_details_key_ref: None,
-        })
-    }
-}
-
-impl From<&Address> for QualifyingAddress {
-    fn from(address: &Address) -> QualifyingAddress {
-        let locality = eml_nl::documents::candidate_lists::QualifyingAddressLocality::new(
-            address
-                .locality()
-                .as_ref()
-                .map(ToString::to_string)
-                .unwrap_or_default(),
-        )
-        .with_postal_code_option(address.postal_code())
-        .with_address_line_option(address.address_line_1());
-
-        QualifyingAddress::Locality(locality)
-    }
-}
-
-impl From<&DutchAddress> for eml_nl::documents::nomination::LivingAddress {
-    fn from(address: &DutchAddress) -> eml_nl::documents::nomination::LivingAddress {
-        eml_nl::documents::nomination::LivingAddress::new(
-            address
-                .locality
-                .as_ref()
-                .map(ToString::to_string)
-                .unwrap_or_default(),
-        )
-    }
-}
-
-impl From<&Address> for eml_nl::documents::nomination::NominationContact {
-    fn from(address: &Address) -> eml_nl::documents::nomination::NominationContact {
-        eml_nl::documents::nomination::NominationContact {
-            mailing_address: eml_nl::documents::nomination::MailingAddress {
-                address: address.into(),
-            },
-        }
-    }
-}
-
-impl From<&Representative> for eml_nl::documents::nomination::NominationAgent {
-    fn from(representative: &Representative) -> eml_nl::documents::nomination::NominationAgent {
-        eml_nl::documents::nomination::NominationAgent {
-            role: Some("H10".to_string()),
-            agent_identifier: AgentIdentifier::new(&representative.name),
-            contact: Some((&Address::Dutch(representative.address.clone())).into()),
-            living_address: (&representative.address).into(),
-        }
-    }
-}
 
 impl TryInto<eml_nl::documents::nomination::NominationCandidate> for &Candidate {
     type Error = AppError;
 
     fn try_into(self) -> Result<eml_nl::documents::nomination::NominationCandidate, Self::Error> {
         Ok(eml_nl::documents::nomination::NominationCandidate {
-            identifier: CandidateIdentifier::new(
-                CandidateId::from_u64(self.position as u64)
-                    .map_err(|_| AppError::IncompleteData("candidate position is 0"))?,
-            ),
+            identifier: candidate_identifier(self.position)?,
             full_name: (&self.person.name).into(),
             date_of_birth: self
                 .person
@@ -116,36 +40,11 @@ impl TryInto<eml_nl::documents::nomination::NominationCandidate> for &Candidate 
                 .date_of_birth
                 .as_ref()
                 .map(|n| StringValue::from_value((**n).into())),
-            gender: StringValue::from_value(match self.person.personal_data.gender {
-                None => eml_nl::utils::Gender::Unknown,
-                Some(Gender::Female) => eml_nl::utils::Gender::Female,
-                Some(Gender::Male) => eml_nl::utils::Gender::Male,
-            }),
-            qualifying_address: QualifyingAddress::new(
-                self.person
-                    .personal_data
-                    .place_of_residence
-                    .as_ref()
-                    .ok_or(AppError::IncompleteData("missing place of residence"))?
-                    .to_string(),
-                match self
-                    .person
-                    .personal_data
-                    .country
-                    .as_ref()
-                    .ok_or(AppError::IncompleteData("missing country"))?
-                {
-                    country if country.is_nl() => None,
-                    country => Some(CountryNameCode::new(country.to_string())),
-                },
-            ),
-            contact: (!self.person.needs_representative())
-                .then(|| (&Address::Dutch(self.person.address.clone())).into()),
-            agent: self
-                .person
-                .needs_representative()
-                .then(|| self.person.representative.as_ref().map(Into::into))
-                .flatten(),
+            gender: Some(StringValue::from_value((&self.person.personal_data).into())),
+            gender_annex: None,
+            qualifying_address: (&self.person.personal_data).try_into()?,
+            contact: contact(&self.person),
+            agent: agent(&self.person),
             date_of_birth_annex: None,
             national_identification_number: match self.person.personal_data.bsn.as_ref() {
                 Some(BsnOrNoneConfirmed::Bsn(bsn)) => Some(bsn.to_exposed_string().into()),
@@ -214,7 +113,7 @@ fn list_data(list: &CandidateList, locale: ModelLocale) -> Result<ListData, AppE
     })
 }
 
-/// Build the EML 2.10 candidate nomination XML for a candidate list
+/// Build the EML 210 candidate nomination XML for a candidate list
 pub fn eml210(
     store: &PgStore,
     election: &ElectionConfig,
@@ -279,11 +178,12 @@ pub fn eml210(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{collections::BTreeSet, str::FromStr};
+    use std::{assert_matches, collections::BTreeSet, str::FromStr};
 
     use crate::{
         AppError, Context, ElectoralDistrict, PgStore,
         core::ModelLocale,
+        models::eml::remove_variable_fields,
         structs::{
             candidate_lists::{CandidateListId, FullCandidateList},
             common::CountryCode,
@@ -337,14 +237,17 @@ mod tests {
     }
 
     async fn check_eml(response: &str, expected: &str) {
-        let stringify_nomination_data = |eml: eml_nl::documents::EML| {
-            format!("{:?}", eml.as_nomination_doc().unwrap().nomination_data)
-        };
+        // should parse
+        assert_matches!(response.parse().unwrap(), EML::Nomination(_));
+        assert_matches!(expected.parse().unwrap(), EML::Nomination(_));
 
-        let received = stringify_nomination_data(response.parse().unwrap());
-        let expected = stringify_nomination_data(expected.parse().unwrap());
-
-        assert_eq!(received, expected, "received XML:\n{}", response);
+        // should match the expected document, other than the variable fields
+        assert_eq!(
+            remove_variable_fields(response),
+            remove_variable_fields(expected),
+            "received XML:\n{}",
+            response
+        );
     }
 
     #[tokio::test]

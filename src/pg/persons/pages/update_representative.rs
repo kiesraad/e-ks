@@ -35,7 +35,7 @@ pub async fn update_representative(
             form: FormData::new_with_data(RepresentativeForm::from(
                 person.clone().representative.unwrap_or_default(),
             )),
-            overlay: Overlay::new(&query),
+            overlay: Overlay::new_edit(&query),
             person,
         },
         context,
@@ -58,7 +58,7 @@ pub async fn update_representative_submit(
                 address_unknown: person.representative_address_unknown(),
                 person,
                 form: form_data,
-                overlay: Overlay::new(&query),
+                overlay: Overlay::new_edit(&query),
             },
             context,
         )

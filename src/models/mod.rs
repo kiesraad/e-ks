@@ -1,9 +1,8 @@
 //! The official election PDF models, rendered in-process with
 //! [`textris_pdf`].
 //!
-//! Each model lives in its own file (`h1`, `h3`, `h4`, `h9`, `i1`, `i4`, plus
-//! the omission letter in `omission_letter`); H 3 covers both the H 3-1 and
-//! H 3-2 variants. The document text is authored as askama
+//! Each model lives in its own file (`h1`, `h3`, `i1`, `i4`, etc); H 3 covers
+//! both the H 3-1 and H 3-2 variants. The document text is authored as askama
 //! Markdown templates in `templates/` (one per locale and variant), written in
 //! the textris-pdf Markdown dialect and wired up by [`mod@markdown`].
 //! [`layout`] holds the shared page set-up, and [`inputs`] the shared input
@@ -13,10 +12,17 @@
 //!
 //! [`mod@documents`] collects the store data for a candidate list and streams
 //! the rendered models plus the [`mod@eml::eml210`] nomination export as a ZIP
-//! download.
+//! download. [`mod@csb_model_inputs`] collects the CSB store data the `i1`,
+//! `i4` and `omission_letter` models (and the [`mod@eml::eml230b`] export)
+//! need, from the live [`crate::CsbStream`]s.
 
+pub mod brp_overview;
+pub mod candidate_list_overview;
+pub mod candidate_list_publication;
+pub(crate) mod csb_model_inputs;
 pub(crate) mod documents;
 pub(crate) mod eml;
+pub(crate) mod established_lists;
 pub mod examples;
 mod fonts;
 pub mod h1;
@@ -29,13 +35,21 @@ pub mod inputs;
 mod layout;
 mod markdown;
 pub mod omission_letter;
-
 pub use examples::{Example, examples};
 pub use fonts::fonts;
 
-use textris_pdf::build::Textris;
+use axum::{
+    http::HeaderValue,
+    response::{IntoResponse, Response},
+};
+use textris_pdf::{build::Textris, render::RenderError};
 
-use crate::AppError;
+use crate::{AppError, utils::no_cache_headers};
+
+pub const PDF_CONTENT_TYPE: &str = "application/pdf";
+pub const DOCX_CONTENT_TYPE: &str =
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+pub const MARKDOWN_CONTENT_TYPE: &str = "text/markdown; charset=utf-8";
 
 /// A document that renders to a PDF: it can build a [`Textris`] document and
 /// knows its download file name.
@@ -52,11 +66,7 @@ pub trait Pdf: Sized {
     #[allow(async_fn_in_trait)]
     async fn generate_bytes(&self) -> Result<Vec<u8>, AppError> {
         let document = self.document()?;
-        Ok(
-            tokio::task::spawn_blocking(move || document.render(fonts()))
-                .await
-                .map_err(|_| AppError::InternalServerError)??,
-        )
+        render_blocking(move || document.render(fonts())).await
     }
 
     /// [`Self::filename`] with the `.docx` extension.
@@ -79,6 +89,57 @@ pub trait Pdf: Sized {
             .map_err(|_| AppError::InternalServerError)?
             .map_err(AppError::DocxError)
     }
+
+    /// The rendered PDF as a download response under [`Self::filename`].
+    #[allow(async_fn_in_trait)]
+    async fn pdf_response(&self) -> Result<Response, AppError> {
+        let headers = no_cache_headers::generate_attachment_headers(
+            &self.filename(),
+            HeaderValue::from_static(PDF_CONTENT_TYPE),
+        )?;
+        Ok((headers, self.generate_bytes().await?).into_response())
+    }
+
+    /// The Word export as a download response under [`Self::docx_filename`].
+    #[allow(async_fn_in_trait)]
+    async fn docx_response(&self) -> Result<Response, AppError> {
+        let headers = no_cache_headers::generate_attachment_headers(
+            &self.docx_filename(),
+            HeaderValue::from_static(DOCX_CONTENT_TYPE),
+        )?;
+        Ok((headers, self.generate_docx_bytes().await?).into_response())
+    }
+
+    /// [`Self::filename`] with the `.md` extension.
+    fn markdown_filename(&self) -> String {
+        let filename = self.filename();
+        format!("{}.md", filename.strip_suffix(".pdf").unwrap_or(&filename))
+    }
+
+    /// Export the document as GitHub-flavored Markdown. Like the Word export
+    /// this keeps the content and coarse structure, not the PDF's styling.
+    fn generate_markdown(&self) -> Result<String, AppError> {
+        Ok(self.document()?.to_markdown())
+    }
+
+    /// The Markdown export as a download response under
+    /// [`Self::markdown_filename`].
+    fn markdown_response(&self) -> Result<Response, AppError> {
+        let headers = no_cache_headers::generate_attachment_headers(
+            &self.markdown_filename(),
+            HeaderValue::from_static(MARKDOWN_CONTENT_TYPE),
+        )?;
+        Ok((headers, self.generate_markdown()?).into_response())
+    }
+}
+
+/// Run a PDF render on a blocking thread
+pub(crate) async fn render_blocking(
+    render: impl FnOnce() -> Result<Vec<u8>, RenderError> + Send + 'static,
+) -> Result<Vec<u8>, AppError> {
+    Ok(tokio::task::spawn_blocking(render)
+        .await
+        .map_err(|_| AppError::InternalServerError)??)
 }
 
 #[cfg(test)]
@@ -105,9 +166,8 @@ mod tests {
             .expect("render model")
     }
 
-    /// Every example input renders to a valid PDF. This drives all eight
-    /// document builders (`h1`, `h3-1`, `h3-2`, `h4`, `h9`, `i1`, `i4` and the
-    /// omission letter) together with the shared layout code, end to end.
+    /// Every example input renders to a valid PDF. This drives all document
+    /// builders, together with the shared layout code, end to end.
     #[test]
     fn renders_every_example_input() {
         let mut rendered = 0;
@@ -116,7 +176,7 @@ mod tests {
             assert_pdf(&example.render().expect("render example"), name);
             rendered += 1;
         }
-        assert_eq!(rendered, 21, "expected to render every example input");
+        assert_eq!(rendered, 25, "expected to render every example input");
     }
 
     /// Every example input also exports as a Word document, which exercises the
@@ -231,5 +291,37 @@ mod tests {
         let mut blank = omission_letter_example_1();
         blank.appellation = String::new();
         assert_eq!(blank.filename(), "verzuimbrief-ek27.pdf");
+
+        assert_eq!(
+            brp_overview_example_1().filename(),
+            "brp-overzicht-kiesraad-demo-ek27.pdf"
+        );
+        assert_eq!(
+            brp_overview_example_1().docx_filename(),
+            "brp-overzicht-kiesraad-demo-ek27.docx"
+        );
+        assert_eq!(
+            brp_overview_example_1().markdown_filename(),
+            "brp-overzicht-kiesraad-demo-ek27.md"
+        );
+    }
+
+    /// The Markdown export carries the document's content, with its tables
+    /// and lists.
+    #[test]
+    fn brp_overview_exports_as_markdown() {
+        let markdown = brp_overview_example_1().generate_markdown().unwrap();
+
+        assert!(
+            markdown.starts_with("# Overzicht controle voorinlevering"),
+            "{markdown}"
+        );
+        assert!(markdown.contains("| Aanduiding |"), "{markdown}");
+        // Plain punctuation is not escaped, so the text reads as written.
+        assert!(markdown.contains("#### Kandidaat nr. 1: "), "{markdown}");
+        assert!(
+            markdown.contains("\n- De woonplaats verschilt"),
+            "{markdown}"
+        );
     }
 }

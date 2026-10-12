@@ -9,7 +9,7 @@ use crate::{
             CandidateList, CandidateListId, CandidateListSummary, FullCandidateList,
         },
         candidates::{Candidate, CandidateWithProblems},
-        common::Problematic,
+        common::{HasSeverity, Problematic, Severity},
         persons::{Person, PersonId},
     },
 };
@@ -32,21 +32,6 @@ impl CandidateList {
         let used = CandidateList::used_districts(store).unwrap_or_default();
 
         election.available_districts(used)
-    }
-
-    pub fn duplicate_districts(&self, store: &PgStore) -> Vec<ElectoralDistrict> {
-        let other_districts: BTreeSet<ElectoralDistrict> = store
-            .get_candidate_lists()
-            .into_iter()
-            .filter(|list| list.id != self.id)
-            .flat_map(|list| list.electoral_districts)
-            .collect();
-
-        self.electoral_districts
-            .iter()
-            .filter(|d| other_districts.contains(d))
-            .copied()
-            .collect()
     }
 
     pub async fn update_order(
@@ -250,19 +235,19 @@ impl FullCandidateList {
 }
 
 impl CandidateListSummary {
-    pub fn list(store: &PgStore) -> Vec<CandidateListSummary> {
-        let max_count = store.get_political_group().get_max_candidates();
-        store
-            .get_candidate_lists()
-            .into_iter()
-            .map(|list| {
-                let duplicate_districts = list.duplicate_districts(store);
-                CandidateListSummary {
-                    list,
-                    max_count,
-                    duplicate_districts,
-                }
+    /// A list is usable once it holds at least one candidate and neither the
+    /// list nor any of its candidates have errors
+    pub fn is_usable(&self, store: &PgStore) -> bool {
+        self.candidate_count() > 0
+            && !self
+                .get_problems(())
+                .has_severity_or_higher(Severity::Error)
+            && !self.list.candidates.iter().any(|id| {
+                store.get_person(*id).is_ok_and(|person| {
+                    person
+                        .get_problems(store.election)
+                        .has_severity_or_higher(Severity::Error)
+                })
             })
-            .collect()
     }
 }

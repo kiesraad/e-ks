@@ -32,7 +32,7 @@ pub async fn update_name_authorisation(
         NameAuthorisationUpdateTemplate {
             form: FormData::new_with_data(name_authorisation.clone().into()),
             name_authorisation,
-            overlay: Overlay::new(&query),
+            overlay: Overlay::new_edit(&query),
         },
         context,
     )
@@ -52,7 +52,7 @@ pub async fn update_name_authorisation_submit(
             NameAuthorisationUpdateTemplate {
                 name_authorisation,
                 form: form_data,
-                overlay: Overlay::new(&query),
+                overlay: Overlay::new_edit(&query),
             },
             context,
         )

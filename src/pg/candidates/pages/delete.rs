@@ -37,7 +37,7 @@ pub async fn delete_person_confirm(
             on_candidate_lists: store.count_candidate_lists(candidate.person.id),
             candidate,
             full_list,
-            overlay: Overlay::new(&query),
+            overlay: Overlay::new_edit(&query),
         },
         context,
     ))

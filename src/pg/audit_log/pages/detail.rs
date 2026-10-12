@@ -1,12 +1,12 @@
 use crate::{
-    core::ModelLocale, finalise::AllProblems, models::documents::DocumentData, store::StoreData,
-    utils::format_hash,
+    core::ModelLocale, models::documents::DocumentData, store::StoreData,
+    structs::problems::AllProblems, utils::format_hash,
 };
 use askama::Template;
 use axum::response::IntoResponse;
 
 use crate::{
-    AppError, Context, EventHashPrefix, HtmlTemplate, Overlay, PgStore,
+    AppError, Context, EventHashPrefix, HtmlTemplate, Overlay, PgStore, QueryParamState,
     audit_log::{
         AuditLogDetail, AuditLogPath,
         paths::{AuditLogDetailPath, AuditLogDownloadDocumentsPath},
@@ -71,7 +71,7 @@ pub async fn audit_log_detail(
             .to_string(),
             is_downloadable_state,
             frisian_export_allowed: context.election.frisian_export_allowed(),
-            overlay: Overlay::default(),
+            overlay: Overlay::new_edit(&QueryParamState::default()),
             hash: format_hash(&hash, true),
         },
         context,

@@ -32,7 +32,7 @@
   mask-image: url("../icons/info.svg");
 }
 
-.tag.link a.warning::after {
+.tag.link a:is(.warning, .incomplete)::after {
   mask-image: url("../icons/warning.svg");
 }
 
@@ -48,6 +48,11 @@
    info icon instead of the arrow that means "go here". */
 .tag.link a.pending::after {
   mask-image: url("../icons/info.svg");
+}
+
+/* Handled findings are settled and carry no icon at all. */
+.tag.link a.handled::after {
+  content: none;
 }
 
 .tag a {
@@ -72,8 +77,8 @@
     --tag-color: var(--blue-700);
   }
 
-  &:is(.warning),
-  &:has(.warning) {
+  &:is(.warning, .incomplete),
+  &:has(.warning, .incomplete) {
     --tag-border-color: var(--orange-600);
     --tag-color: var(--orange-700);
   }
@@ -96,7 +101,16 @@
     --tag-color: var(--gray-500);
   }
 
-  &:hover:not(.unclickable) {
+  /* Every BRP finding was marked as handled: settled, so shown in grey. */
+  &:is(.handled),
+  &:has(.handled) {
+    --tag-border-color: var(--gray-200);
+    --tag-color: var(--gray-500);
+  }
+
+  /* In a clickable table row the whole row is the click target and lights
+     up on hover, so the tag itself does not. */
+  &:hover:not(.unclickable, tr.clickable *) {
     --tag-border-color: var(--gray-200);
     background-color: var(--gray-50);
 
@@ -106,8 +120,8 @@
       background-color: var(--blue-100);
     }
 
-    &:is(.warning),
-    &:has(.warning) {
+    &:is(.warning, .incomplete),
+    &:has(.warning, .incomplete) {
       --tag-border-color: var(--orange-700);
       background-color: var(--orange-100);
     }

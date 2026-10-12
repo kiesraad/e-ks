@@ -14,8 +14,9 @@
   <span class="subtitle">{{ "csb.all_restorations.explanation"|trans }}</span>
 {% endblock %}
 {% block header_action %}
-  {% set back_url = political_group.group_path() %}
-  {% include "csb/components/header_examination_actions.html" %}
+  <div class="header-buttons">
+    <a href="{{ political_group.group_path() }}" class="button secondary">{{ "action.back"|trans }}</a>
+  </div>
 {% endblock %}
 {% block content %}
   {% set toggle_redirect_url = political_group.all_restorations_path() %}

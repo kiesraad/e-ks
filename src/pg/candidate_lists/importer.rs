@@ -768,7 +768,10 @@ mod tests {
 
         let candidate_id = store.get_candidate_list(list_id)?.candidates[0];
         let person = store.get_person(candidate_id)?;
-        assert_eq!(person.name.initials.to_string(), "H.A.H.A.");
+        assert_eq!(
+            person.name.initials.as_ref().map(ToString::to_string),
+            Some("H.A.H.A.".to_string())
+        );
         assert_eq!(person.name.last_name.to_string(), "Jansen");
         assert_eq!(
             person.address.postal_code.map(|p| p.to_string()),

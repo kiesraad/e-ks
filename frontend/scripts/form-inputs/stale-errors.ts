@@ -1,9 +1,16 @@
-// A server-rendered field error describes the value it was submitted with, so
-// drop it once the user has edited that value and left the field.
+// A server-rendered field error or warning describes the value it was submitted
+// with, so drop it once the user has edited that value and left the field.
 export default function staleErrors() {
   for (const field of document.querySelectorAll<HTMLElement>(".form-field")) {
-    const errors = [...field.querySelectorAll<HTMLElement>("span.error")];
-    if (errors.length === 0) {
+    // Messages hidden at load are script-owned and describe the live value.
+    const messages = [
+      ...field.querySelectorAll<HTMLElement>(
+        "span.error:not(.hidden), span.warning:not(.hidden)",
+      ),
+    ];
+    const marked =
+      field.classList.contains("error") || field.classList.contains("warning");
+    if (messages.length === 0 && !marked) {
       continue;
     }
 
@@ -26,9 +33,13 @@ export default function staleErrors() {
         return;
       }
 
-      for (const error of errors) {
-        error.remove();
+      // Hide rather than remove: scripts that own a message (the unknown
+      // locality warning) keep toggling `hidden` on their own element.
+      for (const message of messages) {
+        message.classList.add("hidden");
       }
+      field.classList.remove("error", "warning");
+
       for (const input of inputs) {
         input.removeEventListener("blur", dropIfEdited);
       }

@@ -109,7 +109,7 @@ impl OmissionTarget {
         Ok(HtmlTemplate(
             CsbAddOmissionTemplate {
                 form,
-                overlay: Overlay::new(query),
+                overlay: Overlay::new_create(query),
                 close_action: return_path(self, &political_group),
                 presets: preset_views(self, store),
                 omission_target: self.to_owned(),
@@ -206,7 +206,7 @@ pub async fn overview(
 
     Ok(HtmlTemplate(
         CsbOmissionOverviewTemplate {
-            overlay: Overlay::new(&query),
+            overlay: Overlay::new_edit(&query),
             close_action: return_path(&omission_target, &political_group),
             omissions: omission_views(&omission_target, &store)?,
             title_suffix: omission_target.generate_title_suffix(&store, context.session.locale)?,
@@ -316,13 +316,14 @@ pub async fn delete_omission(
     path: CsbDeleteOmissionPath,
     store: CsbStore,
     Query(query): Query<QueryParamState>,
+    Query(list_query): Query<OmissionListQuery>,
 ) -> Result<Response, AppError> {
     let CsbDeleteOmissionPath {
         stream_id,
         omission_id,
     } = path;
     let omission = store.get_omission(omission_id)?;
-    let overview = overview_url_for(&omission.category, stream_id);
+    let overview = overview_url_for(&omission.category, stream_id, list_query.list);
     omission.delete(&store).await?;
     Ok(Redirect::to(
         &overview
@@ -345,7 +346,9 @@ mod tests {
     use crate::{
         ElectoralDistrict,
         structs::{
-            candidate_lists::CandidateListId, csb::Omission, persons::PersonId,
+            candidate_lists::CandidateListId,
+            csb::{Omission, OmissionId},
+            persons::PersonId,
             political_groups::PoliticalGroup,
         },
         test_utils::{response_body_string, sample_candidate_list, sample_political_group},
@@ -376,6 +379,109 @@ mod tests {
             district.code(),
             district.serde_name()
         )
+    }
+
+    /// Invoke the add-omission dialog for the store's stream and unwrap the
+    /// rendered response.
+    async fn render_add_omission(
+        store: CsbStore,
+        omission_type: OmissionType,
+        reference: impl Into<Uuid>,
+        list: Option<CandidateListId>,
+    ) -> Response {
+        add_omission(
+            CsbAddOmissionPath {
+                stream_id: store.stream_id,
+                omission_type,
+                reference: reference.into(),
+            },
+            CsbContext::new_test(),
+            store,
+            Query(QueryParamState::default()),
+            Query(OmissionListQuery { list }),
+        )
+        .await
+        .unwrap()
+        .into_response()
+    }
+
+    /// Submit the add-omission form for the store's stream and unwrap the
+    /// response.
+    async fn submit_add_omission(
+        store: CsbStore,
+        omission_type: OmissionType,
+        reference: impl Into<Uuid>,
+        list: Option<CandidateListId>,
+        form: OmissionForm,
+    ) -> Response {
+        add_omission_submit(
+            CsbAddOmissionPath {
+                stream_id: store.stream_id,
+                omission_type,
+                reference: reference.into(),
+            },
+            CsbContext::new_test(),
+            store,
+            Query(QueryParamState::default()),
+            Query(OmissionListQuery { list }),
+            Form(form),
+        )
+        .await
+        .unwrap()
+        .into_response()
+    }
+
+    /// Render the omissions overview tab for the store's stream.
+    async fn render_overview(
+        store: CsbStore,
+        omission_type: OmissionType,
+        reference: impl Into<Uuid>,
+    ) -> Response {
+        overview(
+            CsbOmissionOverviewPath {
+                stream_id: store.stream_id,
+                omission_type,
+                reference: reference.into(),
+            },
+            CsbContext::new_test(),
+            store,
+            Query(QueryParamState::default()),
+            Query(OmissionListQuery::default()),
+        )
+        .await
+        .unwrap()
+        .into_response()
+    }
+
+    /// Delete an omission on the store's stream and unwrap the redirect.
+    async fn submit_delete_omission(
+        store: CsbStore,
+        omission_id: OmissionId,
+        query: QueryParamState,
+        list: Option<CandidateListId>,
+    ) -> Response {
+        delete_omission(
+            CsbDeleteOmissionPath {
+                stream_id: store.stream_id,
+                omission_id,
+            },
+            store,
+            Query(query),
+            Query(OmissionListQuery { list }),
+        )
+        .await
+        .unwrap()
+        .into_response()
+    }
+
+    /// The Location header a redirect points at.
+    fn location(response: &Response) -> &str {
+        response
+            .headers()
+            .get("Location")
+            .unwrap()
+            .to_str()
+            .unwrap()
     }
 
     #[tokio::test]
@@ -420,20 +526,7 @@ mod tests {
         let store = CsbStore::new_for_test();
         let stream_id = store.stream_id;
 
-        let response = add_omission(
-            CsbAddOmissionPath {
-                stream_id,
-                omission_type: OmissionType::Appellation,
-                reference: stream_id.into(),
-            },
-            CsbContext::new_test(),
-            store,
-            Query(QueryParamState::default()),
-            Query(OmissionListQuery::default()),
-        )
-        .await
-        .unwrap()
-        .into_response();
+        let response = render_add_omission(store, OmissionType::Appellation, stream_id, None).await;
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
@@ -492,20 +585,8 @@ mod tests {
             BTreeSet::from([ElectoralDistrict::Groningen, ElectoralDistrict::Fryslan]);
         store.set_paper_corrected_candidate_list(list);
 
-        let response = add_omission(
-            CsbAddOmissionPath {
-                stream_id,
-                omission_type: OmissionType::DeclarationsOfSupport,
-                reference: stream_id.into(),
-            },
-            CsbContext::new_test(),
-            store,
-            Query(QueryParamState::default()),
-            Query(OmissionListQuery::default()),
-        )
-        .await
-        .unwrap()
-        .into_response();
+        let response =
+            render_add_omission(store, OmissionType::DeclarationsOfSupport, stream_id, None).await;
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = normalized(&response_body_string(response).await);
@@ -529,20 +610,9 @@ mod tests {
         store.set_paper_corrected_candidate_list(sample_candidate_list(list_id));
 
         let render = |store| async move {
-            let response = add_omission(
-                CsbAddOmissionPath {
-                    stream_id,
-                    omission_type: OmissionType::DeclarationsOfSupport,
-                    reference: stream_id.into(),
-                },
-                CsbContext::new_test(),
-                store,
-                Query(QueryParamState::default()),
-                Query(OmissionListQuery::default()),
-            )
-            .await
-            .unwrap()
-            .into_response();
+            let response =
+                render_add_omission(store, OmissionType::DeclarationsOfSupport, stream_id, None)
+                    .await;
             let body = response_body_string(response).await;
             normalized(&body)
         };
@@ -564,7 +634,6 @@ mod tests {
         use crate::test_utils::{sample_candidate_list, sample_person};
 
         let store = CsbStore::new_for_test();
-        let stream_id = store.stream_id;
         let person = sample_person(PersonId::new());
         let person_id = person.id;
         store.add_person(person);
@@ -574,20 +643,8 @@ mod tests {
         store.set_paper_corrected_candidate_list(list);
 
         let render = |store| async move {
-            let response = add_omission(
-                CsbAddOmissionPath {
-                    stream_id,
-                    omission_type: OmissionType::Candidate,
-                    reference: person_id.into(),
-                },
-                CsbContext::new_test(),
-                store,
-                Query(QueryParamState::default()),
-                Query(OmissionListQuery::default()),
-            )
-            .await
-            .unwrap()
-            .into_response();
+            let response =
+                render_add_omission(store, OmissionType::Candidate, person_id, None).await;
             response_body_string(response).await
         };
 
@@ -609,7 +666,6 @@ mod tests {
         use crate::test_utils::{sample_candidate_list, sample_person};
 
         let store = CsbStore::new_for_test();
-        let stream_id = store.stream_id;
         let person = sample_person(PersonId::new());
         let person_id = person.id;
         store.add_person(person);
@@ -621,20 +677,7 @@ mod tests {
         let other_list_id = CandidateListId::new();
         store.add_candidate_list(sample_candidate_list(other_list_id));
 
-        let response = add_omission(
-            CsbAddOmissionPath {
-                stream_id,
-                omission_type: OmissionType::Candidate,
-                reference: person_id.into(),
-            },
-            CsbContext::new_test(),
-            store,
-            Query(QueryParamState::default()),
-            Query(OmissionListQuery::default()),
-        )
-        .await
-        .unwrap()
-        .into_response();
+        let response = render_add_omission(store, OmissionType::Candidate, person_id, None).await;
         let body = response_body_string(response).await;
 
         // Only one list actually has this candidate, so the selector stays
@@ -649,7 +692,6 @@ mod tests {
         use crate::test_utils::{sample_candidate_list, sample_person};
 
         let store = CsbStore::new_for_test();
-        let stream_id = store.stream_id;
 
         // Both the candidate and the list only exist in the corrected
         // projection: they were added during paper corrections.
@@ -666,22 +708,8 @@ mod tests {
         list.candidates = vec![person_id];
         store.set_paper_corrected_candidate_list(list);
 
-        let response = add_omission(
-            CsbAddOmissionPath {
-                stream_id,
-                omission_type: OmissionType::Candidate,
-                reference: person_id.into(),
-            },
-            CsbContext::new_test(),
-            store,
-            Query(QueryParamState::default()),
-            Query(OmissionListQuery {
-                list: Some(list_id),
-            }),
-        )
-        .await
-        .unwrap()
-        .into_response();
+        let response =
+            render_add_omission(store, OmissionType::Candidate, person_id, Some(list_id)).await;
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
@@ -718,20 +746,7 @@ mod tests {
         irreparable.recoverable = false;
         irreparable.create(&store).await.unwrap();
 
-        let response = overview(
-            CsbOmissionOverviewPath {
-                stream_id,
-                omission_type: OmissionType::CandidateList,
-                reference: list.into(),
-            },
-            CsbContext::new_test(),
-            store,
-            Query(QueryParamState::default()),
-            Query(OmissionListQuery::default()),
-        )
-        .await
-        .unwrap()
-        .into_response();
+        let response = render_overview(store, OmissionType::CandidateList, list).await;
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
@@ -775,29 +790,16 @@ mod tests {
         let omission_id = omission.id;
         assert_eq!(store.get_candidate_list_omissions(list).unwrap().len(), 1);
 
-        let response = delete_omission(
-            CsbDeleteOmissionPath {
-                stream_id,
-                omission_id,
-            },
-            store.clone(),
-            Query(QueryParamState::default()),
-        )
-        .await
-        .unwrap()
-        .into_response();
+        let response =
+            submit_delete_omission(store.clone(), omission_id, QueryParamState::default(), None)
+                .await;
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
         // The omission is gone...
         assert!(store.get_candidate_list_omissions(list).unwrap().is_empty());
         // ...and we return to the overview it was listed on, without replaying
         // the overlay open animation
-        let location = response
-            .headers()
-            .get("Location")
-            .unwrap()
-            .to_str()
-            .unwrap();
+        let location = location(&response);
         assert!(location.contains(&format!(
             "/csb/examination/{stream_id}/omission/candidate-list/{list}/overview"
         )));
@@ -805,9 +807,50 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn delete_omission_preserves_the_redirect_to() {
+    async fn delete_omission_returns_to_the_list_the_overview_was_opened_for() {
         let store = CsbStore::new_for_test();
         let stream_id = store.stream_id;
+        let first_list = CandidateListId::new();
+        let second_list = CandidateListId::new();
+        store.add_candidate_list(sample_candidate_list(first_list));
+        store.add_candidate_list(sample_candidate_list(second_list));
+
+        let omission = Omission::new(
+            OmissionCategory::CandidateList(vec![first_list, second_list]),
+            "Waarborgsom ontbreekt".parse().unwrap(),
+            "De waarborgsom ontbreekt.".parse().unwrap(),
+            None,
+        );
+        omission.create(&store).await.unwrap();
+
+        // The remove button on the second list's overview carries that list
+        let response =
+            render_overview(store.clone(), OmissionType::CandidateList, second_list).await;
+        let body = response_body_string(response).await;
+        assert!(body.contains(&format!(
+            // Askama escapes the `&` that `with_query_params` emits.
+            "/csb/examination/{stream_id}/delete-omission/{}?&#38;list={second_list}",
+            omission.id
+        )));
+
+        let response = submit_delete_omission(
+            store.clone(),
+            omission.id,
+            QueryParamState::default(),
+            Some(second_list),
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        let location = location(&response);
+        assert!(location.contains(&format!(
+            "/csb/examination/{stream_id}/omission/candidate-list/{second_list}/overview"
+        )));
+    }
+
+    #[tokio::test]
+    async fn delete_omission_preserves_the_redirect_to() {
+        let store = CsbStore::new_for_test();
 
         let omission = Omission::new(
             OmissionCategory::PoliticalGroup,
@@ -818,26 +861,17 @@ mod tests {
         omission.create(&store).await.unwrap();
         let omission_id = omission.id;
 
-        let response = delete_omission(
-            CsbDeleteOmissionPath {
-                stream_id,
-                omission_id,
-            },
+        let response = submit_delete_omission(
             store.clone(),
-            Query(QueryParamState::redirect_to("/back/here".to_string())),
+            omission_id,
+            QueryParamState::redirect_to("/back/here".to_string()),
+            None,
         )
-        .await
-        .unwrap()
-        .into_response();
+        .await;
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
         assert!(store.get_political_group_omissions().is_empty());
-        let location = response
-            .headers()
-            .get("Location")
-            .unwrap()
-            .to_str()
-            .unwrap();
+        let location = location(&response);
         assert!(location.contains("redirect_to=%2Fback%2Fhere"));
         assert!(location.contains("overlay=true"));
     }
@@ -847,20 +881,7 @@ mod tests {
         let store = CsbStore::new_for_test();
         let stream_id = store.stream_id;
 
-        let response = overview(
-            CsbOmissionOverviewPath {
-                stream_id,
-                omission_type: OmissionType::PoliticalGroup,
-                reference: stream_id.into(),
-            },
-            CsbContext::new_test(),
-            store,
-            Query(QueryParamState::default()),
-            Query(OmissionListQuery::default()),
-        )
-        .await
-        .unwrap()
-        .into_response();
+        let response = render_overview(store, OmissionType::PoliticalGroup, stream_id).await;
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
@@ -870,38 +891,18 @@ mod tests {
     #[tokio::test]
     async fn add_candidate_list_omission_persists_category() {
         let store = CsbStore::new_for_test();
-        let stream_id = store.stream_id;
         let list = CandidateListId::new();
-        let context = CsbContext::new_test();
         let form = OmissionForm {
             candidate_lists: vec![list],
             ..sample_form()
         };
 
-        let response = add_omission_submit(
-            CsbAddOmissionPath {
-                stream_id,
-                omission_type: OmissionType::CandidateList,
-                reference: list.into(),
-            },
-            context,
-            store.clone(),
-            Query(QueryParamState::default()),
-            Query(OmissionListQuery::default()),
-            Form(form),
-        )
-        .await
-        .unwrap()
-        .into_response();
+        let response =
+            submit_add_omission(store.clone(), OmissionType::CandidateList, list, None, form).await;
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
         // The dialog redirects back to the candidate list it was opened from.
-        let location = response
-            .headers()
-            .get("Location")
-            .unwrap()
-            .to_str()
-            .unwrap();
+        let location = location(&response);
         assert!(location.contains(&format!("/list/{list}")));
 
         let omission = store.get_omission_for_test();
@@ -919,27 +920,16 @@ mod tests {
     #[tokio::test]
     async fn add_candidate_list_omission_without_list_selection_rerenders_form() {
         let store = CsbStore::new_for_test();
-        let stream_id = store.stream_id;
         let list = CandidateListId::new();
-        let context = CsbContext::new_test();
         // No candidate list selected and no auto-fill possible: should re-render with an error
-        let form = sample_form();
-
-        let response = add_omission_submit(
-            CsbAddOmissionPath {
-                stream_id,
-                omission_type: OmissionType::CandidateList,
-                reference: list.into(),
-            },
-            context,
+        let response = submit_add_omission(
             store.clone(),
-            Query(QueryParamState::default()),
-            Query(OmissionListQuery::default()),
-            Form(form),
+            OmissionType::CandidateList,
+            list,
+            None,
+            sample_form(),
         )
-        .await
-        .unwrap()
-        .into_response();
+        .await;
 
         assert_eq!(response.status(), StatusCode::OK);
         assert!(store.get_political_group_omissions().is_empty());
@@ -949,23 +939,15 @@ mod tests {
     async fn add_political_group_omission_persists_category() {
         let store = CsbStore::new_for_test();
         let stream_id = store.stream_id;
-        let context = CsbContext::new_test();
-        let form = sample_form();
 
-        add_omission_submit(
-            CsbAddOmissionPath {
-                stream_id,
-                omission_type: OmissionType::PoliticalGroup,
-                reference: stream_id.into(),
-            },
-            context,
+        submit_add_omission(
             store.clone(),
-            Query(QueryParamState::default()),
-            Query(OmissionListQuery::default()),
-            Form(form),
+            OmissionType::PoliticalGroup,
+            stream_id,
+            None,
+            sample_form(),
         )
-        .await
-        .unwrap();
+        .await;
 
         assert_eq!(store.get_political_group_omissions().len(), 1);
     }
@@ -974,26 +956,19 @@ mod tests {
     async fn add_omission_persists_the_recoverable_flag() {
         let store = CsbStore::new_for_test();
         let stream_id = store.stream_id;
-        let context = CsbContext::new_test();
         // An unchecked "recoverable" checkbox submits nothing, marking the
         // omission irreparable.
         let mut form = sample_form();
         form.recoverable = false;
 
-        add_omission_submit(
-            CsbAddOmissionPath {
-                stream_id,
-                omission_type: OmissionType::PoliticalGroup,
-                reference: stream_id.into(),
-            },
-            context,
+        submit_add_omission(
             store.clone(),
-            Query(QueryParamState::default()),
-            Query(OmissionListQuery::default()),
-            Form(form),
+            OmissionType::PoliticalGroup,
+            stream_id,
+            None,
+            form,
         )
-        .await
-        .unwrap();
+        .await;
 
         let omission = store.get_omission_for_test();
         assert!(!omission.recoverable);
@@ -1003,29 +978,55 @@ mod tests {
     async fn add_omission_invalid_form_rerenders() {
         let store = CsbStore::new_for_test();
         let stream_id = store.stream_id;
-        let context = CsbContext::new_test();
         let mut form = sample_form();
         // An empty description is invalid.
         form.description = String::new();
 
-        let response = add_omission_submit(
-            CsbAddOmissionPath {
-                stream_id,
-                omission_type: OmissionType::PoliticalGroup,
-                reference: stream_id.into(),
-            },
-            context,
+        let response = submit_add_omission(
             store.clone(),
-            Query(QueryParamState::default()),
-            Query(OmissionListQuery::default()),
-            Form(form),
+            OmissionType::PoliticalGroup,
+            stream_id,
+            None,
+            form,
         )
-        .await
-        .unwrap()
-        .into_response();
+        .await;
 
         assert_eq!(response.status(), StatusCode::OK);
         assert!(store.get_political_group_omissions().is_empty());
+    }
+
+    #[tokio::test]
+    async fn declarations_dialog_fills_district_tokens_for_a_single_district() {
+        let store = CsbStore::new_for_test();
+        let stream_id = store.stream_id;
+        let list_id = CandidateListId::new();
+        let mut list = sample_candidate_list(list_id);
+        list.electoral_districts = BTreeSet::from([ElectoralDistrict::Utrecht]);
+        store.add_candidate_list(list);
+
+        let render = |store| async move {
+            let response =
+                render_add_omission(store, OmissionType::DeclarationsOfSupport, stream_id, None)
+                    .await;
+            normalized(&response_body_string(response).await)
+        };
+
+        // The selector is hidden, so the presets name the only district
+        let body = render(store.clone()).await;
+        assert!(body.contains("Dit betreft de kieskring Utrecht."));
+        assert!(body.contains("Dit betreft de kieskring(en) Utrecht."));
+        assert!(!body.contains("{district"));
+
+        // With a second district the tokens are left for the dialog to fill
+        // from the district checkboxes, which carry the Dutch names
+        let mut list2 = sample_candidate_list(CandidateListId::new());
+        list2.electoral_districts = BTreeSet::from([ElectoralDistrict::Drenthe]);
+        store.add_candidate_list(list2);
+        let body = render(store.clone()).await;
+        assert!(body.contains("Dit betreft de kieskring {district}."));
+        assert!(body.contains("Dit betreft de kieskring(en) {districts}."));
+        assert!(body.contains(r#"data-district-nl="Utrecht""#));
+        assert!(body.contains(r#"data-district-nl="Drenthe""#));
     }
 
     #[tokio::test]
@@ -1033,7 +1034,6 @@ mod tests {
         use crate::test_utils::{sample_candidate_list, sample_person};
 
         let store = CsbStore::new_for_test();
-        let stream_id = store.stream_id;
 
         // Seed a candidate at position 1 of a list.
         let person = sample_person(PersonId::new());
@@ -1044,22 +1044,8 @@ mod tests {
         store.add_person(person);
         store.add_candidate_list(list);
 
-        let response = add_omission(
-            CsbAddOmissionPath {
-                stream_id,
-                omission_type: OmissionType::Candidate,
-                reference: person_id.into(),
-            },
-            CsbContext::new_test(),
-            store,
-            Query(QueryParamState::default()),
-            Query(OmissionListQuery {
-                list: Some(list_id),
-            }),
-        )
-        .await
-        .unwrap()
-        .into_response();
+        let response =
+            render_add_omission(store, OmissionType::Candidate, person_id, Some(list_id)).await;
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
@@ -1079,7 +1065,6 @@ mod tests {
         use crate::test_utils::{sample_candidate_list, sample_person};
 
         let store = CsbStore::new_for_test();
-        let stream_id = store.stream_id;
 
         // The same candidate sits at different positions on two lists.
         let person = sample_person(PersonId::new());
@@ -1097,22 +1082,13 @@ mod tests {
         store.add_candidate_list(second_list);
 
         // Opening the dialog for the second list resolves position 2, not 1.
-        let response = add_omission(
-            CsbAddOmissionPath {
-                stream_id,
-                omission_type: OmissionType::Candidate,
-                reference: person_id.into(),
-            },
-            CsbContext::new_test(),
+        let response = render_add_omission(
             store,
-            Query(QueryParamState::default()),
-            Query(OmissionListQuery {
-                list: Some(second_list_id),
-            }),
+            OmissionType::Candidate,
+            person_id,
+            Some(second_list_id),
         )
-        .await
-        .unwrap()
-        .into_response();
+        .await;
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
@@ -1125,8 +1101,6 @@ mod tests {
         use crate::test_utils::{sample_candidate_list, sample_person};
 
         let store = CsbStore::new_for_test();
-        let stream_id = store.stream_id;
-        let context = CsbContext::new_test();
 
         let person = sample_person(PersonId::new());
         let person_id = person.id;
@@ -1141,32 +1115,18 @@ mod tests {
             ..sample_form()
         };
 
-        let response = add_omission_submit(
-            CsbAddOmissionPath {
-                stream_id,
-                omission_type: OmissionType::Candidate,
-                reference: person_id.into(),
-            },
-            context,
+        let response = submit_add_omission(
             store.clone(),
-            Query(QueryParamState::default()),
-            Query(OmissionListQuery {
-                list: Some(list_id),
-            }),
-            Form(form),
+            OmissionType::Candidate,
+            person_id,
+            Some(list_id),
+            form,
         )
-        .await
-        .unwrap()
-        .into_response();
+        .await;
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
         // The dialog redirects back to the candidate detail page it was opened from.
-        let location = response
-            .headers()
-            .get("Location")
-            .unwrap()
-            .to_str()
-            .unwrap();
+        let location = location(&response);
         assert!(location.contains(&format!("/list/{list_id}/candidate/{person_id}")));
 
         let omission = store.get_omission_for_test();
@@ -1182,8 +1142,6 @@ mod tests {
         use crate::test_utils::{sample_candidate_list, sample_person};
 
         let store = CsbStore::new_for_test();
-        let stream_id = store.stream_id;
-        let context = CsbContext::new_test();
 
         let person = sample_person(PersonId::new());
         let person_id = person.id;
@@ -1194,23 +1152,14 @@ mod tests {
         store.add_candidate_list(list);
 
         // No list selected in the form: the single available list is auto-filled
-        let response = add_omission_submit(
-            CsbAddOmissionPath {
-                stream_id,
-                omission_type: OmissionType::Candidate,
-                reference: person_id.into(),
-            },
-            context,
+        let response = submit_add_omission(
             store.clone(),
-            Query(QueryParamState::default()),
-            Query(OmissionListQuery {
-                list: Some(list_id),
-            }),
-            Form(sample_form()),
+            OmissionType::Candidate,
+            person_id,
+            Some(list_id),
+            sample_form(),
         )
-        .await
-        .unwrap()
-        .into_response();
+        .await;
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
         let omission = store.get_omission_for_test();

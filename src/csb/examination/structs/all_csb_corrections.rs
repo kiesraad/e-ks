@@ -85,9 +85,13 @@ impl CsbStream {
             .iter()
             .map(|correction| {
                 let (field, corrected_value) = match correction {
-                    PersonCorrection::Initials(initials) => {
-                        (CandidateCorrectionField::Initials, initials.to_string())
-                    }
+                    PersonCorrection::Initials(initials) => (
+                        CandidateCorrectionField::Initials,
+                        initials
+                            .as_ref()
+                            .map(ToString::to_string)
+                            .unwrap_or_default(),
+                    ),
                     PersonCorrection::LastNamePrefix(prefix) => (
                         CandidateCorrectionField::LastNamePrefix,
                         prefix.as_ref().map(ToString::to_string).unwrap_or_default(),
@@ -265,7 +269,7 @@ mod tests {
         correct(
             &store,
             p_id1,
-            PersonCorrection::Initials(Initials::from_str("A.B.").unwrap()),
+            PersonCorrection::Initials(Some(Initials::from_str("A.B.").unwrap())),
         )
         .await?;
         correct(
@@ -369,7 +373,7 @@ mod tests {
         correct(
             &store,
             person_id,
-            PersonCorrection::Initials(Initials::from_str("A.B.").unwrap()),
+            PersonCorrection::Initials(Some(Initials::from_str("A.B.").unwrap())),
         )
         .await?;
 
@@ -396,7 +400,7 @@ mod tests {
         correct(
             &store,
             person_id,
-            PersonCorrection::Initials(Initials::from_str("A.B.").unwrap()),
+            PersonCorrection::Initials(Some(Initials::from_str("A.B.").unwrap())),
         )
         .await?;
         store
@@ -440,7 +444,7 @@ mod tests {
         correct(
             &store,
             person_id,
-            PersonCorrection::Initials(Initials::from_str("A.B.").unwrap()),
+            PersonCorrection::Initials(Some(Initials::from_str("A.B.").unwrap())),
         )
         .await?;
 
@@ -474,7 +478,7 @@ mod tests {
             correct(
                 &store,
                 *id,
-                PersonCorrection::Initials(Initials::from_str("A.B.").unwrap()),
+                PersonCorrection::Initials(Some(Initials::from_str("A.B.").unwrap())),
             )
             .await?;
         }

@@ -1,8 +1,6 @@
-<fieldset>
+<fieldset class="district-select">
   <legend>{{ "candidate_list.fields.electoral_districts"|trans }}</legend>
-  {% if !duplicate_districts.is_empty() %}
-    <span class="error mb-md">{{ "candidate_list.districts.duplicate_hint"|trans }}</span>
-  {% endif %}
+  <span class="hint">{{ "candidate_list.districts.select_hint"|trans }}</span>
   <div class="checkbox select-all-checkbox mt-sm mb-lg">
     <input type="checkbox" for-checklist="district_list" id="select-all" />
     <label for="select-all">{{ "candidate_list.actions.select_all_districts"|trans }}</label>
@@ -10,7 +8,9 @@
   {% let election = "election"|election_value %}
   <div class="checklist grid" id="district_list">
     {% for d in election.electoral_districts() %}
-      <div class="checkbox {% if !available_districts.contains(&d) %}disabled{% endif %} {% if duplicate_districts.contains(&d) %}error{% endif %}">
+      {% let on_other_list = districts_on_other_lists.contains(&d) %}
+      <div class="checkbox {% if !available_districts.contains(&d) %}disabled{% endif %} {% if on_other_list && form.data.electoral_districts.contains(&d) %}warning{% endif %}"
+           {% if on_other_list %}data-on-other-list{% endif %}>
         <input type="checkbox"
                name="electoral_districts"
                id="electoral_district_{{ d.code() }}"
@@ -20,5 +20,6 @@
       </div>
     {% endfor %}
   </div>
+  <span class="warning district-duplicate-warning mt-md">{{ "candidate_list.districts.duplicate_warning"|trans }}</span>
   {% for error in form|error("electoral_districts") %}<span class="error">{{ error }}</span>{% endfor %}
 </fieldset>

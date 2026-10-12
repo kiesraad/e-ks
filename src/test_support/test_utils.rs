@@ -37,6 +37,14 @@ pub async fn response_body_string(response: axum::response::Response) -> String 
     String::from_utf8(bytes.to_vec()).expect("utf-8 body")
 }
 
+/// Whether `word` occurs as a whole word. Use this over `contains` to assert a
+/// short word is absent: a page's random CSRF token may hold it as a substring.
+pub fn contains_word(haystack: &str, word: &str) -> bool {
+    regex::Regex::new(&format!(r"\b{}\b", regex::escape(word)))
+        .expect("word regex")
+        .is_match(haystack)
+}
+
 /// The `Display` rendering of an optional field.
 pub fn display_opt<T: std::fmt::Display>(value: &Option<T>) -> Option<String> {
     value.as_ref().map(ToString::to_string)
@@ -60,7 +68,7 @@ pub fn sample_full_name(
         first_name: first_name.map(parse_first_name),
         last_name: parse_last_name(last_name),
         last_name_prefix: last_name_prefix.map(parse_last_name_prefix),
-        initials: parse_initials(initials),
+        initials: Some(parse_initials(initials)),
     }
 }
 
@@ -179,7 +187,7 @@ pub fn sample_person_from_brp() -> Person {
             first_name: Some("Tina-Antïna".parse().unwrap()),
             last_name: "Bruin".parse().unwrap(),
             last_name_prefix: Some("de".parse().unwrap()),
-            initials: "T.".parse().unwrap(),
+            initials: Some("T.".parse().unwrap()),
         },
         personal_data: PersonalData {
             gender: Some(Gender::Female),

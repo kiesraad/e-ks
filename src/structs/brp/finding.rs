@@ -4,7 +4,13 @@ use serde::{Deserialize, Serialize};
 use crate::{
     Locale,
     constants::DEFAULT_DATE_FORMAT,
-    structs::common::{Bsn, Gender, Initials, LastName, LastNamePrefix, PlaceOfResidence},
+    structs::{
+        common::{
+            Bsn, BsnOrNoneConfirmed, DateOfBirth, Gender, Initials, LastName, LastNamePrefix,
+            PlaceOfResidence,
+        },
+        persons::Person,
+    },
     trans,
 };
 
@@ -26,6 +32,41 @@ pub enum BrpCheckedField {
 }
 
 impl BrpCheckedField {
+    /// Every checked field, in the order the candidate detail table lists
+    /// them.
+    pub const IN_TABLE_ORDER: [Self; 7] = [
+        Self::Initials,
+        Self::LastNamePrefix,
+        Self::LastName,
+        Self::Gender,
+        Self::DateOfBirth,
+        Self::Bsn,
+        Self::PlaceOfResidence,
+    ];
+
+    /// The candidate's own value of this field, as the candidate detail table
+    /// shows it; empty when it was not given.
+    pub fn value_of(self, person: &Person, locale: Locale) -> String {
+        fn or_empty<T: std::fmt::Display>(value: &Option<T>) -> String {
+            value.as_ref().map(ToString::to_string).unwrap_or_default()
+        }
+
+        match self {
+            Self::Bsn => person
+                .personal_data
+                .bsn
+                .as_ref()
+                .map(BsnOrNoneConfirmed::to_exposed_string)
+                .unwrap_or_default(),
+            Self::Initials => or_empty(&person.name.initials),
+            Self::LastNamePrefix => or_empty(&person.name.last_name_prefix),
+            Self::LastName => person.name.last_name.to_string(),
+            Self::Gender => person.gender_label(locale),
+            Self::DateOfBirth => DateOfBirth::format_option(&person.personal_data.date_of_birth),
+            Self::PlaceOfResidence => or_empty(&person.personal_data.place_of_residence),
+        }
+    }
+
     /// The label of the candidate-detail row this field belongs to.
     pub fn label(self, locale: Locale) -> String {
         match self {
@@ -82,13 +123,102 @@ impl BrpValue {
     }
 }
 
-/// One thing the BRP check found for a single candidate.
+/// A last name with its prefix, as the BRP holds it: the candidate's own, a
+/// partner's, or the two joined by a hyphen.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BrpLastName {
+    pub last_name_prefix: Option<LastNamePrefix>,
+    pub last_name: LastName,
+}
+
+impl BrpLastName {
+    /// This name followed by a hyphen and `other` written out in full, under
+    /// this name's prefix: `de Bruin` joined with `van der Groot` is `de
+    /// Bruin-van der Groot`. `None` when the result is no last name this
+    /// application accepts.
+    pub fn hyphenated_with(&self, other: &Self) -> Option<Self> {
+        Some(Self {
+            last_name_prefix: self.last_name_prefix.clone(),
+            last_name: format!("{}-{other}", self.last_name).parse().ok()?,
+        })
+    }
+}
+
+impl std::fmt::Display for BrpLastName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.last_name_prefix {
+            Some(prefix) => write!(f, "{prefix} {}", self.last_name),
+            None => write!(f, "{}", self.last_name),
+        }
+    }
+}
+
+/// One thing the BRP check found for a single candidate, with whether the
+/// committee has dealt with it.
 ///
 /// Findings are shown next to the candidate's data and are deliberately not
 /// turned into omissions: the committee first confirms a difference and may
 /// correct it ambtshalve, and only what remains becomes a verzuim.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum BrpFinding {
+#[serde(from = "BrpFindingRepr")]
+pub struct BrpFinding {
+    pub kind: BrpFindingKind,
+    /// Set by the committee once the finding needs no further attention: it
+    /// turned out not to be a problem, or an omission was added for it.
+    pub handled: bool,
+}
+
+/// Findings recorded before the flag existed are the bare kind; both forms are
+/// read.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum BrpFindingRepr {
+    Flagged {
+        kind: BrpFindingKind,
+        #[serde(default)]
+        handled: bool,
+    },
+    Bare(BrpFindingKind),
+}
+
+impl From<BrpFindingRepr> for BrpFinding {
+    fn from(repr: BrpFindingRepr) -> Self {
+        match repr {
+            BrpFindingRepr::Flagged { kind, handled } => Self { kind, handled },
+            BrpFindingRepr::Bare(kind) => Self::from(kind),
+        }
+    }
+}
+
+impl From<BrpFindingKind> for BrpFinding {
+    fn from(kind: BrpFindingKind) -> Self {
+        Self {
+            kind,
+            handled: false,
+        }
+    }
+}
+
+impl BrpFinding {
+    /// See [`BrpFindingKind::field`].
+    pub fn field(&self) -> Option<BrpCheckedField> {
+        self.kind.field()
+    }
+
+    /// See [`BrpFindingKind::brp_value`].
+    pub fn brp_value(&self) -> Option<&BrpValue> {
+        self.kind.brp_value()
+    }
+
+    /// See [`BrpFindingKind::message`].
+    pub fn message(&self, locale: Locale) -> String {
+        self.kind.message(locale)
+    }
+}
+
+/// What the BRP check found, apart from what the committee did with it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BrpFindingKind {
     /// The candidate's value differs from the value in the BRP.
     Mismatch { brp_value: BrpValue },
     /// The BRP value could not be interpreted, so nothing was compared. Kept
@@ -103,6 +233,11 @@ pub enum BrpFinding {
     },
     /// The BRP holds no value for a field that was requested.
     MissingInBrp { field: BrpCheckedField },
+    /// The candidate's prefix and last name together are none of the names
+    /// the BRP allows them to stand under: their own, a (former) partner's, or
+    /// both joined by a hyphen in either order. `allowed` lists every name
+    /// that would do, the candidate's own first.
+    LastNameNotAllowed { allowed: Vec<BrpLastName> },
     /// No person in the BRP has this burgerservicenummer.
     BsnUnknown,
     /// More than one person in the BRP matched this burgerservicenummer.
@@ -135,13 +270,14 @@ pub enum BrpFinding {
     ResidenceUnknown,
 }
 
-impl BrpFinding {
+impl BrpFindingKind {
     /// The candidate-detail field this finding belongs to, or `None` when it is
     /// about the candidate as a whole.
     pub fn field(&self) -> Option<BrpCheckedField> {
         match self {
             Self::Mismatch { brp_value } => Some(brp_value.field()),
             Self::Unparsable { field, .. } | Self::MissingInBrp { field } => Some(*field),
+            Self::LastNameNotAllowed { .. } => Some(BrpCheckedField::LastName),
             Self::ResidenceAbroad | Self::ResidenceWithoutAddress | Self::ResidenceUnknown => {
                 Some(BrpCheckedField::PlaceOfResidence)
             }
@@ -187,8 +323,9 @@ impl BrpFinding {
         }
     }
 
-    /// What the committee is shown for this finding.
-    pub fn message(&self, locale: Locale) -> String {
+    /// What the committee is shown for a finding about one of the candidate's
+    /// fields.
+    fn field_message(&self, locale: Locale) -> String {
         match self {
             Self::Mismatch { brp_value } => {
                 trans!(
@@ -213,6 +350,25 @@ impl BrpFinding {
                     field.label(locale)
                 )
             }
+            Self::LastNameNotAllowed { allowed } => {
+                let allowed: Vec<String> = allowed.iter().map(ToString::to_string).collect();
+                trans!(
+                    "csb.brp.finding.last_name_not_allowed",
+                    locale,
+                    allowed.join(", ")
+                )
+            }
+            _ => unreachable!("only the findings about one field"),
+        }
+    }
+
+    /// What the committee is shown for this finding.
+    pub fn message(&self, locale: Locale) -> String {
+        match self {
+            Self::Mismatch { .. }
+            | Self::Unparsable { .. }
+            | Self::MissingInBrp { .. }
+            | Self::LastNameNotAllowed { .. } => self.field_message(locale),
             Self::BsnUnknown
             | Self::BsnNotUnique
             | Self::BsnMissing
@@ -243,5 +399,82 @@ impl BrpFinding {
             }
             Self::ResidenceUnknown => trans!("csb.brp.finding.residence_unknown", locale),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn name(prefix: Option<&str>, last_name: &str) -> BrpLastName {
+        BrpLastName {
+            last_name_prefix: prefix.map(|prefix| prefix.parse().unwrap()),
+            last_name: last_name.parse().unwrap(),
+        }
+    }
+
+    #[test]
+    fn a_hyphenated_name_keeps_the_first_prefix_and_writes_the_second_out() {
+        let own = name(Some("de"), "Bruin");
+        let partner = name(Some("van der"), "Groot");
+
+        assert_eq!(
+            own.hyphenated_with(&partner).unwrap().to_string(),
+            "de Bruin-van der Groot"
+        );
+        assert_eq!(
+            partner.hyphenated_with(&own).unwrap().to_string(),
+            "van der Groot-de Bruin"
+        );
+        assert_eq!(
+            name(None, "Jansen").hyphenated_with(&own),
+            Some(name(None, "Jansen-de Bruin"))
+        );
+    }
+
+    #[test]
+    fn the_not_allowed_message_lists_every_allowed_name() {
+        let finding = BrpFindingKind::LastNameNotAllowed {
+            allowed: vec![
+                name(Some("de"), "Bruin"),
+                name(None, "Jansen"),
+                name(Some("de"), "Bruin-Jansen"),
+                name(None, "Jansen-de Bruin"),
+            ],
+        };
+
+        assert_eq!(finding.field(), Some(BrpCheckedField::LastName));
+        assert!(finding.brp_value().is_none());
+        assert_eq!(
+            finding.message(Locale::Nl),
+            "De achternaam mag volgens de BRP zijn: de Bruin, Jansen, de Bruin-Jansen, Jansen-de Bruin"
+        );
+    }
+
+    #[test]
+    fn a_finding_recorded_before_the_handled_flag_still_reads() {
+        let bare: BrpFinding = serde_json::from_str(r#""NotDutch""#).unwrap();
+        assert_eq!(bare, BrpFinding::from(BrpFindingKind::NotDutch));
+
+        let bare: BrpFinding =
+            serde_json::from_str(r#"{"MissingInBrp":{"field":"Initials"}}"#).unwrap();
+        assert_eq!(
+            bare.kind,
+            BrpFindingKind::MissingInBrp {
+                field: BrpCheckedField::Initials
+            }
+        );
+        assert!(!bare.handled);
+    }
+
+    #[test]
+    fn the_handled_flag_survives_a_round_trip() {
+        let finding = BrpFinding {
+            kind: BrpFindingKind::BsnUnknown,
+            handled: true,
+        };
+        let json = serde_json::to_string(&finding).unwrap();
+        let read: BrpFinding = serde_json::from_str(&json).unwrap();
+        assert_eq!(read, finding);
     }
 }

@@ -81,10 +81,6 @@
   font-weight: var(--font-weight-bold);
   line-height: var(--leading-sm);
   margin: var(--space-6) 0 var(--space-2);
-
-  &:first-of-type {
-    margin-top: 0;
-  }
 }
 
 .restoration-strip {
@@ -196,8 +192,9 @@
 /* Errors and their absence carry no fill, and state the count before the icon
    rather than after it. */
 .restoration-tag-error,
+.restoration-tag-warning,
 .restoration-tag-ok {
-  --restoration-tag-bg: transparent;
+  --restoration-tag-bg: var(--base-white);
   border-radius: var(--rounded-md);
   flex-direction: row-reverse;
 }
@@ -207,14 +204,32 @@
   --restoration-tag-icon: url("../icons/error.svg");
 }
 
+.restoration-tag-warning {
+  --restoration-tag-icon: url("../icons/warning.svg");
+}
+
 .restoration-tag-ok {
   --restoration-tag-color: var(--green-700);
   --restoration-tag-icon: url("../icons/checkmarkSmall.svg");
 }
 
-/* The BRP check has not run, or did not cover every candidate. */
-.restoration-tag-pending {
-  --restoration-tag-bg: transparent;
+/* A BRP finding the committee dealt with: no problem, or an omission added.
+   Settled, so it carries no icon. */
+.restoration-tag-handled {
+  --restoration-tag-bg: var(--base-white);
+  --restoration-tag-color: var(--gray-500);
+  border-radius: var(--rounded-md);
+
+  &::before {
+    content: none;
+  }
+}
+
+/* The BRP check has not run ("pending"), or did not cover every candidate
+   ("incomplete"): quiet grey either way in a strip. */
+.restoration-tag-pending,
+.restoration-tag-incomplete {
+  --restoration-tag-bg: var(--base-white);
   --restoration-tag-color: var(--gray-500);
   --restoration-tag-icon: url("../icons/info.svg");
   border-radius: var(--rounded-md);
@@ -223,7 +238,7 @@
 
 /* The sweep is under way: a turning ring in place of the tag's icon. */
 .restoration-tag-running {
-  --restoration-tag-bg: transparent;
+  --restoration-tag-bg: var(--base-white);
   --restoration-tag-color: var(--gray-500);
   border-radius: var(--rounded-md);
 
@@ -252,7 +267,16 @@
   }
 }
 
-/* The link to the overview of everything registered for this item. */
+/* The link to the overview of everything registered for this item. It is
+   stretched over the whole strip, so the strip itself is the click target. */
+.restoration-strip:has(.restoration-strip-link) {
+  position: relative;
+
+  &:hover .restoration-strip-link {
+    text-decoration: underline;
+  }
+}
+
 .restoration-strip-link {
   align-items: center;
   color: var(--gray-800);
@@ -262,6 +286,12 @@
   margin-inline-start: auto;
   text-decoration: none;
   white-space: nowrap;
+
+  &::before {
+    content: "";
+    inset: 0;
+    position: absolute;
+  }
 
   &::after {
     background-color: currentColor;
@@ -396,4 +426,11 @@
     flex: 1 1 0;
     width: auto;
   }
+}
+
+.problem-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
 }

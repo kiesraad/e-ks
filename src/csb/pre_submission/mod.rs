@@ -5,7 +5,7 @@
 //! [`crate::Scope::PreSubmittedToCsb`]), apart from the examination's, and
 //! carry no omissions or corrections.
 pub(in crate::csb) mod extractors;
-mod pages;
+pub(in crate::csb) mod pages;
 mod paths;
 
 pub use pages::router;

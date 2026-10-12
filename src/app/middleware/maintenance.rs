@@ -56,19 +56,22 @@ pub fn handle_db_error(health: &DbHealth, err: AppError, request: &Request) -> R
     }
 }
 
-/// Render the static 503 maintenance page, localized from `Accept-Language`,
-/// with a `Retry-After` header and a "try again" link back to the request path.
+/// Render the static 503 maintenance page in the default locale, with a
+/// `Retry-After` header and a "try again" link back to the request path.
 fn maintenance_response(request: &Request) -> Response {
-    let locale = Locale::from_headers(request.headers());
-
     let retry_path = request
         .uri()
         .path_and_query()
         .map(|pq| pq.as_str().to_string())
         .unwrap_or_else(|| "/".to_string());
 
-    let mut response =
-        HtmlTemplate(MaintenanceTemplate { retry_path }, LocaleValues { locale }).into_response();
+    let mut response = HtmlTemplate(
+        MaintenanceTemplate { retry_path },
+        LocaleValues {
+            locale: Locale::default(),
+        },
+    )
+    .into_response();
 
     *response.status_mut() = StatusCode::SERVICE_UNAVAILABLE;
     response
@@ -111,7 +114,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn maintenance_response_localizes_from_accept_language() {
+    async fn maintenance_response_ignores_accept_language() {
         let request = Request::builder()
             .uri("/")
             .header(header::ACCEPT_LANGUAGE, "en-US,en;q=0.9")
@@ -119,7 +122,7 @@ mod tests {
             .unwrap();
         let response = maintenance_response(&request);
         let body = response_body_string(response).await;
-        assert!(body.contains("Temporarily unavailable"));
+        assert!(body.contains("Tijdelijk niet beschikbaar"));
     }
 
     #[cfg(feature = "database")]

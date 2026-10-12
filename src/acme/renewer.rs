@@ -38,14 +38,14 @@ struct Renewal<'a> {
 /// Renew this instance's certificate before it expires. `rustls_config` is a
 /// clone of the serving handle, so renewals go live without a restart.
 pub async fn run_acme_renewer(
-    acme: &'static AcmeConfig,
-    tls: &'static TlsConfig,
+    acme: AcmeConfig,
+    tls: TlsConfig,
     rustls_config: RustlsConfig,
     store: AcmeStore,
 ) {
     let renewal = Renewal {
-        acme,
-        tls,
+        acme: &acme,
+        tls: &tls,
         rustls_config: &rustls_config,
         store: &store,
     };

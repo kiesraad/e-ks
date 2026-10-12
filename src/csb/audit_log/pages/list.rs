@@ -26,6 +26,7 @@ const PER_PAGE: usize = 20;
 /// trans!("audit_log.filter.category.delete", _)
 /// trans!("audit_log.filter.category.paper_correction", _)
 /// trans!("audit_log.filter.category.correction", _)
+/// trans!("audit_log.filter.category.brp_validation", _)
 /// trans!("audit_log.filter.category.set_finished", _)
 /// trans!("audit_log.filter.category.omission", _)
 /// trans!("audit_log.filter.category.system", _)
@@ -52,6 +53,15 @@ pub const EVENT_TYPES_BY_CATEGORY: &[EventTypeCategory] = &[
     EventTypeCategory {
         key: "correction",
         event_types: &["update_correction"],
+    },
+    EventTypeCategory {
+        key: "brp_validation",
+        event_types: &[
+            "brp_lookup",
+            "brp_person_checked",
+            "set_brp_finding_handled",
+            "set_brp_status",
+        ],
     },
     EventTypeCategory {
         key: "set_finished",
@@ -359,6 +369,55 @@ mod tests {
 
         let body = response_body_string(response).await;
         assert!(body.contains("<td>Set finished state</td>"));
+
+        Ok(())
+    }
+
+    /// BRP requests are an event type of their own, so the log can be
+    /// narrowed to just what was sent to the BRP.
+    #[tokio::test]
+    async fn brp_lookups_can_be_filtered_on() -> Result<(), AppError> {
+        use crate::structs::brp::{BrpField, BrpLookup, BrpLookupOutcome, BrpQuery};
+
+        let state = AppState::new_for_tests().await;
+        let stream_id = StreamId::new();
+        let csb_store = state
+            .csb_store_for_stream(stream_id, ElectionConfig::EK27)
+            .await?;
+        csb_store
+            .update(CsbAction::SetFinished(true).by(CsbUser::new_test()))
+            .await?;
+        csb_store
+            .update(
+                CsbAction::BrpLookup(BrpLookup {
+                    persons: vec![],
+                    query: BrpQuery::ConsultWithBsn {
+                        bsn: vec!["999992806".parse().unwrap()],
+                        fields: vec![BrpField::Bsn],
+                    },
+                    outcome: BrpLookupOutcome::Returned { bsns: vec![] },
+                })
+                .by(CsbUser::new_test()),
+            )
+            .await?;
+
+        let response = call(
+            CsbMainStore::new_for_test(),
+            state,
+            Query(CsbAuditLogFilter {
+                stream: Some(stream_id.to_string()),
+                event_type: Some("brp_lookup".to_string()),
+                ..Default::default()
+            }),
+        )
+        .await?;
+
+        let body = response_body_string(response).await;
+        assert!(body.contains("<td>Consulted the BRP</td>"), "{body}");
+        assert!(!body.contains("<td>Set finished state</td>"));
+        // Offered in the filter, under the BRP check category.
+        assert!(body.contains(r#"<option value="brp_lookup""#));
+        assert!(body.contains(r#"<optgroup label="BRP check">"#));
 
         Ok(())
     }

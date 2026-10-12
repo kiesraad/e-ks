@@ -29,6 +29,17 @@ pub const TVS_TEST_BASE_URL: &str = "https://tvs-mock.eks-test.nl";
 pub const TVS_PREPRODUCTION_BASE_URL: &str = "https://pp2.toegang.overheid.nl";
 pub const TVS_PRODUCTION_BASE_URL: &str = "https://rd2.toegang.overheid.nl";
 
+// Domain every RD endpoint taken from the metadata (SSO, ARS, SLO) must live
+// under: the host is this domain or a subdomain of it. The metadata is signed,
+// but a forged or mis-verified document must still not be able to send the
+// browser (SSO/SLO) or the mTLS back-channel with its signed ArtifactResolve
+// (ARS) to an arbitrary host. A domain rather than exact hosts, because the TVS
+// serves the ARS from a different host than the metadata
+// (`artifact-pp2.toegang.overheid.nl` next to `pp2.toegang.overheid.nl`) and
+// may rename hosts within its domain.
+pub const RD_ENDPOINT_DOMAIN: &str = "toegang.overheid.nl";
+pub const RD_ENDPOINT_DOMAIN_TEST: &str = "eks-test.nl";
+
 // Kiesraad DV (Dienstverlener) display name, sent in the SP metadata /
 // AuthnRequest. Environment-independent.
 pub const DV_SERVICE_NAME: &str = "Kiesraad";
@@ -90,6 +101,15 @@ impl Environment {
             Self::Test => TVS_TEST_BASE_URL,
             Self::Preproduction => TVS_PREPRODUCTION_BASE_URL,
             Self::Production => TVS_PRODUCTION_BASE_URL,
+        }
+    }
+
+    /// The domain the RD endpoints in the metadata must live under
+    /// (see [`RD_ENDPOINT_DOMAIN`]).
+    pub fn rd_endpoint_domain(self) -> &'static str {
+        match self {
+            Self::Test => RD_ENDPOINT_DOMAIN_TEST,
+            Self::Preproduction | Self::Production => RD_ENDPOINT_DOMAIN,
         }
     }
 

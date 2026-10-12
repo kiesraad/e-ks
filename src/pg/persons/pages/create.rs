@@ -3,7 +3,7 @@ use askama::Template;
 use axum::response::{IntoResponse, Redirect, Response};
 
 use crate::{
-    AppError, Context, Form, HtmlTemplate, Overlay, PgStore, filters,
+    AppError, Context, Form, HtmlTemplate, Overlay, PgStore, QueryParamState, filters,
     form::FormData,
     persons::{PersonalDataForm, pages::PersonsCreatePath},
 };
@@ -22,7 +22,7 @@ pub async fn create_person(
     Ok(HtmlTemplate(
         PersonCreateTemplate {
             form: FormData::new(),
-            overlay: Overlay::default(),
+            overlay: Overlay::new_create(&QueryParamState::default()),
         },
         context,
     ))
@@ -38,7 +38,7 @@ pub async fn create_person_submit(
         Err(form_data) => Ok(HtmlTemplate(
             PersonCreateTemplate {
                 form: *form_data,
-                overlay: Overlay::default(),
+                overlay: Overlay::new_create(&QueryParamState::default()),
             },
             context,
         )
@@ -84,6 +84,7 @@ mod tests {
                 .count(),
             3,
         );
+        assert!(body.contains("data-create"));
     }
 
     #[tokio::test]

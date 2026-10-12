@@ -480,7 +480,7 @@ mod tests {
         let representative = Representative {
             name: FullName {
                 last_name: "Bos".parse().unwrap(),
-                initials: "E.".parse().unwrap(),
+                initials: Some("E.".parse().unwrap()),
                 ..Default::default()
             },
             address: DutchAddress::default(),

@@ -6,7 +6,7 @@ use axum::{
 };
 
 use crate::{
-    AppError, Context, EventHashPrefix, HtmlTemplate, Locale, Overlay, PgStore,
+    AppError, Context, EventHashPrefix, HtmlTemplate, Locale, Overlay, PgStore, QueryParamState,
     candidate_lists::{
         CSV_HEADERS, CandidateRecordCsv,
         importer::{ImportCandidateListError, import_candidate_list_csv},
@@ -46,7 +46,7 @@ fn render_import_export(
             list,
             export_path,
             import_errors,
-            overlay: Overlay::default(),
+            overlay: Overlay::new_edit(&QueryParamState::default()),
         },
         context,
     )

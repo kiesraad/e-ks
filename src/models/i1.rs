@@ -7,7 +7,7 @@ use textris_pdf::build::Textris;
 
 use super::{
     Pdf,
-    i4::{OmissionGroup, PublicSession},
+    inputs::{DistrictLists, OmissionGroup, PublicSession},
     layout::markdown_document,
     markdown::{filters, model_template},
 };
@@ -17,22 +17,12 @@ use crate::AppError;
 pub struct I1 {
     pub election_name: String,
     pub election_date: String,
-    /// The session in which the central voting bureau examined the lists;
-    /// same shape as the I 4 session.
+    /// The session in which the central voting bureau examined the lists.
     pub session: PublicSession,
     /// The lists that were submitted, one table per electoral district.
-    pub submitted_lists: Vec<DistrictLists>,
+    pub submitted_lists: Vec<DistrictLists<SubmittedList>>,
     /// Empty when the examination found no omissions.
     pub found_omissions: Vec<OmissionGroup>,
-}
-
-/// One "Kieskring" table of the submitted lists section: the district heading
-/// plus its rows, in the order they are printed.
-#[derive(Debug)]
-pub struct DistrictLists {
-    /// The district as printed after the "Kieskring" label, e.g. `20 (Bonaire)`.
-    pub electoral_district: String,
-    pub lists: Vec<SubmittedList>,
 }
 
 /// One row of a district table. The row number is the position in

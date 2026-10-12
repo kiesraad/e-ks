@@ -133,8 +133,10 @@ workspace-level dependency list.
 - **`development/`** (`eks-development`): a sibling crate that is *not* a
   dependency of `eks`. It ships local-only tooling: the `dev` orchestrator
   that brings up Docker dependencies and runs the app, the `setup` binary,
-  `update_locales`, and `pdf_diff` (used by CI to to visualize PDF document
-  differences).
+  `update_locales`, and `pdf_diff` (used by CI to visualize PDF document
+  differences). `pdf_diff` is run with `cargo run` rather than installed into
+  `bin/`, because the PDF models are compiled into it and a cached copy goes
+  stale as soon as `src/` changes.
 - **`tools/locales/`** (`eks-locales`): shared locale tooling, used by the `eks`
   build script (locale codegen), the `eks` test suite (used-key scanning) and
   the `update_locales` binary.
@@ -170,7 +172,7 @@ modules:
 | `src/error/` | `AppError`, the application-wide error type. Its mapping to a response lives in `src/view/`, the page layouts in `src/pg/` and `src/csb/`. |
 | `src/form/` | Generic form extraction and validation: the `Form<T>` extractor, CSRF tokens, file uploads, string validators. |
 | `src/pagination/` | Reusable list-pagination helpers (params, page links, page info). |
-| `src/fixtures/` | Sample data loaded into the store on startup in development/test (`fixtures` feature). The CSB counterpart, `src/csb/import/fixture.rs`, registers sample political groups with their previous election result and imports several of them, one with omissions and one with paper corrections. |
+| `src/fixtures/` | Sample data loaded into the store on startup in development/test (`fixtures` feature). The CSB counterpart, `src/csb/import/fixture.rs`, registers sample political groups with their previous election result and imports several of them, one with omissions, one with paper corrections and one with a list of too many candidates; one is also imported for the pre-submission check, its BRP check done and some candidates found wanting. |
 | `src/utils/` | Small standalone helpers (id newtypes, redirects, health check, embedding helpers, etc.). |
 
 ### `src/pg/` domain modules
@@ -303,7 +305,11 @@ The CSB section has two projections of its own on the shared store machinery
   imports it by hash (the same routine as `import`, into the
   `PreSubmittedToCsb` registry), runs the BRP check, and reads the findings
   per candidate off one page, so the group can fix them before the official
-  submission. No omissions, corrections or examination state.
+  submission. That page offers an overview for the group as PDF, Word and Markdown
+  (`models/brp_overview.rs`): every candidate with BRP findings or with
+  warnings from the group's own data entry, with the details the check
+  compares. The examination's BRP errors page offers the same document for an
+  imported list. No omissions, corrections or examination state.
 - **`examination`**: the examination of the imported lists. An overview
   groups the imported political groups by finished/unfinished; detail pages
   render the imported data read-only; omissions and corrections are recorded
@@ -328,7 +334,12 @@ The CSB section has two projections of its own on the shared store machinery
   is decrypted, so monitoring works without touching any political group's
   data.
 - **`audit_log`**: the CSB audit log, a read view over either the main
-  committee stream or a single imported stream.
+  committee stream or a single imported stream. Every request to the BRP is
+  on the stream as a `CsbAction::BrpLookup` (the candidates it was for, the
+  request as sent, and the burgerservicenummers returned or the error), ahead
+  of the `BrpPersonChecked` findings it led to; the detail page sets a
+  candidate's values against the BRP's and names the committee member, by
+  GitHub login and id, who started the check.
 - **`registered_political_groups`**: administration of the political groups
   registered for the election with their result at the previous election of
   the same body (appellation, votes, seats), kept on the CSB main stream. The
@@ -380,7 +391,15 @@ order on an incoming request is:
 1. **`eks-key` gate.** If `EKS_KEY` is configured, the request must carry a
    matching `x-eks-key` header, otherwise it is rejected with `401`. When the
    key is unset this layer is a no-op. Intended for gating the app behind a
-   known upstream.
+   known upstream. The separate CSB listener (`CSB_BIND_ADDRESS`) is never
+   gated.
+   **CSB IP allow list.** If `CSB_IP_ALLOW_LIST` is configured, requests to
+   the separate CSB listener from a peer address off the list are rejected
+   with `403` and reported, before any session lookup. The gate covers every
+   path on that listener bar `/lb-health` and the ACME challenge, and is not
+   applied to the main listener at all: a committee session correcting paper
+   documents uses the political-group routes too, so there is no `/csb` path
+   prefix to gate by.
 2. **Tracing and security headers.** HTTP tracing is opened, and the security
    response headers (CSP, `X-Frame-Options`, etc.) are scheduled. They are
    written by a layer rather than by handlers, so no handler can weaken them,
@@ -391,6 +410,8 @@ order on an incoming request is:
    session up in the `SessionStore`. A missing or invalid session redirects to
    `/login`. Otherwise the session's `last_activity` is refreshed and the
    `Session` is placed in the request extensions.
+   A committee session active within `CSB_ALERT_HOURS` is reported here too
+   (never blocked).
 4. **Store middleware.** App (political group) routes get `store_middleware`;
    CSB routes get `csb_store_middleware` instead. Both resolve a store from
    the matching registry, call `store.load()` so the projection catches up
@@ -544,7 +565,7 @@ Runtime configuration is read from environment variables once at startup into a
 
 | Variable | Purpose |
 |----------|---------|
-| `STORAGE_URL` | Persistence backend: `memory://`, `local://<dir>`, or `postgres://<connection_string>`. |
+| `STORAGE_URL` | Persistence backend: `memory://` or `postgres://<connection_string>`. |
 | `ID_DERIVATION_KEY` | Master secret for stream-id derivation. |
 | `MASTER_ENCRYPTION_KEY` | Master secret from which the key-wrapping key for the per-stream encryption keys is derived. |
 | `TLS_CERT_PATH` / `TLS_KEY_PATH` | HTTPS certificate and key; both or neither. |
@@ -556,10 +577,15 @@ Runtime configuration is read from environment variables once at startup into a
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` / `GITHUB_ALLOWED_USER_IDS` | Enable the CSB GitHub OAuth login (`/csb/login`): the GitHub OAuth app's credentials and the comma-separated numeric GitHub account ids allowed to log in; all three or none. The client secret is a secret like the master keys. |
 | `DEFAULT_ELECTION` | Election a login lands on when the flow has no election selection of its own (CSB logins, dev logins): the election code, with the election domain appended after a colon where the type needs one (e.g. `EK27`, `PS27:prov1`). Dev builds default to `EK27`. |
 | `BIND_ADDRESS` | Address the server binds to (also accepted as a CLI argument). |
-| `CSB_BIND_ADDRESS` | Serve the CSB section on a second listener, so it can be published on a domain of its own: a port number (bound on `0.0.0.0`) or an `address:port` with a numeric address. `/csb` is then unreachable on `BIND_ADDRESS`. The second listener serves the whole application, since a committee session correcting paper documents uses the political-group routes as well. With ACME both listeners present the certificate ordered for `ACME_DOMAIN`, so a second domain needs its TLS terminated upstream. |
+| `CSB_BIND_ADDRESS` | Serve the CSB section on a second listener, so it can be published on a domain of its own: a port number (bound on `0.0.0.0`) or an `address:port` with a numeric address. `/csb` is then unreachable on `BIND_ADDRESS`. The second listener serves the whole application, since a committee session correcting paper documents uses the political-group routes as well. It is not behind the `EKS_KEY` gate. |
+| `CSB_DOMAIN` | Domain the CSB listener is published on. With ACME it gets a certificate of its own, stored next to the `TLS_CERT_PATH` / `TLS_KEY_PATH` files with a `csb-` name prefix; without it the CSB listener presents the certificate ordered for `ACME_DOMAIN`. |
+| `CSB_IP_ALLOW_LIST` | Comma-separated IP addresses and CIDR ranges (IPv4 or IPv6) allowed to reach the CSB section. Any other peer gets a `403` and a warning with `event="csb.ip_denied"`. Gates the whole CSB listener except `/lb-health` and the ACME challenge, and therefore requires `CSB_BIND_ADDRESS` (startup fails without it). Matched against the TCP peer address, so a proxy in front must not sit between the listener and the committee. Unset leaves the section open. |
+| `CSB_ALERT_HOURS` | Local (Europe/Amsterdam) time range, `HH:MM-HH:MM` (e.g. `22:00-06:00`, wrapping midnight), in which committee activity is unexpected. A committee session active in that window logs a warning with `event="csb.alert_hours_activity"`, at most once per user and peer address per 30 minutes; nothing is blocked. Unset disables the check. |
 | `RATE_LIMIT_DOWNLOADS` / `RATE_LIMIT_DOWNLOADS_WINDOW_SECS` | Document downloads allowed per stream per window (default 60 per 3600s). |
 | `RATE_LIMIT_EVENTS` / `RATE_LIMIT_EVENTS_WINDOW_SECS` | Events one stream may record per window (default 2000 per 3600s). |
 | `RATE_LIMIT_EVENTS_TOTAL` | Absolute cap on the number of events in one stream (default 20000). |
+| `RATE_LIMIT_BLOCKED_NOTIFICATIONS` / `RATE_LIMIT_BLOCKED_NOTIFICATIONS_WINDOW_SECS` | CDN block notifications logged per logged-in user per window (default 10 per 3600s); see [Blocked-user notifications](#blocked-user-notifications). |
+| `STORE_CACHE_IDLE_MINUTES` | Evict cached political-group stores not used for this many minutes (default 1440, i.e. 24 hours); evicted streams reload from persistence on their next use. |
 
 The binary itself only reads `env::var`, but the deployment can supply these
 variables from a file (e.g. systemd `EnvironmentFile=`, Docker `--env-file`,
@@ -603,6 +629,48 @@ Every refused write logs a warning with `event="rate_limit.hit"`, the limit
 name (`downloads`, `events`, `events_total`) and the stream id; monitoring
 alerts on that marker.
 
+### Blocked-user notifications
+
+Bunny Shield, the CDN in front of the app, serves a custom page when it
+blocks a request. Blocked anonymous visitors are expected; a blocked logged-in
+user should raise an alert. The page's script therefore calls
+`GET /blocked-notification` with the page type (`block`, `challenge`,
+`rate_limit`), the blocked path, the referrer path and, where the browser
+exposes it, the response status. Bunny offers no template variables, so that
+is all the page can send.
+
+The handler (`src/app/blocked_notification.rs`) answers `204` to everyone and
+sits outside the session middleware: it reads the cookie itself, so anonymous
+calls are cheap and never logged, and a call is not session activity. For a
+logged-in user it logs a warning with `event="blocked_notification"`, the
+stream id (or committee member), the election, the page's fields and the
+headers Bunny adds to every proxied request: CDN request id, country code,
+bot classification and JA4 fingerprint. Client text is stripped of control
+characters and capped in length.
+
+It is a `GET` because the block page has no CSRF token and the handler
+changes nothing but a counter. That counter guards against flooding: each
+user is held to `RATE_LIMIT_BLOCKED_NOTIFICATIONS` per fixed window, per
+process. The first refusal logs `event="blocked_notification.throttled"`;
+the rest of the window is silent.
+
+A block on the client as a whole (IP block, rate limit) also blocks the
+notification, so those cases never reach the log.
+
+### CSB access alerts
+
+Two further markers guard the CSB section, both off until configured (see
+`CSB_IP_ALLOW_LIST` and `CSB_ALERT_HOURS` above):
+
+- `event="csb.ip_denied"`: a request to the CSB listener from a peer address
+  off the allow list, refused with `403`. Carries the peer address (`unknown`
+  when the server recorded none, which is refused as well), method and path.
+- `event="csb.alert_hours_activity"`: a committee session active within the
+  alert hours, raised at most once per user and peer address per 30 minutes
+  (`CSB_ALERT_HOURS_REPEAT_INTERVAL`) so a working session reports once, not
+  on every request. Carries the committee user, peer address, method, path
+  and the local time. The request itself is served as usual.
+
 ### Cargo features
 
 The build is tailored through Cargo features (`Cargo.toml`). The `default` set
@@ -635,7 +703,9 @@ the renewed cert/key back to the configured paths, and hot-reloads the running
 server without a restart. An instance may also start without provisioned
 cert/key files: at boot it writes a short-lived self-signed placeholder to
 the TLS paths (`src/acme/bootstrap.rs`) so the HTTPS server can come up, and
-the renewer replaces it with a real certificate on its first pass.
+the renewer replaces it with a real certificate on its first pass. With
+`CSB_DOMAIN` set, the CSB listener's certificate is bootstrapped and renewed
+the same way, from the same account.
 
 Because the application is scaled horizontally, http-01 challenge tokens are
 stored in the database, so the CA's validation request to
@@ -646,7 +716,8 @@ tokens are public by protocol. Deployment prerequisites:
 - Provision `ACME_ACCOUNT_CREDENTIALS` (see below).
 - Apply `deploy/schema.sql` to the database manually before enabling
   ACME (the `acme_challenges` table is not part of the startup migrations).
-- The CA dials `http://<domain>:80/.well-known/acme-challenge/...`; the load
+- The CA dials `http://<domain>:80/.well-known/acme-challenge/...` (for
+  `CSB_DOMAIN` too); the load
   balancer must forward that path to the instances, or redirect it to HTTPS
   (the CA follows redirects and does not validate the certificate).
 - The cert/key files should be writable; on a read-only volume the renewed
@@ -744,7 +815,12 @@ parameterized over a projection type `D`:
   persisted, and is used where a stream must already exist (the CSB
   extractors). Registry queries are scope-aware: `streams_by_scope` and
   `stream_metadata_by_scope` list only streams recorded with the projection's
-  own scope.
+  own scope. The political-group registry is bounded by idle eviction: a
+  sweeper task purges stores not handed out for `STORE_CACHE_IDLE_MINUTES`
+  (default 24 hours); evicted streams reload from persistence on their next
+  lookup. The CSB registries hold a handful of streams and are not swept. The
+  in-memory backend is exempt, since there the cached projection is the only
+  copy of the events.
 - **`PgStore`** (`src/pg/store_handle.rs`) is the handle the feature handlers
   actually work with: it pairs a `Store<PgStoreData>` projection (reads) with
   a *write target*. For a political group session the target is its own
@@ -773,16 +849,14 @@ event application takes a write lock.
 ### Storage backend
 
 All domain changes are stored as an append-only stream of events, partitioned per
-`(stream_id, election)`. Three backends exist (selected via `STORAGE_URL`):
-in-memory (`memory://`), local files (`local://`), and PostgreSQL (`postgres://`).
-On the file and database backends each event payload is encrypted at rest; the
-in-memory backend keeps plaintext only.
+`(stream_id, election)`. Two backends exist (selected via `STORAGE_URL`):
+in-memory (`memory://`) and PostgreSQL (`postgres://`). On the database backend
+each event payload is encrypted at rest; the in-memory backend keeps plaintext
+only.
 
 Every stream is additionally recorded with its `Scope` (`political_group`,
 `central_electoral_committee`, or `imported_by_csb`), and a registry only ever
-sees streams of its own scope. The local file backend accepts only
-political-group streams: CSB data lives exclusively in the database (the
-in-memory backend supports all scopes for development and tests).
+sees streams of its own scope.
 
 ### Stream IDs and not leaking the BSN
 
@@ -813,7 +887,7 @@ key.
 
 ### Event encoding
 
-Event payloads and the on-disk stream frames are serialized as CBOR, through
+Event payloads are serialized as CBOR, through
 the small wrapper in `src/store/encoding.rs` (built on `ciborium`). CBOR is
 self-describing: struct fields and enum variants are stored by name, not by
 position. That is what lets the event types evolve without corrupting an
@@ -853,8 +927,7 @@ the CSB main stream each get their own independent key. The stream key is
 stored *wrapped*: encrypted under a key-wrapping key derived at startup with
 HKDF-SHA256 from a master secret (`MASTER_ENCRYPTION_KEY`, distinct from the
 ID-derivation secret). The wrapped key lives next to the stream: the
-`streams.encrypted_key` column on the database backend, a
-`{stream_id}_{election}.key` sidecar file on the file backend. The
+`streams.encrypted_key` column on the database backend. The
 consequences:
 
 - Every `(user, election)` pair gets its own independent random key, so a key
@@ -892,12 +965,12 @@ hash_n = SHA256( hash_{n-1} ‖ event_id_n (u64 LE) ‖ created_at_n (i64 LE, mi
 - `hash_0` (the predecessor of the first event) is the all-zero "genesis" hash
   (`GENESIS_HASH`).
 - `body_n` is the *persisted* representation of the payload: the
-  `nonce ‖ ciphertext ‖ tag` AES-GCM blob for the file/database backends, or the
+  `nonce ‖ ciphertext ‖ tag` AES-GCM blob for the database backend, or the
   CBOR encoding of the plaintext for the in-memory backend. Hashing the
   *encrypted* blob (which is indistinguishable from random and carries a fresh
   nonce) is deliberate: it lets the hash be stored **unencrypted** without leaking
   anything about the plaintext, while still committing to the exact stored bytes.
-- `created_at` is hashed at microsecond precision because that is the precision that remains after a round-trip through the on-disk frame format and Postgres `timestamptz`.
+- `created_at` is hashed at microsecond precision because that is the precision that remains after a round-trip through Postgres `timestamptz`.
 
 In addition, the AES-GCM *associated data* for each event is
 `event_id ‖ created_at ‖ hash_{n-1}`. This authenticates the cleartext metadata

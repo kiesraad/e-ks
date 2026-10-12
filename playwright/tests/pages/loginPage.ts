@@ -6,7 +6,7 @@ export class loginPage {
 
   constructor(protected readonly page: Page) {
     this.headerLogin = this.page.getByRole("heading", {
-      name: "Kiesraad - Kandidaatstelling",
+      name: "Kandidaatstellen",
     });
     this.buttonLogin = this.page.getByRole("button", {
       name: "Inloggen",

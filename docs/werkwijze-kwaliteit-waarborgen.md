@@ -68,7 +68,7 @@ Daarnaast draaien de volgende checks adviserend: ze rapporteren wel een uitkomst
   - Sigrid score van minimaal 3.5 ster op nieuwe code, de uitkomst wordt als comment op de Pull Request geplaatst
   - SonarQube quality gate op nieuwe code (we gebruiken hiervoor de default "Sonar way" configuratie, met onder andere een test coverage van minimaal 80% op nieuwe code, gemeten over de Rust code)
 - Architectuur
-  - Cyclische dependencies tussen componenten (de top level directories onder `src/`) zijn niet toegestaan, dit wordt gecontroleerd door dylint
+  - Cyclische dependencies tussen componenten (de top level directories onder `src/`) zijn niet toegestaan, dit wordt gecontroleerd door dylint met de [dylint-module-cycles](https://github.com/tweedegolf/dylint-module-cycles) lint
 - Proces
   - Alle checkboxes van de DoD checklist in de beschrijving van de Pull Request zijn afgevinkt
 

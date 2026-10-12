@@ -33,7 +33,7 @@ pub async fn delete(
     Ok(HtmlTemplate(
         DeleteRegisteredPoliticalGroupTemplate {
             group,
-            overlay: Overlay::new(&query),
+            overlay: Overlay::new_edit(&query),
             close_action: CsbRegisteredPoliticalGroupsPath.to_string(),
         },
         context,

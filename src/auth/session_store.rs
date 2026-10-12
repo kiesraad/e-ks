@@ -2,8 +2,6 @@
 //!
 //! The backend is selected by `STORAGE_URL`:
 //! - `memory://...` → in-memory (default).
-//! - `local://...` → in-memory (disk is **not** a valid session backend; we
-//!   treat the filesystem as less trusted than application memory).
 //! - `postgres://...` / `postgresql://` → Postgres.
 
 use std::{collections::HashMap, sync::Arc};
@@ -11,7 +9,6 @@ use std::{collections::HashMap, sync::Arc};
 use parking_lot::RwLock;
 #[cfg(feature = "database")]
 use tracing::error;
-use tracing::info;
 
 use crate::{AppError, Session, auth::session::hash_token, utils::StorageScheme};
 
@@ -36,19 +33,9 @@ impl Default for SessionStore {
 
 impl SessionStore {
     /// Construct a session store from `STORAGE_URL`.
-    ///
-    /// Disk-backed storage (`local://`) is not a valid session backend and
-    /// falls back to an in-memory store (with a log line noting the fallback).
     pub fn from_storage_url(storage_url: &str) -> Result<Self, AppError> {
         match StorageScheme::parse(storage_url)? {
             StorageScheme::Memory => Ok(Self::default()),
-            StorageScheme::Local => {
-                info!(
-                    "sessions: STORAGE_URL is local://; falling back to in-memory \
-                     (disk-backed sessions are not supported)"
-                );
-                Ok(Self::default())
-            }
             StorageScheme::Postgres => {
                 #[cfg(feature = "database")]
                 {
@@ -363,14 +350,6 @@ mod tests {
     #[test]
     fn from_storage_url_memory_is_in_memory() {
         let store = SessionStore::from_storage_url("memory://").unwrap();
-        assert!(matches!(store, SessionStore::InMemory(_)));
-    }
-
-    #[test]
-    fn from_storage_url_local_falls_back_to_memory() {
-        // local:// with any path — disk is not a valid session backend, so we
-        // expect an in-memory fallback regardless of directory presence.
-        let store = SessionStore::from_storage_url("local:///does-not-matter").unwrap();
         assert!(matches!(store, SessionStore::InMemory(_)));
     }
 

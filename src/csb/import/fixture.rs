@@ -1,15 +1,18 @@
+use chrono::NaiveDate;
 use uuid::Uuid;
 
 use crate::{
-    AppError, AppRequestState, CsbAction, CsbMainAction, CsbMainStore, CsbStore, CsbStream,
-    CsbUser, ElectionConfig, ElectoralDistrict, PgStore, PgStoreData, StreamId,
+    AppError, AppRequestState, CsbAction, CsbMainAction, CsbMainStore, CsbStore, CsbStoreData,
+    CsbStream, CsbUser, ElectionConfig, ElectoralDistrict, PgStore, PgStoreData, StreamId,
     projection::WithCorrections,
+    store::StoreRegistry,
     structs::{
+        brp::{BrpFinding, BrpFindingKind, BrpStatus, BrpValue},
         candidate_lists::{CandidateList, CandidateListId},
         common::{Address, PreviousElectionResults},
         csb::{Omission, OmissionCategory, OmissionType, RegisteredPoliticalGroup},
         list_designation::ListDesignation,
-        persons::PersonId,
+        persons::{Person, PersonId},
         political_groups::PoliticalGroup,
     },
 };
@@ -29,6 +32,8 @@ enum Handling {
     /// Imported with the paper documents differing from the package, and no
     /// omissions.
     WithPaperCorrections,
+    /// Imported with the BRP check done, as the BRP answered it.
+    WithBrpFindings,
 }
 
 /// A political group of the CSB fixture: its registration with the committee
@@ -70,7 +75,7 @@ const FIXTURE_GROUPS: [FixtureGroup; 6] = [
     FixtureGroup {
         appellation: "Kiesvereniging Bijna Gekozen",
         registration: Some((98_765, 0)),
-        handling: Handling::Imported,
+        handling: Handling::WithBrpFindings,
     },
     FixtureGroup {
         appellation: "Actiegroep Laatste Moment",
@@ -78,6 +83,14 @@ const FIXTURE_GROUPS: [FixtureGroup; 6] = [
         handling: Handling::Imported,
     },
 ];
+
+/// The fixture group that also hands its package in ahead of nomination day
+/// for the pre-submission check (*voorinlevering*).
+const PRE_SUBMISSION_GROUP: &str = "De Stille Meerderheid";
+
+/// The fixture group whose first list has more candidates than it may; the
+/// lists of every other group are cut to fit.
+const TOO_MANY_CANDIDATES_GROUP: &str = "Beweging Losse Eindjes";
 
 impl FixtureGroup {
     /// The group's registration with the committee, under a stable id.
@@ -107,36 +120,67 @@ impl FixtureGroup {
     }
 }
 
-/// Register the fixture political groups with the committee and import their
-/// candidate lists as CSB streams, unless the fixture was imported already.
+/// Register the fixture political groups with the committee, import their
+/// candidate lists as CSB streams and import one of them for the pre-submission
+/// check, each unless that fixture was imported already.
 pub async fn import_csb_fixture<S: AppRequestState>(
     state: &S,
     election: ElectionConfig,
     user: CsbUser,
 ) -> Result<(), AppError> {
-    // Skip if a fixture import already exists for this election.
-    for store in state
-        .csb_store_registry()
-        .stores_for_election(election)
-        .await?
-    {
+    if !has_fixture_import(state.csb_store_registry(), election).await? {
+        import_examination_fixture(state, election, &user).await?;
+    }
+    if !has_fixture_import(state.pre_submission_store_registry(), election).await? {
+        import_pre_submission_fixture(state, election, &user).await?;
+    }
+
+    Ok(())
+}
+
+/// Whether `registry` holds a fixture import for this election.
+async fn has_fixture_import(
+    registry: &StoreRegistry<CsbStoreData>,
+    election: ElectionConfig,
+) -> Result<bool, AppError> {
+    for store in registry.stores_for_election(election).await? {
         let comes_from_fixtures = store.data.read().events.first().is_some_and(
             |e| matches!(&e.payload.action, CsbAction::Import { hash, .. } if *hash == FIXTURE_IMPORT_HASH),
         );
         if comes_from_fixtures {
-            return Ok(());
+            return Ok(true);
         }
     }
 
+    Ok(false)
+}
+
+/// Register the fixture political groups with the committee and import their
+/// candidate lists as CSB streams for the examination.
+async fn import_examination_fixture<S: AppRequestState>(
+    state: &S,
+    election: ElectionConfig,
+    user: &CsbUser,
+) -> Result<(), AppError> {
     let main_store = state.csb_main_store(election).await?;
 
     for group in &FIXTURE_GROUPS {
-        register(&main_store, &user, group).await?;
+        register(&main_store, user, group).await?;
 
         let store = match group.handling {
             Handling::NotHandedIn => continue,
-            Handling::Imported | Handling::WithOmissions | Handling::WithPaperCorrections => {
-                import_fixture_group(state, election, user.clone(), group).await?
+            Handling::Imported
+            | Handling::WithOmissions
+            | Handling::WithPaperCorrections
+            | Handling::WithBrpFindings => {
+                import_fixture_group(
+                    state,
+                    state.csb_store_registry(),
+                    election,
+                    user.clone(),
+                    group,
+                )
+                .await?
             }
         };
 
@@ -147,11 +191,36 @@ pub async fn import_csb_fixture<S: AppRequestState>(
                 }
             }
             Handling::WithPaperCorrections => fixture_paper_corrections(&store).await?,
+            Handling::WithBrpFindings => recorded_brp_check(&store).await?,
             Handling::NotHandedIn | Handling::Imported => {}
         }
     }
 
     Ok(())
+}
+
+/// Import the [`PRE_SUBMISSION_GROUP`]'s package for the pre-submission check,
+/// with the BRP check already done and some candidates having BRP
+/// discrepancies.
+async fn import_pre_submission_fixture<S: AppRequestState>(
+    state: &S,
+    election: ElectionConfig,
+    user: &CsbUser,
+) -> Result<(), AppError> {
+    let group = FIXTURE_GROUPS
+        .iter()
+        .find(|group| group.appellation == PRE_SUBMISSION_GROUP)
+        .expect("the pre-submission group is a fixture group");
+    let store = import_fixture_group(
+        state,
+        state.pre_submission_store_registry(),
+        election,
+        user.clone(),
+        group,
+    )
+    .await?;
+
+    fixture_brp_check(&store).await
 }
 
 /// Record the group's registration on the main stream, unless the group is
@@ -173,9 +242,10 @@ async fn register(
 }
 
 /// Load the fixtures into a fresh political group stream as `group` and
-/// import it as a fresh CSB stream.
+/// import it as a fresh stream of `registry`.
 async fn import_fixture_group<S: AppRequestState>(
     state: &S,
+    registry: &StoreRegistry<CsbStoreData>,
     election: ElectionConfig,
     user: CsbUser,
     group: &FixtureGroup,
@@ -184,15 +254,14 @@ async fn import_fixture_group<S: AppRequestState>(
     let app_store = state
         .store_for_stream(pg_stream_id, election, false)
         .await?;
-    crate::fixtures::load_for_group(&PgStore::own(app_store.clone()), group.political_group())
-        .await?;
+    let pg_store = PgStore::own(app_store.clone());
+    crate::fixtures::load_for_group(&pg_store, group.political_group()).await?;
+    fit_lists_to_maximum(&pg_store, group).await?;
     let events = app_store.data.read().events.clone();
     let snapshot = PgStoreData::snapshot_until(&events, usize::MAX);
 
     let store = CsbStore::acting_as(
-        state
-            .csb_store_for_stream(StreamId::new(), election)
-            .await?,
+        registry.get_or_create(StreamId::new(), election).await?,
         user,
     );
     store
@@ -204,6 +273,117 @@ async fn import_fixture_group<S: AppRequestState>(
         .await?;
 
     Ok(store)
+}
+
+/// Cut the group's lists to the number of candidates it may have, except the
+/// first list of [`TOO_MANY_CANDIDATES_GROUP`]. The candidates cut are the
+/// last ones the BRP fixture has no findings for, so no finding is lost.
+async fn fit_lists_to_maximum(store: &PgStore, group: &FixtureGroup) -> Result<(), AppError> {
+    let max = group.political_group().get_max_candidates();
+    let findings = crate::fixtures::brp_findings();
+    let lists = in_district_order(store.get_candidate_lists(), &store.election);
+
+    for (index, mut list) in lists.into_iter().enumerate() {
+        if index == 0 && group.appellation == TOO_MANY_CANDIDATES_GROUP {
+            continue;
+        }
+        let surplus = list.candidates.len().saturating_sub(max);
+        if surplus == 0 {
+            continue;
+        }
+        let cut: Vec<PersonId> = list
+            .candidates
+            .iter()
+            .rev()
+            .filter(|person| !findings.contains_key(person))
+            .take(surplus)
+            .copied()
+            .collect();
+        let kept: Vec<PersonId> = list
+            .candidates
+            .iter()
+            .copied()
+            .filter(|person| !cut.contains(person))
+            .collect();
+        list.update_order(store, &kept).await?;
+    }
+
+    Ok(())
+}
+
+/// The BRP check over the whole package as the BRP really answered it, from
+/// the findings the `personen-mock` produced for the fixture candidates (see
+/// `src/fixtures/brp_findings.json`).
+async fn recorded_brp_check(store: &CsbStore) -> Result<(), AppError> {
+    let findings = crate::fixtures::brp_findings();
+
+    record_brp_check(store, |person| {
+        findings.get(&person.id).cloned().unwrap_or_default()
+    })
+    .await
+}
+
+/// The outcome of a BRP check over the whole package, recorded rather than
+/// looked up so the fixture needs no BRP to be reachable: the first four
+/// candidates on the first list have discrepancies, one of them on two fields,
+/// and the BRP agrees with everyone else.
+async fn fixture_brp_check(store: &CsbStore) -> Result<(), AppError> {
+    let flagged: Vec<PersonId> = fixture_lists(store)
+        .first()
+        .map(|list| list.candidates.iter().copied().take(4).collect())
+        .unwrap_or_default();
+    let findings_at = |position: usize| -> Vec<BrpFinding> {
+        match position {
+            0 => vec![
+                BrpFindingKind::Mismatch {
+                    brp_value: BrpValue::PlaceOfResidence("Utrecht".parse().expect("locality")),
+                }
+                .into(),
+                BrpFindingKind::Mismatch {
+                    brp_value: BrpValue::Initials("A.B.C.".parse().expect("initials")),
+                }
+                .into(),
+            ],
+            1 => vec![BrpFindingKind::BsnUnknown.into()],
+            2 => vec![
+                BrpFindingKind::Deceased {
+                    date_of_death: NaiveDate::from_ymd_opt(2025, 11, 3),
+                }
+                .into(),
+            ],
+            3 => vec![BrpFindingKind::NotDutch.into()],
+            _ => Vec::new(),
+        }
+    };
+
+    record_brp_check(store, |person| {
+        flagged
+            .iter()
+            .position(|flagged| *flagged == person.id)
+            .map(findings_at)
+            .unwrap_or_default()
+    })
+    .await
+}
+
+/// Record a finished BRP check over every candidate in the package, with
+/// `findings_for` saying what the check found per candidate.
+async fn record_brp_check(
+    store: &CsbStore,
+    findings_for: impl Fn(&Person) -> Vec<BrpFinding>,
+) -> Result<(), AppError> {
+    for person in store.get_persons(WithCorrections::All) {
+        store
+            .update(CsbAction::BrpPersonChecked {
+                person: person.id,
+                findings: findings_for(&person),
+            })
+            .await?;
+    }
+
+    store
+        .update(CsbAction::SetBrpStatus(BrpStatus::Finished))
+        .await
 }
 
 /// Where the paper documents differ from the imported package: the list
@@ -231,7 +411,7 @@ async fn fixture_paper_corrections(store: &CsbStore) -> Result<(), AppError> {
     }
     if let Some(person_id) = candidates.next() {
         let mut person = corrections.get_person(*person_id)?;
-        person.name.initials = "A.B.C.".parse().expect("initials");
+        person.name.initials = Some("A.B.C.".parse().expect("initials"));
         person.update(&corrections).await?;
     }
 
@@ -278,8 +458,18 @@ fn fixture_omissions(store: &CsbStream) -> Vec<Omission> {
 /// The candidate lists in district order, so the first list is the one
 /// covering the first district.
 fn fixture_lists(store: &CsbStream) -> Vec<CandidateList> {
-    let districts = store.election.electoral_districts();
-    let mut lists = store.get_candidate_lists(WithCorrections::Paper);
+    in_district_order(
+        store.get_candidate_lists(WithCorrections::Paper),
+        &store.election,
+    )
+}
+
+/// `lists` sorted by the first district each covers.
+fn in_district_order(
+    mut lists: Vec<CandidateList>,
+    election: &ElectionConfig,
+) -> Vec<CandidateList> {
+    let districts = election.electoral_districts();
     lists.sort_by_key(|list| {
         list.electoral_districts
             .first()
@@ -301,14 +491,15 @@ fn declarations_of_support_omissions(lists: &[CandidateList]) -> Vec<Omission> {
     )]
 }
 
-/// Missing declarations of support for `districts`.
+/// Missing declarations of support for `districts`, named in the omission
+/// letter note.
 fn declarations_of_support_omission(key: &[u8], districts: &[ElectoralDistrict]) -> Omission {
     preset_omission(
         key,
         OmissionType::DeclarationsOfSupport,
         "Voor meerdere kieskringen ontbreken ondersteuningsverklaringen",
         OmissionCategory::DeclarationsOfSupport(districts.to_vec()),
-        &[],
+        &[("{districts}", district_names(districts))],
     )
 }
 
@@ -430,11 +621,25 @@ fn preset_omission(
     omission
 }
 
+/// District titles listed the way the add-omission dialog does: "A, B en C".
+fn district_names(districts: &[ElectoralDistrict]) -> String {
+    let titles: Vec<&str> = districts.iter().map(ElectoralDistrict::title).collect();
+    match titles.split_last() {
+        Some((last, [])) => last.to_string(),
+        Some((last, rest)) => format!("{} en {last}", rest.join(", ")),
+        None => String::new(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use super::*;
     use crate::{
-        AppState, core::election::WaterCouncil, csb::examination::numbering::list_numbering,
+        AppState,
+        core::election::WaterCouncil,
+        csb::examination::{numbering::list_numbering, structs::BrpCheckState},
     };
 
     /// The fixture groups that were imported, as many as have a handed-in list.
@@ -477,6 +682,29 @@ mod tests {
         fixture_store_named(&state, "Beweging Losse Eindjes").await
     }
 
+    /// The appellation of the one fixture group handled this way.
+    fn group_handled(handling: Handling) -> &'static str {
+        let mut groups = FIXTURE_GROUPS
+            .iter()
+            .filter(|group| group.handling == handling);
+        let group = groups.next().expect("a fixture group handled this way");
+        assert!(
+            groups.next().is_none(),
+            "only one group is handled this way"
+        );
+
+        group.appellation
+    }
+
+    /// The streams imported for the pre-submission check.
+    async fn pre_submission_stores(state: &AppState) -> Vec<CsbStream> {
+        state
+            .pre_submission_store_registry
+            .stores_by_scope()
+            .await
+            .expect("pre-submission stores")
+    }
+
     #[tokio::test]
     async fn repeated_import_is_a_no_op() {
         let state = AppState::new_for_tests().await;
@@ -499,12 +727,187 @@ mod tests {
             IMPORTED_GROUP_COUNT,
             "a second fixture import should be skipped"
         );
+        assert_eq!(
+            pre_submission_stores(&state).await.len(),
+            1,
+            "a second pre-submission fixture import should be skipped"
+        );
         let main_store = state.csb_main_store(election).await.unwrap();
         assert_eq!(
             main_store.registered_political_groups().len(),
             REGISTERED_GROUP_COUNT,
             "a second fixture import should register nothing"
         );
+    }
+
+    /// The BRP fixture is the mock's own answer about the fixture candidates,
+    /// recorded for one group and for no other.
+    #[tokio::test]
+    async fn one_examination_fixture_group_carries_the_findings_the_brp_returned()
+    -> Result<(), AppError> {
+        let state = fixture_state(ElectionConfig::EK27).await;
+        let checked = group_handled(Handling::WithBrpFindings);
+        let store = fixture_store_named(&state, checked).await;
+
+        assert!(matches!(store.get_brp_status(), BrpStatus::Finished));
+
+        // Nothing was recorded that the BRP did not return, and every
+        // candidate was checked, findings or not.
+        let generated = crate::fixtures::brp_findings();
+        let recorded = store.get_brp_findings();
+        assert_eq!(
+            recorded.len(),
+            store.get_persons(WithCorrections::All).len()
+        );
+        for (person, findings) in &recorded {
+            assert_eq!(findings, generated.get(person).unwrap_or(&Vec::new()));
+        }
+
+        // The candidates on its lists carry the findings the file holds for
+        // them.
+        let candidates: BTreeSet<PersonId> = store
+            .get_candidate_lists(WithCorrections::All)
+            .into_iter()
+            .flat_map(|list| list.candidates)
+            .collect();
+        let errors: usize = candidates
+            .iter()
+            .filter_map(|person| generated.get(person))
+            .map(Vec::len)
+            .sum();
+        assert!(errors > 0, "the BRP fixture group has nothing to show");
+        assert_eq!(
+            BrpCheckState::for_political_group(&store),
+            BrpCheckState::Errors { errors, handled: 0 }
+        );
+
+        for store in fixture_stores(&state).await {
+            if store.get_appellation(WithCorrections::None) != checked {
+                assert_eq!(
+                    BrpCheckState::for_political_group(&store),
+                    BrpCheckState::NotChecked,
+                    "only one examination fixture group is checked"
+                );
+            }
+        }
+
+        Ok(())
+    }
+
+    /// The lists with more candidates than the group may have, as
+    /// `(appellation, districts)`.
+    fn lists_over_maximum(store: &CsbStream) -> Vec<(String, Vec<ElectoralDistrict>)> {
+        let max = store
+            .get_political_group(WithCorrections::None)
+            .get_max_candidates();
+        store
+            .get_candidate_lists(WithCorrections::None)
+            .into_iter()
+            .filter(|list| list.candidates.len() > max)
+            .map(|list| {
+                (
+                    store.get_appellation(WithCorrections::None),
+                    list.electoral_districts.into_iter().collect(),
+                )
+            })
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn one_fixture_list_has_too_many_candidates() -> Result<(), AppError> {
+        let state = fixture_state(ElectionConfig::EK27).await;
+
+        let over: Vec<_> = fixture_stores(&state)
+            .await
+            .iter()
+            .flat_map(lists_over_maximum)
+            .collect();
+        assert_eq!(
+            over,
+            vec![(
+                TOO_MANY_CANDIDATES_GROUP.to_string(),
+                vec![ElectoralDistrict::Groningen]
+            )]
+        );
+
+        for store in pre_submission_stores(&state).await {
+            assert!(lists_over_maximum(&store).is_empty(), "pre-submission");
+        }
+
+        // Cutting the lists lost no BRP finding.
+        let findings = crate::fixtures::brp_findings();
+        let checked = fixture_store_named(&state, group_handled(Handling::WithBrpFindings)).await;
+        let candidates: BTreeSet<PersonId> = checked
+            .get_candidate_lists(WithCorrections::None)
+            .into_iter()
+            .flat_map(|list| list.candidates)
+            .collect();
+        assert!(findings.keys().all(|person| candidates.contains(person)));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn pre_submission_fixture_is_one_group_with_its_brp_check_done() -> Result<(), AppError> {
+        let state = fixture_state(ElectionConfig::EK27).await;
+
+        let stores = pre_submission_stores(&state).await;
+        assert_eq!(stores.len(), 1);
+        let store = &stores[0];
+        assert_eq!(
+            store.get_appellation(WithCorrections::None),
+            PRE_SUBMISSION_GROUP
+        );
+        // The same package the examination got, without anything the
+        // examination adds to it.
+        assert_eq!(
+            store.get_candidate_lists(WithCorrections::None).len(),
+            fixture_store_named(&state, PRE_SUBMISSION_GROUP)
+                .await
+                .get_candidate_lists(WithCorrections::None)
+                .len()
+        );
+        assert_eq!(store.get_omission_count(), 0);
+        assert!(!store.has_paper_corrections());
+
+        // Every candidate was checked; the first four on the first list have
+        // five findings between them.
+        assert!(matches!(store.get_brp_status(), BrpStatus::Finished));
+        assert_eq!(
+            BrpCheckState::for_political_group(store),
+            BrpCheckState::Errors {
+                errors: 5,
+                handled: 0
+            }
+        );
+        let first_list = fixture_lists(store).remove(0);
+        let findings = store.get_brp_findings();
+        let flagged: Vec<usize> = first_list
+            .candidates
+            .iter()
+            .map(|person| findings[person].len())
+            .collect();
+        assert_eq!(&flagged[..5], &[2, 1, 1, 1, 0]);
+        assert!(flagged[4..].iter().all(|count| *count == 0));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn pre_submission_fixture_is_added_to_an_existing_examination_fixture()
+    -> Result<(), AppError> {
+        let state = AppState::new_for_tests().await;
+        let election = ElectionConfig::EK27;
+        let user = CsbUser::new_test();
+        import_examination_fixture(&state, election, &user).await?;
+        assert!(pre_submission_stores(&state).await.is_empty());
+
+        import_csb_fixture(&state, election, user).await?;
+
+        assert_eq!(fixture_stores(&state).await.len(), IMPORTED_GROUP_COUNT);
+        assert_eq!(pre_submission_stores(&state).await.len(), 1);
+
+        Ok(())
     }
 
     #[tokio::test]
@@ -675,7 +1078,8 @@ mod tests {
         );
         let initials = store
             .get_person(changed[1], WithCorrections::Paper)
-            .map(|person| person.name.initials.to_string());
+            .and_then(|person| person.name.initials)
+            .map(|initials| initials.to_string());
         assert_eq!(initials, Some("A.B.C.".to_string()));
 
         Ok(())
@@ -801,6 +1205,20 @@ mod tests {
             omissions
                 .iter()
                 .all(|o| o.decision_count(&store.election) == 1)
+        );
+    }
+
+    #[test]
+    fn district_names_are_joined_with_en() {
+        assert_eq!(district_names(&[]), "");
+        assert_eq!(district_names(&[ElectoralDistrict::Utrecht]), "Utrecht");
+        assert_eq!(
+            district_names(&[
+                ElectoralDistrict::Groningen,
+                ElectoralDistrict::Fryslan,
+                ElectoralDistrict::Utrecht,
+            ]),
+            "Groningen, Fryslân en Utrecht"
         );
     }
 }

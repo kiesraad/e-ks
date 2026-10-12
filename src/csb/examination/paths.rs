@@ -40,11 +40,39 @@ pub struct CsbI1DocxDownloadPath;
 
 #[derive(TypedPath)]
 #[typed_path("/csb/examination/i4.pdf", rejection(AppError))]
-pub struct CsbI4DownloadPath;
+pub struct CsbI4DraftDownloadPath;
 
 #[derive(TypedPath)]
 #[typed_path("/csb/examination/i4.docx", rejection(AppError))]
-pub struct CsbI4DocxDownloadPath;
+pub struct CsbI4DraftDocxDownloadPath;
+
+#[derive(TypedPath)]
+#[typed_path(
+    "/csb/examination/publicatie-kandidatenlijsten.pdf",
+    rejection(AppError)
+)]
+pub struct CsbCandidateListPublicationDownloadPath;
+
+#[derive(TypedPath)]
+#[typed_path(
+    "/csb/examination/publicatie-kandidatenlijsten.docx",
+    rejection(AppError)
+)]
+pub struct CsbCandidateListPublicationDocxDownloadPath;
+
+#[derive(TypedPath, Deserialize)]
+#[typed_path(
+    "/csb/examination/overzicht-kandidatenlijsten.pdf",
+    rejection(AppError)
+)]
+pub struct CsbCandidateListOverviewDownloadPath;
+
+#[derive(TypedPath, Deserialize)]
+#[typed_path(
+    "/csb/examination/overzicht-kandidatenlijsten.docx",
+    rejection(AppError)
+)]
+pub struct CsbCandidateListOverviewDocxDownloadPath;
 
 #[derive(TypedPath, Deserialize)]
 #[typed_path("/csb/examination/{stream_id}", rejection(AppError))]
@@ -79,6 +107,28 @@ pub struct CsbAllBrpFindingsPath {
 #[derive(TypedPath, Deserialize)]
 #[typed_path("/csb/examination/{stream_id}/brp-check", rejection(AppError))]
 pub struct CsbBrpCheckPath {
+    pub stream_id: StreamId,
+}
+
+/// The overview of the BRP findings of one group for the political group, as
+/// PDF: the same document the pre-submission check offers.
+#[derive(TypedPath, Deserialize)]
+#[typed_path("/csb/examination/{stream_id}/brp-overzicht.pdf", rejection(AppError))]
+pub struct CsbBrpOverviewDownloadPath {
+    pub stream_id: StreamId,
+}
+
+/// The same overview as [`CsbBrpOverviewDownloadPath`], as Word document.
+#[derive(TypedPath, Deserialize)]
+#[typed_path("/csb/examination/{stream_id}/brp-overzicht.docx", rejection(AppError))]
+pub struct CsbBrpOverviewDocxDownloadPath {
+    pub stream_id: StreamId,
+}
+
+/// The same overview as [`CsbBrpOverviewDownloadPath`], as Markdown.
+#[derive(TypedPath, Deserialize)]
+#[typed_path("/csb/examination/{stream_id}/brp-overzicht.md", rejection(AppError))]
+pub struct CsbBrpOverviewMarkdownDownloadPath {
     pub stream_id: StreamId,
 }
 
@@ -162,6 +212,20 @@ pub struct CsbCandidateBrpCheckPath {
     pub stream_id: StreamId,
     pub list_id: CandidateListId,
     pub person_id: PersonId,
+}
+
+/// One of a candidate's BRP findings, by its position among them as the
+/// candidate page lists them.
+#[derive(TypedPath, Deserialize)]
+#[typed_path(
+    "/csb/examination/{stream_id}/list/{list_id}/candidate/{person_id}/brp-finding/{index}/handled",
+    rejection(AppError)
+)]
+pub struct CsbCandidateBrpFindingHandledPath {
+    pub stream_id: StreamId,
+    pub list_id: CandidateListId,
+    pub person_id: PersonId,
+    pub index: usize,
 }
 
 #[derive(TypedPath, Deserialize)]
@@ -332,6 +396,30 @@ impl CsbPoliticalGroup {
         }
     }
 
+    /// Download of the overview of the BRP findings for the political group,
+    /// as PDF.
+    pub fn brp_overview_pdf_path(&self) -> impl TypedPath {
+        CsbBrpOverviewDownloadPath {
+            stream_id: self.stream_id,
+        }
+    }
+
+    /// Download of the overview of the BRP findings for the political group,
+    /// as Word document.
+    pub fn brp_overview_docx_path(&self) -> impl TypedPath {
+        CsbBrpOverviewDocxDownloadPath {
+            stream_id: self.stream_id,
+        }
+    }
+
+    /// Download of the overview of the BRP findings for the political group,
+    /// as Markdown.
+    pub fn brp_overview_markdown_path(&self) -> impl TypedPath {
+        CsbBrpOverviewMarkdownDownloadPath {
+            stream_id: self.stream_id,
+        }
+    }
+
     pub fn start_paper_corrections_path(&self) -> impl TypedPath {
         CsbPaperCorrectionsStartPath {
             stream_id: self.stream_id,
@@ -457,6 +545,22 @@ impl CsbPoliticalGroup {
             stream_id: self.stream_id,
             list_id: *list,
             person_id: *person,
+        }
+    }
+
+    /// Path that records whether one of a candidate's BRP findings was dealt
+    /// with.
+    pub fn candidate_brp_finding_handled_path(
+        &self,
+        list: &CandidateListId,
+        person: &PersonId,
+        index: &usize,
+    ) -> impl TypedPath {
+        CsbCandidateBrpFindingHandledPath {
+            stream_id: self.stream_id,
+            list_id: *list,
+            person_id: *person,
+            index: *index,
         }
     }
 

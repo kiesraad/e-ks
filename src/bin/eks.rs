@@ -1,6 +1,6 @@
 use eks::{
     AppError, AppState, Config, logging, router, router::WithCsbRoutes, run_db_prober,
-    run_session_sweeper, server,
+    run_session_sweeper, run_store_cache_sweeper, server,
 };
 use tokio::net::TcpListener;
 
@@ -38,12 +38,29 @@ async fn start(address: String) {
         &format!("Failed to bind to address {address}"),
     );
 
-    or_exit(run(listener, config).await, "Application error");
+    // `CSB_BIND_ADDRESS` moves the CSB section to a listener of its own, so it
+    // can be published on a separate domain.
+    let csb_listener = match config.csb_bind_address {
+        Some(address) => Some(or_exit(
+            TcpListener::bind(address).await,
+            &format!("Failed to bind CSB_BIND_ADDRESS {address}"),
+        )),
+        None => None,
+    };
+
+    or_exit(
+        run(listener, csb_listener, config).await,
+        "Application error",
+    );
 }
 
-/// Runs the application with the given TCP listener and resolved configuration.
+/// Runs the application with the given TCP listeners and resolved configuration.
 /// Initializes application state, builds the router, and starts the server.
-async fn run(listener: TcpListener, config: Config) -> Result<(), AppError> {
+async fn run(
+    listener: TcpListener,
+    csb_listener: Option<TcpListener>,
+    config: Config,
+) -> Result<(), AppError> {
     // Create application state
     let state = AppState::new_with_config(config).await?;
 
@@ -63,22 +80,31 @@ async fn run(listener: TcpListener, config: Config) -> Result<(), AppError> {
     // otherwise).
     tokio::spawn(run_session_sweeper(state.sessions.clone()));
 
-    // `CSB_BIND_ADDRESS` moves the CSB section to a listener of its own, so it
-    // can be published on a separate domain. It serves the whole application:
+    // Evict political-group stores no request touched for the configured
+    // idle time, so that cache does not grow with every stream ever visited.
+    tokio::spawn(run_store_cache_sweeper(
+        state.store_registry.clone(),
+        state.config.store_cache_idle_timeout,
+    ));
+
+    // A second listener (from `CSB_BIND_ADDRESS`) serves the whole application:
     // a committee session correcting paper documents uses the political-group
     // routes too, and its host-scoped session cookie never reaches the other
     // listener. Both routers get clones of the one `AppState`, so the stores,
-    // sessions and caches behind it are shared, not duplicated.
-    let csb = match state.config.csb_bind_address {
-        Some(address) => Some((
-            or_exit(
-                TcpListener::bind(address).await,
-                &format!("Failed to bind CSB_BIND_ADDRESS {address}"),
-            ),
-            router::create(state.clone()).with_state(state.clone()),
-        )),
-        None => None,
-    };
+    // sessions and caches behind it are shared, not duplicated. Only its config
+    // differs: without `eks_key`, so the `x-eks-key` gate is off there; the
+    // CSB IP allow list gates the whole listener instead.
+    let csb = csb_listener.map(|listener| {
+        let mut csb_state = state.clone();
+        csb_state.config = Box::leak(Box::new(Config {
+            eks_key: None,
+            ..state.config.clone()
+        }));
+        (
+            listener,
+            router::create(csb_state.clone()).with_state(csb_state),
+        )
+    });
 
     let csb_routes = match csb {
         Some(_) => WithCsbRoutes::Excluded,
@@ -94,20 +120,20 @@ async fn run(listener: TcpListener, config: Config) -> Result<(), AppError> {
     if let (Some(tls), Some(acme)) = (state.config.tls.as_ref(), state.config.acme.as_ref()) {
         // Fail fast on malformed account credentials.
         let _ = eks::parse_acme_account_credentials(acme)?;
-        eks::bootstrap_certificate(acme, tls).await?;
-        let rustls_config = server::build_rustls_config(tls).await?;
-        tokio::spawn(eks::run_acme_renewer(
-            acme,
-            tls,
-            rustls_config.clone(),
-            state.acme_store.clone(),
-        ));
-        // Both listeners present the certificate ordered for `ACME_DOMAIN`, so
-        // a separate CSB domain needs its TLS terminated upstream.
+        let rustls_config =
+            eks::start_acme_renewal(acme.clone(), tls.clone(), state.acme_store.clone()).await?;
         let primary = server::serve_tls(router, listener, rustls_config.clone());
         return match csb {
             Some((csb_listener, csb_router)) => {
-                let csb = server::serve_tls(csb_router, csb_listener, rustls_config);
+                // `CSB_DOMAIN` gets a certificate of its own; without it the
+                // CSB listener presents the one ordered for `ACME_DOMAIN`.
+                let csb_rustls_config = match state.config.csb_acme() {
+                    Some((acme, tls)) => {
+                        eks::start_acme_renewal(acme, tls, state.acme_store.clone()).await?
+                    }
+                    None => rustls_config,
+                };
+                let csb = server::serve_tls(csb_router, csb_listener, csb_rustls_config);
                 tokio::try_join!(primary, csb).map(|_| ())
             }
             None => primary.await,
@@ -131,7 +157,7 @@ mod tests {
     use super::*;
     use axum::http::StatusCode;
     use reqwest::Client;
-    use std::net::{SocketAddr, TcpListener as StdTcpListener};
+    use std::net::TcpListener as StdTcpListener;
     use tokio::{
         net::TcpListener,
         time::{Duration, sleep},
@@ -159,12 +185,17 @@ mod tests {
 
     /// Logs in through the development bypass and returns the session cookie;
     /// `extra` appends query parameters (`csb=true` for a committee session).
+    ///
+    /// No `bsn`, so the route mints a fresh stream instead of deriving one from
+    /// it. A shared stream is a shared event log: the tests in this binary run
+    /// in parallel against one database, and the second login to append to the
+    /// same stream is refused with a conflict.
     async fn dev_login_with(base: &str, extra: &str) -> String {
         let client = Client::builder()
             .redirect(reqwest::redirect::Policy::none())
             .build()
             .unwrap();
-        let url = format!("{base}/dev/login?bsn=999999990&fixtures=false{extra}");
+        let url = format!("{base}/dev/login?fixtures=false{extra}");
         let resp = client.get(&url).send().await.unwrap();
         assert_eq!(resp.status(), StatusCode::SEE_OTHER);
         resp.headers()
@@ -184,7 +215,7 @@ mod tests {
         let addr = listener.local_addr().unwrap();
         let config = Config::from_env().expect("config");
         let server = tokio::spawn(async move {
-            run(listener, config).await.unwrap();
+            run(listener, None, config).await.unwrap();
         });
 
         let base = format!("http://{addr}");
@@ -201,18 +232,9 @@ mod tests {
         server.abort();
     }
 
-    /// A free port, released again before the server binds it.
-    fn free_port() -> u16 {
-        StdTcpListener::bind("127.0.0.1:0")
-            .unwrap()
-            .local_addr()
-            .unwrap()
-            .port()
-    }
-
-    /// Waits until `url` answers, so the spawned server has bound its listener.
-    /// Before the bind the connection is refused rather than held open, so the
-    /// request returns at once and the sleep is what paces the retries.
+    /// Waits until `url` answers, so the spawned server is serving. Its listener
+    /// is already bound, so a request that arrives first waits in the accept
+    /// queue instead of being refused; the client timeout bounds that wait.
     async fn wait_until_ready(url: &str) {
         let client = Client::builder()
             .redirect(reqwest::redirect::Policy::none())
@@ -236,14 +258,20 @@ mod tests {
     async fn csb_bind_address_serves_the_csb_section_on_a_second_listener() {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
-        let csb_port = free_port();
+
+        // Hold the CSB listener rather than picking a port and releasing it: a
+        // port handed back to the kernel is claimed by whatever binds next, and
+        // the tests in this binary run in parallel.
+        let csb_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let csb_addr = csb_listener.local_addr().unwrap();
 
         let mut config = Config::from_env().expect("config");
-        config.csb_bind_address = Some(SocketAddr::from(([127, 0, 0, 1], csb_port)));
+        config.csb_bind_address = Some(csb_addr);
 
-        let server = tokio::spawn(async move { run(listener, config).await.unwrap() });
+        let server =
+            tokio::spawn(async move { run(listener, Some(csb_listener), config).await.unwrap() });
 
-        let csb_base = format!("http://127.0.0.1:{csb_port}");
+        let csb_base = format!("http://{csb_addr}");
         wait_until_ready(&format!("{csb_base}/lb-health")).await;
 
         let cookie = dev_login_with(&csb_base, "&csb=true").await;
@@ -263,6 +291,63 @@ mod tests {
         assert_eq!(status, StatusCode::SEE_OTHER);
 
         server.abort();
+    }
+
+    /// The `x-eks-key` gate guards the main listener only.
+    #[cfg_attr(not(feature = "net-tests"), ignore = "requires network")]
+    #[tokio::test]
+    async fn csb_listener_skips_the_eks_key_gate() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let csb_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let csb_addr = csb_listener.local_addr().unwrap();
+
+        let mut config = Config::from_env().expect("config");
+        config.eks_key = Some(secrecy::SecretString::from("s3cret"));
+        config.csb_bind_address = Some(csb_addr);
+
+        let server =
+            tokio::spawn(async move { run(listener, Some(csb_listener), config).await.unwrap() });
+        wait_until_ready(&format!("http://{csb_addr}/lb-health")).await;
+
+        let (status, _) = fetch_with_cookie(&format!("http://{csb_addr}/robots.txt"), "").await;
+        assert_eq!(status, StatusCode::OK);
+
+        let (status, _) = fetch_with_cookie(&format!("http://{addr}/robots.txt"), "").await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+        server.abort();
+    }
+
+    /// The CSB listener refuses peers off `CSB_IP_ALLOW_LIST` with the real
+    /// TCP peer address, except for the load-balancer probe.
+    #[cfg_attr(not(feature = "net-tests"), ignore = "requires network")]
+    #[tokio::test]
+    async fn csb_listener_refuses_peers_off_the_ip_allow_list() {
+        for (allow_list, expected) in [
+            ("203.0.113.7", StatusCode::FORBIDDEN),
+            ("127.0.0.0/8", StatusCode::OK),
+        ] {
+            let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let csb_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let csb_addr = csb_listener.local_addr().unwrap();
+
+            let mut config = Config::from_env().expect("config");
+            config.csb_bind_address = Some(csb_addr);
+            config.csb_ip_allow_list =
+                Some(eks::CsbIpAllowList::parse(allow_list).expect("allow list"));
+
+            let server =
+                tokio::spawn(
+                    async move { run(listener, Some(csb_listener), config).await.unwrap() },
+                );
+            wait_until_ready(&format!("http://{csb_addr}/lb-health")).await;
+
+            let (status, _) = fetch_with_cookie(&format!("http://{csb_addr}/robots.txt"), "").await;
+            assert_eq!(status, expected, "{allow_list}");
+
+            server.abort();
+        }
     }
 
     #[cfg_attr(not(feature = "net-tests"), ignore = "requires network")]

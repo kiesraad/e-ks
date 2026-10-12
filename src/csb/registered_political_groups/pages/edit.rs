@@ -36,10 +36,15 @@ fn render(
     form: FormData<RegisteredPoliticalGroupForm>,
     group: Option<RegisteredPoliticalGroup>,
 ) -> Response {
+    let overlay = if group.is_none() {
+        Overlay::new_create(query)
+    } else {
+        Overlay::new_edit(query)
+    };
     HtmlTemplate(
         EditRegisteredPoliticalGroupTemplate {
             form,
-            overlay: Overlay::new(query),
+            overlay,
             close_action: CsbRegisteredPoliticalGroupsPath.to_string(),
             group,
         },

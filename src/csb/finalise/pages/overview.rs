@@ -4,10 +4,7 @@ use axum::response::{IntoResponse, Response};
 use crate::{
     AppError, Context, CsbContext, CsbMainStore, HtmlTemplate,
     csb::{
-        examination::{
-            CsbI4DocxDownloadPath, CsbI4DownloadPath, extractors::CsbPoliticalGroups,
-            numbering::ListNumbering,
-        },
+        examination::{extractors::CsbPoliticalGroups, numbering::ListNumbering},
         finalise::paths::{CsbFinalisePath, CsbListOrderPath},
     },
     filters,
@@ -84,6 +81,8 @@ mod tests {
         assert!(body.contains(r#"href="/csb/examination/i4.pdf""#));
         assert!(body.contains(r#"href="/csb/examination/i4.docx""#));
         assert!(body.contains("Add objection"));
+        // The page leads back to the CSB overview.
+        assert!(body.contains(r#"href="/csb" class="button secondary">Back<"#));
     }
 
     /// The I 4 hearing is recorded here, in phase 4, and nowhere else.

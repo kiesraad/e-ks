@@ -22,7 +22,7 @@
         </td>
         <td>
           <strong>{{ person.name.last_name_with_prefix_appended() }},</strong>
-          {{ person.name.initials }}
+          {{ person.name.initials|display }}
           {% if let Some(first_name) = person.name.first_name %}({{ first_name }}){% endif %}
         </td>
         <td>

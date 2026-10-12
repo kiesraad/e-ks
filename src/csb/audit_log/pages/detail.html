@@ -27,11 +27,38 @@
           <pre>{{ detail.details }}</pre>
         </dd>
       {% endif %}
+      {% for fact in detail.facts %}
+        <dt>{{ fact.label }}</dt>
+        <dd>
+          {{ fact.value }}
+        </dd>
+      {% endfor %}
     </dl>
-    {% if detail.changes.is_empty() %}
+    {% if detail.is_empty() %}
       <p class="mb-md">{{ "audit_log.detail.no_changes"|trans }}</p>
-    {% else %}
+    {% endif %}
+    {% if !detail.changes.is_empty() %}
       {{ diff::table(detail.changes) }}
+    {% endif %}
+    {% if !detail.comparison.is_empty() %}
+      <table class="diff-table mb-md">
+        <thead>
+          <tr>
+            <th scope="col">{{ "audit_log.detail.field"|trans }}</th>
+            <th scope="col">{{ "audit_log.detail.brp.list_value"|trans }}</th>
+            <th scope="col">{{ "audit_log.detail.brp.brp_value"|trans }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in detail.comparison %}
+            <tr>
+              <th scope="row">{{ row.field }}</th>
+              <td>{{ row.list_value }}</td>
+              <td>{{ row.brp_value }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     {% endif %}
   </div>
 {% endblock %}

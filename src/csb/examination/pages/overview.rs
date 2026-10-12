@@ -78,12 +78,17 @@ mod tests {
         // The seeded group's appellation is rendered in the "added" table.
         let body = response_body_string(response).await;
         assert!(body.contains("Kiesraad Demo"));
+        // The page leads back to the CSB overview.
+        assert!(body.contains(r#"href="/csb" class="button secondary">Back<"#));
     }
 
     #[tokio::test]
     async fn the_brp_column_follows_the_group_rather_than_always_reading_correct() {
         let groups = CsbPoliticalGroups(vec![CsbPoliticalGroup {
-            brp: BrpCheckState::Errors { errors: 2 },
+            brp: BrpCheckState::Errors {
+                errors: 2,
+                handled: 0,
+            },
             ..group(false)
         }]);
 
@@ -99,6 +104,30 @@ mod tests {
         let body = response_body_string(response).await;
         assert!(body.contains("Errors"), "{body}");
         assert!(!body.contains("Correct"));
+    }
+
+    #[tokio::test]
+    async fn a_group_whose_errors_are_all_handled_shows_the_handled_badge() {
+        let groups = CsbPoliticalGroups(vec![CsbPoliticalGroup {
+            brp: BrpCheckState::Errors {
+                errors: 2,
+                handled: 2,
+            },
+            ..group(false)
+        }]);
+
+        let response = overview(
+            CsbExaminationOverviewPath {},
+            CsbContext::new_test(),
+            groups,
+        )
+        .await
+        .unwrap()
+        .into_response();
+
+        let body = response_body_string(response).await;
+        assert!(body.contains(r#"class="handled""#), "{body}");
+        assert!(!body.contains(">Errors<"));
     }
 
     #[tokio::test]

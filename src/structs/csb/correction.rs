@@ -9,7 +9,8 @@ use crate::structs::{
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 pub enum PersonCorrection {
-    Initials(Initials),
+    /// `None` clears the initials, for a person the BRP holds none for.
+    Initials(Option<Initials>),
     /// `None` clears the prefix, which has to be correctable to absent.
     LastNamePrefix(Option<LastNamePrefix>),
     LastName(LastName),

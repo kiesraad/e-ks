@@ -111,7 +111,7 @@ impl AuthState for AppState {
             stream_id,
             name_id.into_string(),
             election,
-            Locale::from_headers(headers),
+            Locale::default(),
         );
         session.set_user_agent_hash(user_agent_hash(headers));
 
@@ -153,7 +153,6 @@ impl AuthState for AppState {
         &self,
         failure: AuthFailure,
         jar: CookieJar,
-        headers: &HeaderMap,
         end_session: bool,
     ) -> Response {
         // TVS L10, only when the RD answered this browser's own flow: a
@@ -163,7 +162,7 @@ impl AuthState for AppState {
         } else {
             jar
         };
-        let locale = Locale::from_headers(headers);
+        let locale = Locale::default();
 
         // No session and no stream, so the log is the only place this can land.
         warn!(
