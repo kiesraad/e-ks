@@ -124,8 +124,6 @@ pub(crate) async fn verify_login(
             origin: &config.origin,
             // Step 15: SHA-256 of the expected RP ID.
             rp_id_hash: &config.rp_id_hash(),
-            // Step 6: the user handle of the user account.
-            user_handle: &user.user_handle,
             // Step 21: `credentialRecord.publicKey`.
             public_key: &user.public_key,
         })
@@ -198,9 +196,6 @@ pub(crate) mod test_support {
         pub(crate) sign_count: u32,
         /// Bytes after the signature counter in the authenticator data.
         pub(crate) trailing_data: Vec<u8>,
-        /// `userHandle` in the response; `None` posts `null`, as a
-        /// non-resident key yields.
-        pub(crate) user_handle: Option<Vec<u8>>,
         pub(crate) client_extension_results: serde_json::Value,
         pub(crate) credential_id: CredentialId,
         pub(crate) signing_key: SigningKey,
@@ -222,7 +217,6 @@ pub(crate) mod test_support {
                 extra_flags: 0,
                 sign_count: 7,
                 trailing_data: Vec::new(),
-                user_handle: None,
                 client_extension_results: serde_json::json!({}),
                 credential_id: test_credential_id(),
                 signing_key: test_signing_key(),
@@ -272,7 +266,6 @@ pub(crate) mod test_support {
                     "authenticatorData": b64(&auth_data),
                     "clientDataJSON": b64(&client_data),
                     "signature": b64(signature.to_der().as_bytes()),
-                    "userHandle": self.user_handle.as_deref().map(b64),
                 },
                 "clientExtensionResults": self.client_extension_results,
             })

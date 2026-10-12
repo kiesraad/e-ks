@@ -599,7 +599,7 @@ Runtime configuration is read from environment variables once at startup into a
 | `SERVER_NAME` | Short server identifier shown in the page footer. |
 | `EKS_KEY` | Optional shared secret for the `x-eks-key` request gate. |
 | `CSB_WEBAUTHN_ORIGIN` | Enable the CSB security-key (WebAuthn) login (`/csb/login`): the origin the CSB section is served on, e.g. `https://csb.example.nl` (`http://localhost:3000` in development). Its host is the WebAuthn relying-party id, so keys enrolled for one host only work there. Outside `dev-features` builds it requires `CSB_BIND_ADDRESS` (startup fails without it), so the login is never served on the main listener. |
-| `CSB_WEBAUTHN_USERS` | Comma-separated `username:user-handle:credential-id:public-key` entries (blobs base64url without padding), one per committee member allowed to log in, as printed by `bin/enrol_csb_user` (see [docs/csb-enrolment.md](csb-enrolment.md)). Requires `CSB_WEBAUTHN_ORIGIN`. One malformed entry, a duplicate username, or a key listed for two users refuses the whole configuration. The entries are public keys, not secrets. |
+| `CSB_WEBAUTHN_USERS` | Comma-separated `username:credential-id:public-key` entries (blobs base64url without padding), one per committee member allowed to log in, as printed by `bin/enrol_csb_user` (see [docs/csb-enrolment.md](csb-enrolment.md)). Requires `CSB_WEBAUTHN_ORIGIN`. One malformed entry, a duplicate username, or a key listed for two users refuses the whole configuration. The entries are public keys, not secrets. |
 | `DEFAULT_ELECTION` | Election a login lands on when the flow has no election selection of its own (CSB logins, dev logins): the election code, with the election domain appended after a colon where the type needs one (e.g. `EK27`, `PS27:prov1`). Dev builds default to `EK27`. |
 | `BIND_ADDRESS` | Address the server binds to (also accepted as a CLI argument). |
 | `CSB_BIND_ADDRESS` | Serve the CSB section on a second listener, so it can be published on a domain of its own: a port number (bound on `0.0.0.0`) or an `address:port` with a numeric address. `/csb` is then unreachable on `BIND_ADDRESS`. The second listener serves the whole application, since a committee session correcting paper documents uses the political-group routes as well. It is not behind the `EKS_KEY` gate. |
@@ -631,7 +631,7 @@ development default either; enabling it for `bin/dev` takes:
 
 ```sh
 CSB_WEBAUTHN_ORIGIN=http://localhost:3000
-CSB_WEBAUTHN_USERS=alice:Qm1kbm9...:zGJB3Yi...:MFkwEwYH...
+CSB_WEBAUTHN_USERS=alice:zGJB3Yi...:MFkwEwYH...
 ```
 
 `bin/enrol_csb_user alice localhost` prints the `CSB_WEBAUTHN_USERS` entry

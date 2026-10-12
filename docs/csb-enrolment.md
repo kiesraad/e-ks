@@ -46,13 +46,20 @@ as third argument. The member enters the PIN when asked and touches the key
 when it blinks. The script prints one line:
 
 ```
-alice:Qm1kbm9...:zGJB3Yi...:MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE...
+alice:zGJB3Yi...:MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE...
 ```
 
-That is `username:user-handle:credential-id:public-key`, the blobs base64url
-without padding, so the line pastes into a shell, `.env` or YAML file as is.
-It need not be kept secret, but it goes from this terminal into the
-configuration, never through mail or chat.
+That is `username:credential-id:public-key`, the blobs base64url without
+padding, so the line pastes into a shell, `.env` or YAML file as is. It need
+not be kept secret, but it goes from this terminal into the configuration,
+never through mail or chat.
+
+The credential is non-discoverable (not a "passkey" in the key's own
+storage): the key stores nothing and derives the private key from the
+credential id when the login page presents it, which is why the page lists
+every configured credential. That is deliberate. The key keeps no trace of
+e-KS, takes up none of its limited passkey slots, and revoking a key is
+removing its line: there is nothing to delete from the key itself.
 
 ## Configure
 
@@ -61,7 +68,7 @@ when there are several, and restarts e-KS:
 
 ```sh
 CSB_WEBAUTHN_ORIGIN=https://csb.example.nl
-CSB_WEBAUTHN_USERS=alice:Qm1kbm9...:zGJB3Yi...:MFkw...,bob:dXNlcm...:5Qk1Lx...:MFkw...
+CSB_WEBAUTHN_USERS=alice:zGJB3Yi...:MFkw...,bob:5Qk1Lx...:MFkw...
 ```
 
 A production build also requires `CSB_BIND_ADDRESS`: the login is only
@@ -78,13 +85,14 @@ lines with different usernames.
 The script only wraps `fido2-cred`. By hand:
 
 ```sh
-user_handle=$(head -c 32 /dev/urandom | base64)
-{ head -c 32 /dev/urandom | base64; echo csb.example.nl; echo alice; echo "$user_handle"; } > param
+{ head -c 32 /dev/urandom | base64; echo csb.example.nl; echo alice; head -c 32 /dev/urandom | base64; } > param
 fido2-cred -M -i param /dev/hidraw5 | fido2-cred -V -v -o cred
 ```
 
-`cred` then holds the credential id (first line, base64) followed by the
-public key as PEM. The configuration line is the username, the user handle,
-the credential id and the PEM body without its header and footer lines,
-separated by colons, each blob converted to unpadded base64url with
-`tr '+/' '-_' | tr -d '=\n'`.
+The first and last input lines are the client data hash and the user id,
+which `fido2-cred` requires but which play no further role: the key stores
+neither for a non-discoverable credential. `cred` then holds the credential
+id (first line, base64) followed by the public key as PEM. The configuration
+line is the username, the credential id and the PEM body without its header
+and footer lines, separated by colons, each blob converted to unpadded
+base64url with `tr '+/' '-_' | tr -d '=\n'`.

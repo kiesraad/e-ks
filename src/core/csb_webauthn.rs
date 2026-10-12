@@ -1,8 +1,8 @@
 //! Configuration of the CSB security-key login: the WebAuthn relying party
-//! and the committee members registered in advance, each with the user
-//! handle, credential id and public key of their security key: the
-//! credential record of §4 of the specification
-//! (<https://w3c.github.io/webauthn/#credential-record>). See
+//! and the committee members registered in advance, each with the credential
+//! id and public key of their security key: the credential record of §4 of
+//! the specification (<https://w3c.github.io/webauthn/#credential-record>),
+//! as far as a non-discoverable credential needs one. See
 //! `docs/csb-enrolment.md`.
 
 use std::fmt::Display;
@@ -65,9 +65,6 @@ pub struct CsbWebauthnConfig {
 #[derive(Debug, Clone)]
 pub struct CsbWebauthnUser {
     pub username: CsbUsername,
-    /// The user handle the key was enrolled with: random bytes, which a key
-    /// that reports one must echo (§7.2 step 6).
-    pub user_handle: Vec<u8>,
     pub credential_id: CredentialId,
     /// The ES256 (P-256) public key of that credential.
     pub public_key: VerifyingKey,
@@ -75,8 +72,8 @@ pub struct CsbWebauthnUser {
 
 impl CsbWebauthnConfig {
     /// Parses `origin` (`CSB_WEBAUTHN_ORIGIN`, e.g. `https://csb.example.nl`)
-    /// and the comma-separated `username:user-handle:credential-id:public-key`
-    /// list (`CSB_WEBAUTHN_USERS`, blobs base64url without padding, the key
+    /// and the comma-separated `username:credential-id:public-key` list
+    /// (`CSB_WEBAUTHN_USERS`, blobs base64url without padding, the key
     /// its SPKI DER, as `bin/enrol_csb_user` prints them). Strict: one
     /// malformed entry rejects the whole configuration rather than silently
     /// dropping a user.
@@ -142,26 +139,16 @@ impl CsbWebauthnConfig {
     }
 }
 
-/// One `username:user-handle:credential-id:public-key` entry.
+/// One `username:credential-id:public-key` entry.
 fn parse_user(entry: &str) -> Result<CsbWebauthnUser, String> {
     let mut parts = entry.split(':');
-    let (Some(username), Some(user_handle), Some(credential_id), Some(public_key), None) = (
-        parts.next(),
-        parts.next(),
-        parts.next(),
-        parts.next(),
-        parts.next(),
-    ) else {
+    let (Some(username), Some(credential_id), Some(public_key), None) =
+        (parts.next(), parts.next(), parts.next(), parts.next())
+    else {
         return Err(format!(
-            "entry {entry:?} is not username:user-handle:credential-id:public-key"
+            "entry {entry:?} is not username:credential-id:public-key"
         ));
     };
-    let user_handle = BASE64_URL_SAFE_NO_PAD
-        .decode(user_handle)
-        .map_err(|_| format!("user handle of {username} is not unpadded base64url"))?;
-    if user_handle.is_empty() {
-        return Err(format!("user handle of {username} is empty"));
-    }
     let credential_id = BASE64_URL_SAFE_NO_PAD
         .decode(credential_id)
         .map_err(|_| format!("credential id of {username} is not unpadded base64url"))?;
@@ -175,7 +162,6 @@ fn parse_user(entry: &str) -> Result<CsbWebauthnUser, String> {
         .map_err(|_| format!("public key of {username} is not a P-256 public key"))?;
     Ok(CsbWebauthnUser {
         username: username.parse()?,
-        user_handle,
         credential_id: CredentialId(credential_id),
         public_key,
     })
@@ -199,20 +185,15 @@ pub(crate) mod test_support {
         CredentialId(vec![0x11; 64])
     }
 
-    pub(crate) fn test_user_handle() -> Vec<u8> {
-        vec![0x33; 32]
-    }
-
-    /// The `user-handle:credential-id:public-key` part of a configuration
-    /// entry for the test key, as `bin/enrol_csb_user` prints it.
+    /// The `credential-id:public-key` part of a configuration entry for the
+    /// test key, as `bin/enrol_csb_user` prints it.
     pub(crate) fn test_credential_encoded() -> String {
         let der = test_signing_key()
             .verifying_key()
             .to_public_key_der()
             .expect("spki der");
         format!(
-            "{}:{}:{}",
-            BASE64_URL_SAFE_NO_PAD.encode(test_user_handle()),
+            "{}:{}",
             test_credential_id(),
             BASE64_URL_SAFE_NO_PAD.encode(der.as_bytes())
         )
@@ -243,7 +224,6 @@ mod tests {
             .user_by_credential_id(&test_credential_id())
             .expect("alice");
         assert_eq!(alice.username.as_str(), "alice");
-        assert_eq!(alice.user_handle, test_user_handle());
         assert_eq!(&alice.public_key, test_signing_key().verifying_key());
         assert!(
             config
@@ -279,32 +259,24 @@ mod tests {
         }
 
         let credential = test_credential_encoded();
-        let [handle, id, key]: [&str; 3] = credential
+        let [id, key]: [&str; 2] = credential
             .split(':')
             .collect::<Vec<_>>()
             .try_into()
-            .expect("three parts");
+            .expect("two parts");
         for users in [
             "alice".to_string(),
-            format!("alice:{id}:{key}"),
-            format!("alice:{handle}:{id}"),
+            format!("alice:{key}"),
+            format!("alice:{id}"),
             format!("alice:{credential}:extra"),
             format!("al ice:{credential}"),
             format!("alice:{credential},alice:{credential}"),
-            format!("alice:not*base64:{id}:{key}"),
-            format!("alice::{id}:{key}"),
-            format!("alice:{handle}:not*base64:{key}"),
-            format!("alice:{handle}::{key}"),
-            format!(
-                "alice:{handle}:{id}:{}",
-                BASE64_URL_SAFE_NO_PAD.encode("not a key")
-            ),
+            format!("alice:not*base64:{key}"),
+            format!("alice::{key}"),
+            format!("alice:{id}:{}", BASE64_URL_SAFE_NO_PAD.encode("not a key")),
             // Standard base64 (padded, with + and /) is not accepted.
-            format!(
-                "alice:{handle}:{id}:{}",
-                BASE64_STANDARD.encode([0xfb, 0xff])
-            ),
-            format!("alice:{handle}:{id}=:{key}"),
+            format!("alice:{id}:{}", BASE64_STANDARD.encode([0xfb, 0xff])),
+            format!("alice:{id}=:{key}"),
         ] {
             assert!(
                 CsbWebauthnConfig::parse(TEST_ORIGIN, Some(&users)).is_err(),

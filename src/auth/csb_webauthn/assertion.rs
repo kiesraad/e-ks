@@ -1,15 +1,17 @@
 //! Verification of a WebAuthn assertion for the CSB login: the relying-party
 //! steps of §7.2 of the specification
 //! (<https://w3c.github.io/webauthn/#sctn-verifying-assertion>), for the one
-//! shape in use: ES256 keys, non-resident credentials, no extensions, no
+//! shape in use: ES256 keys, non-discoverable credentials, no extensions, no
 //! framing. Step numbers in the comments are those of that section. Only the
 //! data the authenticator signed is trusted; the rest of what the browser
 //! sends is checked for shape and otherwise ignored.
 //!
 //! Steps 1 and 2 (the options and the `get()` call) are the login page and
 //! the browser script; steps 5, 6, 22 and 24 (the credential record and the
-//! signature counter) are in the parent module. Step 19 (backup-state
-//! policy) is not applied: the configuration records no backup eligibility.
+//! signature counter) are in the parent module. For step 19 (backup-state
+//! policy) every credential record is implicitly not backup eligible: keys
+//! are enrolled through libfido2, so they are hardware security keys, whose
+//! credentials are never synced elsewhere.
 
 use std::fmt::Display;
 
@@ -55,12 +57,6 @@ struct AssertionResponse {
     client_data_json: Vec<u8>,
     #[serde(deserialize_with = "base64url")]
     signature: Vec<u8>,
-    #[serde(
-        rename = "userHandle",
-        default,
-        deserialize_with = "optional_base64url"
-    )]
-    user_handle: Option<Vec<u8>>,
 }
 
 /// The signed client data (§5.8.1), as far as it is checked.
@@ -83,14 +79,12 @@ pub(super) struct Expected<'a> {
     pub(super) challenge: &'a str,
     pub(super) origin: &'a Origin,
     pub(super) rp_id_hash: &'a [u8; 32],
-    pub(super) user_handle: &'a [u8],
     pub(super) public_key: &'a VerifyingKey,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum AssertionError {
     NotPublicKeyCredential,
-    UserHandleMismatch,
     ClientDataMalformed,
     WrongCeremony,
     ChallengeMismatch,
@@ -100,7 +94,7 @@ pub(crate) enum AssertionError {
     RpIdMismatch,
     UserNotPresent,
     UserNotVerified,
-    BackupStateInconsistent,
+    BackupFlagSet,
     UnrequestedOutputs,
     SignatureInvalid,
     SignCountNotAdvanced,
@@ -110,7 +104,6 @@ impl Display for AssertionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
             Self::NotPublicKeyCredential => "credential is not of type public-key",
-            Self::UserHandleMismatch => "user handle is not the registered user's",
             Self::ClientDataMalformed => "client data is malformed",
             Self::WrongCeremony => "client data is not from a webauthn.get ceremony",
             Self::ChallengeMismatch => "challenge does not match the one issued",
@@ -120,7 +113,7 @@ impl Display for AssertionError {
             Self::RpIdMismatch => "relying-party id hash does not match",
             Self::UserNotPresent => "user presence flag is not set",
             Self::UserNotVerified => "user verification flag is not set",
-            Self::BackupStateInconsistent => "backed-up flag is set on a non-backup-eligible key",
+            Self::BackupFlagSet => "backup flags are set: not a hardware security key",
             Self::UnrequestedOutputs => {
                 "assertion carries extension outputs or attested credential data that were not requested"
             }
@@ -157,13 +150,6 @@ impl Assertion {
         // the response fields parsed above.
         if self.credential_type != "public-key" {
             return Err(AssertionError::NotPublicKeyCredential);
-        }
-        // Step 6: when the key reports a user handle, it must be the one of
-        // the account the credential is registered for.
-        if let Some(user_handle) = &self.response.user_handle
-            && !bool::from(user_handle.ct_eq(expected.user_handle))
-        {
-            return Err(AssertionError::UserHandleMismatch);
         }
         self.verify_client_data(expected)?;
         let sign_count = self.verify_authenticator_data(expected)?;
@@ -222,9 +208,10 @@ impl Assertion {
         if flags & FLAG_USER_VERIFIED == 0 {
             return Err(AssertionError::UserNotVerified);
         }
-        // Step 18.
-        if flags & FLAG_BACKUP_ELIGIBLE == 0 && flags & FLAG_BACKUP_STATE != 0 {
-            return Err(AssertionError::BackupStateInconsistent);
+        // Steps 18 and 19: the record is never backup eligible, so neither
+        // flag may be set (a set BS without BE fails step 18 by itself).
+        if flags & (FLAG_BACKUP_ELIGIBLE | FLAG_BACKUP_STATE) != 0 {
+            return Err(AssertionError::BackupFlagSet);
         }
         // Step 23: no extensions were requested, so unsolicited extension
         // outputs (client or authenticator) are rejected rather than
@@ -265,26 +252,10 @@ fn base64url<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::E
         .map_err(serde::de::Error::custom)
 }
 
-/// A user handle is never empty (§14.6.1), so an empty one counts as absent.
-fn optional_base64url<'de, D: Deserializer<'de>>(
-    deserializer: D,
-) -> Result<Option<Vec<u8>>, D::Error> {
-    Option::<String>::deserialize(deserializer)?
-        .map(|encoded| {
-            BASE64_URL_SAFE_NO_PAD
-                .decode(encoded)
-                .map_err(serde::de::Error::custom)
-        })
-        .transpose()
-        .map(|handle| handle.filter(|bytes| !bytes.is_empty()))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::auth::csb_webauthn::test_support::{
-        TEST_ORIGIN, TestAssertion, test_signing_key, test_user_handle,
-    };
+    use crate::auth::csb_webauthn::test_support::{TEST_ORIGIN, TestAssertion, test_signing_key};
 
     const CHALLENGE: [u8; 32] = [7; 32];
 
@@ -296,7 +267,6 @@ mod tests {
             challenge: &BASE64_URL_SAFE_NO_PAD.encode(CHALLENGE),
             origin: &origin,
             rp_id_hash: &rp_id_hash,
-            user_handle: &test_user_handle(),
             public_key: signing_key.verifying_key(),
         })
     }
@@ -324,15 +294,10 @@ mod tests {
         assertion.sign_count = 42;
         assert_eq!(verify(&assertion), Ok(42));
 
-        // A key that reports its user handle (step 6) and a client that
-        // marks the ceremony same-origin or prefixes a byte order mark.
-        assertion.user_handle = Some(test_user_handle());
+        // A client that marks the ceremony same-origin or prefixes a byte
+        // order mark.
         assertion.cross_origin = Some(false);
         assertion.client_data_bom = true;
-        assert_eq!(verify(&assertion), Ok(42));
-
-        // An empty user handle is as good as none.
-        assertion.user_handle = Some(Vec::new());
         assert_eq!(verify(&assertion), Ok(42));
     }
 
@@ -354,16 +319,6 @@ mod tests {
                 "credential type",
                 |a| a.credential_type = "public-key-x",
                 AssertionError::NotPublicKeyCredential,
-            ),
-            (
-                "user handle",
-                |a| a.user_handle = Some(vec![0x44; 32]),
-                AssertionError::UserHandleMismatch,
-            ),
-            (
-                "user handle length",
-                |a| a.user_handle = Some(test_user_handle()[..31].to_vec()),
-                AssertionError::UserHandleMismatch,
             ),
             (
                 "ceremony",
@@ -425,7 +380,17 @@ mod tests {
             (
                 "backup state without eligibility",
                 |a| a.extra_flags = FLAG_BACKUP_STATE,
-                AssertionError::BackupStateInconsistent,
+                AssertionError::BackupFlagSet,
+            ),
+            (
+                "backup eligible",
+                |a| a.extra_flags = FLAG_BACKUP_ELIGIBLE,
+                AssertionError::BackupFlagSet,
+            ),
+            (
+                "backed up",
+                |a| a.extra_flags = FLAG_BACKUP_ELIGIBLE | FLAG_BACKUP_STATE,
+                AssertionError::BackupFlagSet,
             ),
             (
                 "attested credential data",
@@ -454,19 +419,6 @@ mod tests {
                 AssertionError::AuthenticatorDataMalformed,
             ),
         ]);
-    }
-
-    /// A backup-eligible key may report either backup state (step 18).
-    #[test]
-    fn accepts_backup_flags_of_an_eligible_key() {
-        for extra_flags in [
-            FLAG_BACKUP_ELIGIBLE,
-            FLAG_BACKUP_ELIGIBLE | FLAG_BACKUP_STATE,
-        ] {
-            let mut assertion = TestAssertion::new(&CHALLENGE);
-            assertion.extra_flags = extra_flags;
-            assert_eq!(verify(&assertion), Ok(7), "{extra_flags:#x}");
-        }
     }
 
     #[test]
@@ -515,12 +467,9 @@ mod tests {
             bad[field] = value;
             assert!(serde_json::from_value::<Assertion>(bad).is_err(), "{field}");
         }
-        let mut no_type = valid.clone();
+        let mut no_type = valid;
         no_type.as_object_mut().expect("object").remove("type");
         assert!(serde_json::from_value::<Assertion>(no_type).is_err());
-        let mut bad_handle = valid;
-        bad_handle["response"]["userHandle"] = "not base64!".into();
-        assert!(serde_json::from_value::<Assertion>(bad_handle).is_err());
         assert!(serde_json::from_str::<Assertion>("{}").is_err());
     }
 }

@@ -4,22 +4,18 @@
 
 function fromBase64url(value: string): ArrayBuffer {
   const binary = atob(value.replaceAll("-", "+").replaceAll("_", "/"));
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes.buffer;
+  return Uint8Array.from(binary, (char) => char.codePointAt(0) ?? 0).buffer;
 }
 
 function toBase64url(buffer: ArrayBuffer): string {
-  let binary = "";
-  for (const byte of new Uint8Array(buffer)) {
-    binary += String.fromCharCode(byte);
-  }
+  const binary = Array.from(new Uint8Array(buffer), (byte) =>
+    String.fromCodePoint(byte),
+  ).join("");
+  // Padding only ever occurs at the end, so dropping every "=" strips it.
   return btoa(binary)
     .replaceAll("+", "-")
     .replaceAll("/", "_")
-    .replace(/=+$/, "");
+    .replaceAll("=", "");
 }
 
 // The server sends every binary field base64url-encoded; the browser API
@@ -55,9 +51,6 @@ function serialize(credential: PublicKeyCredential): Record<string, unknown> {
       authenticatorData: toBase64url(response.authenticatorData),
       clientDataJSON: toBase64url(response.clientDataJSON),
       signature: toBase64url(response.signature),
-      userHandle: response.userHandle?.byteLength
-        ? toBase64url(response.userHandle)
-        : null,
     },
     clientExtensionResults: credential.getClientExtensionResults(),
   };
@@ -91,6 +84,7 @@ export default function setupWebauthnCeremony() {
 
   const options = JSON.parse(form.dataset.webauthnOptions ?? "{}");
 
+  // Never rejects: every failure shows the error and the retry button.
   const run = async () => {
     errorAlert.classList.add("hidden");
     retryButton.classList.add("hidden");
@@ -99,7 +93,7 @@ export default function setupWebauthnCeremony() {
         publicKey: requestOptions(options.publicKey),
       });
       if (!(credential instanceof PublicKeyCredential)) {
-        throw new Error("no credential");
+        throw new TypeError("no credential");
       }
       credentialInput.value = JSON.stringify(serialize(credential));
       form.submit();
@@ -112,9 +106,9 @@ export default function setupWebauthnCeremony() {
 
   retryButton.addEventListener("click", (event) => {
     event.preventDefault();
-    run();
+    void run();
   });
   if (form.dataset.webauthnAutostart !== "false") {
-    run();
+    void run();
   }
 }

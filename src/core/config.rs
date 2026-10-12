@@ -319,7 +319,7 @@ where
 
 /// Security-key login config from `CSB_WEBAUTHN_ORIGIN` (the origin the CSB
 /// section is served on) and `CSB_WEBAUTHN_USERS` (comma-separated
-/// `username:user-handle:credential-id:public-key` entries, as printed by
+/// `username:credential-id:public-key` entries, as printed by
 /// `bin/enrol_csb_user`). Users without an origin are an error, and outside
 /// development so is an origin without `CSB_BIND_ADDRESS`: the login page
 /// lists every registered key, so it stays off the main listener, on the one

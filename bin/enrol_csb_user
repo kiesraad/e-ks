@@ -50,23 +50,23 @@ workdir=$(mktemp -d)
 trap 'rm -rf "$workdir"' EXIT
 
 # fido2-cred -M input: client data hash, relying party id, user name, user id.
-# The hash only matters to the key itself, so a random value does. The user
-# id (the WebAuthn user handle) is random too and goes into the entry.
-user_handle=$(head -c 32 /dev/urandom | base64)
+# The hash and the user id only matter to the key itself, which stores
+# neither for a non-discoverable credential, so random values do.
 {
     head -c 32 /dev/urandom | base64
     echo "$rp_id"
     echo "$username"
-    echo "$user_handle"
+    head -c 32 /dev/urandom | base64
 } > "$workdir/param"
 
 echo "Enter the key's PIN when prompted, then touch the key." >&2
 # No -v on -M: that requests built-in user verification (biometrics), which
 # PIN-only keys reject. A key with a PIN set asks for it anyway, and -V -v
-# refuses the credential unless the PIN was verified.
+# refuses the credential unless the PIN was verified. No -r either: the
+# credential is deliberately non-discoverable, see docs/csb-enrolment.md.
 fido2-cred -M -i "$workdir/param" "$device" | fido2-cred -V -v -o "$workdir/cred"
 
 credential_id=$(head -n 1 "$workdir/cred" | to_base64url)
 public_key=$(sed '1d; /^-----/d' "$workdir/cred" | to_base64url)
 
-echo "${username}:$(printf '%s' "$user_handle" | to_base64url):${credential_id}:${public_key}"
+echo "${username}:${credential_id}:${public_key}"
