@@ -83,7 +83,9 @@ examination: Onderzoek
 finalise:
   add_objection: Bezwaar toevoegen
   district_count: Kieskringen
-  download_eml230b: EML230b downloaden
+  download_eml_zip: EML-bestanden downloaden
+  draft_title: Concept versie
+  final_title: Definitieve versie
   i4_note: Proces-verbaal over geldigheid en nummering kandidatenlijsten. Maak het document aan van het verslag van de openbare zitting.
   i4_title: I\u00A04 Proces-verbaal
   no_lists: Er zijn geen lijsten om te nummeren.
@@ -273,6 +275,7 @@ recovery:
   finish_title: Afronden herstel
   no_omissions: Geen verzuimen
   not_recovered: Niet hersteld
+  nothing_scrapped: Er is niets geschrapt.
   omissions_explanation: Leg per verzuim vast of het is hersteld.
   omissions_title: Verzuimen herstellen
   recovered: Hersteld

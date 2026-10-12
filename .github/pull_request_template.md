@@ -1,14 +1,18 @@
 # [DOD](/docs/definition-of-done.md) checklist
 
+## Description
+
+_insert a description of PR_
+
 ## For PR maintainer
 
 Perform these checks before marking the PR as ready:
 
-- [ ] I have linked the PR to at least one issue.
-- [ ] I assigned the PR to myself.
-- [ ] I have added a description how to test this PR (see "Review Instructions").
-- [ ] [For bug fixes only] I have added a regression test for the fixed bug.
-- [ ] I have added documentation where necessary.
+- I have linked the PR to at least one issue.
+- I assigned the PR to myself.
+- I have added a description how to test this PR (see "Review Instructions").
+- [For bug fixes only] I have added a regression test for the fixed bug.
+- I have added documentation where necessary.
 
 ## For reviewer
 

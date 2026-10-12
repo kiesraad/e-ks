@@ -6,26 +6,28 @@ use crate::AppRequestState;
 use super::paths::{
     CsbAddOmissionPath, CsbAllBrpFindingsPath, CsbAllRestorationsPath,
     CsbAppellationCorrectionPath, CsbBrpCheckPath, CsbCandidateBrpCheckPath,
-    CsbCandidateBrpFindingHandledPath, CsbCandidateListPath, CsbCandidatePath,
-    CsbDeleteOmissionPath, CsbExaminationOverviewPath, CsbFinishExaminationPath,
-    CsbGeneralInformationPath, CsbI1DocxDownloadPath, CsbI1DownloadPath, CsbI4DocxDownloadPath,
-    CsbI4DownloadPath, CsbOmissionLetterDocxDownloadPath, CsbOmissionLetterDownloadPath,
-    CsbOmissionLetterPath, CsbOmissionLettersDownloadPath, CsbOmissionOverviewPath,
-    CsbPaperCorrectionsStartPath, CsbPaperCorrectionsStopPath, CsbPersonCorrectionPath,
-    CsbPoliticalGroupPath, CsbPoliticalGroupToggleFinishPath, OmissionListQuery, PgIndexPath,
+    CsbCandidateBrpFindingHandledPath, CsbCandidateListPath,
+    CsbCandidateListPublicationDocxDownloadPath, CsbCandidateListPublicationDownloadPath,
+    CsbCandidatePath, CsbDeleteOmissionPath, CsbExaminationOverviewPath, CsbFinishExaminationPath,
+    CsbGeneralInformationPath, CsbI1DocxDownloadPath, CsbI1DownloadPath,
+    CsbOmissionLetterDocxDownloadPath, CsbOmissionLetterDownloadPath, CsbOmissionLetterPath,
+    CsbOmissionLettersDownloadPath, CsbOmissionOverviewPath, CsbPaperCorrectionsStartPath,
+    CsbPaperCorrectionsStopPath, CsbPersonCorrectionPath, CsbPoliticalGroupPath,
+    CsbPoliticalGroupToggleFinishPath, OmissionListQuery, PgIndexPath,
 };
 
 mod all_brp_findings;
 mod all_restorations;
 pub(in crate::csb) mod candidate;
 pub(in crate::csb) mod candidate_list;
+mod candidate_list_overview;
+mod candidate_list_publication;
 mod correction;
 mod delete;
 pub(in crate::csb) mod finish_examination;
 pub(in crate::csb) mod general_information;
 pub(in crate::csb) mod hearing_details;
 mod i1;
-mod i4;
 mod omission;
 mod omission_letter;
 mod overview;
@@ -37,8 +39,10 @@ pub fn router<S: AppRequestState>() -> Router<S> {
         .typed_get(overview::overview)
         .typed_get(i1::gen_i1::<S>)
         .typed_get(i1::gen_i1_docx::<S>)
-        .typed_get(i4::gen_i4::<S>)
-        .typed_get(i4::gen_i4_docx::<S>)
+        .typed_get(candidate_list_overview::gen_candidate_list_overview_docx::<S>)
+        .typed_get(candidate_list_overview::gen_candidate_list_overview::<S>)
+        .typed_get(candidate_list_publication::gen_candidate_list_publication::<S>)
+        .typed_get(candidate_list_publication::gen_candidate_list_publication_docx::<S>)
         .typed_get(omission_letter::overview)
         .typed_get(omission_letter::gen_omission_letter)
         .typed_get(omission_letter::gen_omission_letter_docx)

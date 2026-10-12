@@ -2,14 +2,14 @@
 
 use super::strings;
 use crate::models::{
-    i1::{DistrictLists, I1, SubmittedList},
-    i4::{OmissionGroup, PublicSession},
+    i1::{I1, SubmittedList},
+    inputs::{DistrictLists, OmissionGroup, PublicSession},
 };
 
 fn i1_session() -> PublicSession {
     PublicSession {
         location: "'s-Gravenhage".to_string(),
-        date: "5 april 2027".to_string(),
+        date: "05-04-2027".to_string(),
         time: "16:00 uur".to_string(),
         chair: "M.C. Voorzitter".to_string(),
         members: strings(&["A. Lid", "B. Lid", "C. Lid", "D. Lid", "E. Lid", "F. Lid"]),
@@ -30,7 +30,7 @@ fn submitted_list(
 
 /// Two districts; "De Correcte Partij" submitted in both, the blank list only
 /// in Bonaire.
-fn i1_submitted_lists() -> Vec<DistrictLists> {
+fn i1_submitted_lists() -> Vec<DistrictLists<SubmittedList>> {
     let correcte_partij = || submitted_list("De Correcte Partij", "Akwasi, M. (Maria)", 30);
     let kiesraad_demo = || submitted_list("Kiesraad Demo", "Nagelhout, M. (Marieke)", 12);
 
@@ -75,7 +75,7 @@ fn i1_found_omissions() -> Vec<OmissionGroup> {
 fn i1_example(found_omissions: Vec<OmissionGroup>) -> I1 {
     I1 {
         election_name: "de Eerste Kamer der Staten-Generaal".to_string(),
-        election_date: "24 mei 2027".to_string(),
+        election_date: "24-05-2027".to_string(),
         session: i1_session(),
         submitted_lists: i1_submitted_lists(),
         found_omissions,

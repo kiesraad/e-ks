@@ -87,10 +87,15 @@ pub struct RegisteredPoliticalGroup {
 }
 
 impl RegisteredPoliticalGroup {
+    /// Whether the group obtained one or more seats at the previous election.
+    pub fn was_previously_seated(&self) -> bool {
+        self.previous_seats.value() > 0
+    }
+
     /// Whether the group's list is numbered on its previous votes (Kieswet
     /// Art. I 14): only groups that obtained one or more seats are.
     pub fn is_numbered_on_votes(&self) -> bool {
-        self.previous_seats.value() > 0
+        self.was_previously_seated()
     }
 
     /// Whether `appellation` is this group's, ignoring case.
@@ -167,6 +172,12 @@ pub mod tests {
     fn only_seated_groups_are_numbered_on_votes() {
         assert!(sample_registered_political_group("A", 1000, 1).is_numbered_on_votes());
         assert!(!sample_registered_political_group("B", 1000, 0).is_numbered_on_votes());
+    }
+
+    #[test]
+    fn a_group_with_a_seat_was_previously_seated() {
+        assert!(sample_registered_political_group("A", 1000, 1).was_previously_seated());
+        assert!(!sample_registered_political_group("B", 1000, 0).was_previously_seated());
     }
 
     #[test]

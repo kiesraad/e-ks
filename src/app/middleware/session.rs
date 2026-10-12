@@ -62,6 +62,7 @@ pub async fn session_middleware(
     session.last_activity = Utc::now();
     state.sessions.touch(&session).await;
 
+    super::csb_access::report_alert_hours_activity(&state, &session, &request);
     request.extensions_mut().insert(session);
 
     next.run(request).await

@@ -1,7 +1,9 @@
 use axum::{Router, response::Response};
 use axum_extra::routing::RouterExt;
 
-use crate::{AppError, AppRequestState, CsbContext, CsbStore, structs::csb::CsbPhase};
+use crate::{
+    AppError, AppRequestState, CsbContext, CsbMainStore, CsbStore, structs::csb::CsbPhase,
+};
 
 use super::paths::{
     CsbRecoveryCandidateListPath, CsbRecoveryCandidatePath, CsbRecoveryGeneralInformationPath,
@@ -30,9 +32,15 @@ async fn political_group(
     _: CsbRecoveryPoliticalGroupPath,
     context: CsbContext,
     store: CsbStore,
+    main_store: CsbMainStore,
 ) -> Result<Response, AppError> {
-    crate::csb::examination::pages::political_group::render(context, store, CsbPhase::Recovery)
-        .await
+    crate::csb::examination::pages::political_group::render(
+        context,
+        store,
+        main_store,
+        CsbPhase::Recovery,
+    )
+    .await
 }
 
 async fn general_information(
@@ -83,10 +91,13 @@ mod tests {
     use axum::{http::StatusCode, response::IntoResponse};
 
     use crate::{
-        CsbAction, PgEvent,
+        CsbAction, ElectoralDistrict, PgEvent,
         structs::{
             candidate_lists::CandidateListId,
-            csb::{Omission, OmissionCategory, OmissionStatus, OmissionText, OmissionTitle},
+            csb::{
+                Omission, OmissionCategory, OmissionStatus, OmissionText, OmissionTitle,
+                sample_omission,
+            },
             name_authorisations::NameAuthorisationId,
             persons::PersonId,
         },
@@ -106,6 +117,7 @@ mod tests {
             CsbRecoveryPoliticalGroupPath { stream_id },
             CsbContext::new_test(),
             store,
+            CsbMainStore::new_for_test(),
         )
         .await
         .unwrap()
@@ -120,6 +132,121 @@ mod tests {
         assert!(!body.contains("paper-corrections"));
         assert!(!body.contains("toggle-finish"));
         assert!(!body.contains("/omission/declarations-of-support/"));
+    }
+
+    /// A list in `districts` holding one candidate.
+    fn add_list(store: &CsbStore, districts: &[ElectoralDistrict]) -> (CandidateListId, PersonId) {
+        let person = sample_person(PersonId::new());
+        let person_id = person.id;
+        let list_id = CandidateListId::new();
+        let mut list = sample_candidate_list(list_id);
+        list.electoral_districts = districts.iter().copied().collect();
+        list.candidates = vec![person_id];
+        store.add_person(person);
+        store.add_candidate_list(list);
+        (list_id, person_id)
+    }
+
+    async fn not_recovered(store: &CsbStore, category: OmissionCategory) {
+        let omission = sample_omission(category);
+        omission.create(store).await.unwrap();
+        omission
+            .set_status(store, OmissionStatus::NotRecovered)
+            .await
+            .unwrap();
+    }
+
+    async fn recovery_group_body(store: CsbStore) -> String {
+        let stream_id = store.stream_id;
+        let response = political_group(
+            CsbRecoveryPoliticalGroupPath { stream_id },
+            CsbContext::new_test(),
+            store,
+            CsbMainStore::new_for_test(),
+        )
+        .await
+        .unwrap()
+        .into_response();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        response_body_string(response).await
+    }
+
+    /// Everything scrapped is gathered in one panel, each item a pill that
+    /// opens the recovery page of what it was scrapped from.
+    #[tokio::test]
+    async fn recovery_political_group_page_lists_everything_scrapped_in_its_own_panel() {
+        let store = CsbStore::new_for_test();
+        store.set_political_group(sample_political_group());
+        let stream_id = store.stream_id;
+        let (utrecht, candidate) = add_list(&store, &[ElectoralDistrict::Utrecht]);
+        let (groningen, _) = add_list(
+            &store,
+            &[ElectoralDistrict::Groningen, ElectoralDistrict::Fryslan],
+        );
+        let mut irreparable = sample_omission(OmissionCategory::Appellation);
+        irreparable.recoverable = false;
+        irreparable.create(&store).await.unwrap();
+        not_recovered(
+            &store,
+            OmissionCategory::DeclarationsOfSupport(vec![ElectoralDistrict::Fryslan]),
+        )
+        .await;
+        not_recovered(&store, OmissionCategory::CandidateList(vec![utrecht])).await;
+        not_recovered(
+            &store,
+            OmissionCategory::Candidate {
+                person: candidate,
+                lists: vec![utrecht],
+            },
+        )
+        .await;
+
+        let body = recovery_group_body(store).await;
+
+        assert!(body.contains("<h2 class=\"h3\">Scrapped</h2>"), "{body}");
+        assert!(!body.contains("Nothing has been scrapped."));
+        // Template whitespace aside, every pill is a scrapped tag linking to
+        // the page of what it was scrapped from.
+        let flat = body.split_whitespace().collect::<Vec<_>>().join(" ");
+        let pill = |path: String| format!("restoration-tag-scrapped\" href=\"{path}\">");
+        assert!(
+            flat.contains(&pill(format!(
+                "/csb/recovery/{stream_id}/general-information"
+            ))),
+            "{body}"
+        );
+        assert!(flat.contains(&pill(format!("/csb/recovery/{stream_id}/list/{groningen}"))));
+        assert!(flat.contains(&pill(format!("/csb/recovery/{stream_id}/list/{utrecht}"))));
+        assert!(flat.contains(&pill(format!(
+            "/csb/recovery/{stream_id}/list/{utrecht}/candidate/{candidate}"
+        ))));
+        assert!(flat.contains("2. Fryslân"));
+        assert!(flat.contains("Candidate list 7. Utrecht"), "{flat}");
+        assert!(
+            flat.contains("Jansen, H.A.H.A. (Henk) (7. Utrecht)"),
+            "{flat}"
+        );
+        // The declarations-of-support panel no longer lists the districts.
+        assert!(!body.contains("<h3>Scrapped</h3>"));
+    }
+
+    #[tokio::test]
+    async fn recovery_political_group_page_says_so_when_nothing_is_scrapped() {
+        let store = CsbStore::new_for_test();
+        store.set_political_group(sample_political_group());
+        let (utrecht, _) = add_list(&store, &[ElectoralDistrict::Utrecht]);
+        // Pending and recovered omissions scrap nothing.
+        sample_omission(OmissionCategory::CandidateList(vec![utrecht]))
+            .create(&store)
+            .await
+            .unwrap();
+
+        let body = recovery_group_body(store).await;
+
+        assert!(body.contains("<h2 class=\"h3\">Scrapped</h2>"), "{body}");
+        assert!(body.contains("Nothing has been scrapped."));
+        assert!(!body.contains("restoration-tag-scrapped"));
     }
 
     #[tokio::test]

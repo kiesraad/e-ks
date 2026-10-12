@@ -8,6 +8,7 @@ mod csb_candidate;
 mod csb_candidate_list;
 mod paper_corrected;
 mod restoration_status;
+mod scrapped_overview;
 
 pub use all_brp_findings::ProblematicCandidate;
 pub use all_csb_corrections::AllCsbCorrections;
@@ -24,3 +25,4 @@ pub use paper_corrected::{
 };
 
 pub use restoration_status::RestorationStatus;
+pub use scrapped_overview::ScrappedOverview;

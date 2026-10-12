@@ -4,10 +4,7 @@ use axum::response::{IntoResponse, Response};
 use crate::{
     AppError, Context, CsbContext, HtmlTemplate,
     csb::{
-        examination::{
-            CsbI4DocxDownloadPath, CsbI4DownloadPath,
-            extractors::{CsbPoliticalGroup, CsbPoliticalGroups},
-        },
+        examination::extractors::{CsbPoliticalGroup, CsbPoliticalGroups},
         recovery::paths::CsbRecoveryOverviewPath,
     },
     filters,
@@ -84,6 +81,8 @@ mod tests {
         assert!(!body.contains(&format!("/csb/examination/{stream_id}")));
         // The progress column shows assessed vs. assessable omissions.
         assert!(body.contains("2 of 3 assessed"));
+        // The page leads back to the CSB overview.
+        assert!(body.contains(r#"href="/csb" class="button secondary">Back<"#));
     }
 
     async fn render(groups: Vec<CsbPoliticalGroup>) -> String {

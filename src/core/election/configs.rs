@@ -33,7 +33,7 @@ super::define_elections! {
         },
         electoral_districts: ElectoralDistrict::ek_districts(),
         number_of_seats: 75,
-        eligible_date_of_birth: const { date(2014, 4, 20) }, // TODO: determine definitive date
+        eligible_date_of_birth: const { date(2013, 6, 9) },
         nomination_day_date: const { date(2027, 4, 20) },
         // Estimated from EK 2023 planning (official 2027 planning not yet published)
         document_review_date: const { date(2027, 4, 25) },

@@ -603,10 +603,6 @@
   mask-image: url("../icons/correction.svg");
 }
 
-.csb-phase-muted > * {
-  opacity: 0.4;
-}
-
 .examination-strip.objection-list {
   align-items: flex-start;
   flex-direction: column;
