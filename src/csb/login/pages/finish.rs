@@ -18,7 +18,6 @@ use tracing::{info, warn};
 use crate::{
     AppError, AppRequestState, CsbMainAction, CsbMainStore, CsbUser, CsbUsername, Form, Locale,
     Session,
-    app::middleware::csb_access::peer_ip_label,
     auth::{
         csb_webauthn::{VerifiedLogin, verify_login},
         session_extractor::{establish_session, user_agent_hash},
@@ -27,6 +26,7 @@ use crate::{
         index::CsbIndexPath,
         login::{CsbLoginFinishPath, pages::login::login_failed, require_webauthn},
     },
+    utils::peer_ip_label,
 };
 
 /// The ceremony result, as the browser script serialises it.

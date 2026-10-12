@@ -31,7 +31,7 @@ use chrono::Utc;
 use parking_lot::Mutex;
 use tracing::warn;
 
-use crate::{AppState, Session, SessionUser, constants::DEFAULT_TIMEZONE};
+use crate::{AppState, Session, SessionUser, constants::DEFAULT_TIMEZONE, utils::peer_ip_label};
 
 /// The connection's peer address, recorded by the server through
 /// `into_make_service_with_connect_info`.
@@ -40,11 +40,6 @@ fn peer_ip(request: &Request) -> Option<IpAddr> {
         .extensions()
         .get::<ConnectInfo<SocketAddr>>()
         .map(|ConnectInfo(addr)| addr.ip())
-}
-
-/// A peer address for a log field; `unknown` when none was recorded.
-pub(crate) fn peer_ip_label(ip: Option<IpAddr>) -> String {
-    ip.map_or_else(|| "unknown".to_string(), |ip| ip.to_string())
 }
 
 /// Refuses requests whose peer address is not on the allow list with `403`.
