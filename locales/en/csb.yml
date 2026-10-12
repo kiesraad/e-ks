@@ -64,6 +64,8 @@ brp:
     in_progress: "The check against the BRP is still running, so not every candidate has been checked yet."
     interrupted: "The check against the BRP stopped before it finished, so not every candidate was checked. Start it again to check the rest."
     not_started: The candidates have not been checked against the BRP yet.
+brp_errors:
+  download_title: Download BRP errors
 candidate:
   add_candidate_text: Add omissions for this candidate
   personal_details: Personal details
@@ -96,6 +98,7 @@ finalise:
   position: Position
   title: Finalise candidate lists
 finish_examination:
+  download_markdown: Download Markdown
   download_note: Download all letters of omission as Word and PDF files in a single ZIP
   download_pdf: Download PDF
   download_word: Download Word
