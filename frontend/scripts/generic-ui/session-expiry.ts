@@ -139,9 +139,7 @@ export default function setupSessionExpiry() {
     if (!dialog.open) {
       dialog.showModal();
     }
-    if (countdownInterval === undefined) {
-      countdownInterval = setInterval(updateCountdown, 1000);
-    }
+    countdownInterval ??= setInterval(updateCountdown, 1000);
   };
 
   // Take an expiry answer into account: reset the deadline, and either warn
@@ -216,6 +214,14 @@ export default function setupSessionExpiry() {
   dialog.addEventListener("cancel", (event) => {
     event.preventDefault();
   });
+  // Cancel event is inconsistent in browsers, add extra escape key guard
+  // Still dismisses the dialog when in an overlay, 
+  // Closing an overlay causes a page load anyway, so this is okay
+  dialog.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+        event.preventDefault();
+    }
+});
 
   // Another tab extended the session (or loaded a page, which also counts as
   // activity on the server): adopt its deadline.
