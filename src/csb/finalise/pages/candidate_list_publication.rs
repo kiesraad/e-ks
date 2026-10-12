@@ -234,18 +234,31 @@ mod tests {
         Ok(())
     }
 
-    /// Without a recorded order the lists numbered by lot have no number yet
+    /// The first download records the list order when none was recorded yet;
+    /// further downloads leave it alone.
     #[tokio::test]
-    async fn candidate_list_publication_model_requires_the_recorded_order() {
-        let context = CsbContext::new_test();
+    async fn candidate_list_publication_model_records_the_list_order_once() -> Result<(), AppError>
+    {
         let state = AppState::new_for_tests().await;
-        seed_group(&state, "Ongenummerd", &[ElectoralDistrict::Groningen]).await;
+        let first = seed_group(&state, "Eerste", &[ElectoralDistrict::Groningen]).await;
+        let second = seed_group(&state, "Tweede", &[ElectoralDistrict::Groningen]).await;
+        let main_store = CsbMainStore::new_for_test();
+        assert_eq!(main_store.list_order_events(), 0);
 
-        let result =
-            candidate_list_publication_model(context, CsbMainStore::new_for_test(), &state).await;
+        candidate_list_publication_model(CsbContext::new_test(), main_store.clone(), &state)
+            .await?;
+        assert_eq!(main_store.list_order_events(), 1);
+        let mut recorded = main_store.list_order();
+        recorded.sort();
+        let mut expected = vec![first, second];
+        expected.sort();
+        assert_eq!(recorded, expected);
 
-        // TODO: should not result in error, see: #1319
-        assert!(matches!(result, Err(AppError::IncompleteData(_))));
+        candidate_list_publication_model(CsbContext::new_test(), main_store.clone(), &state)
+            .await?;
+        assert_eq!(main_store.list_order_events(), 1);
+
+        Ok(())
     }
 
     #[tokio::test]

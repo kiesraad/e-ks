@@ -94,4 +94,13 @@ impl crate::CsbMainStore {
             data: std::sync::Arc::new(parking_lot::RwLock::new(CsbMainStoreData::default())),
         }
     }
+
+    pub fn list_order_events(&self) -> usize {
+        self.data
+            .read()
+            .events
+            .iter()
+            .filter(|event| matches!(event.payload.action, CsbMainAction::UpdateListOrder(_)))
+            .count()
+    }
 }

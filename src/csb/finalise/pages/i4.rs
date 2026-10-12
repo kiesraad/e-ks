@@ -377,17 +377,6 @@ mod tests {
         Ok(())
     }
 
-    /// The number of times a list order was recorded on `main_store`.
-    fn list_order_events(main_store: &CsbMainStore) -> usize {
-        main_store
-            .data
-            .read()
-            .events
-            .iter()
-            .filter(|event| matches!(event.payload.action, CsbMainAction::UpdateListOrder(_)))
-            .count()
-    }
-
     /// The first final download records the list order when none was
     /// recorded yet; further downloads leave it alone.
     #[tokio::test]
@@ -396,10 +385,10 @@ mod tests {
         let first = seed_group(&state, "Eerste").await;
         let second = seed_group(&state, "Tweede").await;
         let main_store = CsbMainStore::new_for_test();
-        assert_eq!(list_order_events(&main_store), 0);
+        assert_eq!(main_store.list_order_events(), 0);
 
         i4_model(CsbContext::new_test(), main_store.clone(), &state, false).await?;
-        assert_eq!(list_order_events(&main_store), 1);
+        assert_eq!(main_store.list_order_events(), 1);
         let mut recorded = main_store.list_order();
         recorded.sort();
         let mut expected = vec![first, second];
@@ -408,7 +397,7 @@ mod tests {
 
         i4_model(CsbContext::new_test(), main_store.clone(), &state, false).await?;
         i4_model(CsbContext::new_test(), main_store.clone(), &state, true).await?;
-        assert_eq!(list_order_events(&main_store), 1);
+        assert_eq!(main_store.list_order_events(), 1);
 
         Ok(())
     }
@@ -424,7 +413,7 @@ mod tests {
         i4_model(CsbContext::new_test(), main_store.clone(), &state, true).await?;
         i4_model(CsbContext::new_test(), main_store.clone(), &state, true).await?;
 
-        assert_eq!(list_order_events(&main_store), 0);
+        assert_eq!(main_store.list_order_events(), 0);
         assert!(main_store.list_order().is_empty());
 
         Ok(())

@@ -528,6 +528,47 @@ mod tests {
         Ok(())
     }
 
+    /// The first download records the list order when none was recorded yet;
+    /// further downloads leave it alone.
+    #[tokio::test]
+    async fn eml230_files_records_the_list_order_once() -> Result<(), AppError> {
+        let state = AppState::new_for_tests().await;
+        let all_districts = ElectionConfig::EK27.electoral_districts().to_vec();
+        let first = sample_group(
+            &state,
+            ElectionConfig::EK27,
+            "Eerste",
+            all_districts.clone(),
+        )
+        .await;
+        let second = sample_group(&state, ElectionConfig::EK27, "Tweede", all_districts).await;
+        let main_store = CsbMainStore::new_for_test();
+        assert_eq!(main_store.list_order_events(), 0);
+
+        eml230_files(
+            CsbContext::new_test(),
+            state.csb_store_registry(),
+            &main_store,
+        )
+        .await?;
+        assert_eq!(main_store.list_order_events(), 1);
+        let mut recorded = main_store.list_order();
+        recorded.sort();
+        let mut expected = vec![first, second];
+        expected.sort();
+        assert_eq!(recorded, expected);
+
+        eml230_files(
+            CsbContext::new_test(),
+            state.csb_store_registry(),
+            &main_store,
+        )
+        .await?;
+        assert_eq!(main_store.list_order_events(), 1);
+
+        Ok(())
+    }
+
     /// The print order follows the established list number, not the order
     /// the underlying lists were created in.
     #[tokio::test]
