@@ -1,60 +1,7 @@
 // Runs the WebAuthn ceremony on the CSB login page: asks the browser for an
 // assertion with the options the server embedded in the form, and posts the
-// result back as JSON in the hidden `credential` field.
-
-function fromBase64url(value: string): ArrayBuffer {
-  const binary = atob(value.replaceAll("-", "+").replaceAll("_", "/"));
-  return Uint8Array.from(binary, (char) => char.codePointAt(0) ?? 0).buffer;
-}
-
-function toBase64url(buffer: ArrayBuffer): string {
-  const binary = Array.from(new Uint8Array(buffer), (byte) =>
-    String.fromCodePoint(byte),
-  ).join("");
-  // Padding only ever occurs at the end, so dropping every "=" strips it.
-  return btoa(binary)
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replaceAll("=", "");
-}
-
-// The server sends every binary field base64url-encoded; the browser API
-// wants buffers.
-function requestOptions(
-  options: Record<string, unknown>,
-): PublicKeyCredentialRequestOptions {
-  const descriptors = options.allowCredentials as Array<{
-    id: string;
-    type: string;
-    transports?: string[];
-  }>;
-  return {
-    ...options,
-    challenge: fromBase64url(options.challenge as string),
-    allowCredentials: descriptors.map((descriptor) => ({
-      ...descriptor,
-      id: fromBase64url(descriptor.id),
-    })),
-  } as PublicKeyCredentialRequestOptions;
-}
-
-// The assertion as the server expects it: the credential, its response and
-// the client extension outputs (steps 3 and 4 of
-// https://w3c.github.io/webauthn/#sctn-verifying-assertion).
-function serialize(credential: PublicKeyCredential): Record<string, unknown> {
-  const response = credential.response as AuthenticatorAssertionResponse;
-  return {
-    id: credential.id,
-    rawId: toBase64url(credential.rawId),
-    type: credential.type,
-    response: {
-      authenticatorData: toBase64url(response.authenticatorData),
-      clientDataJSON: toBase64url(response.clientDataJSON),
-      signature: toBase64url(response.signature),
-    },
-    clientExtensionResults: credential.getClientExtensionResults(),
-  };
-}
+// result back as JSON in the hidden `credential` field. The browser does the
+// base64url encoding both ways (Baseline 2025 JSON helpers).
 
 export default function setupWebauthnCeremony() {
   const form = document.querySelector<HTMLFormElement>(
@@ -76,7 +23,10 @@ export default function setupWebauthnCeremony() {
   if (!credentialInput || !errorAlert || !unsupportedAlert || !retryButton) {
     return;
   }
-  if (!window.PublicKeyCredential) {
+  if (
+    !window.PublicKeyCredential ||
+    typeof PublicKeyCredential.parseRequestOptionsFromJSON !== "function"
+  ) {
     unsupportedAlert.classList.remove("hidden");
     retryButton.classList.add("hidden");
     return;
@@ -90,12 +40,15 @@ export default function setupWebauthnCeremony() {
     retryButton.classList.add("hidden");
     try {
       const credential = await navigator.credentials.get({
-        publicKey: requestOptions(options.publicKey),
+        publicKey: PublicKeyCredential.parseRequestOptionsFromJSON(
+          options.publicKey,
+        ),
       });
       if (!(credential instanceof PublicKeyCredential)) {
         throw new TypeError("no credential");
       }
-      credentialInput.value = JSON.stringify(serialize(credential));
+      // `JSON.stringify` calls `toJSON()`.
+      credentialInput.value = JSON.stringify(credential);
       form.submit();
     } catch (error) {
       console.error(error);

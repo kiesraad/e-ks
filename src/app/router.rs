@@ -201,9 +201,9 @@ fn app_feature_router() -> Router<AppState> {
         .merge(substitute_list_submitters::router())
 }
 
-/// Deny every powerful browser feature but the WebAuthn credential APIs,
-/// which the CSB security-key login needs and which stay limited to this
-/// origin. The names are the union of the directives listed on MDN
+/// Deny every powerful browser feature but WebAuthn assertions, which the
+/// CSB security-key login needs. Creation stays denied: keys are enrolled
+/// outside the browser. The names are the union of the directives listed on MDN
 /// (<https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Permissions-Policy>)
 /// and in the W3C feature registry
 /// (<https://github.com/w3c/webappsec-permissions-policy/blob/main/features.md>).
@@ -219,7 +219,7 @@ const PERMISSIONS_POLICY: &str = concat!(
     "join-ad-interest-group=(), keyboard-map=(), local-fonts=(), magnetometer=(), microphone=(), ",
     "midi=(), otp-credentials=(), payment=(), picture-in-picture=(), private-aggregation=(), ",
     "private-state-token-issuance=(), private-state-token-redemption=(), ",
-    "publickey-credentials-create=(self), publickey-credentials-get=(self), run-ad-auction=(), ",
+    "publickey-credentials-create=(), publickey-credentials-get=(self), run-ad-auction=(), ",
     "screen-wake-lock=(), serial=(), speaker-selection=(), storage-access=(), sync-xhr=(), ",
     "unload=(), usb=(), web-share=(), window-management=(), xr-spatial-tracking=()",
 );
