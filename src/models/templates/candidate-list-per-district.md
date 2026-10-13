@@ -12,6 +12,9 @@ Dag van stemming: **{{ election_date|line }}**
 
 Kieskring: **{{ electoral_district|line }}**
 
+{% if lists.is_empty() %}
+*Er zijn geen politieke groeperingen die meedoen in deze kieskring.*
+{% else %}
 {% for numbered in lists %}
 ## {{ numbered.number }} {{ numbered.list.appellation|line }}
 
@@ -25,3 +28,4 @@ Kieskring: **{{ electoral_district|line }}**
 @pagebreak
 {% endif %}
 {% endfor %}
+{% endif %}

@@ -1,4 +1,7 @@
-use crate::models::{candidate_list_per_district::CandidateListPerDistrict, examples::candidate_list_publication::{blanco_nagelhout, correcte_partij, kiesraad_demo}};
+use crate::models::{
+    candidate_list_per_district::CandidateListPerDistrict,
+    examples::candidate_list_publication::{blanco_nagelhout, correcte_partij, kiesraad_demo},
+};
 
 pub fn candidate_list_per_district_example_1() -> CandidateListPerDistrict {
     CandidateListPerDistrict {

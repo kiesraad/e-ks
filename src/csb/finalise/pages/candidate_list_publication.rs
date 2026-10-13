@@ -160,7 +160,10 @@ mod tests {
         let model = candidate_list_publication_model(context, main_store, &state).await?;
 
         assert_eq!(
-            rows(&model),
+            rows(&model)
+                .into_iter()
+                .filter(|(_, list)| !list.is_empty())
+                .collect::<Vec<_>>(),
             [
                 ("Groningen", vec![(1, "Alleen Groningen"), (2, "Overal")]),
                 ("Drenthe", vec![(2, "Overal")]),
@@ -200,7 +203,10 @@ mod tests {
         let model = candidate_list_publication_model(context, main_store, &state).await?;
 
         assert_eq!(
-            rows(&model),
+            rows(&model)
+                .into_iter()
+                .filter(|(_, list)| !list.is_empty())
+                .collect::<Vec<_>>(),
             [
                 (
                     "Groningen",
@@ -229,14 +235,26 @@ mod tests {
         let model =
             candidate_list_publication_model(CsbContext::new_test(), main_store.clone(), &state)
                 .await?;
-        assert_eq!(rows(&model), numbered);
+        assert_eq!(
+            rows(&model)
+                .into_iter()
+                .filter(|(_, list)| !list.is_empty())
+                .collect::<Vec<_>>(),
+            numbered
+        );
         assert_eq!(main_store.list_order_events(), 1);
         assert_eq!(main_store.list_order(), [first, second]);
 
         let model =
             candidate_list_publication_model(CsbContext::new_test(), main_store.clone(), &state)
                 .await?;
-        assert_eq!(rows(&model), numbered);
+        assert_eq!(
+            rows(&model)
+                .into_iter()
+                .filter(|(_, list)| !list.is_empty())
+                .collect::<Vec<_>>(),
+            numbered
+        );
         assert_eq!(main_store.list_order_events(), 1);
 
         Ok(())

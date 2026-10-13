@@ -4,7 +4,7 @@
 //! What the omissions scrap is read from the store's [`Scrapped`] state, so
 //! the models report the same outcome as the recovery pages.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, btree_map::Entry};
 
 use crate::{
     AppError, CsbStoreData, CsbStream, ElectionConfig, ElectoralDistrict, StreamId,
@@ -355,6 +355,9 @@ pub async fn published_lists(
 ) -> Result<Vec<DistrictLists<NumberedList>>, AppError> {
     let stores = examined_stores(registry, election).await?;
     let mut by_district: BTreeMap<ElectoralDistrict, Vec<NumberedList>> = BTreeMap::new();
+    election.electoral_districts().iter().for_each(|district| {
+        by_district.insert(*district, Vec::new());
+    });
 
     for (stream_id, number) in numbered_groups.iter().zip(1..) {
         let store = stores
@@ -364,10 +367,16 @@ pub async fn published_lists(
 
         for (district, list) in valid_lists(store, &store.get_scrapped(), PublishedCandidate::new)?
         {
-            by_district
-                .entry(district)
-                .or_default()
-                .push(NumberedList { number, list });
+            match by_district.entry(district) {
+                Entry::Vacant(_) => {
+                    return Err(AppError::NotFound(format!(
+                        "group has list for district={} but not part of election={}",
+                        district.title(),
+                        election.code()
+                    )));
+                }
+                Entry::Occupied(mut entry) => entry.get_mut().push(NumberedList { number, list }),
+            }
         }
     }
 

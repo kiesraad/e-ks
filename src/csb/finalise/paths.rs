@@ -84,7 +84,6 @@ pub struct CsbI4FinalDownloadPath;
 #[typed_path("/csb/finalise/i4.docx", rejection(AppError))]
 pub struct CsbI4FinalDocxDownloadPath;
 
-
 #[derive(TypedPath)]
-#[typed_path("/csb/finalise/candidate-lists.zip", rejection(AppError))]
+#[typed_path("/csb/finalise/overzicht-kandidatenlijsten.zip", rejection(AppError))]
 pub struct CsbCandidateListPerDistrictDownloadPath;
