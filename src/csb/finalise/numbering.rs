@@ -131,7 +131,7 @@ impl ListNumbering {
     /// before. This occurs when a document is first downloaded before any
     /// drag event has taken place.
     pub async fn record_if_incomplete(
-        &self,
+        &mut self,
         context: &CsbContext,
         main_store: &CsbMainStore,
     ) -> Result<(), AppError> {
@@ -139,6 +139,11 @@ impl ListNumbering {
             main_store
                 .update(CsbMainAction::UpdateListOrder(self.stream_ids()).by(context.user()?))
                 .await?;
+
+            self.groups
+                .iter_mut()
+                .zip(1..)
+                .for_each(|(group, position)| group.position = Some(position));
         }
 
         Ok(())

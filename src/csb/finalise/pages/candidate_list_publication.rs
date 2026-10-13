@@ -24,7 +24,7 @@ async fn candidate_list_publication_model<S: AppRequestState>(
 ) -> Result<CandidateListPublication, AppError> {
     let election = main_store.election;
     let registry = state.csb_store_registry();
-    let numbering = list_numbering(registry, &main_store).await?;
+    let mut numbering = list_numbering(registry, &main_store).await?;
 
     numbering
         .record_if_incomplete(&context, &main_store)

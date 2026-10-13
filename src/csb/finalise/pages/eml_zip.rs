@@ -88,7 +88,7 @@ async fn eml230_files(
         .iter()
         .map(CsbPoliticalGroup::new_from_csb_store)
         .collect();
-    let numbering = ListNumbering::new(
+    let mut numbering = ListNumbering::new(
         &political_groups,
         &main_store.registered_political_groups(),
         &main_store.list_order(),
