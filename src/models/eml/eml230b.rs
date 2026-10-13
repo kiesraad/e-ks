@@ -267,10 +267,7 @@ mod tests {
         let mut candidate4 = sample_person(PersonId::new());
         candidate4.name.last_name = "Candidate IV".parse().unwrap();
 
-        let store1 = CsbStream {
-            election,
-            ..CsbStream::new_for_test()
-        };
+        let store1 = CsbStream::new_for_test_with_election(election);
         store1.set_political_group(PoliticalGroup {
             appellation: Some("Kiesraad Demo".parse().unwrap()),
             list_designation: Some(ListDesignation::Standalone),
@@ -284,10 +281,7 @@ mod tests {
             ..Default::default()
         });
 
-        let store2 = CsbStream {
-            election,
-            ..CsbStream::new_for_test()
-        };
+        let store2 = CsbStream::new_for_test_with_election(election);
         store2.set_political_group(PoliticalGroup {
             appellation: Some("Andere Partij".parse().unwrap()),
             list_designation: Some(ListDesignation::Standalone),
@@ -300,10 +294,7 @@ mod tests {
             ..Default::default()
         });
 
-        let store3 = CsbStream {
-            election,
-            ..CsbStream::new_for_test()
-        };
+        let store3 = CsbStream::new_for_test_with_election(election);
         store3.set_political_group(PoliticalGroup {
             appellation: None,
             list_designation: Some(ListDesignation::Blank),
@@ -453,10 +444,7 @@ mod tests {
     fn separate_lists_with_the_same_candidates_are_a_set_of_equal_lists() {
         let districts = &ElectionConfig::EK27.electoral_districts()[..2];
         let candidate = sample_person(PersonId::new());
-        let store = CsbStream {
-            election: ElectionConfig::EK27,
-            ..CsbStream::new_for_test()
-        };
+        let store = CsbStream::new_for_test();
         store.set_political_group(PoliticalGroup {
             appellation: Some("Kiesraad Demo".parse().unwrap()),
             list_designation: Some(ListDesignation::Standalone),

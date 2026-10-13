@@ -11,7 +11,7 @@ use crate::{
     csb::audit_log::pages::CsbAuditLogDetailPath,
     filters,
     projection::{CSB_MAIN_STREAM_ID, WithCorrections},
-    store::{StoreData, StoreEvent},
+    store::StoreEvent,
     structs::{
         audit_log::FieldChange,
         brp::{BrpFinding, BrpLookup, BrpLookupOutcome, BrpQuery},
@@ -103,11 +103,8 @@ impl CsbEventDetail {
         }
 
         let before = CsbStream::new_for_temp_stream(election);
-        {
-            let mut data = before.data.write();
-            for event in &events[..index] {
-                data.apply(event.clone());
-            }
+        for event in &events[..index] {
+            before.apply_event(event.clone());
         }
 
         match action {
@@ -359,7 +356,7 @@ pub async fn csb_audit_log_detail<S: AppRequestState>(
 ) -> Result<impl IntoResponse, AppError> {
     let locale = context.session.locale;
     let detail = if stream_id == CSB_MAIN_STREAM_ID {
-        let data = main_store.data.read();
+        let data = main_store.snapshot();
         CsbEventDetail::find(
             &data.events,
             event_id,
@@ -389,7 +386,7 @@ pub async fn csb_audit_log_detail<S: AppRequestState>(
         } else {
             trans!("audit_log.filter.pre_submission_stream", locale, label)
         };
-        let data = store.data.read();
+        let data = store.snapshot();
         let mut detail = CsbEventDetail::find(&data.events, event_id, label, locale)?;
         detail.add_stream_context(&data.events, context.election, locale);
         detail
@@ -471,7 +468,7 @@ mod tests {
         let submission = crate::PgStore::new_for_test();
         let person = sample_person(PersonId::new());
         person.create(&submission).await?;
-        let snapshot = Box::new(submission.data.read().clone());
+        let snapshot = Box::new(crate::PgStoreData::clone(&submission.snapshot()));
         store
             .update(
                 CsbAction::Import {
@@ -526,7 +523,7 @@ mod tests {
         let submission = crate::PgStore::new_for_test();
         let person = sample_person(PersonId::new());
         person.create(&submission).await?;
-        let snapshot = Box::new(submission.data.read().clone());
+        let snapshot = Box::new(crate::PgStoreData::clone(&submission.snapshot()));
         store
             .update(
                 CsbAction::Import {

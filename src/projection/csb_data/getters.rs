@@ -1,11 +1,10 @@
-use std::collections::{HashMap, HashSet};
-
-use parking_lot::{
-    RawRwLock,
-    lock_api::{MappedRwLockReadGuard, RwLockReadGuard},
+use std::{
+    collections::{HashMap, HashSet},
+    ops::Deref,
+    sync::Arc,
 };
 
-use super::Scrapped;
+use super::{CsbStoreData, Scrapped};
 use crate::{
     AppError, CsbStream, ElectionConfig, ElectoralDistrict, Locale, PgStore, PgStoreData,
     structs::{
@@ -22,6 +21,25 @@ use crate::{
     trans,
 };
 
+/// One of the political group's projections, picked from a CSB snapshot by
+/// [`WithCorrections`]. CSB corrections are applied on top of the paper
+/// corrected data by the appropriate getters.
+pub struct PgView {
+    data: Arc<CsbStoreData>,
+    corrections: WithCorrections,
+}
+
+impl Deref for PgView {
+    type Target = PgStoreData;
+
+    fn deref(&self) -> &PgStoreData {
+        match self.corrections {
+            WithCorrections::None => &self.data.imported_data,
+            WithCorrections::Paper | WithCorrections::All => &self.data.paper_corrected_data,
+        }
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum WithCorrections {
     /// Only the original imported data
@@ -33,35 +51,29 @@ pub enum WithCorrections {
 }
 
 impl CsbStream {
-    pub fn read(
-        &self,
-        corrections: WithCorrections,
-    ) -> MappedRwLockReadGuard<'_, RawRwLock, PgStoreData> {
-        let data = self.data.read();
-
-        match corrections {
-            WithCorrections::None => RwLockReadGuard::map(data, |data| &data.imported_data),
-            WithCorrections::Paper | WithCorrections::All => {
-                // CSB corrections are applied on top of the paper corrected data by the appropriate getters
-                RwLockReadGuard::map(data, |data| &data.paper_corrected_data)
-            }
+    /// A snapshot of the political group's projection at the requested
+    /// correction level. Owned, so no lock is held while reading it.
+    pub fn read(&self, corrections: WithCorrections) -> PgView {
+        PgView {
+            data: self.snapshot(),
+            corrections,
         }
     }
 
     pub fn is_examination_finished(&self) -> bool {
-        let data = self.data.read();
+        let data = self.snapshot();
 
         data.is_examination_finished
     }
 
     pub fn is_deleted(&self) -> bool {
-        let data = self.data.read();
+        let data = self.snapshot();
 
         data.is_deleted
     }
 
     pub fn has_paper_corrections(&self) -> bool {
-        let data = self.data.read();
+        let data = self.snapshot();
 
         data.events.iter().any(|event| {
             matches!(
@@ -72,7 +84,7 @@ impl CsbStream {
     }
 
     pub fn get_omission(&self, omission_id: OmissionId) -> Result<Omission, AppError> {
-        let data = self.data.read();
+        let data = self.snapshot();
 
         data.omissions
             .get(&omission_id)
@@ -81,14 +93,14 @@ impl CsbStream {
     }
 
     pub fn get_omission_count(&self) -> usize {
-        let data = self.data.read();
+        let data = self.snapshot();
 
         data.omissions.len()
     }
 
     /// get the total number of CSB corrections added
     pub fn get_correction_count(&self) -> usize {
-        let data = self.data.read();
+        let data = self.snapshot();
 
         data.csb_corrected_persons
             .values()
@@ -105,7 +117,7 @@ impl CsbStream {
     /// How far the group is through the "Herstelde lijsten" phase, counted in
     /// recovery decisions (see [`RecoveryProgress`]).
     pub fn get_recovery_progress(&self) -> RecoveryProgress {
-        let data = self.data.read();
+        let data = self.snapshot();
 
         let mut progress = RecoveryProgress::default();
         for omission in data.omissions.values().filter(|o| o.is_actionable()) {
@@ -121,13 +133,13 @@ impl CsbStream {
 
     /// What the unresolved omissions scrap, as derived after the last event.
     pub fn get_scrapped(&self) -> Scrapped {
-        self.data.read().scrapped.clone()
+        self.snapshot().scrapped.clone()
     }
 
     /// The districts scrapped by unresolved declarations-of-support omissions,
     /// in the election's district order.
     pub fn get_scrapped_districts(&self) -> Vec<ElectoralDistrict> {
-        self.data.read().scrapped.districts(&self.election)
+        self.snapshot().scrapped.districts(&self.election)
     }
 
     /// The candidate's number in the recovery ("Herstelde lijsten") phase.
@@ -146,7 +158,7 @@ impl CsbStream {
             .get(&list_id)?
             .candidates
             .clone();
-        let scrapped = &self.data.read().scrapped;
+        let scrapped = &self.snapshot().scrapped;
 
         let mut position = 0;
         for candidate in candidates {
@@ -167,13 +179,13 @@ impl CsbStream {
     }
 
     pub fn get_omissions(&self) -> Vec<Omission> {
-        let data = self.data.read();
+        let data = self.snapshot();
 
         data.omissions.values().cloned().collect()
     }
 
     pub fn get_political_group_omissions(&self) -> Vec<Omission> {
-        let data = self.data.read();
+        let data = self.snapshot();
 
         data.omissions
             .values()
@@ -183,7 +195,7 @@ impl CsbStream {
     }
 
     pub fn get_appellation_omissions(&self) -> Vec<Omission> {
-        let data = self.data.read();
+        let data = self.snapshot();
 
         data.omissions
             .values()
@@ -193,7 +205,7 @@ impl CsbStream {
     }
 
     pub fn get_political_group_csb_corrections_count(&self) -> usize {
-        let data = self.data.read();
+        let data = self.snapshot();
 
         match data.csb_corrected_appellation {
             Some(_) => 1,
@@ -203,8 +215,7 @@ impl CsbStream {
 
     pub fn get_candidate_omissions(&self, person_id: PersonId) -> Vec<Omission> {
         let mut omissions: Vec<Omission> = self
-            .data
-            .read()
+            .snapshot()
             .omissions
             .values()
             .filter(|o| matches!(&o.category, OmissionCategory::Candidate { person, .. } if *person == person_id))
@@ -248,8 +259,7 @@ impl CsbStream {
         }
 
         let mut omissions: Vec<Omission> = self
-            .data
-            .read()
+            .snapshot()
             .omissions
             .values()
             .filter(|o| {
@@ -300,8 +310,7 @@ impl CsbStream {
 
     pub fn get_all_declarations_of_support_omissions(&self) -> Vec<Omission> {
         let mut omissions: Vec<Omission> = self
-            .data
-            .read()
+            .snapshot()
             .omissions
             .values()
             .filter(|o| matches!(o.category, OmissionCategory::DeclarationsOfSupport(_)))
@@ -344,7 +353,7 @@ impl CsbStream {
         let mut pg = self.read(corrections).political_group.clone();
 
         if corrections == WithCorrections::All
-            && let Some(correction) = self.data.read().csb_corrected_appellation.clone()
+            && let Some(correction) = self.snapshot().csb_corrected_appellation.clone()
         {
             pg.appellation = Some(correction);
         }
@@ -395,8 +404,7 @@ impl CsbStream {
 
         if corrections == WithCorrections::All
             && let Some(delta) = self
-                .data
-                .read()
+                .snapshot()
                 .csb_corrected_persons
                 .get(&person_id)
                 .cloned()
@@ -419,8 +427,7 @@ impl CsbStream {
     }
 
     pub fn get_all_csb_corrected_persons(&self) -> Vec<PersonId> {
-        self.data
-            .read()
+        self.snapshot()
             .csb_corrected_persons
             .keys()
             .cloned()
@@ -547,14 +554,13 @@ impl CsbStream {
 
     /// Per checked candidate; candidates absent from the map were not checked.
     pub fn get_brp_findings(&self) -> HashMap<PersonId, Vec<BrpFinding>> {
-        self.data.read().brp_findings.clone()
+        self.snapshot().brp_findings.clone()
     }
 
     /// An empty list covers both "checked, nothing found" and "not checked";
     /// use [`Self::get_brp_findings`] when the difference matters.
     pub fn get_brp_findings_for_person(&self, person_id: PersonId) -> Vec<BrpFinding> {
-        self.data
-            .read()
+        self.snapshot()
             .brp_findings
             .get(&person_id)
             .cloned()
@@ -563,20 +569,19 @@ impl CsbStream {
 
     /// Whether this candidate has been checked, findings or not.
     pub fn is_brp_checked(&self, person_id: PersonId) -> bool {
-        self.data.read().brp_findings.contains_key(&person_id)
+        self.snapshot().brp_findings.contains_key(&person_id)
     }
 
     /// How far the BRP sweep for this stream got.
     pub fn get_brp_status(&self) -> BrpStatus {
-        self.data.read().brp_validation_status.clone()
+        self.snapshot().brp_validation_status.clone()
     }
 
     /// Return the single stored omission. Test-only helper for asserting on
     /// omissions whose category has no dedicated getter (e.g. candidate lists).
     #[cfg(test)]
     pub fn get_omission_for_test(&self) -> Omission {
-        self.data
-            .read()
+        self.snapshot()
             .omissions
             .values()
             .next()
@@ -586,7 +591,7 @@ impl CsbStream {
 
     /// Collect all problems, excluding info problems
     pub fn get_all_problems(&self, election: ElectionConfig) -> Result<AllProblems, AppError> {
-        let data = self.data.read();
+        let data = self.snapshot();
         // apply all corrections to the paper corrected projection
         let mut pg_data = data.paper_corrected_data.clone();
         if data.csb_corrected_appellation.is_some() {
@@ -601,7 +606,7 @@ impl CsbStream {
 
         // wrap paper corrected projection in a PgStore
         let store = PgStore::new_for_temp_stream(election);
-        *store.data.write() = pg_data;
+        store.replace(std::sync::Arc::new(pg_data));
 
         AllProblems::find_all(&store).map(|mut problems| {
             problems.info_problems = Vec::new();
@@ -632,7 +637,7 @@ mod tests {
 
     fn insert(store: &CsbStream, category: OmissionCategory) {
         let omission = sample_omission(category);
-        let mut data = store.data.write();
+        let mut data = store.write();
         data.omissions.insert(omission.id, omission);
         data.refresh_scrapped();
     }
@@ -646,7 +651,7 @@ mod tests {
         let mut omission = sample_omission(category);
         omission.recoverable = recoverable;
         omission.status = status;
-        let mut data = store.data.write();
+        let mut data = store.write();
         data.omissions.insert(omission.id, omission);
         data.refresh_scrapped();
     }
@@ -850,7 +855,6 @@ mod tests {
         let person_id = PersonId::new();
         let person = sample_person_with(person_id, None, "Jansen", None, "A.B.");
         store
-            .data
             .write()
             .paper_corrected_data
             .persons
@@ -883,7 +887,6 @@ mod tests {
     fn get_substitute_submitters_marks_each_as_substitute() {
         let store = CsbStore::new_for_test();
         store
-            .data
             .write()
             .imported_data
             .substitute_submitters
@@ -1012,11 +1015,7 @@ mod tests {
         // BRP check examines the corrected data.
         let mut delta = PersonCorrectionDelta::default();
         delta.add_correction(PersonCorrection::LastName("Gecorrigeerd".parse().unwrap()));
-        store
-            .data
-            .write()
-            .csb_corrected_persons
-            .insert(person_id, delta);
+        store.write().csb_corrected_persons.insert(person_id, delta);
 
         let corrected = store.get_persons(WithCorrections::All);
         assert_eq!(corrected.len(), 1);

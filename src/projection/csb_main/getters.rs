@@ -15,7 +15,7 @@ impl CsbMainStore {
     /// The registered political groups in the order their lists are numbered
     /// on votes (Kieswet Art. I 14): most votes first.
     pub fn registered_political_groups(&self) -> Vec<RegisteredPoliticalGroup> {
-        let mut groups = self.data.read().registered_political_groups.clone();
+        let mut groups = self.snapshot().registered_political_groups.clone();
         groups.sort_by(RegisteredPoliticalGroup::numbering_order);
         groups
     }
@@ -23,15 +23,14 @@ impl CsbMainStore {
     /// The order the lists numbered by lot were drawn in, as the streams of
     /// their political groups; empty until the order is recorded.
     pub fn list_order(&self) -> Vec<StreamId> {
-        self.data.read().list_order.clone()
+        self.snapshot().list_order.clone()
     }
 
     pub fn get_registered_political_group(
         &self,
         id: RegisteredPoliticalGroupId,
     ) -> Result<RegisteredPoliticalGroup, AppError> {
-        self.data
-            .read()
+        self.snapshot()
             .registered_political_groups
             .iter()
             .find(|group| group.id == id)
@@ -40,7 +39,7 @@ impl CsbMainStore {
     }
 
     pub fn get_hearing_details(&self, model: HearingModel) -> Option<HearingDetails> {
-        self.data.read().hearing_details.get(&model).cloned()
+        self.snapshot().hearing_details.get(&model).cloned()
     }
 
     /// Whether a registered group other than `except` already carries
@@ -50,8 +49,7 @@ impl CsbMainStore {
         appellation: &Appellation,
         except: Option<RegisteredPoliticalGroupId>,
     ) -> bool {
-        self.data
-            .read()
+        self.snapshot()
             .registered_political_groups
             .iter()
             .filter(|group| Some(group.id) != except)
@@ -59,12 +57,11 @@ impl CsbMainStore {
     }
 
     pub fn get_all_objections(&self) -> Vec<Objection> {
-        self.data.read().objections.clone()
+        self.snapshot().objections.clone()
     }
 
     pub fn get_objection(&self, objection_id: ObjectionId) -> Result<Objection, AppError> {
-        self.data
-            .read()
+        self.snapshot()
             .objections
             .iter()
             .find(|o| o.id == objection_id)

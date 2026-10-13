@@ -37,7 +37,7 @@ impl<S: AppRequestState> FromRequestParts<S> for StreamMonitor {
             let (political_group_name, cache_until_event) =
                 match registry.get_cached(meta.stream_id, meta.election) {
                     Some(store) => {
-                        let data = store.data.read();
+                        let data = store.snapshot();
                         meta.created_at = data
                             .events
                             .first()

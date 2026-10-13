@@ -61,7 +61,7 @@ mod tests {
         let kept = sample_name_authorisation(NameAuthorisationId::new());
         let deleted = sample_name_authorisation(NameAuthorisationId::new());
         {
-            let mut data = store.data.write();
+            let mut data = store.write();
             data.imported_data
                 .name_authorisations
                 .insert(kept.id, kept.clone());
