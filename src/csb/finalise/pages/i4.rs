@@ -1,18 +1,18 @@
 use axum::{extract::State, response::Response};
 
 use crate::{
-    AppError, AppRequestState, CsbMainStore,
+    AppError, AppRequestState, CsbContext, CsbMainStore,
     core::{ModelLocale, constants::DEFAULT_DATE_FORMAT},
     csb::{
-        examination::{
+        examination::paths::{CsbI4DraftDocxDownloadPath, CsbI4DraftDownloadPath},
+        finalise::{
             numbering::list_numbering,
-            paths::{CsbI4DraftDocxDownloadPath, CsbI4DraftDownloadPath},
+            paths::{CsbI4FinalDocxDownloadPath, CsbI4FinalDownloadPath},
         },
-        finalise::paths::{CsbI4FinalDocxDownloadPath, CsbI4FinalDownloadPath},
     },
     models::{
         Pdf,
-        csb_model_inputs::{I4Inputs, i4_inputs},
+        csb_model_inputs::i4_inputs,
         i4::{I4, NumberedOnDistricts, NumberedOnVotes},
         inputs::PublicSession,
     },
@@ -21,22 +21,23 @@ use crate::{
 
 /// Collect the store data the I 4 model needs.
 async fn i4_model<S: AppRequestState>(
+    context: CsbContext,
     main_store: CsbMainStore,
     state: &S,
     is_draft: bool,
 ) -> Result<I4, AppError> {
     let election = main_store.election;
     let registry = state.csb_store_registry();
-    let numbering = list_numbering(registry, &main_store).await?;
-    let I4Inputs {
-        found_omissions,
-        recovered_omissions,
-        invalid_lists,
-        removed_candidates,
-        removed_appellations,
-        corrected_appellations,
-        valid_lists,
-    } = i4_inputs(registry, &election, &numbering.stream_ids()).await?;
+    let mut numbering = list_numbering(registry, &main_store).await?;
+
+    // A draft does not record the numbering
+    if !is_draft {
+        numbering
+            .record_if_incomplete(&context, &main_store)
+            .await?;
+    }
+
+    let i4_inputs = i4_inputs(registry, &election, &numbering.stream_ids()).await?;
 
     let mut public_session = PublicSession::from(election.public_session());
     if let Some(hearing_details) = main_store.get_hearing_details(HearingModel::I4) {
@@ -50,13 +51,6 @@ async fn i4_model<S: AppRequestState>(
             .format(DEFAULT_DATE_FORMAT)
             .to_string(),
         public_session,
-        found_omissions,
-        recovered_omissions,
-        invalid_lists,
-        removed_candidates,
-        removed_appellations,
-        corrected_appellations,
-        valid_lists,
         numbered_based_on_votes: numbering
             .on_votes()
             .map(|group| NumberedOnVotes {
@@ -81,15 +75,17 @@ async fn i4_model<S: AppRequestState>(
             .collect(),
         response_objections: None,
         is_draft,
+        ..i4_inputs.into()
     })
 }
 
 pub async fn gen_i4_final<S: AppRequestState>(
     _: CsbI4FinalDownloadPath,
+    context: CsbContext,
     main_store: CsbMainStore,
     State(state): State<S>,
 ) -> Result<Response, AppError> {
-    i4_model(main_store, &state, false)
+    i4_model(context, main_store, &state, false)
         .await?
         .pdf_response()
         .await
@@ -98,10 +94,11 @@ pub async fn gen_i4_final<S: AppRequestState>(
 /// The same I 4 as [`gen_i4_final`], exported as a Word document.
 pub async fn gen_i4_final_docx<S: AppRequestState>(
     _: CsbI4FinalDocxDownloadPath,
+    context: CsbContext,
     main_store: CsbMainStore,
     State(state): State<S>,
 ) -> Result<Response, AppError> {
-    i4_model(main_store, &state, false)
+    i4_model(context, main_store, &state, false)
         .await?
         .docx_response()
         .await
@@ -109,10 +106,11 @@ pub async fn gen_i4_final_docx<S: AppRequestState>(
 
 pub async fn gen_i4_draft<S: AppRequestState>(
     _: CsbI4DraftDownloadPath,
+    context: CsbContext,
     main_store: CsbMainStore,
     State(state): State<S>,
 ) -> Result<Response, AppError> {
-    i4_model(main_store, &state, true)
+    i4_model(context, main_store, &state, true)
         .await?
         .pdf_response()
         .await
@@ -121,10 +119,11 @@ pub async fn gen_i4_draft<S: AppRequestState>(
 /// The same I 4 as [`gen_i4_draft`], exported as a Word document.
 pub async fn gen_i4_draft_docx<S: AppRequestState>(
     _: CsbI4DraftDocxDownloadPath,
+    context: CsbContext,
     main_store: CsbMainStore,
     State(state): State<S>,
 ) -> Result<Response, AppError> {
-    i4_model(main_store, &state, true)
+    i4_model(context, main_store, &state, true)
         .await?
         .docx_response()
         .await
@@ -142,55 +141,38 @@ mod tests {
     use std::collections::BTreeSet;
 
     use crate::{
-        AppState, CsbAction, CsbMainAction, CsbUser, ElectionConfig, ElectoralDistrict,
-        PgStoreData, StreamId,
+        AppState, CsbMainAction, CsbUser, ElectionConfig, ElectoralDistrict, StreamId,
         structs::{
             candidate_lists::CandidateList,
             csb::{
                 HearingDetails, OmissionCategory, OmissionStatus, sample_omission,
                 sample_registered_political_group,
             },
-            list_designation::ListDesignation,
             persons::PersonId,
-            political_groups::PoliticalGroup,
         },
-        test_utils::sample_person,
+        test_utils::{sample_person, sample_political_group_named, seed_csb_group},
     };
 
     /// Import a group named `appellation` with one list in Groningen.
     async fn seed_group(state: &AppState, appellation: &str) -> StreamId {
-        let stream_id = StreamId::new();
-        let store = state
-            .csb_store_for_stream(stream_id, ElectionConfig::EK27)
-            .await
-            .unwrap()
-            .acting_as_test_user();
-        let mut snapshot = PgStoreData {
-            political_group: PoliticalGroup {
-                appellation: Some(appellation.parse().unwrap()),
-                list_designation: Some(ListDesignation::Standalone),
-                ..Default::default()
-            },
-            ..PgStoreData::default()
-        };
         let list = CandidateList {
             electoral_districts: BTreeSet::from([ElectoralDistrict::Groningen]),
             ..Default::default()
         };
-        snapshot.candidate_lists.insert(list.id, list);
-        store
-            .update(CsbAction::Import {
-                hash: [0u8; 32],
-                source_stream_id: StreamId::new(),
-                snapshot: Box::new(snapshot),
-            })
-            .await
-            .unwrap();
-        stream_id
+        seed_csb_group(
+            state,
+            ElectionConfig::EK27,
+            sample_political_group_named(appellation),
+            vec![],
+            vec![list],
+        )
+        .await
+        .stream_id
     }
 
     #[tokio::test]
     async fn i4_session_uses_the_stored_hearing_details() -> Result<(), AppError> {
+        let context = CsbContext::new_test();
         let state = AppState::new_for_tests().await;
         let main_store = CsbMainStore::new_for_test();
         main_store
@@ -210,7 +192,7 @@ mod tests {
             )
             .await?;
 
-        let model = i4_model(main_store, &state, false).await?;
+        let model = i4_model(context, main_store, &state, false).await?;
 
         assert_eq!(model.public_session.date, "09-04-2027");
         assert_eq!(model.public_session.time, "10:15");
@@ -223,6 +205,7 @@ mod tests {
     /// The I 1 hearing is a different hearing: it must not leak into the I 4.
     #[tokio::test]
     async fn i4_session_ignores_the_i1_hearing_details() -> Result<(), AppError> {
+        let context = CsbContext::new_test();
         let state = AppState::new_for_tests().await;
         let main_store = CsbMainStore::new_for_test();
         main_store
@@ -239,7 +222,7 @@ mod tests {
             )
             .await?;
 
-        let model = i4_model(main_store, &state, false).await?;
+        let model = i4_model(context, main_store, &state, false).await?;
 
         let configured = ElectionConfig::EK27.public_session();
         assert_eq!(model.public_session.date, configured.formatted_date());
@@ -250,9 +233,10 @@ mod tests {
 
     #[tokio::test]
     async fn gen_i4_returns_pdf_response() -> Result<(), AppError> {
+        let context = CsbContext::new_test();
         let main_store = CsbMainStore::new_for_test();
         let state = AppState::new_for_tests().await;
-        let response = gen_i4_final(CsbI4FinalDownloadPath, main_store, State(state))
+        let response = gen_i4_final(CsbI4FinalDownloadPath, context, main_store, State(state))
             .await?
             .into_response();
 
@@ -278,11 +262,17 @@ mod tests {
 
     #[tokio::test]
     async fn gen_i4_docx_returns_word_response() -> Result<(), AppError> {
+        let context = CsbContext::new_test();
         let main_store = CsbMainStore::new_for_test();
         let state = AppState::new_for_tests().await;
-        let response = gen_i4_final_docx(CsbI4FinalDocxDownloadPath, main_store, State(state))
-            .await?
-            .into_response();
+        let response = gen_i4_final_docx(
+            CsbI4FinalDocxDownloadPath,
+            context,
+            main_store,
+            State(state),
+        )
+        .await?
+        .into_response();
 
         assert_eq!(response.status(), StatusCode::OK);
         let headers = response.headers();
@@ -310,6 +300,7 @@ mod tests {
     /// lot order.
     #[tokio::test]
     async fn i4_model_numbers_the_lists_on_votes_and_by_lot() -> Result<(), AppError> {
+        let context = CsbContext::new_test();
         let state = AppState::new_for_tests().await;
         let seated = seed_group(&state, "Gezeteld").await;
         let first_by_lot = seed_group(&state, "Eerste Loting").await;
@@ -331,7 +322,7 @@ mod tests {
             )
             .await?;
 
-        let model = i4_model(main_store, &state, false).await?;
+        let model = i4_model(context, main_store, &state, false).await?;
 
         let on_votes: Vec<_> = model
             .numbered_based_on_votes
@@ -352,41 +343,82 @@ mod tests {
         Ok(())
     }
 
+    /// The by-lot table's positions and appellations.
+    fn by_lot(model: &I4) -> Vec<(Option<usize>, &str)> {
+        model
+            .numbered_based_on_districts
+            .iter()
+            .map(|g| (g.position, g.appellation.as_str()))
+            .collect()
+    }
+
+    /// The first final download records the starting order when none was
+    /// recorded yet, and numbers the lists by it; further downloads leave it
+    /// alone.
+    #[tokio::test]
+    async fn i4_model_records_the_list_order_once() -> Result<(), AppError> {
+        let state = AppState::new_for_tests().await;
+        // Created in reverse, so the alphabetical starting order differs
+        let second = seed_group(&state, "Tweede").await;
+        let first = seed_group(&state, "Eerste").await;
+        let main_store = CsbMainStore::new_for_test();
+        assert_eq!(main_store.list_order_events(), 0);
+
+        let numbered = [(Some(1), "Eerste"), (Some(2), "Tweede")];
+        let model = i4_model(CsbContext::new_test(), main_store.clone(), &state, false).await?;
+        assert_eq!(by_lot(&model), numbered);
+        assert_eq!(main_store.list_order_events(), 1);
+        assert_eq!(main_store.list_order(), [first, second]);
+
+        let model = i4_model(CsbContext::new_test(), main_store.clone(), &state, false).await?;
+        assert_eq!(by_lot(&model), numbered);
+        let model = i4_model(CsbContext::new_test(), main_store.clone(), &state, true).await?;
+        assert_eq!(by_lot(&model), numbered);
+        assert_eq!(main_store.list_order_events(), 1);
+
+        Ok(())
+    }
+
+    /// A draft never records the list order, not even when none was recorded,
+    /// and leaves the by-lot positions blank.
+    #[tokio::test]
+    async fn i4_draft_does_not_record_the_list_order() -> Result<(), AppError> {
+        let state = AppState::new_for_tests().await;
+        seed_group(&state, "Eerste").await;
+        seed_group(&state, "Tweede").await;
+        let main_store = CsbMainStore::new_for_test();
+
+        i4_model(CsbContext::new_test(), main_store.clone(), &state, true).await?;
+        let model = i4_model(CsbContext::new_test(), main_store.clone(), &state, true).await?;
+
+        assert_eq!(by_lot(&model), [(None, "Eerste"), (None, "Tweede")]);
+        assert_eq!(main_store.list_order_events(), 0);
+        assert!(main_store.list_order().is_empty());
+
+        Ok(())
+    }
+
     /// Render once with omissions, a scrapped candidate and a valid list.
     #[tokio::test]
     async fn gen_i4_renders_the_omissions_and_the_valid_lists() -> Result<(), AppError> {
+        let context = CsbContext::new_test();
         let state = AppState::new_for_tests().await;
-        let store = state
-            .csb_store_for_stream(StreamId::new(), ElectionConfig::EK27)
-            .await?
-            .acting_as_test_user();
-
         let first = sample_person(PersonId::new());
         let second = sample_person(PersonId::new());
-        let mut snapshot = PgStoreData {
-            political_group: PoliticalGroup {
-                appellation: Some("Kiesraad Demo".parse().unwrap()),
-                list_designation: Some(ListDesignation::Standalone),
-                ..Default::default()
-            },
-            ..PgStoreData::default()
-        };
-        snapshot.persons.insert(first.id, first.clone());
-        snapshot.persons.insert(second.id, second.clone());
         let list = CandidateList {
             electoral_districts: BTreeSet::from([ElectoralDistrict::Groningen]),
             candidates: vec![first.id, second.id],
             ..Default::default()
         };
         let list_id = list.id;
-        snapshot.candidate_lists.insert(list.id, list);
-        store
-            .update(CsbAction::Import {
-                hash: [0u8; 32],
-                source_stream_id: StreamId::new(),
-                snapshot: Box::new(snapshot),
-            })
-            .await?;
+        let store = seed_csb_group(
+            &state,
+            ElectionConfig::EK27,
+            sample_political_group_named("Kiesraad Demo"),
+            vec![first.clone(), second.clone()],
+            vec![list],
+        )
+        .await;
 
         let recovered = sample_omission(OmissionCategory::Candidate {
             person: first.id,
@@ -406,7 +438,7 @@ mod tests {
             .await?;
 
         let main_store = CsbMainStore::new_for_test();
-        let response = gen_i4_final(CsbI4FinalDownloadPath, main_store, State(state))
+        let response = gen_i4_final(CsbI4FinalDownloadPath, context, main_store, State(state))
             .await?
             .into_response();
 

@@ -15,7 +15,8 @@ use http_body_util::BodyExt;
 use std::collections::BTreeSet;
 
 use crate::{
-    AppError, Context, ElectionConfig, ElectoralDistrict, PgStore, TokenValue,
+    AppError, AppState, Context, CsbAction, CsbStore, ElectionConfig, ElectoralDistrict, PgStore,
+    PgStoreData, StreamId, TokenValue,
     common::{DutchAddressForm, FullNameForm, InternationalAddressForm, MinimalNameForm},
     list_submitters::ListSubmitterForm,
     name_authorisations::NameAuthorisationForm,
@@ -257,6 +258,53 @@ pub fn sample_political_group() -> PoliticalGroup {
         list_designation: Some(ListDesignation::Standalone),
         previous_election_results: Some(PreviousElectionResults::ZeroSeats),
     }
+}
+
+/// A standalone political group named `appellation`.
+pub fn sample_political_group_named(appellation: &str) -> PoliticalGroup {
+    PoliticalGroup {
+        appellation: Some(appellation.parse::<Appellation>().expect("appellation")),
+        list_designation: Some(ListDesignation::Standalone),
+        ..Default::default()
+    }
+}
+
+/// Import `political_group` with its `persons` and `lists` as a CSB stream
+/// in the test registry of `state`.
+pub async fn seed_csb_group(
+    state: &AppState,
+    election: ElectionConfig,
+    political_group: PoliticalGroup,
+    persons: Vec<Person>,
+    lists: Vec<CandidateList>,
+) -> CsbStore {
+    let store = state
+        .csb_store_for_stream(StreamId::new(), election)
+        .await
+        .expect("csb store")
+        .acting_as_test_user();
+
+    let mut snapshot = PgStoreData {
+        political_group,
+        ..PgStoreData::default()
+    };
+    for person in persons {
+        snapshot.persons.insert(person.id, person);
+    }
+    for list in lists {
+        snapshot.candidate_lists.insert(list.id, list);
+    }
+
+    store
+        .update(CsbAction::Import {
+            hash: [0u8; 32],
+            source_stream_id: StreamId::new(),
+            snapshot: Box::new(snapshot),
+        })
+        .await
+        .expect("import");
+
+    store
 }
 
 /// A [`PgStore`] in paper-corrections mode: reads serve the imported snapshot

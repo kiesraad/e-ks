@@ -248,7 +248,7 @@ impl DetailedCandidate {
 }
 
 /// The session of the central voting bureau, shared by the I 1 and I 4 models.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct PublicSession {
     pub location: String,
     pub date: String,

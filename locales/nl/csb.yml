@@ -85,6 +85,8 @@ examination: Onderzoek
 finalise:
   add_objection: Bezwaar toevoegen
   district_count: Kieskringen
+  download_candidate_list_overview: Download overzicht kandidatenlijsten
+  download_candidate_list_publication: Download publicatie kandidatenlijsten
   download_eml_zip: EML-bestanden downloaden
   draft_title: Concept versie
   final_title: Definitieve versie
@@ -95,6 +97,7 @@ finalise:
   objections_title: Bezwaar invoeren
   order_note: "Politieke groeperingen die bij de laatstgehouden verkiezing een of meer zetels hebben behaald, staan vooraan op volgorde van het aantal stemmen. Versleep de lijsten in de volgorde die tijdens de zitting is vastgesteld."
   order_title: Partij volgorde
+  other_documents: Overige documenten
   position: Positie
   title: Vaststellen kandidatenlijsten
 finish_examination:
