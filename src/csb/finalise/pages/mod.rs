@@ -3,6 +3,8 @@ use axum_extra::routing::RouterExt;
 
 use crate::AppRequestState;
 
+mod candidate_list_overview;
+mod candidate_list_publication;
 mod eml_zip;
 mod i4;
 mod objection;
@@ -23,4 +25,8 @@ pub fn router<S: AppRequestState>() -> Router<S> {
         .typed_get(i4::gen_i4_final_docx::<S>)
         .typed_get(i4::gen_i4_draft::<S>)
         .typed_get(i4::gen_i4_draft_docx::<S>)
+        .typed_get(candidate_list_overview::gen_candidate_list_overview_docx::<S>)
+        .typed_get(candidate_list_overview::gen_candidate_list_overview::<S>)
+        .typed_get(candidate_list_publication::gen_candidate_list_publication::<S>)
+        .typed_get(candidate_list_publication::gen_candidate_list_publication_docx::<S>)
 }

@@ -7,9 +7,8 @@ use super::paths::{
     CsbAddOmissionPath, CsbAllBrpFindingsPath, CsbAllRestorationsPath,
     CsbAppellationCorrectionPath, CsbBrpCheckPath, CsbBrpOverviewDocxDownloadPath,
     CsbBrpOverviewDownloadPath, CsbBrpOverviewMarkdownDownloadPath, CsbCandidateBrpCheckPath,
-    CsbCandidateBrpFindingHandledPath, CsbCandidateListPath,
-    CsbCandidateListPublicationDocxDownloadPath, CsbCandidateListPublicationDownloadPath,
-    CsbCandidatePath, CsbDeleteOmissionPath, CsbExaminationOverviewPath, CsbFinishExaminationPath,
+    CsbCandidateBrpFindingHandledPath, CsbCandidateListPath, CsbCandidatePath,
+    CsbDeleteOmissionPath, CsbExaminationOverviewPath, CsbFinishExaminationPath,
     CsbGeneralInformationPath, CsbI1DocxDownloadPath, CsbI1DownloadPath,
     CsbOmissionLetterDocxDownloadPath, CsbOmissionLetterDownloadPath, CsbOmissionLetterPath,
     CsbOmissionLettersDownloadPath, CsbOmissionOverviewPath, CsbPaperCorrectionsStartPath,
@@ -22,8 +21,6 @@ mod all_restorations;
 mod brp_overview;
 pub(in crate::csb) mod candidate;
 pub(in crate::csb) mod candidate_list;
-mod candidate_list_overview;
-mod candidate_list_publication;
 mod correction;
 mod delete;
 pub(in crate::csb) mod finish_examination;
@@ -41,10 +38,6 @@ pub fn router<S: AppRequestState>() -> Router<S> {
         .typed_get(overview::overview)
         .typed_get(i1::gen_i1::<S>)
         .typed_get(i1::gen_i1_docx::<S>)
-        .typed_get(candidate_list_overview::gen_candidate_list_overview_docx::<S>)
-        .typed_get(candidate_list_overview::gen_candidate_list_overview::<S>)
-        .typed_get(candidate_list_publication::gen_candidate_list_publication::<S>)
-        .typed_get(candidate_list_publication::gen_candidate_list_publication_docx::<S>)
         .typed_get(omission_letter::overview)
         .typed_get(omission_letter::gen_omission_letter)
         .typed_get(omission_letter::gen_omission_letter_docx)

@@ -12,7 +12,7 @@ use super::{
 };
 use crate::AppError;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct I4 {
     pub election_name: String,
     pub election_date: String,

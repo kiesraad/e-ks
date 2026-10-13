@@ -639,7 +639,7 @@ mod tests {
     use crate::{
         AppState,
         core::election::WaterCouncil,
-        csb::examination::{numbering::list_numbering, structs::BrpCheckState},
+        csb::{examination::structs::BrpCheckState, finalise::numbering::list_numbering},
     };
 
     /// The fixture groups that were imported, as many as have a handed-in list.
