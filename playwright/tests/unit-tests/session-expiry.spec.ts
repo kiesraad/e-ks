@@ -157,8 +157,7 @@ test.describe("session-expiry", () => {
 
     await page.clock.fastForward(minutes(14));
     // give the peek time to answer before asserting the dialog stayed closed
-    await page.waitForTimeout(100);
-    await expect(dialog).toBeHidden();
+    await expect(dialog).toBeHidden({ timeout: 100 });
 
     await page.clock.fastForward(minutes(9));
     await expect(dialog).toBeVisible();
@@ -184,8 +183,7 @@ test.describe("session-expiry", () => {
 
     // The warning comes back a full idle timeout later, not earlier.
     await page.clock.fastForward(minutes(13));
-    await page.waitForTimeout(100);
-    await expect(dialog).toBeHidden();
+    await expect(dialog).toBeHidden({ timeout: 100 });
     await page.clock.fastForward(minutes(1));
     await expect(dialog).toBeVisible();
   });
