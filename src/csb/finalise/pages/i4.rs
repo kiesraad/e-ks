@@ -343,32 +343,44 @@ mod tests {
         Ok(())
     }
 
-    /// The first final download records the list order when none was
-    /// recorded yet; further downloads leave it alone.
+    /// The by-lot table's positions and appellations.
+    fn by_lot(model: &I4) -> Vec<(Option<usize>, &str)> {
+        model
+            .numbered_based_on_districts
+            .iter()
+            .map(|g| (g.position, g.appellation.as_str()))
+            .collect()
+    }
+
+    /// The first final download records the starting order when none was
+    /// recorded yet, and numbers the lists by it; further downloads leave it
+    /// alone.
     #[tokio::test]
     async fn i4_model_records_the_list_order_once() -> Result<(), AppError> {
         let state = AppState::new_for_tests().await;
-        let first = seed_group(&state, "Eerste").await;
+        // Created in reverse, so the alphabetical starting order differs
         let second = seed_group(&state, "Tweede").await;
+        let first = seed_group(&state, "Eerste").await;
         let main_store = CsbMainStore::new_for_test();
         assert_eq!(main_store.list_order_events(), 0);
 
-        i4_model(CsbContext::new_test(), main_store.clone(), &state, false).await?;
+        let numbered = [(Some(1), "Eerste"), (Some(2), "Tweede")];
+        let model = i4_model(CsbContext::new_test(), main_store.clone(), &state, false).await?;
+        assert_eq!(by_lot(&model), numbered);
         assert_eq!(main_store.list_order_events(), 1);
-        let mut recorded = main_store.list_order();
-        recorded.sort();
-        let mut expected = vec![first, second];
-        expected.sort();
-        assert_eq!(recorded, expected);
+        assert_eq!(main_store.list_order(), [first, second]);
 
-        i4_model(CsbContext::new_test(), main_store.clone(), &state, false).await?;
-        i4_model(CsbContext::new_test(), main_store.clone(), &state, true).await?;
+        let model = i4_model(CsbContext::new_test(), main_store.clone(), &state, false).await?;
+        assert_eq!(by_lot(&model), numbered);
+        let model = i4_model(CsbContext::new_test(), main_store.clone(), &state, true).await?;
+        assert_eq!(by_lot(&model), numbered);
         assert_eq!(main_store.list_order_events(), 1);
 
         Ok(())
     }
 
-    /// A draft never records the list order, not even when none was recorded.
+    /// A draft never records the list order, not even when none was recorded,
+    /// and leaves the by-lot positions blank.
     #[tokio::test]
     async fn i4_draft_does_not_record_the_list_order() -> Result<(), AppError> {
         let state = AppState::new_for_tests().await;
@@ -377,8 +389,9 @@ mod tests {
         let main_store = CsbMainStore::new_for_test();
 
         i4_model(CsbContext::new_test(), main_store.clone(), &state, true).await?;
-        i4_model(CsbContext::new_test(), main_store.clone(), &state, true).await?;
+        let model = i4_model(CsbContext::new_test(), main_store.clone(), &state, true).await?;
 
+        assert_eq!(by_lot(&model), [(None, "Eerste"), (None, "Tweede")]);
         assert_eq!(main_store.list_order_events(), 0);
         assert!(main_store.list_order().is_empty());
 

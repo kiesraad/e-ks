@@ -70,46 +70,62 @@ mod tests {
 
     use crate::{
         AppState, ElectionConfig, ElectoralDistrict, StreamId,
-        structs::candidate_lists::CandidateList,
-        test_utils::{sample_political_group_named, seed_csb_group},
+        structs::{candidate_lists::CandidateList, persons::PersonId},
+        test_utils::{sample_person, sample_political_group_named, seed_csb_group},
     };
 
-    /// Import a group named `appellation` with one list in Groningen.
+    /// Import a group named `appellation` with one candidate on one list in
+    /// Groningen.
     async fn seed_group(state: &AppState, appellation: &str) -> StreamId {
+        let candidate = sample_person(PersonId::new());
         let list = CandidateList {
             electoral_districts: BTreeSet::from([ElectoralDistrict::Groningen]),
+            candidates: vec![candidate.id],
             ..Default::default()
         };
         seed_csb_group(
             state,
             ElectionConfig::EK27,
             sample_political_group_named(appellation),
-            vec![],
+            vec![candidate],
             vec![list],
         )
         .await
         .stream_id
     }
 
-    /// The first download records the list order when none was recorded yet;
-    /// further downloads leave it alone.
+    /// Each group's number and appellation.
+    fn numbers(model: &CandidateListOverview) -> Vec<(usize, &str)> {
+        model
+            .groups
+            .iter()
+            .map(|group| (group.number, group.appellation.as_str()))
+            .collect()
+    }
+
+    /// The first download records the starting order when none was recorded
+    /// yet, and numbers the lists by it; further downloads leave it alone.
     #[tokio::test]
     async fn candidate_list_overview_model_records_the_list_order_once() -> Result<(), AppError> {
         let state = AppState::new_for_tests().await;
-        let first = seed_group(&state, "Eerste").await;
+        // Created in reverse, so the alphabetical starting order differs
         let second = seed_group(&state, "Tweede").await;
+        let first = seed_group(&state, "Eerste").await;
         let main_store = CsbMainStore::new_for_test();
         assert_eq!(main_store.list_order_events(), 0);
 
-        candidate_list_overview_model(CsbContext::new_test(), main_store.clone(), &state).await?;
+        let numbered = [(1, "Eerste"), (2, "Tweede")];
+        let model =
+            candidate_list_overview_model(CsbContext::new_test(), main_store.clone(), &state)
+                .await?;
+        assert_eq!(numbers(&model), numbered);
         assert_eq!(main_store.list_order_events(), 1);
-        let mut recorded = main_store.list_order();
-        recorded.sort();
-        let mut expected = vec![first, second];
-        expected.sort();
-        assert_eq!(recorded, expected);
+        assert_eq!(main_store.list_order(), [first, second]);
 
-        candidate_list_overview_model(CsbContext::new_test(), main_store.clone(), &state).await?;
+        let model =
+            candidate_list_overview_model(CsbContext::new_test(), main_store.clone(), &state)
+                .await?;
+        assert_eq!(numbers(&model), numbered);
         assert_eq!(main_store.list_order_events(), 1);
 
         Ok(())

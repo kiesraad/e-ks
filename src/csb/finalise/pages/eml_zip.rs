@@ -478,42 +478,52 @@ mod tests {
         Ok(())
     }
 
-    /// The first download records the list order when none was recorded yet;
-    /// further downloads leave it alone.
+    /// The first download records the starting order when none was recorded
+    /// yet, and numbers the lists by it; further downloads leave it alone.
     #[tokio::test]
     async fn eml230_files_records_the_list_order_once() -> Result<(), AppError> {
         let state = AppState::new_for_tests().await;
         let all_districts = ElectionConfig::EK27.electoral_districts().to_vec();
-        let first = sample_group(
+        // Created in reverse, so the alphabetical starting order differs
+        let second = sample_group(
             &state,
             ElectionConfig::EK27,
-            "Eerste",
+            "Zebra Partij",
             all_districts.clone(),
         )
         .await;
-        let second = sample_group(&state, ElectionConfig::EK27, "Tweede", all_districts).await;
+        let first =
+            sample_group(&state, ElectionConfig::EK27, "Andere Partij", all_districts).await;
         let main_store = CsbMainStore::new_for_test();
         assert_eq!(main_store.list_order_events(), 0);
 
-        eml230_files(
-            CsbContext::new_test(),
-            state.csb_store_registry(),
-            &main_store,
-        )
-        .await?;
-        assert_eq!(main_store.list_order_events(), 1);
-        let mut recorded = main_store.list_order();
-        recorded.sort();
-        let mut expected = vec![first, second];
-        expected.sort();
-        assert_eq!(recorded, expected);
+        let assert_numbered = |files: Vec<(String, Vec<u8>)>| {
+            let xml = String::from_utf8(files[0].1.clone()).unwrap();
+            let position = |needle: &str| xml.find(needle).expect("group in export");
+            assert!(position(r#"<AffiliationIdentifier Id="1">"#) < position("Andere Partij"));
+            assert!(position("Andere Partij") < position(r#"<AffiliationIdentifier Id="2">"#));
+            assert!(position(r#"<AffiliationIdentifier Id="2">"#) < position("Zebra Partij"));
+        };
 
-        eml230_files(
-            CsbContext::new_test(),
-            state.csb_store_registry(),
-            &main_store,
-        )
-        .await?;
+        assert_numbered(
+            eml230_files(
+                CsbContext::new_test(),
+                state.csb_store_registry(),
+                &main_store,
+            )
+            .await?,
+        );
+        assert_eq!(main_store.list_order_events(), 1);
+        assert_eq!(main_store.list_order(), [first, second]);
+
+        assert_numbered(
+            eml230_files(
+                CsbContext::new_test(),
+                state.csb_store_registry(),
+                &main_store,
+            )
+            .await?,
+        );
         assert_eq!(main_store.list_order_events(), 1);
 
         Ok(())

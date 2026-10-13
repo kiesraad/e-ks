@@ -91,6 +91,28 @@ mod tests {
         assert!(body.contains(r#"href="/csb" class="button secondary">Back<"#));
     }
 
+    /// Each candidate list download is captioned with its own document.
+    #[tokio::test]
+    async fn overview_links_the_candidate_list_downloads() {
+        let body = render(CsbMainStore::new_for_test(), vec![]).await;
+        let link = |href: &str| {
+            let start = body
+                .find(&format!(r#"href="{href}""#))
+                .expect("download link");
+            let end = start + body[start..].find("</a>").expect("closing tag");
+            &body[start..end]
+        };
+
+        assert!(
+            link("/csb/examination/overzicht-kandidatenlijsten.pdf")
+                .ends_with(">Download candidate list overview")
+        );
+        assert!(
+            link("/csb/examination/publicatie-kandidatenlijsten.pdf")
+                .ends_with(">Download candidate list publication")
+        );
+    }
+
     /// The I 4 hearing is recorded here, in phase 4, and nowhere else.
     #[tokio::test]
     async fn overview_links_the_i4_hearing_details() {
