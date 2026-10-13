@@ -22,6 +22,22 @@ configuration.
   PIN, which the member sets and enters themselves; the administrator never
   learns it. Without a PIN enrolment fails. Set one with
   `fido2-token -S <device>` or `ykman fido access change-pin`.
+- On a key that supports it, the "user verification always" option (CTAP
+  2.1 `alwaysUv`) must be on: the key then demands the PIN for every
+  operation, enrolment and login alike, whatever the requesting page asks
+  for. The script refuses a key that has the option but leaves it off. The
+  member enables it, entering the PIN, with
+
+  ```sh
+  fido2-token -S -u <device>
+  ```
+
+  `fido2-token -I <device>` shows the state on its `options` line:
+  `alwaysUv` when on, `noalwaysUv` when off. A key whose options list
+  neither has no such option (YubiKeys with firmware before 5.7; enabling
+  fails with "config_always_uv: option not found") and is enrolled as is.
+  The login then still demands the PIN, because the login page requests
+  user verification and the server rejects an assertion without it.
 - The libfido2 command-line tools on the administrator's machine:
   `apt install fido2-tools` (Debian/Ubuntu), `brew install libfido2` (macOS).
   On Linux the key must be accessible without root; libfido2 ships udev
@@ -82,7 +98,8 @@ lines with different usernames.
 
 ## Without the script
 
-The script only wraps `fido2-cred`. By hand:
+The script only wraps `fido2-cred`. By hand, after checking that
+`fido2-token -I /dev/hidraw5` does not list `noalwaysUv` under `options`:
 
 ```sh
 { head -c 32 /dev/urandom | base64; echo csb.example.nl; echo alice; head -c 32 /dev/urandom | base64; } > param

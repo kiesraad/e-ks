@@ -46,6 +46,18 @@ if [ -z "$device" ]; then
     device=$devices
 fi
 
+# The login requires user verification (the PIN). With the CTAP 2.1 "user
+# verification always" option the key enforces that itself for every
+# operation, whatever a page asks for. fido2-token -I lists enabled options
+# by name and disabled ones with a "no" prefix; a key without the option
+# (YubiKey firmware before 5.7) lists neither and is accepted as is.
+options=$(fido2-token -I "$device" | grep '^options:' || true)
+if grep -qw 'noalwaysUv' <<< "$options"; then
+    echo "the key supports 'user verification always' but has it off; the member enables it with:" >&2
+    echo "  fido2-token -S -u $device" >&2
+    exit 1
+fi
+
 workdir=$(mktemp -d)
 trap 'rm -rf "$workdir"' EXIT
 
