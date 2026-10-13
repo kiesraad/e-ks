@@ -313,7 +313,8 @@ fn build_flatten_validation(
                 Some(value) => {
                     let nested_base = base.#ident.clone().unwrap_or_default();
                     match value.validate_into(&nested_base) {
-                        Ok(value) => Some(Some(value)),
+                        // `into` also fills a boxed target field
+                        Ok(value) => Some(Some(value.into())),
                         Err(form_data) => { #extend_errors None }
                     }
                 }

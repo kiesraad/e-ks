@@ -33,7 +33,11 @@ pub async fn update_representative(
             should_warn: query.should_warn(),
             address_unknown: person.representative_address_unknown(),
             form: FormData::new_with_data(RepresentativeForm::from(
-                person.clone().representative.unwrap_or_default(),
+                person
+                    .representative
+                    .as_deref()
+                    .cloned()
+                    .unwrap_or_default(),
             )),
             overlay: Overlay::new_edit(&query),
             person,

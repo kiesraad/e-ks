@@ -435,7 +435,7 @@ mod tests {
         let mut international_candidate = store.get_person(list.candidates[1])?;
         international_candidate.personal_data.country = Some("BE".parse::<CountryCode>().unwrap());
         international_candidate.personal_data.bsn = Some(BsnOrNoneConfirmed::NoneConfirmed);
-        international_candidate.representative = Some(Representative::default());
+        international_candidate.representative = Some(Box::new(Representative::default()));
         international_candidate.update(&store).await?;
 
         let response = gen_documents(

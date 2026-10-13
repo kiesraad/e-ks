@@ -99,7 +99,7 @@ fn representative_field(
     field: impl Fn(&Representative) -> String,
 ) -> PaperCorrected {
     PaperCorrected::from_field(imported, corrected, |p| {
-        p.representative.as_ref().map(&field).unwrap_or_default()
+        p.representative.as_deref().map(&field).unwrap_or_default()
     })
 }
 

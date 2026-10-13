@@ -360,13 +360,10 @@ fn candidates_changed_by(event: &PgEvent) -> Vec<PersonId> {
         PgEvent::CreatePersonPersonalData { person_id, .. }
         | PgEvent::UpdatePersonPersonalData { person_id, .. }
         | PgEvent::DeletePerson { person_id } => vec![*person_id],
-        PgEvent::ImportCandidates {
-            created_persons,
-            updated_persons,
-            ..
-        } => created_persons
+        PgEvent::ImportCandidates(import) => import
+            .created_persons
             .iter()
-            .chain(updated_persons)
+            .chain(&import.updated_persons)
             .map(|person| person.id)
             .collect(),
         _ => Vec::new(),
@@ -843,7 +840,7 @@ mod brp_reset_tests {
         person.name.last_name = "Gecorrigeerd".parse().unwrap();
         store
             .update(CsbAction::PaperCorrectedUpdate(Box::new(
-                crate::PgEvent::UpdatePerson(person),
+                crate::PgEvent::UpdatePerson(Box::new(person)),
             )))
             .await
             .unwrap();
@@ -860,14 +857,14 @@ mod brp_reset_tests {
         person.name.last_name = "Gecorrigeerd".parse().unwrap();
         store
             .update(CsbAction::PaperCorrectedUpdate(Box::new(
-                crate::PgEvent::ImportCandidates {
+                crate::PgEvent::ImportCandidates(Box::new(crate::projection::CandidateImport {
                     list_id: crate::structs::candidate_lists::CandidateListId::new(),
                     file_name: "kandidaten.csv".to_string(),
                     file_size: 1,
                     created_persons: Vec::new(),
                     updated_persons: vec![person],
                     candidates: vec![person_id],
-                },
+                })),
             )))
             .await
             .unwrap();

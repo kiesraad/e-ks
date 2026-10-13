@@ -67,7 +67,7 @@ mod tests {
     fn from_create_person_event() {
         let person = sample_person(PersonId::new());
         let expected_name = person.name.display();
-        let event = StoreEvent::new(1, PgEvent::CreatePerson(person));
+        let event = StoreEvent::new(1, PgEvent::CreatePerson(Box::new(person)));
 
         let entry = AuditLogEntry::new(event, EN);
 
@@ -104,7 +104,7 @@ mod tests {
     fn from_create_name_authorisation_event() {
         let name_auth = sample_name_authorisation(NameAuthorisationId::new());
         let expected_name = format!("{} ({})", name_auth.legal_name, name_auth.name.display());
-        let event = StoreEvent::new(4, PgEvent::CreateNameAuthorisation(name_auth));
+        let event = StoreEvent::new(4, PgEvent::CreateNameAuthorisation(Box::new(name_auth)));
 
         let entry = AuditLogEntry::new(event, EN);
 
@@ -119,7 +119,7 @@ mod tests {
     fn from_update_list_submitter_event() {
         let submitter = sample_list_submitter(ListSubmitterId::new());
         let expected_name = submitter.name.display();
-        let event = StoreEvent::new(5, PgEvent::UpdateListSubmitter(submitter));
+        let event = StoreEvent::new(5, PgEvent::UpdateListSubmitter(Box::new(submitter)));
 
         let entry = AuditLogEntry::new(event, EN);
 
@@ -146,7 +146,7 @@ mod tests {
     #[test]
     fn from_create_candidate_list_event_shows_districts() {
         let list = sample_candidate_list(CandidateListId::new());
-        let event = StoreEvent::new(7, PgEvent::CreateCandidateList(list));
+        let event = StoreEvent::new(7, PgEvent::CreateCandidateList(Box::new(list)));
 
         let entry = AuditLogEntry::new(event, EN);
 
@@ -198,7 +198,7 @@ mod tests {
     #[test]
     fn matches_search_by_description() {
         let person = sample_person(PersonId::new());
-        let event = StoreEvent::new(1, PgEvent::CreatePerson(person));
+        let event = StoreEvent::new(1, PgEvent::CreatePerson(Box::new(person)));
         let entry = AuditLogEntry::new(event, EN);
 
         assert!(entry.matches_search("Created"));
@@ -225,7 +225,7 @@ mod tests {
     fn matches_search_by_subject_id() {
         let person_id = PersonId::new();
         let person = sample_person(person_id);
-        let event = StoreEvent::new(1, PgEvent::CreatePerson(person));
+        let event = StoreEvent::new(1, PgEvent::CreatePerson(Box::new(person)));
         let entry = AuditLogEntry::new(event, EN);
 
         assert!(entry.matches_search(&crate::abbreviate_str(&entry.subject_id_full)));
@@ -269,7 +269,7 @@ mod tests {
             1,
             PgEvent::UpdatePersonAddress {
                 person_id,
-                address: crate::structs::common::DutchAddress::default(),
+                address: Box::new(crate::structs::common::DutchAddress::default()),
             },
         );
 
@@ -283,7 +283,7 @@ mod tests {
     fn from_create_substitute_submitter_event() {
         let submitter = sample_list_submitter(ListSubmitterId::new());
         let expected_name = submitter.name.display();
-        let event = StoreEvent::new(1, PgEvent::CreateSubstituteSubmitter(submitter));
+        let event = StoreEvent::new(1, PgEvent::CreateSubstituteSubmitter(Box::new(submitter)));
 
         let entry = AuditLogEntry::new(event, EN);
 
@@ -326,7 +326,7 @@ mod tests {
     #[test]
     fn event_category_and_key_are_set_correctly() {
         let person = sample_person(PersonId::new());
-        let event = PgEvent::CreatePerson(person);
+        let event = PgEvent::CreatePerson(Box::new(person));
         assert_eq!(event.category(), "person");
         assert_eq!(event.key(), "create_person");
 

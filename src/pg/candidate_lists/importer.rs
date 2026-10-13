@@ -342,14 +342,16 @@ async fn emit_import_event(
     }
 
     store
-        .update(PgEvent::ImportCandidates {
-            list_id: list.id,
-            file_name,
-            file_size,
-            created_persons,
-            updated_persons,
-            candidates,
-        })
+        .update(PgEvent::ImportCandidates(Box::new(
+            crate::projection::CandidateImport {
+                list_id: list.id,
+                file_name,
+                file_size,
+                created_persons,
+                updated_persons,
+                candidates,
+            },
+        )))
         .await?;
 
     *list = store.get_candidate_list(list.id)?;

@@ -304,7 +304,7 @@ mod tests {
 
         store
             .update(CsbAction::PaperCorrectedUpdate(Box::new(
-                PgEvent::UpdateListSubmitter(list_submitter),
+                PgEvent::UpdateListSubmitter(Box::new(list_submitter)),
             )))
             .await
             .expect("Update list submitter");
@@ -330,7 +330,7 @@ mod tests {
 
         store
             .update(CsbAction::PaperCorrectedUpdate(Box::new(
-                PgEvent::CreateSubstituteSubmitter(list_submitter),
+                PgEvent::CreateSubstituteSubmitter(Box::new(list_submitter)),
             )))
             .await
             .expect("Create substitute submitter");
