@@ -6,6 +6,7 @@ use crate::AppRequestState;
 mod candidate_list_overview;
 mod candidate_list_publication;
 mod eml_zip;
+mod candidate_list_per_district;
 mod i4;
 mod objection;
 mod order;
@@ -25,8 +26,10 @@ pub fn router<S: AppRequestState>() -> Router<S> {
         .typed_get(i4::gen_i4_final_docx::<S>)
         .typed_get(i4::gen_i4_draft::<S>)
         .typed_get(i4::gen_i4_draft_docx::<S>)
+        // FIXME: everything below this line into one zip + i4 (#1363)
         .typed_get(candidate_list_overview::gen_candidate_list_overview_docx::<S>)
         .typed_get(candidate_list_overview::gen_candidate_list_overview::<S>)
         .typed_get(candidate_list_publication::gen_candidate_list_publication::<S>)
         .typed_get(candidate_list_publication::gen_candidate_list_publication_docx::<S>)
+        .typed_get(candidate_list_per_district::download_zip::<S>)
 }

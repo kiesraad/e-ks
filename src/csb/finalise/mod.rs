@@ -9,5 +9,6 @@ mod paths;
 
 pub use pages::router;
 pub use paths::{
-    CsbEmlZipDownloadPath, CsbFinalisePath, CsbI4FinalDocxDownloadPath, CsbI4FinalDownloadPath,
+    CsbCandidateListPerDistrictDownloadPath, CsbEmlZipDownloadPath, CsbFinalisePath,
+    CsbI4FinalDocxDownloadPath, CsbI4FinalDownloadPath,
 };

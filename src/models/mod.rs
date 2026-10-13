@@ -19,6 +19,7 @@
 pub mod brp_overview;
 pub mod candidate_list_overview;
 pub mod candidate_list_publication;
+pub mod candidate_list_per_district;
 pub(crate) mod csb_model_inputs;
 pub(crate) mod documents;
 pub(crate) mod eml;

@@ -5,13 +5,16 @@ footer_right = "Pagina {page} van {total}"
 +++
 
 # Overzicht definitieve kandidatenlijsten
+
 Voor de verkiezing van: **{{ election_name|line }}**
+
 Dag van stemming: **{{ election_date|line }}**
 
 Kieskring: **{{ electoral_district|line }}**
 
 {% for numbered in lists %}
 ## {{ numbered.number }} {{ numbered.list.appellation|line }}
+
 { widths = "auto 2 1" }
 | Nr | naam | woonplaats |
 | --- | --- | --- |
