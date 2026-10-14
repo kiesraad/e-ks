@@ -4,7 +4,7 @@
 //! What the omissions scrap is read from the store's [`Scrapped`] state, so
 //! the models report the same outcome as the recovery pages.
 
-use std::collections::{BTreeMap, btree_map::Entry};
+use std::collections::BTreeMap;
 
 use crate::{
     AppError, CsbStoreData, CsbStream, ElectionConfig, ElectoralDistrict, StreamId,
@@ -367,7 +367,7 @@ pub async fn published_lists(
 
         for (district, list) in valid_lists(store, &store.get_scrapped(), PublishedCandidate::new)?
         {
-             match by_district.get_mut(&district) {
+            match by_district.get_mut(&district) {
                 Some(lists) => lists.push(NumberedList { number, list }),
                 None => {
                     return Err(AppError::NotFound(format!(

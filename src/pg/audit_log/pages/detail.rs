@@ -5,7 +5,7 @@ use crate::{
     utils::format_hash,
 };
 use askama::Template;
-use axum::response::IntoResponse;
+use axum::{extract::Query, response::IntoResponse};
 
 use crate::{
     AppError, Context, EventHashPrefix, HtmlTemplate, Overlay, PgStore, QueryParamState,
@@ -32,6 +32,7 @@ pub async fn audit_log_detail(
     AuditLogDetailPath { event_id }: AuditLogDetailPath,
     context: Context,
     store: PgStore,
+    Query(query): Query<QueryParamState>,
 ) -> Result<impl IntoResponse, AppError> {
     let events = store.get_events();
     let locale = context.session.locale;
@@ -69,7 +70,7 @@ pub async fn audit_log_detail(
             .to_string(),
             is_downloadable_state,
             frisian_export_allowed: context.election.frisian_export_allowed(),
-            overlay: Overlay::new_edit(&QueryParamState::default()),
+            overlay: Overlay::new_edit(&query),
             hash: format_hash(&hash, true),
         },
         context,
@@ -167,6 +168,7 @@ mod tests {
             AuditLogDetailPath { event_id: 1 },
             Context::new_test_without_db(),
             store,
+            Query(QueryParamState::default()),
         )
         .await
         .unwrap()
@@ -178,6 +180,55 @@ mod tests {
         assert!(body.contains("diff-table"));
 
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn close_link_returns_to_redirect_target() -> Result<(), AppError> {
+        let store = PgStore::new_for_test();
+        sample_person(PersonId::new()).create(&store).await?;
+
+        let response = audit_log_detail(
+            AuditLogDetailPath { event_id: 1 },
+            Context::new_test_without_db(),
+            store.clone(),
+            Query(QueryParamState::redirect_to(
+                "/audit-log?page=2&per_page=20&event_type=person".to_string(),
+            )),
+        )
+        .await
+        .unwrap()
+        .into_response();
+
+        let body = response_body_string(response).await;
+        // `&` is HTML-escaped in the rendered attribute.
+        assert_eq!(
+            close_href(&body),
+            "/audit-log?page=2&#38;per_page=20&#38;event_type=person"
+        );
+
+        // Without a redirect target, closing falls back to the bare audit log.
+        let response = audit_log_detail(
+            AuditLogDetailPath { event_id: 1 },
+            Context::new_test_without_db(),
+            store,
+            Query(QueryParamState::default()),
+        )
+        .await
+        .unwrap()
+        .into_response();
+
+        let body = response_body_string(response).await;
+        assert_eq!(close_href(&body), "/audit-log");
+
+        Ok(())
+    }
+
+    /// The `href` of the overlay's close link.
+    fn close_href(body: &str) -> &str {
+        let before = &body[..body.find("class=\"close-overlay\"").expect("close link")];
+        let start = before.rfind("href=\"").expect("close link href") + "href=\"".len();
+        let len = before[start..].find('"').expect("closing quote");
+        &before[start..start + len]
     }
 
     #[tokio::test]
@@ -207,6 +258,7 @@ mod tests {
             },
             Context::new_test_without_db(),
             store,
+            Query(QueryParamState::default()),
         )
         .await
         .unwrap()
@@ -247,6 +299,7 @@ mod tests {
             AuditLogDetailPath { event_id: 1 },
             Context::new_test_from_store(&store),
             store,
+            Query(QueryParamState::default()),
         )
         .await
         .unwrap()
@@ -261,6 +314,7 @@ mod tests {
             AuditLogDetailPath { event_id },
             Context::new_test_from_store(&store),
             store,
+            Query(QueryParamState::default()),
         )
         .await
         .unwrap()
@@ -370,6 +424,7 @@ mod tests {
             AuditLogDetailPath { event_id },
             Context::new_test_from_store(&store),
             store,
+            Query(QueryParamState::default()),
         )
         .await
         .unwrap()
@@ -393,6 +448,7 @@ mod tests {
             AuditLogDetailPath { event_id: 999 },
             Context::new_test_without_db(),
             store,
+            Query(QueryParamState::default()),
         )
         .await;
 
