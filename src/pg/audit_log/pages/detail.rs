@@ -6,13 +6,14 @@ use askama::Template;
 use axum::{extract::Query, response::IntoResponse};
 
 use crate::{
-    AppError, Context, EventHashPrefix, HtmlTemplate, Overlay, PgEvent, PgStore, QueryParamState,
+    AppError, Context, EventHashPrefix, HtmlTemplate, Overlay, PgEvent, PgStore, PgStoreData,
+    QueryParamState,
     audit_log::{
         AuditLogDetail, AuditLogPath, PgLinks,
         paths::{AuditLogDetailPath, AuditLogDownloadDocumentsPath},
     },
     filters,
-    store::StoreEvent,
+    store::{StoreData, StoreEvent},
 };
 
 #[derive(Template)]
@@ -37,22 +38,25 @@ pub async fn audit_log_detail(
 
     let data = store.snapshot();
     let target = data
-        .events
+        .events()
         .iter()
         .find(|e| e.event_id == event_id)
-        .cloned()
         .ok_or(AppError::GenericNotFound)?;
 
     // The stream as it stood before the event: what its changes are read against.
-    let temp_store = create_temp_store(&store, &data.events, event_id - 1);
-    let links = PgLinks { store: &store };
-    let detail = AuditLogDetail::from_event(&temp_store.snapshot(), &target, locale, &links);
+    let mut replayed = replay_until(&store, data.events(), event_id - 1);
+    let links = PgLinks {
+        stream_id: store.stream_id,
+        data: &data,
+    };
+    let detail = AuditLogDetail::from_event(&replayed, target, locale, &links);
 
     // Applying the event gives the state after it, which decides whether the
     // documents could be downloaded at that point.
     let hash = target.hash;
-    temp_store.apply_event(target);
-    let is_downloadable_state = AllProblems::find_all(&temp_store)?.models_downloadable();
+    replayed.apply(target.clone());
+    let is_downloadable_state =
+        AllProblems::find_all(&replayed, store.election)?.models_downloadable();
 
     let event_hash = EventHashPrefix::of(&hash);
 
@@ -99,36 +103,32 @@ pub async fn audit_log_gen_documents(
         return Err(AppError::GenericNotFound);
     }
 
-    let temp_store = create_temp_store(&store, &store.snapshot().events, event_id);
+    let data = replay_until(&store, store.snapshot().events(), event_id);
 
-    if !AllProblems::find_all(&temp_store)?.models_downloadable() {
+    if !AllProblems::find_all(&data, store.election)?.models_downloadable() {
         return Err(AppError::IncompleteData(
             "Documents cannot be downloaded for this version",
         ));
     }
     store.check_download_limit()?;
 
-    let (bundles, filename) = DocumentData::from_store_and_context(&temp_store, &context, locale)?;
+    let (bundles, filename) = DocumentData::from_store_and_context(&data, &context, locale)?;
 
-    DocumentData::serve_download(bundles, filename, path.to_string(), &store, &temp_store).await
+    DocumentData::serve_download(bundles, filename, path.to_string(), &store, &data).await
 }
 
-/// Replay the event stream up to and including `event_id` into a throwaway
-/// in-memory store, so document state can be inspected as it was back then.
-/// In paper-corrections mode the replay starts from the imported snapshot the
-/// corrections were applied on top of.
-fn create_temp_store(store: &PgStore, events: &[StoreEvent<PgEvent>], event_id: usize) -> PgStore {
-    let temp_store = PgStore::new_for_temp_stream(store.election);
-    if let Some(imported) = store.imported_snapshot() {
-        temp_store.replace(std::sync::Arc::new(imported));
+/// The projection as it was right after `event_id`, so document state can be
+/// inspected as it was back then. In paper-corrections mode the replay starts
+/// from the imported snapshot the corrections were applied on top of.
+fn replay_until(store: &PgStore, events: &[StoreEvent<PgEvent>], event_id: usize) -> PgStoreData {
+    let mut data = store
+        .imported_snapshot()
+        .map(std::sync::Arc::unwrap_or_clone)
+        .unwrap_or_default();
+    for event in events.iter().take_while(|e| e.event_id <= event_id) {
+        data.apply(event.clone());
     }
-
-    events
-        .iter()
-        .take_while(|e| e.event_id <= event_id)
-        .for_each(|e| temp_store.apply_event(e.clone()));
-
-    temp_store
+    data
 }
 
 #[cfg(test)]
@@ -149,7 +149,7 @@ mod tests {
     ) -> AuditLogDownloadDocumentsPath {
         let hash = store
             .snapshot()
-            .events
+            .events()
             .iter()
             .find(|e| e.event_id == event_id)
             .expect("event in stream")
@@ -288,10 +288,10 @@ mod tests {
         let list = sample_candidate_list(list_id);
         list.create(&store).await?;
 
-        let mut list = store.get_candidate_list(list_id)?;
+        let mut list = store.snapshot().get_candidate_list(list_id)?.clone();
         list.append_candidate(&store, person_id).await?;
 
-        let target_event_id = store.snapshot().events.last().unwrap().event_id;
+        let target_event_id = store.snapshot().events().last().unwrap().event_id;
 
         let response = audit_log_detail(
             AuditLogDetailPath {
@@ -350,7 +350,7 @@ mod tests {
 
         // Paper-corrections mode hides it.
         let store = paper_corrections_store().await?;
-        let event_id = store.snapshot().events.last().unwrap().event_id;
+        let event_id = store.snapshot().events().last().unwrap().event_id;
         let response = audit_log_detail(
             AuditLogDetailPath { event_id },
             Context::new_test_from_store(&store),
@@ -405,7 +405,7 @@ mod tests {
         assert!(
             !store
                 .snapshot()
-                .events
+                .events()
                 .iter()
                 .any(|e| matches!(e.payload, PgEvent::DownloadFile { .. })),
             "a refused download is not recorded"
@@ -417,7 +417,7 @@ mod tests {
     #[tokio::test]
     async fn paper_corrections_mode_rejects_document_download() -> Result<(), AppError> {
         let store = paper_corrections_store().await?;
-        let event_id = store.snapshot().events.last().unwrap().event_id;
+        let event_id = store.snapshot().events().last().unwrap().event_id;
 
         let result = audit_log_gen_documents(
             audit_download_path(&store, event_id, ModelLocale::Nl),
@@ -444,7 +444,7 @@ mod tests {
         let person_id = person.id;
         person.create(&source).await?;
 
-        let events = source.snapshot().events.clone();
+        let events = source.snapshot().events().to_vec();
         let snapshot = crate::PgStoreData::snapshot_until(&events, usize::MAX);
         let csb_store = CsbStore::new_for_test();
         csb_store
@@ -457,13 +457,13 @@ mod tests {
 
         // Correct the imported person's first name.
         let store = csb_store.paper_corrections();
-        let mut corrected = store.get_person(person_id)?;
+        let mut corrected = store.snapshot().get_person(person_id)?.clone();
         corrected.name.first_name = Some("Gecorrigeerd".parse().unwrap());
         store
             .update(PgEvent::UpdatePerson(Box::new(corrected)))
             .await?;
 
-        let event_id = store.snapshot().events.last().unwrap().event_id;
+        let event_id = store.snapshot().events().last().unwrap().event_id;
         let response = audit_log_detail(
             AuditLogDetailPath { event_id },
             Context::new_test_from_store(&store),
@@ -523,7 +523,12 @@ mod tests {
         test_utils::sample_political_group().create(&store).await?;
 
         // create two remove candidate events
-        let mut lists = store.get_candidate_lists();
+        let mut lists: Vec<_> = store
+            .snapshot()
+            .get_candidate_lists()
+            .into_iter()
+            .cloned()
+            .collect();
         let (c1, c2) = (lists[0].candidates[0], lists[0].candidates[1]);
         lists[0].remove_candidate(&store, c1).await?;
         lists[0].remove_candidate(&store, c2).await?;
@@ -552,7 +557,7 @@ mod tests {
         // check if two download events are present
         let download_event_count = store
             .snapshot()
-            .events
+            .events()
             .iter()
             .filter(|e| matches!(e.payload, PgEvent::DownloadFile { .. }))
             .count();

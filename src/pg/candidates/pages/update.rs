@@ -112,8 +112,10 @@ mod tests {
         person.create(&store).await?;
         list.clone().update_order(&store, &[person.id]).await?;
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
-        let candidate = store
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
+        let data = store.snapshot();
+        let candidate = data
             .get_candidate_list(list_id)?
             .get_candidate(&store, person.id)
             .await?;
@@ -149,8 +151,10 @@ mod tests {
         person.create(&store).await?;
         list.clone().update_order(&store, &[person.id]).await?;
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
-        let candidate = store
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
+        let data = store.snapshot();
+        let candidate = data
             .get_candidate_list(list_id)?
             .get_candidate(&store, person.id)
             .await?;
@@ -183,7 +187,9 @@ mod tests {
             .expect("location header value");
         assert_eq!(location, expected_path);
 
-        let updated = store
+        let data = store.snapshot();
+
+        let updated = data
             .get_persons()
             .into_iter()
             .find(|p| p.id == person.id)
@@ -204,8 +210,10 @@ mod tests {
         person.create(&store).await?;
         list.clone().update_order(&store, &[person.id]).await?;
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
-        let candidate = store
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
+        let data = store.snapshot();
+        let candidate = data
             .get_candidate_list(list_id)?
             .get_candidate(&store, person.id)
             .await?;
@@ -249,8 +257,10 @@ mod tests {
         person.create(&store).await?;
         list.clone().update_order(&store, &[person.id]).await?;
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
-        let candidate = store
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
+        let data = store.snapshot();
+        let candidate = data
             .get_candidate_list(list_id)?
             .get_candidate(&store, person.id)
             .await?;

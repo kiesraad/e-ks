@@ -196,21 +196,19 @@ mod tests {
             .acting_as_test_user();
 
         let person = sample_person(PersonId::new());
-        let mut snapshot = PgStoreData {
-            political_group: PoliticalGroup {
+        let mut snapshot = PgStoreData::default()
+            .with_political_group(PoliticalGroup {
                 appellation: Some("Kiesraad Demo".parse().unwrap()),
                 list_designation: Some(ListDesignation::Standalone),
                 ..Default::default()
-            },
-            ..PgStoreData::default()
-        };
-        snapshot.persons.insert(person.id, person.clone());
+            })
+            .with_person(person.clone());
         let list = CandidateList {
             electoral_districts: BTreeSet::from([crate::ElectoralDistrict::Groningen]),
             candidates: vec![person.id],
             ..Default::default()
         };
-        snapshot.candidate_lists.insert(list.id, list);
+        snapshot = snapshot.with_candidate_list(list);
         store
             .update(CsbAction::Import {
                 hash: [0u8; 32],

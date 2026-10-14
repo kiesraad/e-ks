@@ -25,13 +25,13 @@ use crate::{
 /// Event-sourced domain projection for a single (stream, election) pair.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct PgStoreData {
-    pub(crate) political_group: PoliticalGroup,
-    pub(crate) persons: HashMap<PersonId, Person>,
-    pub(crate) candidate_lists: HashMap<CandidateListId, CandidateList>,
-    pub(crate) name_authorisations: HashMap<NameAuthorisationId, NameAuthorisation>,
-    pub(crate) list_submitter: ListSubmitter,
-    pub(crate) substitute_submitters: Vec<ListSubmitter>,
-    pub(crate) events: Vec<StoreEvent<PgEvent>>,
+    pub(super) political_group: PoliticalGroup,
+    pub(super) persons: HashMap<PersonId, Person>,
+    pub(super) candidate_lists: HashMap<CandidateListId, CandidateList>,
+    pub(super) name_authorisations: HashMap<NameAuthorisationId, NameAuthorisation>,
+    pub(super) list_submitter: ListSubmitter,
+    pub(super) substitute_submitters: Vec<ListSubmitter>,
+    pub(super) events: Vec<StoreEvent<PgEvent>>,
 }
 
 impl StoreData for PgStoreData {
@@ -105,6 +105,42 @@ impl StoreData for PgStoreData {
 
     fn scope() -> Scope {
         Scope::PoliticalGroup
+    }
+}
+
+#[cfg(test)]
+impl PgStoreData {
+    /// Test builders for a projection with the given entities, without
+    /// events behind them.
+    pub fn with_person(mut self, person: Person) -> Self {
+        self.persons.insert(person.id, person);
+        self
+    }
+
+    pub fn with_candidate_list(mut self, list: CandidateList) -> Self {
+        self.candidate_lists.insert(list.id, list);
+        self
+    }
+
+    pub fn with_political_group(mut self, political_group: PoliticalGroup) -> Self {
+        self.political_group = political_group;
+        self
+    }
+
+    pub fn with_list_submitter(mut self, submitter: ListSubmitter) -> Self {
+        self.list_submitter = submitter;
+        self
+    }
+
+    pub fn with_substitute_submitter(mut self, submitter: ListSubmitter) -> Self {
+        self.substitute_submitters.push(submitter);
+        self
+    }
+
+    pub fn with_name_authorisation(mut self, authorisation: NameAuthorisation) -> Self {
+        self.name_authorisations
+            .insert(authorisation.id, authorisation);
+        self
     }
 }
 
@@ -284,13 +320,16 @@ impl PgStoreData {
     /// Apply a list-submitter event. Routed here exclusively by [`Self::apply`].
     fn apply_submitter_event(&mut self, event: PgEvent) {
         match event {
-            PgEvent::UpdateListSubmitter(ls) => {
+            PgEvent::UpdateListSubmitter(mut ls) => {
+                ls.is_substitute = false;
                 self.list_submitter = *ls;
             }
-            PgEvent::CreateSubstituteSubmitter(ss) => {
+            PgEvent::CreateSubstituteSubmitter(mut ss) => {
+                ss.is_substitute = true;
                 self.substitute_submitters.push(*ss);
             }
-            PgEvent::UpdateSubstituteSubmitter(ss) => {
+            PgEvent::UpdateSubstituteSubmitter(mut ss) => {
+                ss.is_substitute = true;
                 let ss_id = ss.id;
                 if let Some(existing) = self
                     .substitute_submitters
@@ -629,7 +668,8 @@ mod tests {
 
         name_authorisation.create(&store).await?;
 
-        let loaded = store.get_name_authorisation(id)?;
+        let data = store.snapshot();
+        let loaded = data.get_name_authorisation(id)?;
         assert_eq!(loaded.id, name_authorisation.id);
 
         Ok(())
@@ -692,7 +732,7 @@ mod tests {
 
         // Reads serve a snapshot of the corrected projection.
         assert_eq!(
-            store.get_political_group().appellation,
+            store.snapshot().get_political_group().appellation,
             sample_political_group().appellation
         );
 
@@ -723,7 +763,7 @@ mod tests {
 
         // The request-local snapshot observes the correction right away.
         assert_eq!(
-            store.get_political_group().appellation,
+            store.snapshot().get_political_group().appellation,
             corrected_group.appellation
         );
 
@@ -789,7 +829,8 @@ mod tests {
 
             person.create(&store).await?;
 
-            let loaded = store.get_person(person_id)?;
+            let data = store.snapshot();
+            let loaded = data.get_person(person_id)?;
             assert_eq!(loaded.id, person_id);
 
             let fresh_store =
@@ -798,7 +839,8 @@ mod tests {
                     .unwrap();
             fresh_store.load().await?;
 
-            let reloaded = fresh_store.get_person(person_id)?;
+            let data = fresh_store.snapshot();
+            let reloaded = data.get_person(person_id)?;
             assert_eq!(reloaded.id, person_id);
 
             Ok(())
@@ -947,11 +989,8 @@ mod tests {
             .unwrap();
             sample_person(PersonId::new()).create(&store).await?;
 
-            let target = store
-                .get_events()
-                .last()
-                .cloned()
-                .expect("at least one event");
+            let data = store.snapshot();
+            let target = data.events.last().expect("at least one event");
             let expected = Some((group, ElectionConfig::EK27, target.event_id));
 
             assert_eq!(

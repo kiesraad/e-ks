@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use super::scrapped_overview::districts_label;
 use crate::{
-    CsbStream, ElectoralDistrict,
+    CsbStoreData, ElectoralDistrict,
     csb::examination::extractors::CsbPoliticalGroup,
     projection::WithCorrections,
     structs::{candidate_lists::CandidateList, persons::Person},
@@ -70,10 +70,10 @@ fn district_label(district: &ElectoralDistrict) -> String {
 
 /// The imported and the corrected lists side by side.
 struct ListDiff<'a> {
-    store: &'a CsbStream,
+    data: &'a CsbStoreData,
     political_group: &'a CsbPoliticalGroup,
-    imported: Vec<CandidateList>,
-    corrected: Vec<CandidateList>,
+    imported: Vec<&'a CandidateList>,
+    corrected: Vec<&'a CandidateList>,
     /// Lists are told apart by their districts, so with a single district or
     /// a single list there is no list to name.
     name_lists: bool,
@@ -82,7 +82,10 @@ struct ListDiff<'a> {
 
 impl ListDiff<'_> {
     fn imported_version(&self, list: &CandidateList) -> Option<&CandidateList> {
-        self.imported.iter().find(|before| before.id == list.id)
+        self.imported
+            .iter()
+            .find(|before| before.id == list.id)
+            .copied()
     }
 
     fn list_detail(&self, list: &CandidateList) -> Option<String> {
@@ -154,12 +157,12 @@ impl ListDiff<'_> {
                 if before.candidates.contains(person_id) {
                     continue;
                 }
-                let Some(person) = self.store.get_person(*person_id, WithCorrections::All) else {
+                let Ok(person) = self.data.pg(WithCorrections::All).get_person(*person_id) else {
                     continue;
                 };
                 items.push(PaperCorrection {
                     kind: PaperCorrectionKind::CandidateAdded,
-                    detail: Some(self.candidate_detail(&person, list)),
+                    detail: Some(self.candidate_detail(person, list)),
                     path: Some(self.political_group.candidate_path(&list.id, person_id)),
                 });
             }
@@ -169,12 +172,12 @@ impl ListDiff<'_> {
                 if list.candidates.contains(person_id) {
                     continue;
                 }
-                let Some(person) = self.store.get_person(*person_id, WithCorrections::None) else {
+                let Ok(person) = self.data.pg(WithCorrections::None).get_person(*person_id) else {
                     continue;
                 };
                 items.push(PaperCorrection {
                     kind: PaperCorrectionKind::CandidateRemoved,
-                    detail: Some(self.candidate_detail(&person, list)),
+                    detail: Some(self.candidate_detail(person, list)),
                     path: Some(self.political_group.candidate_list_path(&list.id)),
                 });
             }
@@ -191,15 +194,19 @@ impl ListDiff<'_> {
     }
 }
 
-impl CsbStream {
+impl CsbStoreData {
     /// The paper corrections to the group's lists, as the group page shows
     /// them.
     pub fn get_paper_corrections_overview(
         &self,
         political_group: &CsbPoliticalGroup,
     ) -> PaperCorrectionsOverview {
-        let imported = self.get_candidate_lists_in_page_order(WithCorrections::None);
-        let corrected = self.get_candidate_lists_in_page_order(WithCorrections::All);
+        let imported = self
+            .pg(WithCorrections::None)
+            .get_candidate_lists_in_page_order();
+        let corrected = self
+            .pg(WithCorrections::All)
+            .get_candidate_lists_in_page_order();
         let list_count = imported
             .iter()
             .chain(&corrected)
@@ -207,9 +214,9 @@ impl CsbStream {
             .collect::<HashSet<_>>()
             .len();
         let diff = ListDiff {
-            store: self,
+            data: self,
             political_group,
-            name_lists: !self.election.has_only_one_district(),
+            name_lists: !political_group.election.has_only_one_district(),
             name_candidates_list: list_count > 1,
             imported,
             corrected,
@@ -243,7 +250,9 @@ mod tests {
     };
 
     fn overview(store: &CsbStore) -> PaperCorrectionsOverview {
-        store.get_paper_corrections_overview(&CsbPoliticalGroup::new_from_csb_store(store))
+        store
+            .snapshot()
+            .get_paper_corrections_overview(&CsbPoliticalGroup::new_from_csb_store(store))
     }
 
     fn kinds(overview: &PaperCorrectionsOverview) -> Vec<PaperCorrectionKind> {
@@ -293,11 +302,7 @@ mod tests {
         let deleted_id = CandidateListId::new();
         let mut deleted = sample_candidate_list(deleted_id);
         deleted.electoral_districts = BTreeSet::from([ElectoralDistrict::Groningen]);
-        store
-            .write()
-            .imported_data
-            .candidate_lists
-            .insert(deleted_id, deleted);
+        store.set_imported_candidate_list(deleted);
         // Added on paper: corrected only.
         let added_id = CandidateListId::new();
         let mut added = sample_candidate_list(added_id);
@@ -366,7 +371,7 @@ mod tests {
         corrected.candidates = vec![stays, added];
         store.set_paper_corrected_candidate_list(corrected);
         // The removed candidate was deleted as a person too.
-        store.write().paper_corrected_data.persons.remove(&removed);
+        store.remove_paper_corrected_person(removed);
 
         let overview = overview(&store);
 

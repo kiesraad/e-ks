@@ -27,15 +27,20 @@ pub struct PoliticalGroupSteps {
 
 impl PoliticalGroupSteps {
     pub fn new(store: &PgStore, initial: bool) -> Result<Self, AppError> {
-        let political_group = store.get_political_group();
-        let name_authorisations = store.get_name_authorisations();
-        let list_submitter = store.get_list_submitter();
-        let substitute_submitters = store.get_substitute_submitters();
+        let data = store.snapshot();
+        let political_group = data.get_political_group();
+        let name_authorisations: Vec<NameAuthorisation> = data
+            .get_name_authorisations()
+            .into_iter()
+            .cloned()
+            .collect();
+        let list_submitter = data.get_list_submitter();
+        let substitute_submitters = data.get_substitute_submitters();
 
         Ok(Self {
             initial,
-            list_designation_state: Self::list_designation_state(&political_group),
-            basic_state: Self::basic_state(initial, &political_group),
+            list_designation_state: Self::list_designation_state(political_group),
+            basic_state: Self::basic_state(initial, political_group),
             name_authorisations_state: Self::name_authorisations_state(
                 initial,
                 political_group.list_designation,
@@ -43,12 +48,12 @@ impl PoliticalGroupSteps {
             ),
             submitters_state: Self::submitters_state(
                 initial,
-                &list_submitter,
-                &substitute_submitters,
+                list_submitter,
+                substitute_submitters,
             ),
             name_authorisations,
-            list_submitter,
-            substitute_submitters,
+            list_submitter: list_submitter.clone(),
+            substitute_submitters: substitute_submitters.to_vec(),
             list_designation: political_group.list_designation,
         })
     }

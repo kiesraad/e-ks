@@ -5,7 +5,7 @@
 use axum::response::Response;
 
 use crate::{
-    AppError, CsbStream, ElectionConfig, Locale,
+    AppError, CsbStoreData, ElectionConfig, Locale,
     core::ModelLocale,
     csb::{
         examination::structs::BrpCheckState,
@@ -28,10 +28,12 @@ use crate::{
 /// Collect the store data the overview needs. The document is Dutch, whatever
 /// the session's locale, as it is handed to the political group. The
 /// examination offers the same document, so it is shared with that module.
-pub(in crate::csb) fn brp_overview_model(store: &CsbStream) -> BrpOverview {
+pub(in crate::csb) fn brp_overview_model(
+    data: &CsbStoreData,
+    election: ElectionConfig,
+) -> BrpOverview {
     let locale = Locale::Nl;
-    let election = store.election;
-    let findings = store.get_brp_findings();
+    let findings = data.get_brp_findings();
 
     // Counted over every listed candidate, not only the ones reported on.
     let mut candidates_without_brp_errors = 0;
@@ -39,7 +41,7 @@ pub(in crate::csb) fn brp_overview_model(store: &CsbStream) -> BrpOverview {
     let mut brp_error_count = 0;
     let mut problem_count = 0;
 
-    let candidates = store
+    let candidates = data
         .listed_candidates()
         .into_iter()
         .filter_map(|candidate| {
@@ -75,11 +77,11 @@ pub(in crate::csb) fn brp_overview_model(store: &CsbStream) -> BrpOverview {
         })
         .collect();
 
-    let state = BrpCheckState::for_political_group(store);
+    let state = BrpCheckState::for_political_group(data);
 
     BrpOverview {
         election_name: election.formal_title(ModelLocale::Nl),
-        appellation: store.get_appellation(WithCorrections::All),
+        appellation: data.pg(WithCorrections::All).get_appellation(),
         election_code: election.filename_slug(),
         date: chrono::Utc::now().date_naive(),
         complete: state.is_checked(),
@@ -124,7 +126,9 @@ pub async fn gen_brp_overview(
     _: CsbPreSubmissionBrpOverviewPdfPath,
     store: PreSubmissionStore,
 ) -> Result<Response, AppError> {
-    brp_overview_model(&store).pdf_response().await
+    brp_overview_model(&store.snapshot(), store.election)
+        .pdf_response()
+        .await
 }
 
 /// The same overview as [`gen_brp_overview`], exported as a Word document.
@@ -132,7 +136,9 @@ pub async fn gen_brp_overview_docx(
     _: CsbPreSubmissionBrpOverviewDocxPath,
     store: PreSubmissionStore,
 ) -> Result<Response, AppError> {
-    brp_overview_model(&store).docx_response().await
+    brp_overview_model(&store.snapshot(), store.election)
+        .docx_response()
+        .await
 }
 
 /// The same overview as [`gen_brp_overview`], exported as Markdown.
@@ -140,7 +146,7 @@ pub async fn gen_brp_overview_markdown(
     _: CsbPreSubmissionBrpOverviewMarkdownPath,
     store: PreSubmissionStore,
 ) -> Result<Response, AppError> {
-    brp_overview_model(&store).markdown_response()
+    brp_overview_model(&store.snapshot(), store.election).markdown_response()
 }
 
 #[cfg(test)]
@@ -214,7 +220,7 @@ mod tests {
     async fn the_model_lists_the_candidates_with_something_to_report() {
         let store = store_with_candidates().await;
 
-        let model = brp_overview_model(&store);
+        let model = brp_overview_model(&store.snapshot(), store.election);
 
         assert_eq!(model.appellation, "Kiesraad Demo");
         assert_eq!(model.election_code, "ek27");

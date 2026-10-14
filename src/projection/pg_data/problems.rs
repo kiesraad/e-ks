@@ -1,7 +1,7 @@
 //! Collecting the [`AllProblems`] of a political group from its store.
 
 use crate::{
-    AppError, PgStore,
+    AppError, ElectionConfig, PgStoreData,
     structs::{
         candidate_lists::CandidateListSummary,
         common::{InfoProblems, PotentialProblems, Problematic},
@@ -16,11 +16,12 @@ use crate::{
 };
 
 impl AllProblems {
-    pub fn find_all(store: &PgStore) -> Result<Self, AppError> {
-        let candidate_lists = CandidateListSummary::list(store);
-        let (general, general_info) = Self::find_general_problems(store);
-        let (candidates, candidates_info) = Self::find_candidate_problems(store, &candidate_lists);
-        let mut lists = Self::find_list_problems(&candidate_lists, store);
+    pub fn find_all(data: &PgStoreData, election: ElectionConfig) -> Result<Self, AppError> {
+        let candidate_lists = CandidateListSummary::list(data, election);
+        let (general, general_info) = Self::find_general_problems(data);
+        let (candidates, candidates_info) =
+            Self::find_candidate_problems(data, election, &candidate_lists);
+        let mut lists = Self::find_list_problems(&candidate_lists, data);
 
         // candidate problems are already listed per candidate
         for list in &mut lists.per_list {
@@ -44,11 +45,11 @@ impl AllProblems {
         Ok(all_problems)
     }
 
-    pub fn find_general_problems(store: &PgStore) -> (GeneralProblems, Vec<EntityInfoProblems>) {
+    pub fn find_general_problems(data: &PgStoreData) -> (GeneralProblems, Vec<EntityInfoProblems>) {
         let mut info_problems = Vec::new();
         let mut general = Vec::new();
 
-        let political_group = store.get_political_group();
+        let political_group = data.get_political_group();
 
         let pg_problems = political_group.get_problems(());
         info_problems.extend(
@@ -60,7 +61,7 @@ impl AllProblems {
         );
         general.extend(pg_problems.potential_problems);
 
-        let name_authorisations = store.get_name_authorisations();
+        let name_authorisations = data.get_name_authorisations();
         let name_authorisations = match political_group.list_designation {
             Some(ListDesignation::Blank) => Vec::new(),
             list_designation => {
@@ -75,9 +76,9 @@ impl AllProblems {
         };
 
         let list_submitter =
-            Self::find_list_submitter_problems(store, &mut general, &mut info_problems);
+            Self::find_list_submitter_problems(data, &mut general, &mut info_problems);
         let substitute_submitters =
-            Self::find_substitute_submitter_problems(store, &mut info_problems);
+            Self::find_substitute_submitter_problems(data, &mut info_problems);
 
         (
             GeneralProblems {
@@ -93,11 +94,11 @@ impl AllProblems {
     /// Problems of the list submitter; a missing submitter is pushed onto
     /// `general` and info problems onto `info_problems`.
     fn find_list_submitter_problems(
-        store: &PgStore,
+        data: &PgStoreData,
         general: &mut Vec<PotentialProblems>,
         info_problems: &mut Vec<EntityInfoProblems>,
     ) -> Option<EntityProblems<ListSubmitter>> {
-        let list_submitter = store.get_list_submitter();
+        let list_submitter = data.get_list_submitter();
         if list_submitter.is_empty() {
             general.push(PotentialProblems::NoListSubmitter);
         }
@@ -114,7 +115,7 @@ impl AllProblems {
             return None;
         }
         Some(EntityProblems {
-            entity: list_submitter,
+            entity: list_submitter.clone(),
             problems: problems.potential_problems,
         })
     }
@@ -122,10 +123,10 @@ impl AllProblems {
     /// Problems per substitute submitter; info problems are pushed onto
     /// `info_problems`, including one when there is no substitute at all.
     fn find_substitute_submitter_problems(
-        store: &PgStore,
+        data: &PgStoreData,
         info_problems: &mut Vec<EntityInfoProblems>,
     ) -> Vec<EntityProblems<ListSubmitter>> {
-        let submitters = store.get_substitute_submitters();
+        let submitters = data.get_substitute_submitters();
         if submitters.is_empty() {
             info_problems.push(EntityInfoProblems::AnyProblem(
                 InfoProblems::NoSubstituteSubmitter,
@@ -149,7 +150,7 @@ impl AllProblems {
     }
 
     fn find_name_authorisation_problems(
-        name_authorisations: Vec<NameAuthorisation>,
+        name_authorisations: Vec<&NameAuthorisation>,
     ) -> (
         Vec<EntityProblems<NameAuthorisation>>,
         Vec<EntityInfoProblems>,
@@ -175,7 +176,8 @@ impl AllProblems {
     }
 
     pub fn find_candidate_problems(
-        store: &PgStore,
+        data: &PgStoreData,
+        election: ElectionConfig,
         candidate_lists: &[CandidateListSummary],
     ) -> (Vec<PersonProblems>, Vec<EntityInfoProblems>) {
         let mut info_problems = Vec::new();
@@ -184,9 +186,9 @@ impl AllProblems {
             .iter()
             .flat_map(|list| list.list.candidates.iter())
             .filter(|id| seen.insert(*id))
-            .filter_map(|id| store.get_person(*id).ok())
+            .filter_map(|id| data.get_person(*id).ok())
             .filter_map(|person| {
-                let problems = person.get_problems(store.election);
+                let problems = person.get_problems(election);
                 info_problems.extend(
                     problems
                         .info_problems
@@ -198,7 +200,7 @@ impl AllProblems {
                         .collect::<Vec<_>>(),
                 );
                 (!problems.potential_problems.is_empty()).then_some(PersonProblems {
-                    entity: person,
+                    entity: person.clone(),
                     problems: problems.potential_problems,
                 })
             })
@@ -208,7 +210,7 @@ impl AllProblems {
 
     pub fn find_list_problems(
         candidate_lists: &[CandidateListSummary],
-        store: &PgStore,
+        data: &PgStoreData,
     ) -> ListProblems {
         let mut list_problems = Vec::new();
         let mut seen_duplicate_district = false;
@@ -233,7 +235,7 @@ impl AllProblems {
             }
         }
 
-        let general = if store.get_candidate_list_count() == 0 {
+        let general = if data.get_candidate_list_count() == 0 {
             vec![PotentialProblems::NoCandidateList]
         } else {
             Vec::new()
@@ -252,7 +254,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        ElectoralDistrict,
+        ElectoralDistrict, PgStore,
         structs::{
             candidate_lists::CandidateListId, common::Severity, list_submitters::ListSubmitterId,
             name_authorisations::NameAuthorisationId, persons::PersonId,
@@ -299,8 +301,8 @@ mod tests {
         list.candidates = vec![person.id];
         list.create(&store).await?;
 
-        let summaries = CandidateListSummary::list(&store);
-        let list_problems = AllProblems::find_list_problems(&summaries, &store);
+        let summaries = CandidateListSummary::list(&store.snapshot(), store.election);
+        let list_problems = AllProblems::find_list_problems(&summaries, &store.snapshot());
         assert_eq!(list_problems.per_list.len(), 1);
         assert_eq!(
             list_problems.per_list[0].problems,
@@ -308,7 +310,7 @@ mod tests {
         );
         assert_eq!(list_problems.highest_severity(), Some(Severity::Warn));
 
-        let all = AllProblems::find_all(&store)?;
+        let all = AllProblems::find_all(&store.snapshot(), store.election)?;
         assert!(all.lists.per_list.is_empty());
         assert_eq!(all.candidates.len(), 1);
 
@@ -319,7 +321,7 @@ mod tests {
     async fn no_candidate_list_added() -> Result<(), AppError> {
         let store = PgStore::new_for_test();
 
-        let problems = AllProblems::find_list_problems(&[], &store);
+        let problems = AllProblems::find_list_problems(&[], &store.snapshot());
 
         assert_eq!(problems.general.len(), 1);
 
@@ -336,11 +338,11 @@ mod tests {
         add_candidate_list(&store).await?;
 
         // make political group standalone
-        let mut group = store.get_political_group();
+        let mut group = store.snapshot().get_political_group().clone();
         group.list_designation = Some(ListDesignation::Standalone);
         group.update(&store).await?;
 
-        let (problems, _) = AllProblems::find_general_problems(&store);
+        let (problems, _) = AllProblems::find_general_problems(&store.snapshot());
 
         assert_eq!(problems.general.len(), 1);
         assert_eq!(
@@ -359,13 +361,13 @@ mod tests {
         add_candidate_list(&store).await?;
 
         // make political group standalone
-        let mut group = store.get_political_group();
+        let mut group = store.snapshot().get_political_group().clone();
         group.list_designation = Some(ListDesignation::Standalone);
         group.update(&store).await?;
 
         add_name_authorisations(&store, 2).await?;
 
-        let (problems, _) = AllProblems::find_general_problems(&store);
+        let (problems, _) = AllProblems::find_general_problems(&store.snapshot());
 
         assert_eq!(problems.general.len(), 1);
         assert_eq!(
@@ -384,13 +386,13 @@ mod tests {
         add_candidate_list(&store).await?;
 
         // make political group standalone
-        let mut group = store.get_political_group();
+        let mut group = store.snapshot().get_political_group().clone();
         group.list_designation = Some(ListDesignation::Combined);
         group.update(&store).await?;
 
         add_name_authorisations(&store, 1).await?;
 
-        let (problems, _) = AllProblems::find_general_problems(&store);
+        let (problems, _) = AllProblems::find_general_problems(&store.snapshot());
 
         assert_eq!(problems.general.len(), 1);
         assert_eq!(
@@ -409,13 +411,13 @@ mod tests {
         add_candidate_list(&store).await?;
 
         // make political group standalone
-        let mut group = store.get_political_group();
+        let mut group = store.snapshot().get_political_group().clone();
         group.list_designation = Some(ListDesignation::Blank);
         group.update(&store).await?;
 
         add_name_authorisations(&store, 10).await?;
 
-        let (problems, _) = AllProblems::find_general_problems(&store);
+        let (problems, _) = AllProblems::find_general_problems(&store.snapshot());
 
         assert!(problems.general.is_empty());
 
@@ -432,7 +434,7 @@ mod tests {
             list1.create(&store).await?;
         }
 
-        let problems = AllProblems::find_all(&store)?;
+        let problems = AllProblems::find_all(&store.snapshot(), store.election)?;
         assert_eq!(
             problems
                 .lists

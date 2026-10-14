@@ -15,7 +15,10 @@ request_extractor!(NameAuthorisation, |store, parts, state| {
     let Path(NameAuthorisationPathParams { authorisation_id }) =
         Path::<NameAuthorisationPathParams>::from_request_parts(parts, state).await?;
 
-    store.get_name_authorisation(authorisation_id)
+    store
+        .snapshot()
+        .get_name_authorisation(authorisation_id)
+        .cloned()
 });
 
 #[cfg(test)]

@@ -20,7 +20,7 @@ use crate::{
 };
 
 #[cfg(feature = "fixtures")]
-use crate::PgStore;
+use crate::{PgStore, store::StoreData};
 
 /// Shared application state for request handlers and extractors.
 #[derive(FromRef, Clone)]
@@ -189,7 +189,7 @@ impl AppState {
         {
             self.store_registry
                 .get_or_create_with_init(stream_id, election, |store| async move {
-                    if store.snapshot().events.is_empty() && load_fixtures {
+                    if store.snapshot().events().is_empty() && load_fixtures {
                         crate::fixtures::load(&PgStore::own(store), None).await?;
                     }
                     Ok(())
