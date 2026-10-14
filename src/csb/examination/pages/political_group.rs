@@ -369,6 +369,7 @@ mod tests {
 
         assert!(body.contains("Refresh this page"), "{body}");
         assert!(body.contains("still running"), "{body}");
+        assert!(body.contains(r#"data-poll="true""#), "{body}");
     }
 
     #[tokio::test]

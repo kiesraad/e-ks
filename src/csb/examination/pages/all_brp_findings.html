@@ -20,7 +20,7 @@
   {% set toggle_redirect_url = political_group.all_brp_findings_path() %}
   {% include "csb/components/examination_controls.html" %}
   <div class="examination-panels">
-    <div class="examination-panel">
+    <div class="examination-panel" data-poll="{{ brp_running }}">
       <div class="examination-panel-header">
         <div>
           <h2 class="h3">{{ "csb.group.discovered_errors"|trans }}</h2>
