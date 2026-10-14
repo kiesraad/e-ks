@@ -145,7 +145,8 @@ mod tests {
                 .to_string()
         );
 
-        let updated = store.get_name_authorisation(authorisation_id)?;
+        let data = store.snapshot();
+        let updated = data.get_name_authorisation(authorisation_id)?;
         assert_eq!(updated.name.last_name.to_string(), "Updated");
 
         Ok(())

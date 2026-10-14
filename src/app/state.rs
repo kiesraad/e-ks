@@ -16,6 +16,7 @@ use crate::{
     core::AlertThrottle,
     crypto::MasterKey,
     projection::CSB_MAIN_STREAM_ID,
+    store::StoreData,
     store::{Store, StoreRegistry},
     structs::brp::BrpClient,
 };
@@ -197,7 +198,7 @@ impl AppState {
         {
             self.store_registry
                 .get_or_create_with_init(stream_id, election, |store| async move {
-                    if store.snapshot().events.is_empty() && load_fixtures {
+                    if store.snapshot().events().is_empty() && load_fixtures {
                         crate::fixtures::load(&PgStore::own(store), None).await?;
                     }
                     Ok(())

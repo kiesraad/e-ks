@@ -66,7 +66,7 @@ mod tests {
 
         let response = reorder_candidate_list(
             CandidateListReorderPath { list_id },
-            store.get_candidate_list(list_id)?,
+            store.snapshot().get_candidate_list(list_id).cloned()?,
             store.clone(),
             Json(CandidateListReorderPayload {
                 person_ids: vec![person_b.id, person_a.id],
@@ -77,7 +77,8 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::NO_CONTENT);
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
         assert_eq!(full_list.candidates.len(), 2);
         assert_eq!(full_list.candidates[0].data.person.id, person_b.id);
         assert_eq!(full_list.candidates[1].data.person.id, person_a.id);
@@ -95,7 +96,8 @@ mod tests {
         list.create(store).await?;
         person_a.create(store).await?;
         person_b.create(store).await?;
-        let mut list = store.get_candidate_list(list.id)?;
+        let data = store.snapshot();
+        let mut list = data.get_candidate_list(list.id).cloned()?;
         list.update_order(store, &[person_a.id, person_b.id])
             .await?;
 
@@ -122,7 +124,7 @@ mod tests {
 
         assert!(matches!(err, AppError::DuplicateCandidate));
         assert_eq!(
-            store.get_candidate_list(list.id)?.candidates,
+            store.snapshot().get_candidate_list(list.id)?.candidates,
             vec![person_a, person_b]
         );
 
@@ -167,7 +169,7 @@ mod tests {
         assert!(matches!(err, AppError::CandidateSetChanged));
 
         assert_eq!(
-            store.get_candidate_list(list.id)?.candidates,
+            store.snapshot().get_candidate_list(list.id)?.candidates,
             vec![person_a, person_b]
         );
 

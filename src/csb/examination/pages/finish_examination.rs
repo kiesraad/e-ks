@@ -58,6 +58,7 @@ mod tests {
         CsbPoliticalGroup {
             political_group: sample_political_group(),
             stream_id: StreamId::new(),
+            election: crate::ElectionConfig::EK27,
             brp: BrpCheckState::NotChecked,
             mode: crate::structs::csb::CsbPhase::Examination,
             is_examination_finished: true,

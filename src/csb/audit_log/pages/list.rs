@@ -10,6 +10,7 @@ use crate::{
     csb::audit_log::{pages::CsbAuditLogPath, structs::CsbAuditLogEntry},
     filters,
     pagination::Pagination,
+    store::StoreData,
     store::StoreEvent,
     structs::audit_log::EventTypeCategory,
     trans,
@@ -171,9 +172,9 @@ fn collect_entries(
             .ok_or(AppError::GenericNotFound)?;
 
         filter_events(
-            store.snapshot().events.iter(),
+            store.snapshot().events().iter(),
             store.stream_id,
-            store.get_appellation_with_deleted_label(
+            store.snapshot().get_appellation_with_deleted_label(
                 crate::projection::WithCorrections::All,
                 locale,
             ),
@@ -184,7 +185,7 @@ fn collect_entries(
         .collect()
     } else {
         filter_events(
-            main_store.snapshot().events.iter(),
+            main_store.snapshot().events().iter(),
             main_store.stream_id,
             trans!("audit_log.filter.csb_main_stream", locale),
             locale,
@@ -217,7 +218,9 @@ pub async fn csb_audit_log<S: AppRequestState>(
 
     // Build a short label for each stream from its import event
     let label = |store: &crate::projection::CsbStream| {
-        store.get_appellation_with_deleted_label(crate::projection::WithCorrections::All, locale)
+        store
+            .snapshot()
+            .get_appellation_with_deleted_label(crate::projection::WithCorrections::All, locale)
     };
     let import_stream_labels: Vec<(StreamId, String)> = import_stores
         .iter()
@@ -458,7 +461,8 @@ mod tests {
         let csb_store = state
             .csb_store_for_stream(import_stream_id, ElectionConfig::EK27)
             .await?;
-        let mut pg = csb_store.get_political_group(WithCorrections::All);
+        let data = csb_store.snapshot();
+        let mut pg = data.pg(WithCorrections::All).get_political_group().clone();
         pg.appellation = Appellation::from_str("Test Partij").ok();
         csb_store.set_political_group(pg);
         csb_store

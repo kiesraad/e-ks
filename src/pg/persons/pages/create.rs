@@ -105,12 +105,13 @@ mod tests {
             .expect("location header")
             .to_str()
             .expect("location header value");
-        let persons = store.get_persons();
+        let data = store.snapshot();
+        let persons = data.get_persons();
         assert_eq!(persons.len(), 1);
         let created = persons.first().expect("person");
         assert_eq!(location, created.after_create_path());
 
-        let count = store.get_person_count();
+        let count = store.snapshot().get_person_count();
         assert_eq!(count, 1);
 
         Ok(())

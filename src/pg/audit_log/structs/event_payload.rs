@@ -1,16 +1,23 @@
 use serde_json::json;
 
 use crate::{
-    PgEvent, PgStoreData,
+    AppError, PgEvent, PgStoreData,
     structs::{
-        list_submitters::{ListSubmitter, ListSubmitterId},
-        persons::Person,
+        candidate_lists::CandidateListId,
+        list_submitters::ListSubmitterId,
+        name_authorisations::NameAuthorisationId,
+        persons::{Person, PersonId},
     },
 };
 
-/// The substitute submitter with the given ID, if present.
-fn substitute_by_id<'a>(data: &'a PgStoreData, id: &ListSubmitterId) -> Option<&'a ListSubmitter> {
-    data.substitute_submitters.iter().find(|s| &s.id == id)
+/// The diff of the entity `id` names, looked up by `get` in both snapshots.
+fn diff_entity<'a, I: Copy, T: serde::Serialize + 'a>(
+    before: &'a PgStoreData,
+    after: &'a PgStoreData,
+    id: I,
+    get: impl Fn(&'a PgStoreData, I) -> Result<&'a T, AppError>,
+) -> OldNew {
+    json_diff(get(before, id).ok(), get(after, id).ok())
 }
 
 /// The JSON snapshots of an entity before and after an event.
@@ -45,30 +52,16 @@ pub(super) fn extract_old_new(
 
 /// Old/new snapshots for events that concern a stored entity; `None` for
 /// system events, whose payloads are not diffed from the store.
-fn entity_old_new(
-    event: &PgEvent,
-    state_before: &PgStoreData,
-    state_after: &PgStoreData,
-) -> Option<OldNew> {
+fn entity_old_new(event: &PgEvent, before: &PgStoreData, after: &PgStoreData) -> Option<OldNew> {
     // Look up one entity by ID in both snapshots.
-    let person = |id| json_diff(state_before.persons.get(id), state_after.persons.get(id));
-    let list = |id| {
-        json_diff(
-            state_before.candidate_lists.get(id),
-            state_after.candidate_lists.get(id),
-        )
+    let person = |id: &PersonId| diff_entity(before, after, *id, PgStoreData::get_person);
+    let list =
+        |id: &CandidateListId| diff_entity(before, after, *id, PgStoreData::get_candidate_list);
+    let name_auth = |id: &NameAuthorisationId| {
+        diff_entity(before, after, *id, PgStoreData::get_name_authorisation)
     };
-    let name_auth = |id| {
-        json_diff(
-            state_before.name_authorisations.get(id),
-            state_after.name_authorisations.get(id),
-        )
-    };
-    let substitute = |id| {
-        json_diff(
-            substitute_by_id(state_before, id),
-            substitute_by_id(state_after, id),
-        )
+    let substitute = |id: &ListSubmitterId| {
+        diff_entity(before, after, *id, PgStoreData::get_substitute_submitter)
     };
 
     Some(match event {
@@ -82,13 +75,13 @@ fn entity_old_new(
         PgEvent::UpdatePerson(p) => person(&p.id),
         PgEvent::UpdateNameAuthorisation(na) => name_auth(&na.id),
         PgEvent::UpdateListSubmitter(_) => json_diff(
-            Some(&state_before.list_submitter),
-            Some(&state_after.list_submitter),
+            Some(before.get_list_submitter()),
+            Some(after.get_list_submitter()),
         ),
         PgEvent::UpdateSubstituteSubmitter(ss) => substitute(&ss.id),
         PgEvent::UpdatePoliticalGroup(_) => json_diff(
-            Some(&state_before.political_group),
-            Some(&state_after.political_group),
+            Some(before.get_political_group()),
+            Some(after.get_political_group()),
         ),
 
         PgEvent::UpdatePersonPersonalData { person_id, .. }
@@ -196,8 +189,7 @@ mod tests {
     fn create_person_returns_none_and_new_from_state_after() {
         let person = sample_person(PersonId::new());
         let before = empty_state();
-        let mut after = empty_state();
-        after.persons.insert(person.id, person.clone());
+        let after = empty_state().with_person(person.clone());
 
         let (old, new) = extract_old_new(&PgEvent::CreatePerson(person.clone()), &before, &after);
         assert!(old.is_none());
@@ -208,8 +200,7 @@ mod tests {
     fn create_candidate_list_pulls_new_from_state_after() {
         let list = sample_candidate_list(CandidateListId::new());
         let before = empty_state();
-        let mut after = empty_state();
-        after.candidate_lists.insert(list.id, list.clone());
+        let after = empty_state().with_candidate_list(list.clone());
 
         let (old, new) =
             extract_old_new(&PgEvent::CreateCandidateList(list.clone()), &before, &after);
@@ -221,8 +212,7 @@ mod tests {
     fn create_substitute_submitter_pulls_new_from_state_after() {
         let submitter = sample_list_submitter(ListSubmitterId::new());
         let before = empty_state();
-        let mut after = empty_state();
-        after.substitute_submitters.push(submitter.clone());
+        let after = empty_state().with_substitute_submitter(submitter.clone());
 
         let (old, new) = extract_old_new(
             &PgEvent::CreateSubstituteSubmitter(submitter.clone()),
@@ -237,10 +227,7 @@ mod tests {
     fn create_name_authorisation_pulls_new_from_state_after() {
         let name_auth = sample_name_authorisation(NameAuthorisationId::new());
         let before = empty_state();
-        let mut after = empty_state();
-        after
-            .name_authorisations
-            .insert(name_auth.id, name_auth.clone());
+        let after = empty_state().with_name_authorisation(name_auth.clone());
 
         let (old, new) = extract_old_new(
             &PgEvent::CreateNameAuthorisation(name_auth.clone()),
@@ -260,10 +247,8 @@ mod tests {
         let mut after_person = before_person.clone();
         after_person.name.initials = Some("X.Y.".parse().unwrap());
 
-        let mut before = empty_state();
-        before.persons.insert(person_id, before_person.clone());
-        let mut after = empty_state();
-        after.persons.insert(person_id, after_person.clone());
+        let before = empty_state().with_person(before_person.clone());
+        let after = empty_state().with_person(after_person.clone());
 
         let (old, new) = extract_old_new(
             &PgEvent::UpdatePerson(after_person.clone()),
@@ -281,10 +266,8 @@ mod tests {
         let mut after_person = before_person.clone();
         after_person.personal_data.country = None;
 
-        let mut before = empty_state();
-        before.persons.insert(person_id, before_person.clone());
-        let mut after = empty_state();
-        after.persons.insert(person_id, after_person.clone());
+        let before = empty_state().with_person(before_person.clone());
+        let after = empty_state().with_person(after_person.clone());
 
         let (old, new) = extract_old_new(
             &PgEvent::UpdatePersonPersonalData {
@@ -301,20 +284,14 @@ mod tests {
 
     #[test]
     fn update_political_group_uses_whole_field_with_no_id() {
-        let mut before = empty_state();
-        before.political_group = sample_political_group();
-        let mut after = empty_state();
-        after.political_group = sample_political_group();
-        after.political_group.previous_election_results =
-            Some(PreviousElectionResults::SixteenOrMoreSeats);
+        let before = empty_state().with_political_group(sample_political_group());
+        let mut group = sample_political_group();
+        group.previous_election_results = Some(PreviousElectionResults::SixteenOrMoreSeats);
+        let after = empty_state().with_political_group(group.clone());
 
-        let (old, new) = extract_old_new(
-            &PgEvent::UpdatePoliticalGroup(after.political_group.clone()),
-            &before,
-            &after,
-        );
-        assert_eq!(old, serde_json::to_value(&before.political_group).ok());
-        assert_eq!(new, serde_json::to_value(&after.political_group).ok());
+        let (old, new) = extract_old_new(&PgEvent::UpdatePoliticalGroup(group), &before, &after);
+        assert_eq!(old, serde_json::to_value(before.get_political_group()).ok());
+        assert_eq!(new, serde_json::to_value(after.get_political_group()).ok());
     }
 
     #[test]
@@ -326,10 +303,8 @@ mod tests {
         after_list.electoral_districts =
             BTreeSet::from([ElectoralDistrict::Groningen, ElectoralDistrict::Fryslan]);
 
-        let mut before = empty_state();
-        before.candidate_lists.insert(list_id, before_list.clone());
-        let mut after = empty_state();
-        after.candidate_lists.insert(list_id, after_list.clone());
+        let before = empty_state().with_candidate_list(before_list.clone());
+        let after = empty_state().with_candidate_list(after_list.clone());
 
         let (old, new) = extract_old_new(
             &PgEvent::UpdateCandidateListDistricts {
@@ -348,8 +323,7 @@ mod tests {
     #[test]
     fn delete_person_returns_old_from_state_before_and_none_new() {
         let person = sample_person(PersonId::new());
-        let mut before = empty_state();
-        before.persons.insert(person.id, person.clone());
+        let before = empty_state().with_person(person.clone());
         let after = empty_state();
 
         let (old, new) = extract_old_new(
@@ -366,8 +340,7 @@ mod tests {
     #[test]
     fn delete_candidate_list_returns_old_from_state_before() {
         let list = sample_candidate_list(CandidateListId::new());
-        let mut before = empty_state();
-        before.candidate_lists.insert(list.id, list.clone());
+        let before = empty_state().with_candidate_list(list.clone());
         let after = empty_state();
 
         let (old, new) = extract_old_new(&PgEvent::DeleteCandidateList(list.id), &before, &after);

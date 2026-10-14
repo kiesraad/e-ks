@@ -26,13 +26,14 @@ pub async fn all_restorations(
     context: CsbContext,
     store: CsbStore,
 ) -> Result<Response, AppError> {
+    let data = store.snapshot();
     let political_group = CsbPoliticalGroup::new_from_csb_store(&store);
-    let omission_count = store.get_omission_count();
-    let correction_count = store.get_correction_count();
+    let omission_count = data.get_omission_count();
+    let correction_count = data.get_correction_count();
     Ok(HtmlTemplate(
         CsbAllRestorationsTemplate {
-            all_omissions: store.get_all_omissions(&political_group)?,
-            all_corrections: store.get_all_corrections(&political_group, context.session.locale),
+            all_omissions: data.get_all_omissions(&political_group)?,
+            all_corrections: data.get_all_corrections(&political_group, context.session.locale),
             political_group,
             omission_count,
             correction_count,
@@ -151,11 +152,7 @@ mod tests {
         // projection: they were added during paper corrections.
         let person = sample_person(PersonId::new());
         let person_id = person.id;
-        store
-            .write()
-            .paper_corrected_data
-            .persons
-            .insert(person_id, person);
+        store.set_paper_corrected_person(person);
         let list_id = CandidateListId::new();
         store.set_paper_corrected_candidate_list(CandidateList {
             id: list_id,
@@ -205,11 +202,7 @@ mod tests {
         // The candidate only exists in the corrected projection: it was added
         // during paper corrections.
         let person_id = PersonId::new();
-        store
-            .write()
-            .paper_corrected_data
-            .persons
-            .insert(person_id, sample_person(person_id));
+        store.set_paper_corrected_person(sample_person(person_id));
 
         store
             .update(CsbAction::UpdateCorrection(Correction::Person(

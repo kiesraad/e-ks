@@ -46,7 +46,7 @@ pub async fn appellation_name_correction(
 ) -> Result<Response, AppError> {
     let political_group = CsbPoliticalGroup::new_from_csb_store(&store);
     let locale = context.session.locale;
-    let field_values = FieldValues::for_appellation(&store);
+    let field_values = FieldValues::for_appellation(&store.snapshot());
     let value = field_values.prefill();
     Ok(render_correction(
         context,
@@ -77,7 +77,7 @@ pub async fn appellation_correction_submit(
             context,
             query,
             close_action,
-            FieldValues::for_appellation(&store).into_display(
+            FieldValues::for_appellation(&store.snapshot()).into_display(
                 crate::trans!("political_group.appellation", locale),
                 CorrectionFieldType::Text,
             ),
@@ -106,7 +106,8 @@ pub async fn person_correction(
     let close_action = return_path(&political_group, path.person_id, list_query.list);
     let locale = context.session.locale;
 
-    let field_values = FieldValues::for_person(&store, path.person_id, path.field, locale);
+    let field_values =
+        FieldValues::for_person(&store.snapshot(), path.person_id, path.field, locale);
     let value = field_values.prefill();
     Ok(render_correction(
         context,
@@ -137,7 +138,7 @@ pub async fn person_correction_submit(
             context,
             query,
             close_action,
-            FieldValues::for_person(&store, path.person_id, path.field, locale)
+            FieldValues::for_person(&store.snapshot(), path.person_id, path.field, locale)
                 .into_person_display(path.field, locale),
             FormData::new_with_errors(form, vec![("value".to_string(), err)]),
         )),
@@ -311,10 +312,16 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
         assert_eq!(
-            store.get_appellation(WithCorrections::Paper),
+            store
+                .snapshot()
+                .pg(WithCorrections::Paper)
+                .get_appellation(),
             "Kiesraad Demo"
         );
-        assert_eq!(store.get_appellation(WithCorrections::All), "Nieuwe Naam");
+        assert_eq!(
+            store.snapshot().pg(WithCorrections::All).get_appellation(),
+            "Nieuwe Naam"
+        );
     }
 
     #[tokio::test]
@@ -337,7 +344,10 @@ mod tests {
         .into_response();
 
         assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(store.get_appellation(WithCorrections::All), "Kiesraad Demo");
+        assert_eq!(
+            store.snapshot().pg(WithCorrections::All).get_appellation(),
+            "Kiesraad Demo"
+        );
     }
 
     #[tokio::test]
@@ -405,7 +415,8 @@ mod tests {
         .into_response();
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
-        let corrected = store.get_person(person_id, WithCorrections::All).unwrap();
+        let data = store.snapshot();
+        let corrected = data.pg(WithCorrections::All).get_person(person_id).unwrap();
         assert_eq!(
             corrected.name.initials.as_ref().map(ToString::to_string),
             Some("X.Y.Z.".to_string())
@@ -442,8 +453,16 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
-            store.get_person(person_id, WithCorrections::All),
-            store.get_person(person_id, WithCorrections::None)
+            store
+                .snapshot()
+                .pg(WithCorrections::All)
+                .get_person(person_id)
+                .ok(),
+            store
+                .snapshot()
+                .pg(WithCorrections::None)
+                .get_person(person_id)
+                .ok()
         );
     }
 }

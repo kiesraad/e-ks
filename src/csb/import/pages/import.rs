@@ -167,12 +167,13 @@ async fn imported_appellation(
     source_stream_id: StreamId,
 ) -> Result<Option<String>, AppError> {
     for store in registry.stores_for_election(election).await? {
-        let already_imported_and_not_deleted = store.snapshot().events.first().is_some_and(|e| {
+        let data = store.snapshot();
+        let already_imported_and_not_deleted = data.events().first().is_some_and(|e| {
             matches!(&e.payload.action, CsbAction::Import { source_stream_id: sid, .. } if *sid == source_stream_id) &&
-            !store.is_deleted()
+            !data.is_deleted()
         });
         if already_imported_and_not_deleted {
-            return Ok(Some(store.get_appellation(WithCorrections::All)));
+            return Ok(Some(data.pg(WithCorrections::All).get_appellation()));
         }
     }
 
@@ -231,7 +232,7 @@ async fn do_import<S: AppRequestState>(
         .await?;
     source_store.load().await?;
 
-    let events = source_store.snapshot().events.clone();
+    let events = source_store.snapshot().events().to_vec();
     let full_hash = events
         .iter()
         .find(|e| e.event_id == event_id)
@@ -390,7 +391,13 @@ async fn record_brp_result(
     for _ in 0..ATTEMPTS {
         // the event id first: a change landing after it is caught by the append
         let expected = store.snapshot().last_event_id();
-        if store.get_person(checked.id, WithCorrections::All).as_ref() != Some(checked) {
+        if store
+            .snapshot()
+            .pg(WithCorrections::All)
+            .get_person(checked.id)
+            .ok()
+            != Some(checked)
+        {
             return Ok(false);
         }
 
@@ -420,11 +427,13 @@ async fn record_brp_result(
 /// Errors propagate: the BRP being unreachable must not record the remaining
 /// candidates as clean.
 async fn verify_candidates(store: CsbStore, brp_client: BrpClient) -> Result<(), AppError> {
-    let already_checked = store.get_brp_findings();
-    let unchecked: Vec<Person> = store
-        .get_persons(WithCorrections::All)
+    let data = store.snapshot();
+    let unchecked: Vec<Person> = data
+        .pg(WithCorrections::All)
+        .get_persons()
         .into_iter()
-        .filter(|person| !already_checked.contains_key(&person.id))
+        .filter(|person| !data.is_brp_checked(person.id))
+        .cloned()
         .collect();
 
     let mut ticker = tokio::time::interval(BRP_COURTESY_TIMEOUT);
@@ -447,8 +456,11 @@ async fn verify_candidates(store: CsbStore, brp_client: BrpClient) -> Result<(),
         "Finished checking {} candidates on list {}",
         unchecked.len(),
         store
-            .get_political_group(WithCorrections::All)
+            .snapshot()
+            .pg(WithCorrections::All)
+            .get_political_group()
             .appellation
+            .clone()
             .unwrap_or_default()
     );
 
@@ -495,14 +507,16 @@ mod tests {
             .await?;
 
         assert!(!record_brp_result(&store, &person, vec![]).await?);
-        assert!(!store.is_brp_checked(person.id));
+        assert!(!store.snapshot().is_brp_checked(person.id));
 
         // a result for the current data is recorded
-        let current = store
-            .get_person(person.id, WithCorrections::All)
+        let data = store.snapshot();
+        let current = data
+            .pg(WithCorrections::All)
+            .get_person(person.id)
             .expect("person");
-        assert!(record_brp_result(&store, &current, vec![BrpFindingKind::NotDutch.into()]).await?);
-        assert!(store.is_brp_checked(person.id));
+        assert!(record_brp_result(&store, current, vec![BrpFindingKind::NotDutch.into()]).await?);
+        assert!(store.snapshot().is_brp_checked(person.id));
 
         Ok(())
     }
@@ -524,7 +538,7 @@ mod tests {
             .await?;
         source_store.update(PgEvent::HideDownloadWarning).await?;
 
-        let hash = source_store.snapshot().events[0].hash;
+        let hash = source_store.snapshot().events()[0].hash;
         Ok((source_stream, format_hash(&hash, false)))
     }
 
@@ -630,7 +644,7 @@ mod tests {
         // The import is recorded under a fresh CSB stream, carrying the source.
         let csb_stores = state.csb_store_registry().stores_by_scope().await?;
         assert_eq!(csb_stores.len(), 1);
-        let imported = csb_stores[0].snapshot().events.first().is_some_and(|e| {
+        let imported = csb_stores[0].snapshot().events().first().is_some_and(|e| {
             matches!(&e.payload.action, CsbAction::Import { source_stream_id, .. } if *source_stream_id == source_stream)
         });
         assert!(imported);
@@ -742,7 +756,7 @@ mod tests {
         assert_eq!(csb_stores.len(), 1);
         let data = csb_stores[0].snapshot();
         assert!(matches!(
-            data.events.first().unwrap().payload.action,
+            data.events().first().unwrap().payload.action,
             CsbAction::CreateEmpty
         ));
 
@@ -753,7 +767,7 @@ mod tests {
     /// out the full courtesy timeout.
     async fn wait_for_brp_status(store: &CsbStore, expected: fn(&BrpStatus) -> bool) -> BrpStatus {
         for _ in 0..200 {
-            let status = store.get_brp_status();
+            let status = store.snapshot().get_brp_status().clone();
             if expected(&status) {
                 return status;
             }
@@ -761,7 +775,7 @@ mod tests {
         }
         panic!(
             "BRP verification did not reach the expected status in time, stuck at {:?}",
-            store.get_brp_status()
+            store.snapshot().get_brp_status()
         );
     }
 
@@ -808,7 +822,7 @@ mod tests {
         wait_for_brp_status(&csb_store, |status| matches!(status, BrpStatus::Finished)).await;
 
         assert_eq!(
-            csb_store.get_brp_findings_for_person(person_id),
+            csb_store.snapshot().get_brp_findings_for_person(person_id),
             vec![
                 BrpFindingKind::Mismatch {
                     brp_value: BrpValue::PlaceOfResidence("Amsterdam".parse().unwrap()),
@@ -817,7 +831,7 @@ mod tests {
             ]
         );
         // A BRP difference is for the committee to weigh, not a verzuim.
-        assert!(csb_store.snapshot().omissions.is_empty());
+        assert!(csb_store.snapshot().get_omission_count() == 0);
 
         Ok(())
     }
@@ -842,8 +856,8 @@ mod tests {
         wait_for_brp_status(&csb_store, |status| matches!(status, BrpStatus::Finished)).await;
 
         // Present in the map with no findings: checked, and nothing found.
-        let findings = csb_store.get_brp_findings();
-        assert_eq!(findings.get(&person_id), Some(&Vec::new()));
+        let data = csb_store.snapshot();
+        assert_eq!(data.get_brp_findings().get(&person_id), Some(&Vec::new()));
 
         Ok(())
     }
@@ -852,7 +866,7 @@ mod tests {
     fn recorded_lookups(store: &CsbStore) -> Vec<BrpLookup> {
         store
             .snapshot()
-            .events
+            .events()
             .iter()
             .filter_map(|event| match &event.payload.action {
                 CsbAction::BrpLookup(lookup) => Some(lookup.clone()),
@@ -891,7 +905,7 @@ mod tests {
             }
         );
 
-        let events = csb_store.snapshot().events.clone();
+        let events = csb_store.snapshot().events().to_vec();
         let position = |is_it: fn(&CsbAction) -> bool| {
             events
                 .iter()
@@ -943,7 +957,7 @@ mod tests {
         // A BRP outage must not leave an empty findings list that reads as
         // "the BRP agreed on everything".
         assert!(matches!(status, BrpStatus::Aborted(_)), "{status:?}");
-        assert!(csb_store.get_brp_findings().is_empty());
+        assert!(csb_store.snapshot().get_brp_findings().is_empty());
 
         Ok(())
     }
@@ -1160,12 +1174,13 @@ mod tests {
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
 
         let csb_stores = state.csb_store_registry().stores_by_scope().await?;
-        assert_eq!(csb_stores.iter().filter(|s| s.is_deleted()).count(), 1);
-        assert_eq!(csb_stores.iter().filter(|s| !s.is_deleted()).count(), 1);
+        let deleted = |s: &crate::CsbStream| s.snapshot().is_deleted();
+        assert_eq!(csb_stores.iter().filter(|s| deleted(s)).count(), 1);
+        assert_eq!(csb_stores.iter().filter(|s| !deleted(s)).count(), 1);
         for store in csb_stores {
             if let CsbAction::Import {
                 hash: import_hash, ..
-            } = store.snapshot().events.first().unwrap().payload.action
+            } = store.snapshot().events().first().unwrap().payload.action
             {
                 assert_eq!(hash.clone(), format_hash(&import_hash, false));
             } else {

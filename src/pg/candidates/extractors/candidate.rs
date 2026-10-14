@@ -8,12 +8,16 @@ request_extractor!(Candidate, |store, context, parts, state| {
     let Path(CandidateListAndPersonPathParams { list_id, person_id }) =
         Path::<CandidateListAndPersonPathParams>::from_request_parts(parts, state).await?;
 
-    let candidate_list = store.get_candidate_list(list_id).map_err(|err| match err {
-        AppError::NotFound(_) => AppError::NotFound(
-            trans!("person.not_found_in_candidate_list", context.session.locale).to_string(),
-        ),
-        _ => err,
-    })?;
+    let candidate_list = store
+        .snapshot()
+        .get_candidate_list(list_id)
+        .cloned()
+        .map_err(|err| match err {
+            AppError::NotFound(_) => AppError::NotFound(
+                trans!("person.not_found_in_candidate_list", context.session.locale).to_string(),
+            ),
+            _ => err,
+        })?;
     let candidate = candidate_list
         .get_candidate(&store, person_id)
         .await

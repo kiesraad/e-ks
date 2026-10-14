@@ -113,8 +113,10 @@ mod tests {
         person.create(&store).await?;
         list.clone().update_order(&store, &[person.id]).await?;
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
-        let candidate = store
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
+        let data = store.snapshot();
+        let candidate = data
             .get_candidate_list(list_id)?
             .get_candidate(&store, person.id)
             .await?;
@@ -151,8 +153,10 @@ mod tests {
         person.create(&store).await?;
         list.clone().update_order(&store, &[person.id]).await?;
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
-        let candidate = store
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
+        let data = store.snapshot();
+        let candidate = data
             .get_candidate_list(list_id)?
             .get_candidate(&store, person.id)
             .await?;
@@ -193,8 +197,10 @@ mod tests {
         person.create(&store).await?;
         list.clone().update_order(&store, &[person.id]).await?;
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
-        let candidate = store
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
+        let data = store.snapshot();
+        let candidate = data
             .get_candidate_list(list_id)?
             .get_candidate(&store, person.id)
             .await?;
@@ -231,9 +237,16 @@ mod tests {
             .expect("location header value");
         assert_eq!(location, expected_path);
 
-        let updated = store.get_person(person.id)?;
+        let data = store.snapshot();
+        let updated = data.get_person(person.id)?;
         assert_eq!(
-            updated.representative.unwrap().name.last_name.to_string(),
+            updated
+                .representative
+                .as_ref()
+                .unwrap()
+                .name
+                .last_name
+                .to_string(),
             "Smit"
         );
 
@@ -251,8 +264,10 @@ mod tests {
         person.create(&store).await?;
         list.clone().update_order(&store, &[person.id]).await?;
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
-        let candidate = store
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
+        let data = store.snapshot();
+        let candidate = data
             .get_candidate_list(list_id)?
             .get_candidate(&store, person.id)
             .await?;

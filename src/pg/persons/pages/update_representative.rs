@@ -174,9 +174,16 @@ mod tests {
             .expect("location header value");
         assert_eq!(location, expected_path);
 
-        let updated = store.get_person(person_id)?;
+        let data = store.snapshot();
+        let updated = data.get_person(person_id)?;
         assert_eq!(
-            updated.representative.unwrap().name.last_name.to_string(),
+            updated
+                .representative
+                .as_ref()
+                .unwrap()
+                .name
+                .last_name
+                .to_string(),
             "Smit"
         );
 

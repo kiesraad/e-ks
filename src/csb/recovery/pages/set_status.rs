@@ -50,7 +50,8 @@ pub async fn set_status(
     Query(query): Query<QueryParamState>,
     Form(form): Form<OmissionStatusForm>,
 ) -> Result<Response, AppError> {
-    let omission = store.get_omission(omission_id)?;
+    let data = store.snapshot();
+    let omission = data.get_omission(omission_id)?;
     let status = match form.status {
         OmissionStatusFormValue::Recovered => OmissionStatus::Recovered,
         OmissionStatusFormValue::NotRecovered => OmissionStatus::NotRecovered,
@@ -65,7 +66,7 @@ pub async fn set_status(
         CsbPoliticalGroup::new_from_csb_store(&store).with_mode(CsbPhase::Recovery);
     Ok(query.redirect_or_highlighting(
         political_group.all_restorations_path(),
-        decided_omission(&store, &omission, part, status).into(),
+        decided_omission(&store, omission, part, status).into(),
     ))
 }
 
@@ -77,18 +78,15 @@ fn decided_omission(
     part: Option<OmissionPart>,
     status: OmissionStatus,
 ) -> OmissionId {
+    let data = store.snapshot();
     let holds_decision = |candidate: &Omission| {
         candidate.status == status
             && part.is_none_or(|part| candidate.covers(&store.election, part))
     };
-    if store
-        .get_omission(omission.id)
-        .is_ok_and(|o| holds_decision(&o))
-    {
+    if data.get_omission(omission.id).is_ok_and(holds_decision) {
         return omission.id;
     }
-    store
-        .get_omissions()
+    data.get_omissions()
         .into_iter()
         .find(|o| o.has_same_details(omission) && holds_decision(o))
         .map_or(omission.id, |o| o.id)
@@ -112,7 +110,7 @@ mod tests {
     /// `total`.
     fn assert_progress(store: &CsbStore, pending: usize, total: usize) {
         assert_eq!(
-            store.get_recovery_progress(),
+            store.snapshot().get_recovery_progress(store.election),
             RecoveryProgress { pending, total }
         );
     }
@@ -223,7 +221,7 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
         assert_eq!(
-            store.get_omission(omission.id).unwrap().status,
+            store.snapshot().get_omission(omission.id).unwrap().status,
             OmissionStatus::Recovered
         );
         let location = response
@@ -289,7 +287,7 @@ mod tests {
 
         assert!(result.is_err());
         assert_eq!(
-            store.get_omission(omission.id).unwrap().status,
+            store.snapshot().get_omission(omission.id).unwrap().status,
             OmissionStatus::Pending
         );
     }
@@ -326,7 +324,7 @@ mod tests {
         .into_response();
 
         // The omission keeps the districts still waiting.
-        let original = store.get_omission(omission.id).unwrap();
+        let original = store.snapshot().get_omission(omission.id).cloned().unwrap();
         assert_eq!(
             original.category,
             OmissionCategory::DeclarationsOfSupport(vec![
@@ -337,7 +335,8 @@ mod tests {
         assert_eq!(original.status, OmissionStatus::Pending);
 
         // Fryslân is split off with the decision, keeping the text.
-        let all = store.get_all_declarations_of_support_omissions();
+        let data = store.snapshot();
+        let all = data.get_all_declarations_of_support_omissions(store.election);
         assert_eq!(all.len(), 2);
         // Ordered by first district: Groningen (1) before Fryslân (2).
         assert_eq!(all[0].id, omission.id);
@@ -364,7 +363,7 @@ mod tests {
 
         // Only the unrecovered district is scrapped.
         assert_eq!(
-            store.get_scrapped_districts(),
+            store.snapshot().get_scrapped().districts(&store.election),
             vec![ElectoralDistrict::Fryslan]
         );
     }
@@ -393,12 +392,18 @@ mod tests {
         .unwrap();
 
         // Nothing is split off.
-        assert_eq!(store.get_omission_count(), 1);
+        assert_eq!(store.snapshot().get_omission_count(), 1);
         assert_eq!(
-            store.get_omission(omission.id).unwrap().status,
+            store.snapshot().get_omission(omission.id).unwrap().status,
             OmissionStatus::Recovered
         );
-        assert!(store.get_scrapped_districts().is_empty());
+        assert!(
+            store
+                .snapshot()
+                .get_scrapped()
+                .districts(&store.election)
+                .is_empty()
+        );
     }
 
     #[tokio::test]
@@ -427,9 +432,9 @@ mod tests {
         .await;
 
         assert!(result.is_err());
-        assert_eq!(store.get_omission_count(), 1);
+        assert_eq!(store.snapshot().get_omission_count(), 1);
         assert_eq!(
-            store.get_omission(omission.id).unwrap().status,
+            store.snapshot().get_omission(omission.id).unwrap().status,
             OmissionStatus::Pending
         );
     }
@@ -465,12 +470,13 @@ mod tests {
         // All decided, only Fryslân scrapped.
         assert_progress(&store, 0, 3);
         assert_eq!(
-            store.get_scrapped_districts(),
+            store.snapshot().get_scrapped().districts(&store.election),
             vec![ElectoralDistrict::Fryslan]
         );
 
         // The districts decided the same way read as one omission again.
-        let all = store.get_all_declarations_of_support_omissions();
+        let data = store.snapshot();
+        let all = data.get_all_declarations_of_support_omissions(store.election);
         assert_eq!(all.len(), 2);
         assert_eq!(
             all[0].category,
@@ -494,8 +500,9 @@ mod tests {
         district: ElectoralDistrict,
         decision: OmissionStatusFormValue,
     ) -> String {
-        let omission = store
-            .get_all_declarations_of_support_omissions()
+        let data = store.snapshot();
+        let omission = data
+            .get_all_declarations_of_support_omissions(store.election)
             .into_iter()
             .find(|o| o.electoral_districts(&store.election).contains(&district))
             .expect("every district stays covered by one of the parts");
@@ -537,7 +544,7 @@ mod tests {
             OmissionStatusFormValue::Recovered,
         )
         .await;
-        assert_eq!(store.get_omission_count(), 2);
+        assert_eq!(store.snapshot().get_omission_count(), 2);
 
         let location = decide_district(
             &store,
@@ -547,7 +554,8 @@ mod tests {
         .await;
 
         // The split-off part took the last district over; the original is gone.
-        let all = store.get_all_declarations_of_support_omissions();
+        let data = store.snapshot();
+        let all = data.get_all_declarations_of_support_omissions(store.election);
         assert_eq!(all.len(), 1);
         assert_ne!(all[0].id, omission.id);
         // The highlight follows the district to the part that holds it now.
@@ -560,7 +568,7 @@ mod tests {
             ])
         );
         assert_eq!(all[0].status, OmissionStatus::Recovered);
-        assert!(store.get_omission(omission.id).is_err());
+        assert!(store.snapshot().get_omission(omission.id).is_err());
 
         // Still two decisions, both made.
         assert_progress(&store, 0, 2);
@@ -603,7 +611,8 @@ mod tests {
         .await;
 
         // It joins Fryslân, in the election's district order.
-        let all = store.get_all_declarations_of_support_omissions();
+        let data = store.snapshot();
+        let all = data.get_all_declarations_of_support_omissions(store.election);
         assert_eq!(all.len(), 2);
         assert_eq!(
             all[0].category,
@@ -619,7 +628,7 @@ mod tests {
         );
         assert_eq!(all[1].status, OmissionStatus::Recovered);
         assert_eq!(
-            store.get_scrapped_districts(),
+            store.snapshot().get_scrapped().districts(&store.election),
             vec![ElectoralDistrict::Groningen, ElectoralDistrict::Fryslan]
         );
     }
@@ -637,7 +646,8 @@ mod tests {
         for district in [ElectoralDistrict::Groningen, ElectoralDistrict::Utrecht] {
             decide_district(&store, district, OmissionStatusFormValue::Recovered).await;
         }
-        let before = store.get_all_declarations_of_support_omissions();
+        let data = store.snapshot();
+        let before = data.get_all_declarations_of_support_omissions(store.election);
         assert_eq!(before.len(), 1);
 
         // Confirming one district must not split it off again.
@@ -648,7 +658,8 @@ mod tests {
         )
         .await;
 
-        let after = store.get_all_declarations_of_support_omissions();
+        let data = store.snapshot();
+        let after = data.get_all_declarations_of_support_omissions(store.election);
         assert_eq!(after.len(), 1);
         assert_eq!(after[0].id, before[0].id);
         assert_eq!(after[0].category, before[0].category);
@@ -687,13 +698,14 @@ mod tests {
         decide_whole(&store, groningen.id, OmissionStatusFormValue::Recovered).await;
         // Decided differently, so they stay apart.
         decide_whole(&store, fryslan.id, OmissionStatusFormValue::NotRecovered).await;
-        assert_eq!(store.get_omission_count(), 2);
+        assert_eq!(store.snapshot().get_omission_count(), 2);
 
         decide_whole(&store, fryslan.id, OmissionStatusFormValue::Recovered).await;
 
         // Fryslân joined the omission decided first.
-        assert_eq!(store.get_omission_count(), 1);
-        let merged = store.get_omission(groningen.id).unwrap();
+        assert_eq!(store.snapshot().get_omission_count(), 1);
+        let data = store.snapshot();
+        let merged = data.get_omission(groningen.id).unwrap();
         assert_eq!(
             merged.category,
             OmissionCategory::DeclarationsOfSupport(vec![
@@ -702,7 +714,7 @@ mod tests {
             ])
         );
         assert_eq!(merged.status, OmissionStatus::Recovered);
-        assert!(store.get_omission(fryslan.id).is_err());
+        assert!(store.snapshot().get_omission(fryslan.id).is_err());
     }
 
     #[tokio::test]
@@ -728,7 +740,7 @@ mod tests {
             decide_district(&store, district, OmissionStatusFormValue::Recovered).await;
         }
 
-        assert_eq!(store.get_omission_count(), 2);
+        assert_eq!(store.snapshot().get_omission_count(), 2);
     }
 
     #[tokio::test]
@@ -746,8 +758,9 @@ mod tests {
         omission.create(&store).await.unwrap();
 
         for list_id in [lists[0], lists[1]] {
-            let omission = store
-                .get_candidate_omissions(person)
+            let data = store.snapshot();
+            let omission = data
+                .get_candidate_omissions(person, store.election)
                 .into_iter()
                 .find(|o| o.candidate_lists().contains(&list_id))
                 .expect("every list stays covered by one of the parts");
@@ -765,7 +778,8 @@ mod tests {
             .unwrap();
         }
 
-        let all = store.get_candidate_omissions(person);
+        let data = store.snapshot();
+        let all = data.get_candidate_omissions(person, store.election);
         assert_eq!(all.len(), 1);
         assert_eq!(
             all[0].category,
@@ -776,8 +790,18 @@ mod tests {
         );
         assert_eq!(all[0].status, OmissionStatus::Recovered);
         assert_progress(&store, 0, 2);
-        assert!(!store.get_scrapped().is_candidate_scrapped(lists[0], person));
-        assert!(!store.get_scrapped().is_candidate_scrapped(lists[1], person));
+        assert!(
+            !store
+                .snapshot()
+                .get_scrapped()
+                .is_candidate_scrapped(lists[0], person)
+        );
+        assert!(
+            !store
+                .snapshot()
+                .get_scrapped()
+                .is_candidate_scrapped(lists[1], person)
+        );
     }
 
     #[tokio::test]
@@ -811,7 +835,7 @@ mod tests {
 
         // The omission keeps the list still waiting.
         assert_eq!(
-            store.get_omission(omission.id).unwrap().category,
+            store.snapshot().get_omission(omission.id).unwrap().category,
             OmissionCategory::Candidate {
                 person,
                 lists: vec![lists[0]],
@@ -819,7 +843,8 @@ mod tests {
         );
 
         // The Utrecht list is split off with the decision.
-        let all = store.get_candidate_omissions(person);
+        let data = store.snapshot();
+        let all = data.get_candidate_omissions(person, store.election);
         assert_eq!(all.len(), 2);
         // Ordered by their list's first district: Groningen (1) before Utrecht (7).
         assert_eq!(all[0].id, omission.id);
@@ -836,8 +861,18 @@ mod tests {
         assert_progress(&store, 1, 2);
 
         // The candidate is scrapped from the Utrecht list only.
-        assert!(!store.get_scrapped().is_candidate_scrapped(lists[0], person));
-        assert!(store.get_scrapped().is_candidate_scrapped(lists[1], person));
+        assert!(
+            !store
+                .snapshot()
+                .get_scrapped()
+                .is_candidate_scrapped(lists[0], person)
+        );
+        assert!(
+            store
+                .snapshot()
+                .get_scrapped()
+                .is_candidate_scrapped(lists[1], person)
+        );
     }
 
     #[tokio::test]
@@ -861,12 +896,17 @@ mod tests {
         .await
         .unwrap();
 
-        assert_eq!(store.get_omission_count(), 1);
+        assert_eq!(store.snapshot().get_omission_count(), 1);
         assert_eq!(
-            store.get_omission(omission.id).unwrap().status,
+            store.snapshot().get_omission(omission.id).unwrap().status,
             OmissionStatus::Recovered
         );
-        assert!(!store.get_scrapped().is_candidate_scrapped(lists[0], person));
+        assert!(
+            !store
+                .snapshot()
+                .get_scrapped()
+                .is_candidate_scrapped(lists[0], person)
+        );
     }
 
     #[tokio::test]
@@ -895,7 +935,7 @@ mod tests {
         .await;
 
         assert!(result.is_err());
-        assert_eq!(store.get_omission_count(), 1);
+        assert_eq!(store.snapshot().get_omission_count(), 1);
     }
 
     #[tokio::test]
@@ -927,7 +967,7 @@ mod tests {
         .await;
 
         assert!(result.is_err());
-        assert_eq!(store.get_omission_count(), 1);
+        assert_eq!(store.snapshot().get_omission_count(), 1);
     }
 
     #[tokio::test]
@@ -944,7 +984,10 @@ mod tests {
         let omission = on_lists(lists.clone());
         omission.create(&store).await.unwrap();
 
-        assert_eq!(store.get_recovery_progress().total, 2);
+        assert_eq!(
+            store.snapshot().get_recovery_progress(store.election).total,
+            2
+        );
 
         set_status(
             CsbSetOmissionStatusPath {
@@ -961,11 +1004,14 @@ mod tests {
 
         // The omission keeps the list still waiting...
         assert_eq!(
-            store.get_omission(omission.id).unwrap().category,
+            store.snapshot().get_omission(omission.id).unwrap().category,
             OmissionCategory::CandidateList(vec![lists[0]])
         );
         // ...and the Utrecht list is split off with the decision.
-        let split = store.get_candidate_list_omissions(lists[1]).unwrap();
+        let data = store.snapshot();
+        let split = data
+            .get_candidate_list_omissions(lists[1], store.election)
+            .unwrap();
         assert_eq!(split.len(), 1);
         assert_eq!(
             split[0].category,
@@ -976,8 +1022,8 @@ mod tests {
         assert_progress(&store, 1, 2);
 
         // Only the Utrecht list is scrapped.
-        assert!(!store.get_scrapped().is_list_scrapped(lists[0]));
-        assert!(store.get_scrapped().is_list_scrapped(lists[1]));
+        assert!(!store.snapshot().get_scrapped().is_list_scrapped(lists[0]));
+        assert!(store.snapshot().get_scrapped().is_list_scrapped(lists[1]));
     }
 
     #[tokio::test]

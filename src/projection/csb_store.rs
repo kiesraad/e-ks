@@ -90,7 +90,7 @@ impl CsbStore {
 
         let stream = registry.get_store(stream_id, election).await?;
 
-        if stream.is_deleted() {
+        if stream.snapshot().is_deleted() {
             return Err(AppError::NotFound("Stream deleted".to_string()));
         }
 

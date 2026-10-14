@@ -25,7 +25,7 @@ pub async fn create_candidate_list(
     store: PgStore,
 ) -> Result<Response, AppError> {
     if context.election.has_only_one_district() {
-        if !store.get_candidate_lists().is_empty() {
+        if !store.snapshot().get_candidate_lists().is_empty() {
             return Err(AppError::UserError(
                 "Cannot create more than one candidate list for single district elections"
                     .to_string(),
@@ -46,8 +46,8 @@ pub async fn create_candidate_list(
     }
 
     let available_districts = CandidateList::available_districts(&store, &context.election);
-    let districts_on_other_lists = CandidateList::districts_on_other_lists(&store, None);
-    let has_previous_list = !store.get_candidate_lists().is_empty();
+    let districts_on_other_lists = CandidateList::districts_on_other_lists(&store.snapshot(), None);
+    let has_previous_list = !store.snapshot().get_candidate_lists().is_empty();
     Ok(HtmlTemplate(
         CandidateListCreateTemplate {
             form: FormData::new(),
@@ -73,7 +73,7 @@ pub async fn create_candidate_list_submit(
         ));
     }
     let available_districts = CandidateList::available_districts(&store, &context.election);
-    let districts_on_other_lists = CandidateList::districts_on_other_lists(&store, None);
+    let districts_on_other_lists = CandidateList::districts_on_other_lists(&store.snapshot(), None);
     let should_copy_candidates = form.copy_candidates;
     form.electoral_districts = context.election.known_districts(&form.electoral_districts);
 
@@ -81,7 +81,7 @@ pub async fn create_candidate_list_submit(
         Err(form_data) => Ok(HtmlTemplate(
             CandidateListCreateTemplate {
                 form: form_data,
-                has_previous_list: !store.get_candidate_lists().is_empty(),
+                has_previous_list: !store.snapshot().get_candidate_lists().is_empty(),
                 available_districts,
                 districts_on_other_lists,
                 overlay: Overlay::new_create(&QueryParamState::default()),
@@ -92,6 +92,7 @@ pub async fn create_candidate_list_submit(
         Ok(mut candidate_list) => {
             if should_copy_candidates {
                 candidate_list.candidates = store
+                    .snapshot()
                     .get_candidate_lists()
                     .last()
                     .map(|list| list.candidates.clone())
@@ -170,7 +171,7 @@ mod test {
             .to_str()
             .expect("location header value");
 
-        let lists = CandidateListSummary::list(&store);
+        let lists = CandidateListSummary::list(&store.snapshot(), store.election);
         assert_eq!(lists.len(), 1);
 
         let expected = lists[0].list.after_create_path().to_string();
@@ -229,7 +230,7 @@ mod test {
         )
         .await?;
 
-        let lists = CandidateListSummary::list(&store);
+        let lists = CandidateListSummary::list(&store.snapshot(), store.election);
         assert_eq!(lists.len(), 2);
         let new_list = &lists[1].list;
         assert_eq!(new_list.candidates, vec![person_a.id, person_b.id]);
@@ -258,7 +259,7 @@ mod test {
         )
         .await?;
 
-        let lists = CandidateListSummary::list(&store);
+        let lists = CandidateListSummary::list(&store.snapshot(), store.election);
         assert_eq!(lists.len(), 1);
         // deduplicated, in the election's district order
         assert_eq!(
@@ -329,7 +330,7 @@ mod test {
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
 
-        let lists = CandidateListSummary::list(&store);
+        let lists = CandidateListSummary::list(&store.snapshot(), store.election);
         assert_eq!(lists.len(), 1);
         assert_eq!(
             lists[0].list.electoral_districts,
@@ -358,7 +359,7 @@ mod test {
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
 
-        let lists = CandidateListSummary::list(&store);
+        let lists = CandidateListSummary::list(&store.snapshot(), store.election);
         assert_eq!(lists.len(), 1);
         assert_eq!(
             lists[0].list.electoral_districts,
@@ -456,7 +457,9 @@ mod test {
         // verify
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
 
-        let lists = store.get_candidate_lists();
+        let data = store.snapshot();
+
+        let lists = data.get_candidate_lists();
         assert_eq!(lists.len(), 1);
         let list = &lists[0];
         // WsFryslan got dropped because it's not part of EK27

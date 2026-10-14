@@ -449,8 +449,7 @@ mod tests {
     #[test]
     fn compute_update_diffs_against_the_base_state() {
         let person = sample_person(PersonId::new());
-        let mut base = PgStoreData::default();
-        base.persons.insert(person.id, person.clone());
+        let base = PgStoreData::default().with_person(person.clone());
 
         let mut updated = person.clone();
         updated.name = FullName {

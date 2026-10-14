@@ -6,11 +6,13 @@ use axum::{
 use chrono::{DateTime, Utc};
 
 use crate::{
-    AppError, AppRequestState, Context, CsbAction, CsbContext, CsbEvent, CsbMainStore, CsbStream,
-    ElectionConfig, Event, HasCsbUser, HtmlTemplate, Locale, Overlay, QueryParamState,
+    AppError, AppRequestState, Context, CsbAction, CsbContext, CsbEvent, CsbMainStore,
+    CsbStoreData, ElectionConfig, Event, HasCsbUser, HtmlTemplate, Locale, Overlay,
+    QueryParamState,
     csb::audit_log::pages::CsbAuditLogDetailPath,
     filters,
     projection::{CSB_MAIN_STREAM_ID, WithCorrections},
+    store::StoreData,
     store::StoreEvent,
     structs::{
         audit_log::FieldChange,
@@ -85,7 +87,7 @@ impl CsbEventDetail {
     fn add_stream_context(
         &mut self,
         events: &[StoreEvent<CsbEvent>],
-        election: ElectionConfig,
+        _election: ElectionConfig,
         locale: Locale,
     ) {
         let Some(index) = events.iter().position(|e| e.event_id == self.event_id) else {
@@ -102,9 +104,9 @@ impl CsbEventDetail {
             return;
         }
 
-        let before = CsbStream::new_for_temp_stream(election);
+        let mut before = CsbStoreData::default();
         for event in &events[..index] {
-            before.apply_event(event.clone());
+            before.apply(event.clone());
         }
 
         match action {
@@ -113,8 +115,8 @@ impl CsbEventDetail {
             }
             CsbAction::BrpLookup(lookup) => self.facts = lookup_facts(&before, lookup, locale),
             CsbAction::BrpPersonChecked { person, findings } => {
-                let candidate = before.get_person(*person, WithCorrections::All);
-                self.facts = vec![candidate_fact(candidate.as_ref(), *person, locale)];
+                let candidate = before.pg(WithCorrections::All).get_person(*person).ok();
+                self.facts = vec![candidate_fact(candidate, *person, locale)];
                 if findings.is_empty() {
                     self.facts.push(Fact {
                         label: trans!("audit_log.detail.brp.result", locale),
@@ -124,7 +126,7 @@ impl CsbEventDetail {
                 self.brp_comparison = true;
                 self.changes = findings
                     .iter()
-                    .map(|finding| finding_row(candidate.as_ref(), finding, locale))
+                    .map(|finding| finding_row(candidate, finding, locale))
                     .collect();
             }
             CsbAction::SetBrpFindingHandled {
@@ -132,9 +134,9 @@ impl CsbEventDetail {
                 finding,
                 handled,
             } => {
-                let candidate = before.get_person(*person, WithCorrections::All);
+                let candidate = before.pg(WithCorrections::All).get_person(*person).ok();
                 self.facts = vec![
-                    candidate_fact(candidate.as_ref(), *person, locale),
+                    candidate_fact(candidate, *person, locale),
                     Fact {
                         label: trans!("audit_log.detail.brp.finding", locale),
                         value: finding.message(locale),
@@ -152,19 +154,25 @@ impl CsbEventDetail {
 
 /// The field change of a correction: the value it replaced, as the stream
 /// state was before it, against the corrected one.
-fn correction_change(before: &CsbStream, correction: &Correction, locale: Locale) -> FieldChange {
+fn correction_change(
+    before: &CsbStoreData,
+    correction: &Correction,
+    locale: Locale,
+) -> FieldChange {
     match correction {
         Correction::Appellation(appellation) => FieldChange::Regular {
             field: trans!("audit_log.detail.fields.appellation", locale),
             old_value: before
-                .get_political_group(WithCorrections::All)
+                .pg(WithCorrections::All)
+                .get_political_group()
                 .appellation
-                .map(|a| a.to_string())
+                .as_ref()
+                .map(std::string::ToString::to_string)
                 .unwrap_or_default(),
             new_value: appellation.to_string(),
         },
         Correction::Person(person_id, person_correction) => person_correction.change(
-            before.get_person(*person_id, WithCorrections::All).as_ref(),
+            before.pg(WithCorrections::All).get_person(*person_id).ok(),
             locale,
         ),
     }
@@ -212,13 +220,13 @@ fn finding_row(candidate: Option<&Person>, finding: &BrpFinding, locale: Locale)
 }
 
 /// What one request to the BRP was for, sent, and got back.
-fn lookup_facts(before: &CsbStream, lookup: &BrpLookup, locale: Locale) -> Vec<Fact> {
+fn lookup_facts(before: &CsbStoreData, lookup: &BrpLookup, locale: Locale) -> Vec<Fact> {
     let candidates = lookup
         .persons
         .iter()
         .map(|person_id| {
             candidate_name(
-                before.get_person(*person_id, WithCorrections::All).as_ref(),
+                before.pg(WithCorrections::All).get_person(*person_id).ok(),
                 *person_id,
             )
         })
@@ -358,7 +366,7 @@ pub async fn csb_audit_log_detail<S: AppRequestState>(
     let detail = if stream_id == CSB_MAIN_STREAM_ID {
         let data = main_store.snapshot();
         CsbEventDetail::find(
-            &data.events,
+            data.events(),
             event_id,
             trans!("audit_log.filter.csb_main_stream", locale),
             locale,
@@ -380,15 +388,16 @@ pub async fn csb_audit_log_detail<S: AppRequestState>(
             .position(|s| s.stream_id == stream_id)
             .ok_or(AppError::GenericNotFound)?;
         let store = &stores[position];
-        let label = store.get_appellation_with_deleted_label(WithCorrections::All, locale);
+        let data = store.snapshot();
+        let label = data.get_appellation_with_deleted_label(WithCorrections::All, locale);
         let label = if position < import_count {
             label
         } else {
             trans!("audit_log.filter.pre_submission_stream", locale, label)
         };
         let data = store.snapshot();
-        let mut detail = CsbEventDetail::find(&data.events, event_id, label, locale)?;
-        detail.add_stream_context(&data.events, context.election, locale);
+        let mut detail = CsbEventDetail::find(data.events(), event_id, label, locale)?;
+        detail.add_stream_context(data.events(), context.election, locale);
         detail
     };
 
@@ -404,6 +413,7 @@ pub async fn csb_audit_log_detail<S: AppRequestState>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::CsbStream;
     use axum::{
         extract::{Query, State},
         http::StatusCode,

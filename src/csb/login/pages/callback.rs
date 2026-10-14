@@ -160,6 +160,7 @@ fn login_failed(jar: CookieJar) -> Response {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::store::StoreData;
     use axum::http::{StatusCode, header};
 
     use crate::{
@@ -381,7 +382,7 @@ mod tests {
             .await
             .expect("main store");
         assert!(matches!(
-            store.snapshot().events.as_slice(),
+            store.snapshot().events(),
             &[StoreEvent {
                 payload: crate::CsbMainEvent {
                     user: CsbUser::Github { .. },
@@ -423,7 +424,7 @@ mod tests {
             .await
             .expect("main store");
         assert!(
-            store.snapshot().events.iter().any(|event| matches!(
+            store.snapshot().events().iter().any(|event| matches!(
                 event.payload,
                 crate::CsbMainEvent {
                     user: CsbUser::Github { .. },

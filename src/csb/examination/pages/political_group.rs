@@ -80,29 +80,30 @@ pub(in crate::csb) async fn render(
     main_store: CsbMainStore,
     mode: CsbPhase,
 ) -> Result<Response, AppError> {
+    let data = store.snapshot();
     let political_group = CsbPoliticalGroup::new_from_csb_store(&store)
         .with_mode(mode)
         .with_registrations(&main_store.registered_political_groups());
 
-    let brp_findings = store.get_brp_findings();
-    let candidate_lists = candidate_lists(&store, &political_group, &brp_findings)?;
+    let brp_findings = data.get_brp_findings();
+    let candidate_lists = candidate_lists(&store, &political_group, brp_findings)?;
 
     // Over the candidates rather than over everyone the sweep touched: the
     // snapshot also holds people who stand on no list at all.
     let all_candidates = candidate_lists
         .iter()
         .flat_map(|csb_list| csb_list.list.candidates.iter().copied());
-    let brp = BrpCheckState::for_candidates(&brp_findings, all_candidates);
+    let brp = BrpCheckState::for_candidates(brp_findings, all_candidates);
     let brp_running = brp_sweep_running(store.stream_id);
     let brp_incomplete = brp_incomplete_reason(
-        &store.get_brp_status(),
+        data.get_brp_status(),
         &brp,
         brp_running,
         context.session.locale,
     );
-    let political_group_status = RestorationStatus::for_political_group(&store);
-    let scrapped = store.get_scrapped_overview(&political_group);
-    let all_problems = store.get_all_problems(context.election)?;
+    let political_group_status = RestorationStatus::for_political_group(&data);
+    let scrapped = data.get_scrapped_overview(&political_group);
+    let all_problems = data.get_all_problems(context.election)?;
     Ok(HtmlTemplate(
         CsbPoliticalGroupTemplate {
             political_group,
@@ -112,8 +113,9 @@ pub(in crate::csb) async fn render(
             brp_incomplete,
             candidate_lists,
             political_group_status,
-            declarations_of_support_omissions: store.get_all_declarations_of_support_omissions(),
-            has_paper_corrections: store.has_paper_corrections(),
+            declarations_of_support_omissions: data
+                .get_all_declarations_of_support_omissions(context.election),
+            has_paper_corrections: data.has_paper_corrections(),
             scrapped,
             all_problems,
         },
@@ -128,16 +130,22 @@ fn candidate_lists(
     political_group: &CsbPoliticalGroup,
     brp_findings: &HashMap<PersonId, Vec<BrpFinding>>,
 ) -> Result<Vec<CsbCandidateList>, AppError> {
-    let imported_lists = store.get_candidate_lists(crate::projection::WithCorrections::None);
+    let data = store.snapshot();
+    let imported_lists = data
+        .pg(crate::projection::WithCorrections::None)
+        .get_candidate_lists();
     let mut candidate_lists = Vec::new();
-    for list in store.get_candidate_lists_in_page_order(crate::projection::WithCorrections::All) {
+    for list in data
+        .pg(crate::projection::WithCorrections::All)
+        .get_candidate_lists_in_page_order()
+    {
         let brp = BrpCheckState::for_candidates(brp_findings, list.candidates.iter().copied());
         let from_original_import = imported_lists.iter().any(|l| l.id == list.id);
         candidate_lists.push(CsbCandidateList {
-            restoration_status: RestorationStatus::for_candidate_list(store, list.id)?,
+            restoration_status: RestorationStatus::for_candidate_list(&data, list.id)?,
             is_scrapped: political_group.scrapped.is_list_scrapped(list.id),
             scrapped_districts: political_group.scrapped.list_districts(list.id).to_vec(),
-            list,
+            list: list.clone(),
             brp,
             is_paper_added: !from_original_import,
         });
@@ -164,7 +172,7 @@ pub async fn toggle_examination_finish(
     Query(query): Query<QueryParamState>,
     store: CsbStore,
 ) -> Result<Response, AppError> {
-    let finished = store.is_examination_finished();
+    let finished = store.snapshot().is_examination_finished();
     store.update(CsbAction::SetFinished(!finished)).await?;
     Ok(query.redirect_or(CsbPoliticalGroup::new_from_csb_store(&store).group_path()))
 }
@@ -389,7 +397,7 @@ mod tests {
         );
         assert!(brp_sweep_running(stream_id));
         assert!(matches!(
-            store.get_brp_status(),
+            store.snapshot().get_brp_status(),
             BrpStatus::InProgress { .. }
         ));
     }
@@ -490,11 +498,7 @@ mod tests {
         let stream_id = store.stream_id;
         let list_id = CandidateListId::new();
         // An imported list without a corrected counterpart was deleted on paper.
-        store
-            .write()
-            .imported_data
-            .candidate_lists
-            .insert(list_id, sample_candidate_list(list_id));
+        store.set_imported_candidate_list(sample_candidate_list(list_id));
 
         let response = overview(
             CsbPoliticalGroupPath { stream_id },
@@ -801,7 +805,7 @@ mod tests {
         let stream_id = store.stream_id;
 
         // default unfinished => false
-        assert!(!store.is_examination_finished());
+        assert!(!store.snapshot().is_examination_finished());
 
         toggle_examination_finish(
             CsbPoliticalGroupToggleFinishPath { stream_id },
@@ -812,7 +816,7 @@ mod tests {
         .unwrap();
 
         // toggle once => true
-        assert!(store.is_examination_finished());
+        assert!(store.snapshot().is_examination_finished());
 
         toggle_examination_finish(
             CsbPoliticalGroupToggleFinishPath { stream_id },
@@ -823,7 +827,7 @@ mod tests {
         .unwrap();
 
         // toggle twice => false
-        assert!(!store.is_examination_finished());
+        assert!(!store.snapshot().is_examination_finished());
     }
 
     #[tokio::test]

@@ -45,7 +45,16 @@ pub(crate) async fn import_candidate_list_csv(
     let capped = records.len() > store.candidate_limit();
     records.truncate(store.candidate_limit());
 
-    let persons = collect_persons(records, store.get_persons(), locale)?;
+    let persons = collect_persons(
+        records,
+        store
+            .snapshot()
+            .get_persons()
+            .into_iter()
+            .cloned()
+            .collect(),
+        locale,
+    )?;
     emit_import_event(list, store, persons, file_name, file_size).await?;
 
     Ok(ImportOutcome {
@@ -352,7 +361,7 @@ async fn emit_import_event(
         })
         .await?;
 
-    *list = store.get_candidate_list(list.id)?;
+    *list = store.snapshot().get_candidate_list(list.id).cloned()?;
 
     Ok(())
 }
@@ -388,13 +397,14 @@ mod tests {
         .await
         .expect("import should succeed");
 
-        assert_eq!(store.get_person_count(), 1);
+        assert_eq!(store.snapshot().get_person_count(), 1);
         assert_eq!(
-            store.get_candidate_list(list_id)?.candidates,
+            store.snapshot().get_candidate_list(list_id)?.candidates,
             vec![existing_person.id]
         );
         assert_eq!(
             store
+                .snapshot()
                 .get_person(existing_person.id)?
                 .name
                 .first_name
@@ -429,9 +439,9 @@ mod tests {
         .await
         .expect("import should succeed");
 
-        assert_eq!(store.get_person_count(), 1);
+        assert_eq!(store.snapshot().get_person_count(), 1);
         assert_eq!(
-            store.get_candidate_list(list_id)?.candidates,
+            store.snapshot().get_candidate_list(list_id)?.candidates,
             vec![existing_person.id]
         );
 
@@ -462,10 +472,12 @@ mod tests {
         .await
         .expect("import should succeed");
 
-        let candidates = store.get_candidate_list(list_id)?.candidates;
-        let persisted_existing_person = store.get_person(existing_person.id)?;
+        let data = store.snapshot();
+        let candidates = &data.get_candidate_list(list_id)?.candidates;
+        let data = store.snapshot();
+        let persisted_existing_person = data.get_person(existing_person.id)?;
 
-        assert_eq!(store.get_person_count(), 2);
+        assert_eq!(store.snapshot().get_person_count(), 2);
         assert_eq!(candidates.len(), 1);
         assert_ne!(candidates[0], existing_person.id);
         assert_eq!(persisted_existing_person.id, existing_person.id);
@@ -496,8 +508,15 @@ mod tests {
         .await
         .expect("import should succeed");
 
-        assert_eq!(store.get_person_count(), 2);
-        assert_eq!(store.get_candidate_list(list_id)?.candidates.len(), 2);
+        assert_eq!(store.snapshot().get_person_count(), 2);
+        assert_eq!(
+            store
+                .snapshot()
+                .get_candidate_list(list_id)?
+                .candidates
+                .len(),
+            2
+        );
 
         Ok(())
     }
@@ -521,12 +540,21 @@ mod tests {
         .await
         .expect("duplicate rows should merge");
 
-        let candidate_id = store.get_candidate_list(list_id)?.candidates[0];
+        let data = store.snapshot();
+        let candidate_id = data.get_candidate_list(list_id)?.candidates[0];
 
-        assert_eq!(store.get_person_count(), 1);
-        assert_eq!(store.get_candidate_list(list_id)?.candidates.len(), 1);
+        assert_eq!(store.snapshot().get_person_count(), 1);
         assert_eq!(
             store
+                .snapshot()
+                .get_candidate_list(list_id)?
+                .candidates
+                .len(),
+            1
+        );
+        assert_eq!(
+            store
+                .snapshot()
                 .get_person(candidate_id)?
                 .name
                 .first_name
@@ -557,12 +585,21 @@ mod tests {
         .await
         .expect("duplicate rows should merge");
 
-        let candidate_id = store.get_candidate_list(list_id)?.candidates[0];
+        let data = store.snapshot();
+        let candidate_id = data.get_candidate_list(list_id)?.candidates[0];
 
-        assert_eq!(store.get_person_count(), 1);
-        assert_eq!(store.get_candidate_list(list_id)?.candidates.len(), 1);
+        assert_eq!(store.snapshot().get_person_count(), 1);
         assert_eq!(
             store
+                .snapshot()
+                .get_candidate_list(list_id)?
+                .candidates
+                .len(),
+            1
+        );
+        assert_eq!(
+            store
+                .snapshot()
                 .get_person(candidate_id)?
                 .name
                 .first_name
@@ -595,8 +632,15 @@ mod tests {
         .expect("import should succeed");
 
         assert_eq!(store.current_event_id(), event_id_before_import + 1);
-        assert_eq!(store.get_person_count(), 2);
-        assert_eq!(store.get_candidate_list(list_id)?.candidates.len(), 2);
+        assert_eq!(store.snapshot().get_person_count(), 2);
+        assert_eq!(
+            store
+                .snapshot()
+                .get_candidate_list(list_id)?
+                .candidates
+                .len(),
+            2
+        );
 
         Ok(())
     }
@@ -628,12 +672,16 @@ mod tests {
 
         assert!(outcome.capped);
         assert_eq!(
-            store.get_candidate_list(list_id)?.candidates.len(),
+            store
+                .snapshot()
+                .get_candidate_list(list_id)?
+                .candidates
+                .len(),
             MAX_CANDIDATES
         );
         // Rows past the cap are dropped entirely: no person records may be
         // persisted for them.
-        assert_eq!(store.get_person_count(), MAX_CANDIDATES);
+        assert_eq!(store.snapshot().get_person_count(), MAX_CANDIDATES);
 
         Ok(())
     }
@@ -664,9 +712,12 @@ mod tests {
         .await
         .expect("import should succeed");
 
-        let candidates = store.get_candidate_list(list_id)?.candidates;
-        let known = store.get_person(candidates[0])?;
-        let unknown = store.get_person(candidates[1])?;
+        let data = store.snapshot();
+        let candidates = &data.get_candidate_list(list_id)?.candidates;
+        let data = store.snapshot();
+        let known = data.get_person(candidates[0])?;
+        let data = store.snapshot();
+        let unknown = data.get_person(candidates[1])?;
 
         assert_eq!(known.address.known_in_bag, Some(true));
         assert_eq!(unknown.address.known_in_bag, Some(false));
@@ -699,10 +750,13 @@ mod tests {
         .await
         .expect("import should succeed");
 
-        let candidate_id = store.get_candidate_list(list_id)?.candidates[0];
-        let representative = store
+        let data = store.snapshot();
+        let candidate_id = data.get_candidate_list(list_id)?.candidates[0];
+        let data = store.snapshot();
+        let representative = data
             .get_person(candidate_id)?
             .representative
+            .clone()
             .expect("representative should be present");
 
         assert_eq!(representative.address.known_in_bag, Some(true));
@@ -736,7 +790,7 @@ mod tests {
             other => panic!("expected validation messages, got {other:?}"),
         }
 
-        assert_eq!(store.get_person_count(), 0);
+        assert_eq!(store.snapshot().get_person_count(), 0);
 
         Ok(())
     }
@@ -766,19 +820,29 @@ mod tests {
         assert_eq!(outcome.ignored_columns, vec!["lijst_nummer".to_string()]);
         assert!(outcome.has_warnings());
 
-        let candidate_id = store.get_candidate_list(list_id)?.candidates[0];
-        let person = store.get_person(candidate_id)?;
+        let data = store.snapshot();
+        let candidate_id = data.get_candidate_list(list_id)?.candidates[0];
+        let data = store.snapshot();
+        let person = data.get_person(candidate_id)?;
         assert_eq!(
             person.name.initials.as_ref().map(ToString::to_string),
             Some("H.A.H.A.".to_string())
         );
         assert_eq!(person.name.last_name.to_string(), "Jansen");
         assert_eq!(
-            person.address.postal_code.map(|p| p.to_string()),
+            person
+                .address
+                .postal_code
+                .as_ref()
+                .map(std::string::ToString::to_string),
             Some("1234AB".to_string())
         );
         assert_eq!(
-            person.personal_data.date_of_birth.map(|d| d.to_string()),
+            person
+                .personal_data
+                .date_of_birth
+                .as_ref()
+                .map(std::string::ToString::to_string),
             Some("1990-02-01".to_string())
         );
 

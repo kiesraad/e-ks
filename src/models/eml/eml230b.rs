@@ -90,23 +90,25 @@ pub(super) fn contest_affiliations(
 
     let mut affiliations = Vec::new();
     for (position, store) in numbered_groups {
-        let scrapped = store.get_scrapped();
-        let Some(established) = EstablishedLists::new(store, &scrapped)? else {
+        let data = store.snapshot();
+        let scrapped = data.get_scrapped();
+        let Some(established) = EstablishedLists::new(&data, scrapped)? else {
             continue;
         };
         let Some((list_district, list)) = established.list(district) else {
             continue;
         };
-        let candidates = csb_model_inputs::valid_candidates(store, &scrapped, list)?;
+        let candidates = csb_model_inputs::valid_candidates(&data, scrapped, list)?;
 
         // A blank list ("Blanco") leaves RegisteredName empty
         let is_blank = scrapped.is_appellation_scrapped()
-            || store
-                .get_political_group(WithCorrections::All)
+            || data
+                .pg(WithCorrections::All)
+                .get_political_group()
                 .list_designation
                 == Some(ListDesignation::Blank);
-        let appellation = (!is_blank)
-            .then(|| store.get_appellation_with_scrapped(WithCorrections::All, &scrapped));
+        let appellation =
+            (!is_blank).then(|| data.get_appellation_with_scrapped(WithCorrections::All, scrapped));
 
         let candidates = candidates
             .iter()

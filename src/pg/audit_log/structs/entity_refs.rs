@@ -69,13 +69,13 @@ fn describe_entity(kind: &EntityKind, id_str: &str, state: &PgStoreData) -> Stri
         EntityKind::Person => id_str
             .parse::<PersonId>()
             .ok()
-            .and_then(|id| state.persons.get(&id))
+            .and_then(|id| state.get_person(id).ok())
             .map(|p| p.name.display())
             .unwrap_or_default(),
         EntityKind::CandidateList => id_str
             .parse::<CandidateListId>()
             .ok()
-            .and_then(|id| state.candidate_lists.get(&id))
+            .and_then(|id| state.get_candidate_list(id).ok())
             .map(|cl| {
                 cl.electoral_districts
                     .iter()

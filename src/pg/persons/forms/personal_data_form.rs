@@ -93,10 +93,10 @@ impl PersonalDataForm {
         self,
         store: &PgStore,
     ) -> Result<Person, Box<FormData<Self>>> {
-        let existing = store.get_persons();
-        let existing_ref = existing.iter().collect();
+        let data = store.snapshot();
+        let existing = data.get_persons();
         let person_result = self.clone().validate_create();
-        let errors = self.uniqueness_errors(existing_ref);
+        let errors = self.uniqueness_errors(existing);
 
         person_result.merge_errors(self, errors)
     }
@@ -107,9 +107,10 @@ impl PersonalDataForm {
         current: &Person,
         store: &PgStore,
     ) -> Result<Person, Box<FormData<Self>>> {
-        let existing = store.get_persons();
+        let data = store.snapshot();
+        let existing = data.get_persons();
         let existing_without_current: Vec<&Person> =
-            existing.iter().filter(|p| *p != current).collect();
+            existing.into_iter().filter(|p| *p != current).collect();
         let person_result = self.clone().validate_update(current);
         let errors = self.uniqueness_errors(existing_without_current);
 
