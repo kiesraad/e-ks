@@ -31,6 +31,9 @@ pub struct QueryParamState {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     ignored_columns: Option<String>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    session_expired: bool,
 }
 
 /// Column names come from an upload; keep the `Location` header bounded.
@@ -51,6 +54,10 @@ impl QueryParamState {
 
     pub fn is_import_capped(&self) -> bool {
         self.import_capped
+    }
+
+    pub fn is_session_expired(&self) -> bool {
+        self.session_expired
     }
 
     pub fn ignored_columns(&self) -> Vec<&str> {
@@ -117,6 +124,13 @@ impl QueryParamState {
     pub fn max_candidates_reached() -> Self {
         Self {
             max_candidates_reached: true,
+            ..Default::default()
+        }
+    }
+
+    pub fn session_expired() -> Self {
+        Self {
+            session_expired: true,
             ..Default::default()
         }
     }

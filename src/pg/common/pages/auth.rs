@@ -5,7 +5,7 @@
 use askama::Template;
 use auth_service::{AuthFailure, AuthServiceState, AuthState, RedirectTarget, handle_logout};
 use axum::{
-    extract::{FromRef, State},
+    extract::{FromRef, Query, State},
     http::{HeaderName, HeaderValue},
     response::{IntoResponse, Response},
 };
@@ -15,13 +15,19 @@ use axum_extra::routing::TypedPath;
 
 use super::{LoggedOutPath, LogoutPath};
 use crate::{
-    AppRequestState, Context, HtmlTemplate, Locale, LocaleValues, Session, SessionPageValues,
-    filters,
+    AppRequestState, Context, HtmlTemplate, Locale, LocaleValues, QueryParamState, Session,
+    SessionPageValues, auth::session::session_idle_timeout, filters,
 };
 
 #[derive(Template)]
 #[template(path = "pg/common/pages/login_start.html")]
-struct LoginStartTemplate;
+struct LoginStartTemplate {
+    /// Explain that the previous session expired (the expiry-warning script
+    /// lands here once the countdown runs out).
+    session_expired: bool,
+    /// Minutes of inactivity after which a session expires, for that notice.
+    idle_minutes: String,
+}
 
 #[derive(Template)]
 #[template(path = "pg/common/pages/logged_out.html")]
@@ -44,9 +50,14 @@ struct AuthCancelledTemplate;
 struct AuthUnavailableTemplate;
 
 /// GET `/login`: DigiD start page with login button and flow explanation.
-pub async fn login_start() -> impl IntoResponse {
+/// With the flag of [`super::LoginStartPath::expired_url`] it also tells the
+/// user their session expired through inactivity.
+pub async fn login_start(Query(query): Query<QueryParamState>) -> impl IntoResponse {
     HtmlTemplate(
-        LoginStartTemplate,
+        LoginStartTemplate {
+            session_expired: query.is_session_expired(),
+            idle_minutes: session_idle_timeout().num_minutes().to_string(),
+        },
         LocaleValues {
             locale: Locale::default(),
         },
@@ -56,14 +67,7 @@ pub async fn login_start() -> impl IntoResponse {
 /// GET `/logout`: the logout prompt; runs behind the session middleware, which
 /// supplies the session and CSRF-checks the prompt's POST.
 pub async fn logout(_: LogoutPath, session: Session) -> Response {
-    HtmlTemplate(
-        LogoutConfirmTemplate,
-        SessionPageValues {
-            locale: session.locale,
-            csrf_token: session.csrf_token().0.clone(),
-        },
-    )
-    .into_response()
+    HtmlTemplate(LogoutConfirmTemplate, SessionPageValues::new(&session)).into_response()
 }
 
 /// Where the auth-service sends the browser once logout completes. Built from
@@ -133,19 +137,42 @@ mod tests {
     use crate::common::PgIndexPath;
 
     use crate::{
-        auth::session_extractor::SESSION_COOKIE_NAME, common::SelectElectionPath,
+        auth::session_extractor::SESSION_COOKIE_NAME,
+        common::{LoginStartPath, SelectElectionPath},
         test_utils::response_body_string,
     };
 
     #[tokio::test]
     async fn login_start_shows_digid_button_and_explanation() {
-        let response = login_start().await.into_response();
+        let response = login_start(Query(QueryParamState::default()))
+            .await
+            .into_response();
         let body = response_body_string(response).await;
         assert!(body.contains("Inloggen"));
         // The button initiates SSO by POSTing back to /login.
         assert!(body.contains("action=\"/login\""));
         assert!(body.contains("method=\"post\""));
         assert!(body.contains("Kandidaatstelling van de Kiesraad"));
+        assert!(!body.contains("sessie is verlopen"));
+    }
+
+    /// The URL the expiry-warning script navigates to explains why the user
+    /// is back on the login page, naming the idle timeout.
+    #[tokio::test]
+    async fn login_start_explains_an_expired_session() {
+        let state = crate::AppState::new_for_tests().await;
+        let app = crate::app::router::create(state.clone()).with_state(state);
+
+        let request = Request::builder()
+            .uri(LoginStartPath::expired_url().to_string())
+            .body(Body::empty())
+            .unwrap();
+        let response = app.oneshot(request).await.expect("response");
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response_body_string(response).await;
+        assert!(body.contains("Uw sessie is verlopen omdat u 15 minuten niet actief bent geweest"));
+        assert!(body.contains("Inloggen"));
     }
 
     #[tokio::test]

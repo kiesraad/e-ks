@@ -11,6 +11,14 @@ confirm_logout:
 error:
   message: Inloggen bij deze organisatie is niet gelukt. Probeert u het later nog een keer. Lukt het nog steeds niet? Log in bij Mijn DigiD. Zo controleert u of uw DigiD goed werkt. Mogelijk is er een storing bij de organisatie waar u inlogt.
   title: Inloggen niet gelukt
+session_expiry:
+  expired: "Uw sessie is verlopen omdat u {} minuten niet actief bent geweest. Log opnieuw in om verder te gaan."
+  extend: Ingelogd blijven
+  logout: Nu uitloggen
+  message: U bent een tijd niet actief geweest. Om veiligheidsredenen wordt u automatisch uitgelogd als u niets doet. Wijzigingen die nog niet zijn opgeslagen gaan dan verloren.
+  message_final: Uw sessie heeft de maximale duur bereikt en kan niet worden verlengd. Sla uw werk op; daarna moet u opnieuw inloggen.
+  remaining: Resterende tijd
+  title: Uw sessie verloopt bijna
 signed_out:
   message: "U bent uitgelogd. Sluit uw browser om de sessie helemaal af te sluiten, of log opnieuw in."
   title: U bent uitgelogd

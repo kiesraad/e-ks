@@ -1,0 +1,25 @@
+.session-expiry {
+  h3 {
+    margin-bottom: var(--space-6);
+  }
+
+  .session-expiry-countdown {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
+    margin-block: var(--space-10);
+  }
+
+  .session-expiry-timer {
+    font-family: var(--font-number);
+    font-size: var(--font-size-3xl);
+    font-variant-numeric: tabular-nums;
+    color: var(--gray-900);
+  }
+
+  .session-expiry-actions {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+  }
+}

@@ -12,6 +12,7 @@ mod index;
 mod not_found;
 mod robots;
 mod select_election;
+mod session_expiry;
 mod switch_election;
 mod switch_locale;
 mod well_known;
@@ -32,10 +33,11 @@ pub fn router<S: AppRequestState>() -> Router<S> {
 /// Routes that need a session but NOT the store middleware.
 ///
 /// `/select-election` must be reachable before a stream is chosen, and
-/// `/language` and `/logout` must be reachable by every session, including
-/// committee (CSB) sessions, which `store_middleware` redirects away from app
-/// routes. Living behind the session middleware gives the logout POST the
-/// same CSRF and user-agent checks as every other mutating route.
+/// `/language`, `/session` and `/logout` must be reachable by every session,
+/// including committee (CSB) sessions, which `store_middleware` redirects away
+/// from app routes. Living behind the session middleware gives the logout and
+/// session-extend POSTs the same CSRF and user-agent checks as every other
+/// mutating route.
 pub fn session_only_router<S>() -> Router<S>
 where
     S: AppRequestState + AuthState,
@@ -45,6 +47,8 @@ where
         .typed_post(switch_locale::switch_language::<S>)
         .typed_get(select_election::select_election::<S>)
         .typed_post(select_election::select_election_submit::<S>)
+        .typed_get(session_expiry::session_expiry)
+        .typed_post(session_expiry::extend_session)
         .typed_get(auth::logout)
         .typed_post(auth::logout_submit::<S>)
 }
