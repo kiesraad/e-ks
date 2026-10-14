@@ -24,7 +24,7 @@ use crate::{
         import::brp_sweep_running,
     },
     filters,
-    projection::WithCorrections,
+    projection::{PersonVersions, WithCorrections},
     redirect_success,
     structs::{
         brp::BrpFinding,
@@ -153,9 +153,11 @@ pub(in crate::csb) async fn render(
     let data = store.snapshot();
     let political_group = CsbPoliticalGroup::new_from_csb_store(&store).with_mode(mode);
 
-    let imported = data.pg(WithCorrections::None).get_person(person_id).ok();
-    let corrected = data.pg(WithCorrections::Paper).get_person(person_id).ok();
-    let csb_corrected = data.pg(WithCorrections::All).get_person(person_id).ok();
+    let PersonVersions {
+        imported,
+        paper: corrected,
+        csb: csb_corrected,
+    } = data.get_person_versions(person_id);
     let candidate = imported.or(corrected).ok_or(AppError::GenericNotFound)?;
     let details = PaperCorrectedPersonDetails::new(
         imported,

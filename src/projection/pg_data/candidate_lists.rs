@@ -1,6 +1,6 @@
 //! Candidate list reads that look across every list in the projection.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     ElectionConfig, ElectoralDistrict, PgStoreData,
@@ -40,10 +40,25 @@ impl CandidateList {
 impl CandidateListSummary {
     pub fn list(data: &PgStoreData, election: ElectionConfig) -> Vec<CandidateListSummary> {
         let max_count = data.get_political_group().get_max_candidates();
+        // How many lists claim each district; a district claimed twice is a
+        // duplicate on every list that has it.
+        let mut claims: BTreeMap<ElectoralDistrict, usize> = BTreeMap::new();
+        for district in data
+            .candidate_lists
+            .values()
+            .flat_map(|l| &l.electoral_districts)
+        {
+            *claims.entry(*district).or_default() += 1;
+        }
         data.get_candidate_lists()
             .into_iter()
             .map(|list| {
-                let duplicate_districts = list.duplicate_districts(data);
+                let duplicate_districts = list
+                    .electoral_districts
+                    .iter()
+                    .filter(|d| claims.get(d).is_some_and(|n| *n > 1))
+                    .copied()
+                    .collect();
                 let candidates_with_problems = list
                     .candidates
                     .iter()

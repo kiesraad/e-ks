@@ -18,13 +18,33 @@ use crate::{
             PersonCorrectionDelta, RecoveryProgress,
         },
         list_designation::ListDesignation,
-        persons::PersonId,
+        persons::{Person, PersonId},
         problems::AllProblems,
     },
     trans,
 };
 
+/// A candidate at the three correction levels; a level the candidate is
+/// absent from (added or deleted on paper) is `None`.
+#[derive(Clone, Copy)]
+pub struct PersonVersions<'a> {
+    pub imported: Option<&'a Person>,
+    pub paper: Option<&'a Person>,
+    pub csb: Option<&'a Person>,
+}
+
 impl CsbStoreData {
+    /// The candidate as imported, as corrected on paper and as corrected by
+    /// the committee.
+    pub fn get_person_versions(&self, person_id: PersonId) -> PersonVersions<'_> {
+        let at = |corrections| self.pg(corrections).get_person(person_id).ok();
+        PersonVersions {
+            imported: at(WithCorrections::None),
+            paper: at(WithCorrections::Paper),
+            csb: at(WithCorrections::All),
+        }
+    }
+
     pub fn is_examination_finished(&self) -> bool {
         self.is_examination_finished
     }

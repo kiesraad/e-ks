@@ -3,6 +3,7 @@ mod getters;
 mod scrapped;
 
 pub use event::{CsbAction, CsbEvent};
+pub use getters::PersonVersions;
 pub use scrapped::Scrapped;
 
 use std::{

@@ -1,7 +1,7 @@
 use crate::{
     CsbStoreData,
     csb::examination::structs::CandidateCorrectionField,
-    projection::WithCorrections,
+    projection::{PersonVersions, WithCorrections},
     structs::{brp::BrpFinding, persons::PersonId},
 };
 
@@ -71,9 +71,11 @@ impl FieldValues {
         locale: crate::Locale,
     ) -> Self {
         let field_of_interest = field.brp_field();
-        let imported = data.pg(WithCorrections::None).get_person(person_id).ok();
-        let paper_corrected = data.pg(WithCorrections::Paper).get_person(person_id).ok();
-        let csb_corrected = data.pg(WithCorrections::All).get_person(person_id).ok();
+        let PersonVersions {
+            imported,
+            paper: paper_corrected,
+            csb: csb_corrected,
+        } = data.get_person_versions(person_id);
 
         let imported = imported
             .as_ref()

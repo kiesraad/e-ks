@@ -372,30 +372,30 @@ pub async fn csb_audit_log_detail<S: AppRequestState>(
             locale,
         )?
     } else {
-        let mut stores = state
+        // Load only the stream asked for: an examined import, or else a
+        // pre-submission import. `get_store` never creates one.
+        let (store, pre_submission) = match state
             .csb_store_registry()
-            .stores_for_election(context.election)
-            .await?;
-        let import_count = stores.len();
-        stores.extend(
-            state
-                .pre_submission_store_registry()
-                .stores_for_election(context.election)
-                .await?,
-        );
-        let position = stores
-            .iter()
-            .position(|s| s.stream_id == stream_id)
-            .ok_or(AppError::GenericNotFound)?;
-        let store = &stores[position];
-        let data = store.snapshot();
-        let label = data.get_appellation_with_deleted_label(WithCorrections::All, locale);
-        let label = if position < import_count {
-            label
-        } else {
-            trans!("audit_log.filter.pre_submission_stream", locale, label)
+            .get_store(stream_id, context.election)
+            .await
+        {
+            Ok(store) => (store, false),
+            Err(AppError::NotFound(_)) => (
+                state
+                    .pre_submission_store_registry()
+                    .get_store(stream_id, context.election)
+                    .await?,
+                true,
+            ),
+            Err(err) => return Err(err),
         };
         let data = store.snapshot();
+        let label = data.get_appellation_with_deleted_label(WithCorrections::All, locale);
+        let label = if pre_submission {
+            trans!("audit_log.filter.pre_submission_stream", locale, label)
+        } else {
+            label
+        };
         let mut detail = CsbEventDetail::find(data.events(), event_id, label, locale)?;
         detail.add_stream_context(data.events(), context.election, locale);
         detail

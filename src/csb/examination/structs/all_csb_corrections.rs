@@ -7,7 +7,7 @@ use crate::{
         extractors::CsbPoliticalGroup,
         structs::{CandidateCorrectionField, PaperCorrected},
     },
-    projection::WithCorrections,
+    projection::{PersonVersions, WithCorrections},
     structs::{
         csb::PersonCorrection,
         persons::{Person, PersonId},
@@ -73,10 +73,13 @@ impl CsbStoreData {
         political_group: &CsbPoliticalGroup,
         locale: Locale,
     ) -> Option<CandidateCorrections> {
-        let fully_corrected = self.pg(WithCorrections::All).get_person(*person).ok()?;
-        // Absent for candidates that were added during paper corrections.
-        let imported = self.pg(WithCorrections::None).get_person(*person).ok();
-        let paper_corrected = self.pg(WithCorrections::Paper).get_person(*person).ok();
+        // Imported is absent for candidates added during paper corrections.
+        let PersonVersions {
+            imported,
+            paper: paper_corrected,
+            csb,
+        } = self.get_person_versions(*person);
+        let fully_corrected = csb?;
 
         let mut corrections: Vec<_> = self
             .get_person_corrections(*person)

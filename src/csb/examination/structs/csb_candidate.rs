@@ -1,7 +1,7 @@
 use crate::{
     AnyLocale, CsbStoreData,
     csb::examination::structs::{BrpCheckState, RestorationStatus},
-    projection::{Scrapped, WithCorrections},
+    projection::{PersonVersions, Scrapped, WithCorrections},
     structs::{candidate_lists::CandidateList, persons::Person},
 };
 
@@ -53,9 +53,12 @@ fn imported_rows(
         .iter()
         .enumerate()
         .filter_map(|(index, person_id)| {
-            let person = data.pg(WithCorrections::None).get_person(*person_id).ok()?;
-            let corrected = data.pg(WithCorrections::Paper).get_person(*person_id).ok();
-            let csb_corrected = data.pg(WithCorrections::All).get_person(*person_id).ok();
+            let PersonVersions {
+                imported,
+                paper: corrected,
+                csb: csb_corrected,
+            } = data.get_person_versions(*person_id);
+            let person = imported?;
             let corrected_position = data
                 .pg(WithCorrections::All)
                 .get_candidate_position(list.id, *person_id);
@@ -116,7 +119,7 @@ fn corrected_only_rows(
         .filter(|(_, id)| !list.candidates.contains(id))
         .filter_map(|(index, person_id)| {
             let person = data.pg(WithCorrections::All).get_person(*person_id).ok()?;
-            let csb_corrected = data.pg(WithCorrections::All).get_person(*person_id).ok();
+            let csb_corrected = Some(person);
             Some((
                 index + 1,
                 CsbCandidate {
