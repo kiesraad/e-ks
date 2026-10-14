@@ -16,7 +16,7 @@ fn candidate(name: &str, locality: &str, position: usize) -> PublishedCandidate 
     }
 }
 
-fn kiesraad_demo(number: usize) -> NumberedList {
+pub(in crate::models::examples) fn kiesraad_demo(number: usize) -> NumberedList {
     NumberedList {
         number,
         list: ValidList {
@@ -30,7 +30,7 @@ fn kiesraad_demo(number: usize) -> NumberedList {
     }
 }
 
-fn correcte_partij(number: usize) -> NumberedList {
+pub(in crate::models::examples) fn correcte_partij(number: usize) -> NumberedList {
     NumberedList {
         number,
         list: ValidList {
@@ -44,7 +44,7 @@ fn correcte_partij(number: usize) -> NumberedList {
     }
 }
 
-fn blanco_nagelhout(number: usize) -> NumberedList {
+pub(in crate::models::examples) fn blanco_nagelhout(number: usize) -> NumberedList {
     NumberedList {
         number,
         list: ValidList {

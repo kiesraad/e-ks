@@ -129,13 +129,16 @@ mod tests {
         model
             .valid_lists
             .iter()
+            .filter(|&district| !district.lists.is_empty())
             .map(|district| {
-                let lists = district
-                    .lists
-                    .iter()
-                    .map(|numbered| (numbered.number, numbered.list.appellation.as_str()))
-                    .collect();
-                (district.electoral_district.as_str(), lists)
+                (
+                    district.electoral_district.as_str(),
+                    district
+                        .lists
+                        .iter()
+                        .map(|numbered| (numbered.number, numbered.list.appellation.as_str()))
+                        .collect(),
+                )
             })
             .collect()
     }

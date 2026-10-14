@@ -17,7 +17,9 @@ volgende geldige kandidatenlijsten zijn ingeleverd:
 
 {% for district in valid_lists %}
 ## Kieskring {{ district.electoral_district|line }}
-
+{% if district.lists.is_empty() %}
+*Er zijn geen politieke groeperingen die meedoen in deze kieskring.*
+{% else %}
 {% for numbered in district.lists %}
 { numbered = false }
 ### Lijst {{ numbered.number }}. {{ numbered.list.appellation|line }}
@@ -36,6 +38,7 @@ volgende geldige kandidatenlijsten zijn ingeleverd:
 {% endfor %}
 
 @pagebreak
+{% endif %}
 {% endfor %}
 
 De voorzitter van het centraal stembureau voor de verkiezing van de leden van

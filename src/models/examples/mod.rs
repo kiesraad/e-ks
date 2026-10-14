@@ -4,6 +4,7 @@
 
 mod brp_overview;
 mod candidate_list_overview;
+mod candidate_list_per_district;
 mod candidate_list_publication;
 mod h1;
 mod h3;
@@ -34,7 +35,10 @@ use super::{
 use crate::{
     AppError,
     core::{ElectionType, ModelLocale},
-    models::examples::candidate_list_overview::candidate_list_summary_example_1,
+    models::examples::{
+        candidate_list_overview::candidate_list_summary_example_1,
+        candidate_list_per_district::candidate_list_per_district_example_1,
+    },
 };
 
 /// A named example input, renderable to a PDF. `name` matches the former JSON
@@ -95,6 +99,10 @@ pub fn examples() -> Vec<Example> {
         example(
             "publicatie-kandidatenlijsten-example-1",
             candidate_list_publication_example_1(),
+        ),
+        example(
+            "kandidatenlijst-per-kieskring-example-1",
+            candidate_list_per_district_example_1(),
         ),
         example("verzuimbrief-example-1", omission_letter_example_1()),
         example("verzuimbrief-example-2", omission_letter_example_2()),

@@ -6,6 +6,7 @@
   border-radius: var(--rounded-md);
   column-gap: var(--space-2);
   display: flex;
+  flex-wrap: wrap;
   min-height: 3.5rem;
   padding: var(--space-2);
 }

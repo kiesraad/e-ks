@@ -18,6 +18,7 @@
 
 pub mod brp_overview;
 pub mod candidate_list_overview;
+pub mod candidate_list_per_district;
 pub mod candidate_list_publication;
 pub(crate) mod csb_model_inputs;
 pub(crate) mod documents;
@@ -176,7 +177,7 @@ mod tests {
             assert_pdf(&example.render().expect("render example"), name);
             rendered += 1;
         }
-        assert_eq!(rendered, 25, "expected to render every example input");
+        assert_eq!(rendered, 26, "expected to render every example input");
     }
 
     /// Every example input also exports as a Word document, which exercises the
