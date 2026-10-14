@@ -258,8 +258,7 @@ mod tests {
 
         assert!(
             !store
-                .data
-                .read()
+                .snapshot()
                 .events
                 .iter()
                 .any(|e| matches!(e.payload, crate::PgEvent::DownloadFile { .. })),

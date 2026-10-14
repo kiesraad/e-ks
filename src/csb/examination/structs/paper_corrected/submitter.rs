@@ -130,8 +130,7 @@ mod tests {
     #[test]
     fn list_submitter_deleted_by_the_corrections_is_hidden() {
         let store = CsbStore::new_for_test();
-        store.data.write().imported_data.list_submitter =
-            sample_list_submitter(ListSubmitterId::new());
+        store.write().imported_data.list_submitter = sample_list_submitter(ListSubmitterId::new());
 
         assert!(paper_corrected_list_submitter(&store).is_none());
     }
@@ -141,7 +140,7 @@ mod tests {
         let store = CsbStore::new_for_test();
         let submitter = sample_list_submitter(ListSubmitterId::new());
         {
-            let mut data = store.data.write();
+            let mut data = store.write();
             data.imported_data.list_submitter = submitter.clone();
             data.paper_corrected_data.list_submitter = submitter;
         }
@@ -161,7 +160,7 @@ mod tests {
             ..Default::default()
         });
         {
-            let mut data = store.data.write();
+            let mut data = store.write();
             data.imported_data.list_submitter = submitter;
             data.paper_corrected_data.list_submitter = corrected;
         }
@@ -179,7 +178,7 @@ mod tests {
         let kept = sample_list_submitter(ListSubmitterId::new());
         let deleted = sample_list_submitter(ListSubmitterId::new());
         {
-            let mut data = store.data.write();
+            let mut data = store.write();
             data.imported_data.substitute_submitters = vec![kept.clone(), deleted];
             data.paper_corrected_data.substitute_submitters = vec![kept];
         }
@@ -233,7 +232,7 @@ mod tests {
             ..Default::default()
         });
         {
-            let mut data = store.data.write();
+            let mut data = store.write();
             data.paper_corrected_data.list_submitter = added.clone();
             data.paper_corrected_data.substitute_submitters = vec![added];
         }

@@ -161,7 +161,7 @@ mod tests {
 
         let submitter = sample_list_submitter(ListSubmitterId::new());
         {
-            let mut data = store.data.write();
+            let mut data = store.write();
             data.imported_data.substitute_submitters = vec![submitter.clone()];
             data.paper_corrected_data.substitute_submitters = vec![submitter.clone()];
         }

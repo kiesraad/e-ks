@@ -152,7 +152,6 @@ mod tests {
         let person = sample_person(PersonId::new());
         let person_id = person.id;
         store
-            .data
             .write()
             .paper_corrected_data
             .persons
@@ -207,7 +206,6 @@ mod tests {
         // during paper corrections.
         let person_id = PersonId::new();
         store
-            .data
             .write()
             .paper_corrected_data
             .persons

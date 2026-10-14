@@ -117,7 +117,7 @@ pub async fn audit_log_gen_documents(
 fn create_temp_store(store: &PgStore, event_id: usize) -> PgStore {
     let temp_store = PgStore::new_for_temp_stream(store.election);
     if let Some(imported) = store.imported_snapshot() {
-        *temp_store.data.write() = imported;
+        temp_store.replace(std::sync::Arc::new(imported));
     }
 
     store
@@ -402,7 +402,7 @@ mod tests {
         let person_id = person.id;
         person.create(&source).await?;
 
-        let events = source.data.read().events.clone();
+        let events = source.snapshot().events.clone();
         let snapshot = crate::PgStoreData::snapshot_until(&events, usize::MAX);
         let csb_store = CsbStore::new_for_test();
         csb_store

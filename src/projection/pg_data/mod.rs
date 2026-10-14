@@ -700,7 +700,7 @@ mod tests {
 
         // The event lands on the CSB stream, wrapped as a paper correction.
         {
-            let data = csb_store.data.read();
+            let data = csb_store.snapshot();
             assert!(matches!(
                 &data.events.last().unwrap().payload.action,
                 CsbAction::PaperCorrectedUpdate(inner)

@@ -423,7 +423,7 @@ where
     D: StoreData,
     D::Event: DeserializeOwned,
 {
-    let last_id: usize = store.data.read().last_event_id();
+    let last_id: usize = store.current_event_id();
     let election_id = store.election.stable_id();
 
     let stream_last_id: i64 = sqlx::query_scalar(

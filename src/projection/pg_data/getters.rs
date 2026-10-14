@@ -17,19 +17,19 @@ impl Store<PgStoreData> {
     }
 
     pub fn get_political_group(&self) -> PoliticalGroup {
-        let data = self.data.read();
+        let data = self.snapshot();
 
         data.political_group.clone()
     }
 
     pub fn get_persons(&self) -> Vec<Person> {
-        let data = self.data.read();
+        let data = self.snapshot();
 
         data.persons.values().cloned().collect()
     }
 
     pub fn get_sorted_persons(&self) -> Vec<Person> {
-        let data = self.data.read();
+        let data = self.snapshot();
 
         let mut persons: Vec<Person> = data.persons.values().cloned().collect();
 
@@ -39,31 +39,31 @@ impl Store<PgStoreData> {
     }
 
     pub fn get_name_authorisations(&self) -> Vec<NameAuthorisation> {
-        let data = self.data.read();
+        let data = self.snapshot();
 
         data.name_authorisations.values().cloned().collect()
     }
 
     pub fn get_substitute_submitters(&self) -> Vec<ListSubmitter> {
-        let data = self.data.read();
+        let data = self.snapshot();
 
         ListSubmitter::clone_as_substitutes(&data.substitute_submitters)
     }
 
     pub fn get_person_count(&self) -> usize {
-        let data = self.data.read();
+        let data = self.snapshot();
 
         data.persons.len()
     }
 
     pub fn get_candidate_list_count(&self) -> usize {
-        let data = self.data.read();
+        let data = self.snapshot();
 
         data.candidate_lists.len()
     }
 
     pub fn get_candidate_list(&self, list_id: CandidateListId) -> Result<CandidateList, AppError> {
-        let data = self.data.read();
+        let data = self.snapshot();
 
         data.candidate_lists
             .get(&list_id)
@@ -72,7 +72,7 @@ impl Store<PgStoreData> {
     }
 
     pub fn get_candidate_lists(&self) -> Vec<CandidateList> {
-        let data = self.data.read();
+        let data = self.snapshot();
 
         let mut lists: Vec<CandidateList> = data.candidate_lists.values().cloned().collect();
 
@@ -82,7 +82,7 @@ impl Store<PgStoreData> {
     }
 
     pub fn get_person(&self, person_id: PersonId) -> Result<Person, AppError> {
-        let data = self.data.read();
+        let data = self.snapshot();
 
         data.persons
             .get(&person_id)
@@ -96,7 +96,7 @@ impl Store<PgStoreData> {
         list_id: CandidateListId,
         person_id: PersonId,
     ) -> Option<usize> {
-        let data = self.data.read();
+        let data = self.snapshot();
 
         data.candidate_lists.get(&list_id)?.position_of(person_id)
     }
@@ -116,7 +116,7 @@ impl Store<PgStoreData> {
         &self,
         authorisation_id: NameAuthorisationId,
     ) -> Result<NameAuthorisation, AppError> {
-        let data = self.data.read();
+        let data = self.snapshot();
 
         data.name_authorisations
             .get(&authorisation_id)
@@ -125,7 +125,7 @@ impl Store<PgStoreData> {
     }
 
     pub fn get_list_submitter(&self) -> ListSubmitter {
-        let data = self.data.read();
+        let data = self.snapshot();
 
         let mut submitter = data.list_submitter.clone();
         submitter.is_substitute = false;
@@ -136,7 +136,7 @@ impl Store<PgStoreData> {
         &self,
         substitute_submitter_id: ListSubmitterId,
     ) -> Result<ListSubmitter, AppError> {
-        let data = self.data.read();
+        let data = self.snapshot();
 
         match data
             .substitute_submitters
@@ -153,7 +153,7 @@ impl Store<PgStoreData> {
     }
 
     pub fn count_candidate_lists(&self, person_id: PersonId) -> usize {
-        let data = self.data.read();
+        let data = self.snapshot();
 
         data.candidate_lists
             .values()
@@ -162,7 +162,7 @@ impl Store<PgStoreData> {
     }
 
     pub fn get_events(&self) -> Vec<StoreEvent<crate::PgEvent>> {
-        let data = self.data.read();
+        let data = self.snapshot();
         data.events.clone()
     }
 
@@ -170,7 +170,7 @@ impl Store<PgStoreData> {
     ///
     /// If the user closes this warning, an `HideDownloadWarning` event is stored and we should no longer show the warning.
     pub fn should_show_download_warning(&self) -> bool {
-        let data = self.data.read();
+        let data = self.snapshot();
         data.events
             .iter()
             .rev()

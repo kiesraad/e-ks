@@ -142,8 +142,7 @@ impl CsbStream {
     }
 
     fn get_person_corrections(&self, person: &PersonId) -> HashSet<PersonCorrection> {
-        self.data
-            .read()
+        self.snapshot()
             .csb_corrected_persons
             .get(person)
             .map(PersonCorrectionDelta::get_corrections)
@@ -157,7 +156,7 @@ impl CsbStream {
     ) -> Option<PaperCorrectedField> {
         // Bound to a local so the read guard is released before
         // `get_appellation` takes the lock again.
-        let corrected_appellation = self.data.read().csb_corrected_appellation.clone();
+        let corrected_appellation = self.snapshot().csb_corrected_appellation.clone();
 
         corrected_appellation.map(|name| PaperCorrectedField {
             label: trans!("political_group.appellation", locale),
@@ -328,7 +327,7 @@ mod tests {
     async fn get_all_corrections_appellation() -> Result<(), AppError> {
         let store = CsbStore::new_for_test();
 
-        store.data.write().csb_corrected_appellation =
+        store.write().csb_corrected_appellation =
             Some(Appellation::from_str("Gecorrigeerde Partij").unwrap());
 
         let corrections = all_corrections(&store);
@@ -364,7 +363,6 @@ mod tests {
 
         let person_id = PersonId::new();
         store
-            .data
             .write()
             .paper_corrected_data
             .persons
@@ -404,7 +402,6 @@ mod tests {
         )
         .await?;
         store
-            .data
             .write()
             .paper_corrected_data
             .persons

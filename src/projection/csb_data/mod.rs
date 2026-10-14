@@ -29,7 +29,7 @@ use crate::{
 
 /// Event-sourced domain projection for a single (stream, election) pair on the
 /// CSB side.
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct CsbStoreData {
     pub(crate) imported_data: PgStoreData,
     pub(crate) paper_corrected_data: PgStoreData,
@@ -376,29 +376,24 @@ fn candidates_changed_by(event: &PgEvent) -> Vec<PersonId> {
 #[cfg(test)]
 impl crate::CsbStream {
     pub fn new_for_test() -> Self {
-        use crate::StreamId;
+        Self::new_for_test_with_election(crate::ElectionConfig::EK27)
+    }
 
-        crate::store::Store {
-            stream_id: StreamId::new(),
-            election: crate::ElectionConfig::EK27,
-            backend: crate::store::StoreBackend::Memory {
-                store: crate::store::memory::MemoryStore::default(),
-            },
-            data: std::sync::Arc::new(parking_lot::RwLock::new(CsbStoreData::default())),
-        }
+    pub fn new_for_test_with_election(election: crate::ElectionConfig) -> Self {
+        crate::store::Store::new_temp(crate::StreamId::new(), election, std::sync::Arc::default())
     }
 
     /// Test setters write both projections, mirroring the state right after an
     /// import (which seeds `paper_corrected_data` from the imported snapshot).
     pub fn set_political_group(&self, political_group: PoliticalGroup) {
-        let mut data = self.data.write();
+        let mut data = self.write();
         data.imported_data.political_group = political_group.clone();
         data.paper_corrected_data.political_group = political_group;
         data.refresh_scrapped();
     }
 
     pub fn add_candidate_list(&self, list: crate::structs::candidate_lists::CandidateList) {
-        let mut data = self.data.write();
+        let mut data = self.write();
         data.imported_data
             .candidate_lists
             .insert(list.id, list.clone());
@@ -414,7 +409,7 @@ impl crate::CsbStream {
         &self,
         list: crate::structs::candidate_lists::CandidateList,
     ) {
-        let mut data = self.data.write();
+        let mut data = self.write();
         data.paper_corrected_data
             .candidate_lists
             .insert(list.id, list);
@@ -422,7 +417,7 @@ impl crate::CsbStream {
     }
 
     pub fn add_person(&self, person: crate::structs::persons::Person) {
-        let mut data = self.data.write();
+        let mut data = self.write();
         data.imported_data.persons.insert(person.id, person.clone());
         data.paper_corrected_data.persons.insert(person.id, person);
     }

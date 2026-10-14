@@ -490,7 +490,6 @@ mod tests {
         let list_id = CandidateListId::new();
         // An imported list without a corrected counterpart was deleted on paper.
         store
-            .data
             .write()
             .imported_data
             .candidate_lists

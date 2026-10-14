@@ -22,7 +22,7 @@ pub const CSB_MAIN_STREAM_ID: StreamId = StreamId(uuid::Uuid::from_u128(
 /// Global CSB state shared across all committee members: process step tracking,
 /// audit log entries (logins, imports, etc.), the registered political groups
 /// with their previous election results, and other committee-wide events.
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct CsbMainStoreData {
     pub(crate) events: Vec<StoreEvent<CsbMainEvent>>,
     pub(crate) registered_political_groups: Vec<RegisteredPoliticalGroup>,
@@ -83,21 +83,15 @@ impl StoreData for CsbMainStoreData {
 #[cfg(test)]
 impl crate::CsbMainStore {
     pub fn new_for_test() -> Self {
-        use crate::ElectionConfig;
+        Self::new_for_test_with_election(crate::ElectionConfig::EK27)
+    }
 
-        crate::store::Store {
-            stream_id: CSB_MAIN_STREAM_ID,
-            election: ElectionConfig::EK27,
-            backend: crate::store::StoreBackend::Memory {
-                store: crate::store::memory::MemoryStore::default(),
-            },
-            data: std::sync::Arc::new(parking_lot::RwLock::new(CsbMainStoreData::default())),
-        }
+    pub fn new_for_test_with_election(election: crate::ElectionConfig) -> Self {
+        crate::store::Store::new_temp(CSB_MAIN_STREAM_ID, election, std::sync::Arc::default())
     }
 
     pub fn list_order_events(&self) -> usize {
-        self.data
-            .read()
+        self.snapshot()
             .events
             .iter()
             .filter(|event| matches!(event.payload.action, CsbMainAction::UpdateListOrder(_)))
