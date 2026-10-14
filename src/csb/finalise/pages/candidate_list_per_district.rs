@@ -95,7 +95,7 @@ async fn write_list_zip(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::extract::State;
+    use axum::{body::to_bytes, extract::State};
     use reqwest::{StatusCode, header};
 
     use crate::{
@@ -137,6 +137,10 @@ mod tests {
             headers.get(header::CACHE_CONTROL).expect("cache control"),
             "no-store, no-cache, must-revalidate, max-age=0"
         );
+        let body = to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("response body");
+        assert!(body.starts_with(b"PK"), "body is not a ZIP archive");
     }
 
     #[tokio::test]

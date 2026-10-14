@@ -367,15 +367,16 @@ pub async fn published_lists(
 
         for (district, list) in valid_lists(store, &store.get_scrapped(), PublishedCandidate::new)?
         {
-            match by_district.entry(district) {
-                Entry::Vacant(_) => {
+             match by_district.get_mut(&district) {
+                Some(lists) => lists.push(NumberedList { number, list }),
+                None => {
                     return Err(AppError::NotFound(format!(
-                        "group has list for district={} but not part of election={}",
+                        "{} has list for district={} but not part of election={}",
+                        list.appellation,
                         district.title(),
                         election.code()
                     )));
                 }
-                Entry::Occupied(mut entry) => entry.get_mut().push(NumberedList { number, list }),
             }
         }
     }
