@@ -15,10 +15,7 @@ use crate::{
     AppError, AppRequestState, CsbContext, CsbMainStore, CsbStoreData, CsbStream, ElectionConfig,
     ElectoralDistrict,
     core::ZipResponseWriter,
-    csb::{
-        examination::extractors::CsbPoliticalGroup,
-        finalise::{numbering::ListNumbering, paths::CsbEmlZipDownloadPath},
-    },
+    csb::{examination::extractors::CsbPoliticalGroup, finalise::numbering::ListNumbering},
     models::{
         documents::ZIP_CONTENT_TYPE,
         eml::{
@@ -33,7 +30,6 @@ use crate::{
 /// The established candidate lists per electoral district ("kieskring"):
 /// 1 EML 230b file per district plus 1 EML 230c file with all districts
 pub async fn download_eml_zip<S: AppRequestState>(
-    _: CsbEmlZipDownloadPath,
     context: CsbContext,
     main_store: CsbMainStore,
     State(state): State<S>,
@@ -378,7 +374,7 @@ mod tests {
         .await;
         let main_store = CsbMainStore::new_for_test();
 
-        let response = download_eml_zip(CsbEmlZipDownloadPath, context, main_store, State(state))
+        let response = download_eml_zip(context, main_store, State(state))
             .await?
             .into_response();
 

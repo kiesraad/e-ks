@@ -21,34 +21,6 @@ pub struct CsbListOrderPath;
 #[typed_path("/csb/finalise/objection/add", rejection(AppError))]
 pub struct CsbAddObjectionPath;
 
-#[derive(TypedPath)]
-#[typed_path(
-    "/csb/examination/publicatie-kandidatenlijsten.pdf",
-    rejection(AppError)
-)]
-pub struct CsbCandidateListPublicationDownloadPath;
-
-#[derive(TypedPath)]
-#[typed_path(
-    "/csb/examination/publicatie-kandidatenlijsten.docx",
-    rejection(AppError)
-)]
-pub struct CsbCandidateListPublicationDocxDownloadPath;
-
-#[derive(TypedPath, Deserialize)]
-#[typed_path(
-    "/csb/examination/overzicht-kandidatenlijsten.pdf",
-    rejection(AppError)
-)]
-pub struct CsbCandidateListOverviewDownloadPath;
-
-#[derive(TypedPath, Deserialize)]
-#[typed_path(
-    "/csb/examination/overzicht-kandidatenlijsten.docx",
-    rejection(AppError)
-)]
-pub struct CsbCandidateListOverviewDocxDownloadPath;
-
 #[derive(TypedPath, Deserialize)]
 #[typed_path("/csb/finalise/objection/update/{id}", rejection(AppError))]
 pub struct CsbUpdateObjectionPath {
@@ -71,10 +43,17 @@ impl Objection {
     }
 }
 
-/// Temporary EML ZIP endpoint, that should eventually be expanded to contain everything
 #[derive(TypedPath)]
-#[typed_path("/csb/finalise/eml.zip", rejection(AppError))]
-pub struct CsbEmlZipDownloadPath;
+#[typed_path("/csb/finalise/afronding_kandidaatstellen.zip", rejection(AppError))]
+pub struct CsbFinalZipDownloadPath;
+
+#[derive(TypedPath)]
+#[typed_path("/csb/finalise/concept_i4.pdf", rejection(AppError))]
+pub struct CsbI4DraftDownloadPath;
+
+#[derive(TypedPath)]
+#[typed_path("/csb/finalise/concept_i4.docx", rejection(AppError))]
+pub struct CsbI4DraftDocxDownloadPath;
 
 #[derive(TypedPath)]
 #[typed_path("/csb/finalise/i4.pdf", rejection(AppError))]
@@ -83,7 +62,3 @@ pub struct CsbI4FinalDownloadPath;
 #[derive(TypedPath)]
 #[typed_path("/csb/finalise/i4.docx", rejection(AppError))]
 pub struct CsbI4FinalDocxDownloadPath;
-
-#[derive(TypedPath)]
-#[typed_path("/csb/finalise/overzicht-kandidatenlijsten.zip", rejection(AppError))]
-pub struct CsbCandidateListPerDistrictDownloadPath;

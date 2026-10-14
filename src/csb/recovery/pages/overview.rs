@@ -106,9 +106,9 @@ mod tests {
         for groups in [vec![group(1, 3)], vec![group(0, 3)], vec![]] {
             let body = render(groups).await;
             assert!(body.contains("Download I\u{A0}4 (PDF)"));
-            assert!(body.contains("/csb/examination/i4.pdf"));
+            assert!(body.contains("/csb/finalise/i4.pdf"));
             assert!(body.contains("Download I\u{A0}4 (Word)"));
-            assert!(body.contains("/csb/examination/i4.docx"));
+            assert!(body.contains("/csb/finalise/i4.docx"));
         }
     }
 

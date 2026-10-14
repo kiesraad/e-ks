@@ -11,7 +11,7 @@ use crate::{
     AppError, AppRequestState, CsbContext, CsbMainStore,
     constants::DEFAULT_DATE_FORMAT,
     core::{ModelLocale, ZipResponseWriter},
-    csb::finalise::{CsbCandidateListPerDistrictDownloadPath, numbering::list_numbering},
+    csb::finalise::numbering::list_numbering,
     models::{
         Pdf, candidate_list_per_district::CandidateListPerDistrict,
         csb_model_inputs::published_lists, documents::ZIP_CONTENT_TYPE,
@@ -20,12 +20,11 @@ use crate::{
 };
 
 pub async fn download_zip<S: AppRequestState>(
-    _: CsbCandidateListPerDistrictDownloadPath,
     main_store: CsbMainStore,
     context: CsbContext,
     State(state): State<S>,
 ) -> Result<Response, AppError> {
-    let models = models(main_store, &state, context).await?;
+    let models = candidate_list_per_district_model(&context, &main_store, &state).await?;
     let mut docs = Vec::new();
     for m in &models {
         docs.push((m.filename(), m.generate_bytes().await?));
@@ -49,19 +48,21 @@ pub async fn download_zip<S: AppRequestState>(
     Ok((headers, body).into_response())
 }
 
-async fn models<S: AppRequestState>(
-    store: CsbMainStore,
+pub(super) async fn candidate_list_per_district_model<S: AppRequestState>(
+    context: &CsbContext,
+    main_store: &CsbMainStore,
     state: &S,
-    context: CsbContext,
 ) -> Result<Vec<CandidateListPerDistrict>, AppError> {
-    let election = store.election;
+    let election = main_store.election;
     let registry = state.csb_store_registry();
     let mut models = Vec::new();
 
-    let mut numbering = list_numbering(registry, &store).await?;
+    let mut numbering = list_numbering(registry, &main_store).await?;
     let stream_ids = numbering.stream_ids();
 
-    numbering.record_if_incomplete(&context, &store).await?;
+    numbering
+        .record_if_incomplete(&context, &main_store)
+        .await?;
 
     let published_lists = published_lists(registry, &election, &stream_ids).await?;
 
@@ -100,10 +101,7 @@ mod tests {
 
     use crate::{
         AppState, CsbContext, CsbMainStore,
-        csb::finalise::{
-            CsbCandidateListPerDistrictDownloadPath,
-            pages::candidate_list_per_district::download_zip,
-        },
+        csb::finalise::pages::combined_zip::candidate_list_per_district::download_zip,
     };
 
     #[tokio::test]
@@ -112,14 +110,9 @@ mod tests {
         let context = CsbContext::new_test();
         let state = AppState::new_for_tests().await;
 
-        let response = download_zip(
-            CsbCandidateListPerDistrictDownloadPath,
-            store,
-            context,
-            State(state),
-        )
-        .await
-        .expect("response from zip endpoint");
+        let response = download_zip(store, context, State(state))
+            .await
+            .expect("response from zip endpoint");
 
         assert_eq!(response.status(), StatusCode::OK);
         let headers = response.headers().clone();
@@ -149,7 +142,7 @@ mod tests {
         let context = CsbContext::new_test();
         let state = AppState::new_for_tests().await;
 
-        let models = models(store.clone(), &state, context)
+        let models = candidate_list_per_district_model(&context, &store, &state)
             .await
             .expect("models");
         assert_eq!(store.election.electoral_districts().len(), models.len())

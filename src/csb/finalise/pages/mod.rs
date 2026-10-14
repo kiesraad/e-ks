@@ -3,10 +3,7 @@ use axum_extra::routing::RouterExt;
 
 use crate::AppRequestState;
 
-mod candidate_list_overview;
-mod candidate_list_per_district;
-mod candidate_list_publication;
-mod eml_zip;
+mod combined_zip;
 mod i4;
 mod objection;
 mod order;
@@ -21,15 +18,9 @@ pub fn router<S: AppRequestState>() -> Router<S> {
         .typed_get(objection::update_objection)
         .typed_post(objection::update_objection_submit)
         .typed_post(objection::delete_objection)
-        .typed_get(eml_zip::download_eml_zip::<S>)
-        .typed_get(i4::gen_i4_final::<S>)
-        .typed_get(i4::gen_i4_final_docx::<S>)
         .typed_get(i4::gen_i4_draft::<S>)
         .typed_get(i4::gen_i4_draft_docx::<S>)
-        // TODO: everything below this line into one zip + i4 (#1363)
-        .typed_get(candidate_list_overview::gen_candidate_list_overview_docx::<S>)
-        .typed_get(candidate_list_overview::gen_candidate_list_overview::<S>)
-        .typed_get(candidate_list_publication::gen_candidate_list_publication::<S>)
-        .typed_get(candidate_list_publication::gen_candidate_list_publication_docx::<S>)
-        .typed_get(candidate_list_per_district::download_zip::<S>)
+        .typed_get(i4::gen_i4_final::<S>)
+        .typed_get(i4::gen_i4_final_docx::<S>)
+        .typed_get(combined_zip::download_final_zip::<S>)
 }
