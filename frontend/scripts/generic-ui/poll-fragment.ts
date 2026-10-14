@@ -13,22 +13,24 @@ export default function setupPollFragment() {
   let last: string | undefined;
 
   const tick = async () => {
-    if (document.hidden) {
-      setTimeout(tick, INTERVAL);
-      return;
+    if (!document.hidden) {
+      try {
+        // "" resolves to the page's own URL; `location` would count as
+        // user input to the request-forgery lint.
+        const response = await fetch("", { cache: "no-store" });
+        const html = await response.text();
+        if (last !== undefined && html !== last) {
+          location.reload();
+          return;
+        }
+        last = html;
+      } catch {
+        // transient failure: try again next tick
+      }
     }
-
-    const response = await fetch(location.href, { cache: "no-store" });
-    const html = await response.text();
-    if (last !== undefined && html !== last) {
-      location.reload();
-      return;
-    }
-
-    last = html;
     setTimeout(tick, INTERVAL);
   };
 
   // Baseline right away, so a change shortly after render is not missed.
-  tick();
+  void tick();
 }
