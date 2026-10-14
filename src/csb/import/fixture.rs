@@ -653,9 +653,8 @@ mod tests {
     use std::collections::BTreeSet;
 
     use super::*;
-    use crate::CsbStream;
     use crate::{
-        AppState,
+        AppState, CsbStream,
         core::election::WaterCouncil,
         csb::{examination::structs::BrpCheckState, finalise::numbering::list_numbering},
     };

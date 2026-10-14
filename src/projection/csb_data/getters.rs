@@ -1,6 +1,7 @@
 //! Reads on a CSB stream's projection. The political group's data at a
 //! correction level is reached through [`CsbStoreData::pg`], which hands out
-//! a [`PgStoreData`] with the getters shared with the political group app.
+//! a [`PgStoreData`](crate::PgStoreData) with the getters shared with the
+//! political group app.
 
 use std::collections::{HashMap, HashSet};
 
@@ -16,13 +17,33 @@ use crate::{
             PersonCorrectionDelta, RecoveryProgress,
         },
         list_designation::ListDesignation,
-        persons::PersonId,
+        persons::{Person, PersonId},
         problems::AllProblems,
     },
     trans,
 };
 
+/// A candidate at the three correction levels; a level the candidate is
+/// absent from (added or deleted on paper) is `None`.
+#[derive(Clone, Copy)]
+pub struct PersonVersions<'a> {
+    pub imported: Option<&'a Person>,
+    pub paper: Option<&'a Person>,
+    pub csb: Option<&'a Person>,
+}
+
 impl CsbStoreData {
+    /// The candidate as imported, as corrected on paper and as corrected by
+    /// the committee.
+    pub fn get_person_versions(&self, person_id: PersonId) -> PersonVersions<'_> {
+        let at = |corrections| self.pg(corrections).get_person(person_id).ok();
+        PersonVersions {
+            imported: at(WithCorrections::None),
+            paper: at(WithCorrections::Paper),
+            csb: at(WithCorrections::All),
+        }
+    }
+
     pub fn is_examination_finished(&self) -> bool {
         self.is_examination_finished
     }
@@ -408,8 +429,10 @@ fn only_adds_or_removes(event: &PgEvent) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{BTreeMap, BTreeSet};
-    use std::sync::Arc;
+    use std::{
+        collections::{BTreeMap, BTreeSet},
+        sync::Arc,
+    };
 
     use super::*;
     use crate::{
