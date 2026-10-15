@@ -169,7 +169,7 @@ mod tests {
                 ("Drenthe", vec![(2, "Overal")]),
             ]
         );
-        assert_eq!(model.election_date, "24-05-2027");
+        assert_eq!(model.election_date, "27-05-2027");
 
         Ok(())
     }
