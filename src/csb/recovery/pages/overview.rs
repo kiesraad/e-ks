@@ -15,10 +15,6 @@ use crate::{
 #[template(path = "csb/recovery/pages/overview.html")]
 struct CsbRecoveryOverviewTemplate {
     political_groups: Vec<CsbPoliticalGroup>,
-    /// Every imported group has all of its omissions assessed, which opens
-    /// the lock on the download card. The I 4 can be downloaded either way;
-    /// the lock only tells whether the assessment behind it is done.
-    all_omissions_assessed: bool,
 }
 
 /// The recovery overview: every political group with its assessment progress.
@@ -33,19 +29,7 @@ pub async fn overview(
         .map(|political_group| political_group.with_mode(CsbPhase::Recovery))
         .collect();
 
-    let all_omissions_assessed = !political_groups.is_empty()
-        && political_groups
-            .iter()
-            .all(|political_group| political_group.recovery.is_complete());
-
-    Ok(HtmlTemplate(
-        CsbRecoveryOverviewTemplate {
-            political_groups,
-            all_omissions_assessed,
-        },
-        context,
-    )
-    .into_response())
+    Ok(HtmlTemplate(CsbRecoveryOverviewTemplate { political_groups }, context).into_response())
 }
 
 #[cfg(test)]
@@ -99,41 +83,12 @@ mod tests {
         response_body_string(response).await
     }
 
-    /// The I 4 can be drawn up at any point; the card only shows whether the
-    /// assessment behind it is done.
-    #[tokio::test]
-    async fn overview_always_offers_the_i4_downloads() {
-        for groups in [vec![group(1, 3)], vec![group(0, 3)], vec![]] {
-            let body = render(groups).await;
-            assert!(body.contains("Download I\u{A0}4 (PDF)"));
-            assert!(body.contains("/csb/finalise/i4.pdf"));
-            assert!(body.contains("Download I\u{A0}4 (Word)"));
-            assert!(body.contains("/csb/finalise/i4.docx"));
-        }
-    }
-
     /// The hearing is recorded in phase 4, on the finalise page; the recovery
     /// overview only offers the downloads.
     #[tokio::test]
     async fn overview_does_not_offer_the_hearing_details() {
         let body = render(vec![group(0, 3)]).await;
         assert!(!body.contains("/csb/examination/hearing-details"));
-    }
-
-    /// The lock stays closed and the button muted until every group has
-    /// assessed its omissions; without any group there is nothing to assess.
-    #[tokio::test]
-    async fn overview_unlocks_the_card_once_everything_is_assessed() {
-        let body = render(vec![group(1, 3), group(0, 3)]).await;
-        assert!(body.contains("badge locked"));
-        assert!(body.contains("button secondary icon-download"));
-
-        let body = render(vec![group(0, 3), group(0, 0)]).await;
-        assert!(body.contains("badge unlocked"));
-        assert!(body.contains("button primary icon-download"));
-
-        let body = render(vec![]).await;
-        assert!(body.contains("badge locked"));
     }
 
     #[tokio::test]

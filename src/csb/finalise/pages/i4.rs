@@ -3,12 +3,9 @@ use axum::{extract::State, response::Response};
 use crate::{
     AppError, AppRequestState, CsbContext, CsbMainStore,
     core::{ModelLocale, constants::DEFAULT_DATE_FORMAT},
-    csb::{
-        finalise::paths::{CsbI4DraftDocxDownloadPath, CsbI4DraftDownloadPath},
-        finalise::{
-            numbering::list_numbering,
-            paths::{CsbI4FinalDocxDownloadPath, CsbI4FinalDownloadPath},
-        },
+    csb::finalise::{
+        numbering::list_numbering,
+        paths::{CsbI4DraftDocxDownloadPath, CsbI4DraftDownloadPath},
     },
     models::{
         Pdf,
@@ -77,31 +74,6 @@ pub(in crate::csb::finalise::pages) async fn i4_model<S: AppRequestState>(
         is_draft,
         ..i4_inputs.into()
     })
-}
-
-pub async fn gen_i4_final<S: AppRequestState>(
-    _: CsbI4FinalDownloadPath,
-    context: CsbContext,
-    main_store: CsbMainStore,
-    State(state): State<S>,
-) -> Result<Response, AppError> {
-    i4_model(&context, &main_store, &state, false)
-        .await?
-        .pdf_response()
-        .await
-}
-
-/// The same I 4 as [`gen_i4_final`], exported as a Word document.
-pub async fn gen_i4_final_docx<S: AppRequestState>(
-    _: CsbI4FinalDocxDownloadPath,
-    context: CsbContext,
-    main_store: CsbMainStore,
-    State(state): State<S>,
-) -> Result<Response, AppError> {
-    i4_model(&context, &main_store, &state, false)
-        .await?
-        .docx_response()
-        .await
 }
 
 pub async fn gen_i4_draft<S: AppRequestState>(
@@ -236,7 +208,7 @@ mod tests {
         let context = CsbContext::new_test();
         let main_store = CsbMainStore::new_for_test();
         let state = AppState::new_for_tests().await;
-        let response = gen_i4_final(CsbI4FinalDownloadPath, context, main_store, State(state))
+        let response = gen_i4_draft(CsbI4DraftDownloadPath, context, main_store, State(state))
             .await?
             .into_response();
 
@@ -250,7 +222,7 @@ mod tests {
             headers
                 .get(header::CONTENT_DISPOSITION)
                 .expect("content disposition"),
-            "attachment; filename=\"i4-proces-verbaal.pdf\""
+            "attachment; filename=\"i4-proces-verbaal (concept).pdf\""
         );
         assert_eq!(
             headers.get(header::CACHE_CONTROL).expect("cache control"),
@@ -265,8 +237,8 @@ mod tests {
         let context = CsbContext::new_test();
         let main_store = CsbMainStore::new_for_test();
         let state = AppState::new_for_tests().await;
-        let response = gen_i4_final_docx(
-            CsbI4FinalDocxDownloadPath,
+        let response = gen_i4_draft_docx(
+            CsbI4DraftDocxDownloadPath,
             context,
             main_store,
             State(state),
@@ -284,7 +256,7 @@ mod tests {
             headers
                 .get(header::CONTENT_DISPOSITION)
                 .expect("content disposition"),
-            "attachment; filename=\"i4-proces-verbaal.docx\""
+            "attachment; filename=\"i4-proces-verbaal (concept).docx\""
         );
 
         // A .docx is a ZIP archive.
@@ -438,7 +410,7 @@ mod tests {
             .await?;
 
         let main_store = CsbMainStore::new_for_test();
-        let response = gen_i4_final(CsbI4FinalDownloadPath, context, main_store, State(state))
+        let response = gen_i4_draft(CsbI4DraftDownloadPath, context, main_store, State(state))
             .await?
             .into_response();
 

@@ -76,18 +76,6 @@ mod tests {
         response_body_string(response).await
     }
 
-    /// The I 4 download buttons point at the PDF and Word endpoints.
-    #[tokio::test]
-    async fn overview_links_the_i4_downloads() {
-        let body = render(CsbMainStore::new_for_test(), vec![]).await;
-
-        assert!(body.contains(r#"href="/csb/finalise/i4.pdf""#));
-        assert!(body.contains(r#"href="/csb/finalise/i4.docx""#));
-        assert!(body.contains("Add objection"));
-        // The page leads back to the CSB overview.
-        assert!(body.contains(r#"href="/csb" class="button secondary">Back<"#));
-    }
-
     /// The I 4 hearing is recorded here, in phase 4, and nowhere else.
     #[tokio::test]
     async fn overview_links_the_i4_hearing_details() {

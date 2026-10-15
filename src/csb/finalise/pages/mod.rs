@@ -20,7 +20,5 @@ pub fn router<S: AppRequestState>() -> Router<S> {
         .typed_post(objection::delete_objection)
         .typed_get(i4::gen_i4_draft::<S>)
         .typed_get(i4::gen_i4_draft_docx::<S>)
-        .typed_get(i4::gen_i4_final::<S>)
-        .typed_get(i4::gen_i4_final_docx::<S>)
         .typed_get(combined_zip::download_final_zip::<S>)
 }

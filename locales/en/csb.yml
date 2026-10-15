@@ -274,11 +274,7 @@ recovery:
   assess: Assess
   assessed: Assessed
   assessed_count: "{} of {} assessed"
-  download_i4_pdf: Download I\u00A04 (PDF)
-  download_i4_word: Download I\u00A04 (Word)
   explanation: "Record per omission whether it was recovered. Candidates, lists and electoral districts with an unrecovered omission are scrapped."
-  finish_note: "As long as omissions are still to be assessed, the I\u00A04 is not yet final."
-  finish_title: Finish recovery
   no_omissions: No omissions
   not_recovered: Not recovered
   nothing_scrapped: Nothing has been scrapped.

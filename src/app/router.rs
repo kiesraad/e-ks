@@ -430,16 +430,6 @@ mod tests {
                 "/csb/examination/i1.docx",
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             ),
-            ("/csb/finalise/i4.pdf", "application/pdf"),
-            ("/csb/finalise/concept_i4.pdf", "application/pdf"),
-            (
-                "/csb/finalise/i4.docx",
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            ),
-            (
-                "/csb/finalise/concept_i4.docx",
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            ),
             (
                 "/csb/examination/finish/verzuimbrieven.zip",
                 "application/zip",

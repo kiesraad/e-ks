@@ -54,11 +54,3 @@ pub struct CsbI4DraftDownloadPath;
 #[derive(TypedPath)]
 #[typed_path("/csb/finalise/concept_i4.docx", rejection(AppError))]
 pub struct CsbI4DraftDocxDownloadPath;
-
-#[derive(TypedPath)]
-#[typed_path("/csb/finalise/i4.pdf", rejection(AppError))]
-pub struct CsbI4FinalDownloadPath;
-
-#[derive(TypedPath)]
-#[typed_path("/csb/finalise/i4.docx", rejection(AppError))]
-pub struct CsbI4FinalDocxDownloadPath;
