@@ -222,7 +222,7 @@ mod tests {
             headers
                 .get(header::CONTENT_DISPOSITION)
                 .expect("content disposition"),
-            "attachment; filename=\"i4-proces-verbaal (concept).pdf\""
+            "attachment; filename=\"Model_I4_Proces_Verbaal_Concept.pdf\""
         );
         assert_eq!(
             headers.get(header::CACHE_CONTROL).expect("cache control"),
@@ -256,7 +256,7 @@ mod tests {
             headers
                 .get(header::CONTENT_DISPOSITION)
                 .expect("content disposition"),
-            "attachment; filename=\"i4-proces-verbaal (concept).docx\""
+            "attachment; filename=\"Model_I4_Proces_Verbaal_Concept.docx\""
         );
 
         // A .docx is a ZIP archive.

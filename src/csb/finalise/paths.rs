@@ -49,14 +49,14 @@ pub struct CsbFinalZipDownloadPath;
 
 #[derive(TypedPath)]
 #[typed_path(
-    "/csb/finalise/Model_I4_proces_verbaal_concept.pdf",
+    "/csb/finalise/Model_I4_Proces_Verbaal_Concept.pdf",
     rejection(AppError)
 )]
 pub struct CsbI4DraftDownloadPath;
 
 #[derive(TypedPath)]
 #[typed_path(
-    "/csb/finalise/Model_I4_proces_verbaal_concept.docx",
+    "/csb/finalise/Model_I4_Proces_Verbaal_Concept.docx",
     rejection(AppError)
 )]
 pub struct CsbI4DraftDocxDownloadPath;

@@ -19,9 +19,10 @@ use crate::{
     utils::format_hash,
 };
 
-/// One EML 230b file per district, and the EML 230c for the whole election
+/// One EML 230b file per district, and the EML 230c for the whole election,
+/// in that order
 ///
-/// Districts without established lists are left out.
+/// Districts without established lists get no 230b file.
 pub(super) async fn eml230_files(
     context: &CsbContext,
     registry: &StoreRegistry<CsbStoreData>,
@@ -63,15 +64,18 @@ pub(super) async fn eml230_files(
         }
     }
 
+    let election_id = ElectionId::try_from(election)?;
+
     Ok((
-        vec![(
-            format!(
-                "Totaallijsten_{}.eml.xml",
-                ElectionId::try_from(election)?.value()
-            ),
-            eml230c(&election, &numbered_groups)?,
-        )],
         eml230bs,
+        eml230c(&election, &numbered_groups)?
+            .map(|eml| {
+                vec![(
+                    format!("Totaallijsten_{}.eml.xml", election_id.value()),
+                    eml,
+                )]
+            })
+            .unwrap_or_default(),
     ))
 }
 
@@ -192,10 +196,12 @@ mod tests {
         .await;
 
         let main_store = main_store_for(election);
-        let files = eml230_files(&context, state.csb_store_registry(), &main_store).await?;
+        let (eml230bs, eml230c) =
+            eml230_files(&context, state.csb_store_registry(), &main_store).await?;
 
-        assert_eq!(files.len(), 2);
-        for (_, bytes) in &files {
+        assert_eq!(eml230bs.len(), 1);
+        assert_eq!(eml230c.len(), 1);
+        for (_, bytes) in eml230bs.iter().chain(&eml230c) {
             let xml = String::from_utf8(bytes.clone()).unwrap();
             assert!(!xml.to_lowercase().contains("blanco"));
             assert!(xml.contains("<RegisteredName/>"));
@@ -221,12 +227,13 @@ mod tests {
         .await;
         let main_store = main_store_for(election);
 
-        let files = eml230_files(&context, state.csb_store_registry(), &main_store).await?;
+        let (eml230bs, eml230c) =
+            eml230_files(&context, state.csb_store_registry(), &main_store).await?;
 
-        assert_eq!(files.len(), 2);
-        assert_eq!(files[0].0, "Kandidatenlijsten_PS2027_Groningen.eml.xml");
-        assert_eq!(files[1].0, "Totaallijsten_PS2027_Groningen.eml.xml");
-        let xml = String::from_utf8(files[0].1.clone()).unwrap();
+        assert_eq!(eml230bs.len(), 1);
+        assert_eq!(eml230bs[0].0, "Kandidatenlijsten_PS2027_Groningen.eml.xml");
+        assert_eq!(eml230c[0].0, "Totaallijsten_PS2027_Groningen.eml.xml");
+        let xml = String::from_utf8(eml230bs[0].1.clone()).unwrap();
         assert!(xml.contains(r#"<ContestIdentifier Id="geen"/>"#));
         assert!(xml.contains("Kiesraad Demo"));
 
@@ -246,16 +253,17 @@ mod tests {
         sample_group(&state, election, "Alleen Eerste", [districts[0]]).await;
         let main_store = main_store_for(election);
 
-        let files = eml230_files(&context, state.csb_store_registry(), &main_store).await?;
+        let (eml230bs, eml230c) =
+            eml230_files(&context, state.csb_store_registry(), &main_store).await?;
 
-        // Only the district the group's list covers gets a 230b file, next to the 230c
-        assert_eq!(files.len(), 2);
-        assert_eq!(files[1].0, "Totaallijsten_PS2027_Limburg.eml.xml");
+        // Only the district the group's list covers gets a 230b file
+        assert_eq!(eml230c[0].0, "Totaallijsten_PS2027_Limburg.eml.xml");
+        assert_eq!(eml230bs.len(), 1);
         assert_eq!(
-            files[0].0,
+            eml230bs[0].0,
             "Kandidatenlijsten_PS2027_Limburg_Maastricht.eml.xml"
         );
-        let xml = String::from_utf8(files[0].1.clone()).unwrap();
+        let xml = String::from_utf8(eml230bs[0].1.clone()).unwrap();
         assert!(xml.contains(&format!(
             r#"<ContestIdentifier Id="{}">"#,
             districts[0].region_number()
@@ -280,11 +288,12 @@ mod tests {
         sample_group(&state, election, "Overal", districts.iter().copied()).await;
         let main_store = main_store_for(election);
 
-        let files = eml230_files(&context, state.csb_store_registry(), &main_store).await?;
+        let (eml230bs, eml230c) =
+            eml230_files(&context, state.csb_store_registry(), &main_store).await?;
 
         // One 230b per district, plus the 230c for the whole election
-        assert_eq!(files.len(), districts.len() + 1);
-        for (_, bytes) in &files {
+        assert_eq!(eml230bs.len(), districts.len());
+        for (_, bytes) in eml230bs.iter().chain(&eml230c) {
             let xml = String::from_utf8(bytes.clone()).unwrap();
             assert!(xml.contains(r#"Id="1""#));
             assert!(xml.contains("Overal"));
@@ -317,20 +326,10 @@ mod tests {
         );
     }
 
-    #[test]
-    fn filename_uses_election_id() {
-        assert_eq!(
-            eml230c_filename(&ElectionConfig::EK27).unwrap(),
-            "Totaallijsten_EK2027.eml.xml"
-        );
-        assert_eq!(
-            eml230c_filename(&ElectionConfig::PS27(Province::Groningen)).unwrap(),
-            "Totaallijsten_PS2027_Groningen.eml.xml"
-        );
-    }
-
+    /// A group without valid candidates gets no 230b file; the 230c is still
+    /// there.
     #[tokio::test]
-    async fn download_eml_zip_skips_groups_without_valid_candidates() -> Result<(), AppError> {
+    async fn eml230_files_skips_groups_without_valid_candidates() -> Result<(), AppError> {
         let context = CsbContext::new_test();
         let state = AppState::new_for_tests().await;
         let list = CandidateList {
@@ -350,9 +349,11 @@ mod tests {
         .await;
 
         let main_store = CsbMainStore::new_for_test();
-        let files = eml230_files(&context, state.csb_store_registry(), &main_store).await?;
+        let (eml230bs, eml230c) =
+            eml230_files(&context, state.csb_store_registry(), &main_store).await?;
 
-        assert!(files.is_empty());
+        assert!(eml230bs.is_empty());
+        assert!(eml230c.is_empty());
 
         Ok(())
     }
@@ -386,11 +387,11 @@ mod tests {
             .update(CsbMainAction::UpdateListOrder(vec![by_lot, seated]).by(CsbUser::new_test()))
             .await?;
 
-        let files = eml230_files(&context, state.csb_store_registry(), &main_store).await?;
+        let (eml230bs, _) = eml230_files(&context, state.csb_store_registry(), &main_store).await?;
 
         // The recorded order puts "Loting" first, so it gets list number 1
         // and prints first; "Gezeteld" is 2 and prints second.
-        let xml = String::from_utf8(files[0].1.clone()).unwrap();
+        let xml = String::from_utf8(eml230bs[0].1.clone()).unwrap();
         let position = |needle: &str| xml.find(needle).expect("group in export");
         assert!(position(r#"<AffiliationIdentifier Id="1">"#) < position("Loting"));
         assert!(position("Loting") < position(r#"<AffiliationIdentifier Id="2">"#));
@@ -418,8 +419,8 @@ mod tests {
         let main_store = CsbMainStore::new_for_test();
         assert_eq!(main_store.list_order_events(), 0);
 
-        let assert_numbered = |files: Files| {
-            let xml = String::from_utf8(files[0].1.clone()).unwrap();
+        let assert_numbered = |(eml230bs, _): (Files, Files)| {
+            let xml = String::from_utf8(eml230bs[0].1.clone()).unwrap();
             let position = |needle: &str| xml.find(needle).expect("group in export");
             assert!(position(r#"<AffiliationIdentifier Id="1">"#) < position("Andere Partij"));
             assert!(position("Andere Partij") < position(r#"<AffiliationIdentifier Id="2">"#));
@@ -469,9 +470,9 @@ mod tests {
         sample_group(&state, ElectionConfig::EK27, "Andere Partij", all_districts).await;
 
         let main_store = CsbMainStore::new_for_test();
-        let files = eml230_files(&context, state.csb_store_registry(), &main_store).await?;
+        let (eml230bs, _) = eml230_files(&context, state.csb_store_registry(), &main_store).await?;
 
-        let xml = String::from_utf8(files[0].1.clone()).unwrap();
+        let xml = String::from_utf8(eml230bs[0].1.clone()).unwrap();
         let position = |needle: &str| xml.find(needle).expect("group in export");
         assert!(position("Andere Partij") < position("Zebra Partij"));
 

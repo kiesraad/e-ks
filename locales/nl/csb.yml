@@ -168,7 +168,6 @@ import:
     already_imported: "De politieke groepering “{}” is al geïmporteerd. Kies “Toch importeren” om deze opnieuw te importeren."
 index:
   closes_on: Sluit op
-  download_election_definition: Verkiezings\u00ADdefinitie downloaden
   feature:
     add_omissions: Verzuimen en correcties toevoegen
     create_i1_letters: I\u00A01 en verzuimbrieven aanmaken

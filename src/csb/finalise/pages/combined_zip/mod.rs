@@ -44,7 +44,7 @@ pub async fn download_final_zip<S: AppRequestState>(
 ) -> Result<Response, AppError> {
     let files = final_files(&context, &main_store, &state).await?;
     let filename = format!(
-        "afronding-kandidaatstellen-{}.zip",
+        "Afronding_Kandidaatstellen_{}.zip",
         main_store.election.filename_slug()
     );
 

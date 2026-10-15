@@ -41,7 +41,7 @@ static LETTERS: LazyLock<Regex> =
 pub fn eml230c(
     election: &ElectionConfig,
     numbered_groups: &[(NonZeroU64, &CsbStream)],
-) -> Result<Vec<u8>, AppError> {
+) -> Result<Option<Vec<u8>>, AppError> {
     let mut short_codes = ShortCodes::default();
     let mut eml_contests = Vec::new();
 
@@ -62,11 +62,15 @@ pub fn eml230c(
         );
     }
 
-    Ok(candidate_lists_document(
+    if eml_contests.is_empty() {
+        return Ok(None);
+    }
+
+    Ok(Some(candidate_lists_document(
         election,
         CandidateListsType::Multiple,
         eml_contests,
-    )?)
+    )?))
 }
 
 /// The short codes handed out so far in a 230c document
@@ -333,8 +337,8 @@ mod tests {
 
     fn export(election: ElectionConfig) -> String {
         let stores = sample_stores(election);
-        let eml = eml230c(&election, &numbered(&stores)).unwrap().unwrap();
-        String::from_utf8(eml).unwrap()
+        let eml = eml230c(&election, &numbered(&stores)).unwrap();
+        String::from_utf8(eml.unwrap()).unwrap()
     }
 
     #[test]
@@ -367,10 +371,5 @@ mod tests {
             &export(ElectionConfig::WS27(WaterCouncil::Fryslan)),
             include_str!("testdata/230c-ws27.eml.xml"),
         );
-    }
-
-    #[test]
-    fn no_groups_produces_no_document() {
-        assert!(eml230c(&ElectionConfig::EK27, &[]).unwrap().is_none());
     }
 }

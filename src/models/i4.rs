@@ -86,9 +86,9 @@ impl Pdf for I4 {
 
     fn filename(&self) -> String {
         if self.is_draft {
-            "Model_I4_proces_verbaal_concept.pdf"
+            "Model_I4_Proces_Verbaal_Concept.pdf"
         } else {
-            "Model_I4_proces_verbaal.pdf"
+            "Model_I4_Proces_Verbaal.pdf"
         }
         .to_string()
     }
