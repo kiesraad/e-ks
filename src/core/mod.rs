@@ -20,9 +20,9 @@ pub mod translate;
 
 #[cfg(feature = "acme")]
 pub use config::AcmeConfig;
-#[cfg(feature = "tls")]
+#[cfg(any(feature = "tls", test))]
 pub use config::TlsConfig;
-pub use config::{Config, GithubOauthConfig};
+pub use config::{BrpConfig, Config, GithubOauthConfig};
 pub use csb_access::{AlertThrottle, CsbAlertHours, CsbIpAllowList};
 pub use csv::{Csv, CsvError, reader_from_bytes};
 pub use election::{ElectionConfig, ElectionType, ElectoralDistrict, Province, WaterCouncil};

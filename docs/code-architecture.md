@@ -596,6 +596,8 @@ Runtime configuration is read from environment variables once at startup into a
 | `ACME_DIRECTORY_URL` / `ACME_DOMAIN` | Enable ACME certificate renewal (`acme` feature): the CA directory (e.g. Let's Encrypt production or staging) and the FQDN to order for; both or neither, requires TLS. |
 | `ACME_ACCOUNT_CREDENTIALS` | ACME account credentials JSON from the `create_acme_account` tool; contains the account's private key, so supply it like the master secrets. Required when ACME is enabled. |
 | `ACME_ROOT_CA_PATH` | Optional extra trust root for the ACME directory's own TLS (pebble testing only). |
+| `BRP_CLIENT_CERT_PATH` / `BRP_CLIENT_KEY_PATH` | PEM client certificate and key presented to the BRP over mTLS; both or neither. |
+| `BRP_REQUEST_INTERVAL_MS` | Minimum pause between the starts of two BRP requests, shared by all callers so concurrent checks queue up; defaults to 100, `0` disables it. |
 | `SERVER_NAME` | Short server identifier shown in the page footer. |
 | `EKS_KEY` | Optional shared secret for the `x-eks-key` request gate. |
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` / `GITHUB_ALLOWED_USER_IDS` | Enable the CSB GitHub OAuth login (`/csb/login`): the GitHub OAuth app's credentials and the comma-separated numeric GitHub account ids allowed to log in; all three or none. The client secret is a secret like the master keys. |
