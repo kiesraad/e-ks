@@ -11,10 +11,12 @@ use std::{
 
 use secrecy::SecretString;
 
-use super::{CsbAlertHours, CsbIpAllowList, RateLimits};
+use super::{CsbAlertHours, CsbIpAllowList, RateLimits, rate_limit::number};
 use crate::{
     AppError, ElectionConfig, GithubUserId,
-    constants::{BRP_PERSONS_ENDPOINT, BRP_TIMEOUT, STORE_CACHE_IDLE_MINUTES},
+    constants::{
+        BRP_PERSONS_ENDPOINT, BRP_REQUEST_INTERVAL_MS, BRP_TIMEOUT, STORE_CACHE_IDLE_MINUTES,
+    },
 };
 
 #[cfg(feature = "dev-features")]
@@ -64,6 +66,10 @@ pub struct BrpConfig {
     pub api_key: SecretString,
     pub persons_endpoint: String,
     pub timeout: Duration,
+    /// Minimum time between the starts of two requests, across all callers.
+    pub request_interval: Duration,
+    /// Client certificate for mTLS, when the BRP requires one.
+    pub client_cert: Option<TlsConfig>,
 }
 
 /// ACME (Let's Encrypt) certificate-renewal configuration.
@@ -198,21 +204,25 @@ fn check_account_credentials(credentials: &str, directory_url: &str) -> Result<(
     Ok(())
 }
 
-/// TLS config from `TLS_CERT_PATH` and `TLS_KEY_PATH`; both or neither must be
-/// set.
-fn tls_from_env<F>(lookup: &mut F) -> Result<Option<TlsConfig>, AppError>
+/// A certificate and key path pair from `cert_var` and `key_var`; both or
+/// neither must be set.
+fn tls_from_env<F>(
+    lookup: &mut F,
+    cert_var: &'static str,
+    key_var: &'static str,
+) -> Result<Option<TlsConfig>, AppError>
 where
     F: FnMut(&'static str) -> Result<String, env::VarError>,
 {
-    match (lookup("TLS_CERT_PATH").ok(), lookup("TLS_KEY_PATH").ok()) {
+    match (lookup(cert_var).ok(), lookup(key_var).ok()) {
         (Some(cert), Some(key)) => Ok(Some(TlsConfig {
             cert_path: PathBuf::from(cert),
             key_path: PathBuf::from(key),
         })),
         (None, None) => Ok(None),
-        _ => Err(AppError::ConfigLoadError(
-            "TLS_CERT_PATH and TLS_KEY_PATH must both be set, or both unset".to_string(),
-        )),
+        _ => Err(AppError::ConfigLoadError(format!(
+            "{cert_var} and {key_var} must both be set, or both unset"
+        ))),
     }
 }
 
@@ -329,19 +339,18 @@ where
     let base_url = get_env_with("BRP_BASE_URL", lookup)?;
     let api_key = SecretString::from(get_env_with("BRP_API_KEY", lookup)?);
 
-    let timeout: u64 = lookup("BRP_TIMEOUT")
-        .unwrap_or(BRP_TIMEOUT.to_string())
-        .parse()
-        .map_err(|_| {
-            AppError::ConfigLoadError("Invalid BRP_TIMEOUT; please enter a number".to_string())
-        })?;
-
     Ok(BrpConfig {
         base_url,
         api_key,
         persons_endpoint: lookup("BRP_PERSONS_ENDPOINT")
             .unwrap_or(BRP_PERSONS_ENDPOINT.to_string()),
-        timeout: Duration::from_secs(timeout),
+        timeout: Duration::from_secs(number("BRP_TIMEOUT", BRP_TIMEOUT, lookup)?),
+        request_interval: Duration::from_millis(number(
+            "BRP_REQUEST_INTERVAL_MS",
+            BRP_REQUEST_INTERVAL_MS,
+            lookup,
+        )?),
+        client_cert: tls_from_env(lookup, "BRP_CLIENT_CERT_PATH", "BRP_CLIENT_KEY_PATH")?,
     })
 }
 
@@ -424,7 +433,7 @@ impl Config {
         let id_derivation_key = get_secret_with("ID_DERIVATION_KEY", &mut lookup)?;
         let master_encryption_key = get_secret_with("MASTER_ENCRYPTION_KEY", &mut lookup)?;
 
-        let tls = tls_from_env(&mut lookup)?;
+        let tls = tls_from_env(&mut lookup, "TLS_CERT_PATH", "TLS_KEY_PATH")?;
         let acme = acme_from_env(&mut lookup, tls.is_some())?;
         let github_oauth = github_oauth_from_env(&mut lookup)?;
         let default_election =
@@ -519,6 +528,8 @@ impl Config {
                 api_key: SecretString::from(""),
                 persons_endpoint: constants::BRP_PERSONS_ENDPOINT.to_string(),
                 timeout: Duration::from_secs(5),
+                request_interval: Duration::ZERO,
+                client_cert: None,
             },
             github_oauth: None,
             default_election: ElectionConfig::EK27,
@@ -709,6 +720,46 @@ mod tests {
     #[test]
     fn from_env_errors_when_only_tls_key_set() {
         let map = config_env([("TLS_KEY_PATH", "/etc/tls/key.pem")]);
+        let lookup = lookup_from(&map);
+
+        let err = Config::from_env_with(lookup).expect_err("err");
+        assert!(matches!(err, AppError::ConfigLoadError(_)));
+    }
+
+    #[test]
+    fn from_env_returns_brp_client_cert_when_both_set() {
+        let map = config_env([
+            ("BRP_CLIENT_CERT_PATH", "/etc/brp/cert.pem"),
+            ("BRP_CLIENT_KEY_PATH", "/etc/brp/key.pem"),
+        ]);
+        let lookup = lookup_from(&map);
+
+        let config = Config::from_env_with(lookup).expect("config");
+        let cert = config.brp_client.client_cert.expect("client cert present");
+
+        assert_eq!(
+            cert.cert_path,
+            std::path::PathBuf::from("/etc/brp/cert.pem")
+        );
+        assert_eq!(cert.key_path, std::path::PathBuf::from("/etc/brp/key.pem"));
+    }
+
+    #[test]
+    fn from_env_reads_the_brp_request_interval() {
+        let map = config_env([("BRP_REQUEST_INTERVAL_MS", "250")]);
+        let lookup = lookup_from(&map);
+
+        let config = Config::from_env_with(lookup).expect("config");
+
+        assert_eq!(
+            config.brp_client.request_interval,
+            Duration::from_millis(250)
+        );
+    }
+
+    #[test]
+    fn from_env_errors_when_only_brp_client_cert_set() {
+        let map = config_env([("BRP_CLIENT_CERT_PATH", "/etc/brp/cert.pem")]);
         let lookup = lookup_from(&map);
 
         let err = Config::from_env_with(lookup).expect_err("err");
