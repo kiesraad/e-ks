@@ -596,6 +596,8 @@ Runtime configuration is read from environment variables once at startup into a
 | `ACME_DIRECTORY_URL` / `ACME_DOMAIN` | Enable ACME certificate renewal (`acme` feature): the CA directory (e.g. Let's Encrypt production or staging) and the FQDN to order for; both or neither, requires TLS. |
 | `ACME_ACCOUNT_CREDENTIALS` | ACME account credentials JSON from the `create_acme_account` tool; contains the account's private key, so supply it like the master secrets. Required when ACME is enabled. |
 | `ACME_ROOT_CA_PATH` | Optional extra trust root for the ACME directory's own TLS (pebble testing only). |
+| `BRP_CLIENT_CERT_PATH` / `BRP_CLIENT_KEY_PATH` | PEM client certificate and key presented to the BRP over mTLS; both or neither. |
+| `BRP_REQUEST_INTERVAL_MS` | Minimum pause between the starts of two BRP requests, shared by all callers so concurrent checks queue up; defaults to 100, `0` disables it. |
 | `SERVER_NAME` | Short server identifier shown in the page footer. |
 | `EKS_KEY` | Optional shared secret for the `x-eks-key` request gate. |
 | `CSB_WEBAUTHN_ORIGIN` | Enable the CSB security-key (WebAuthn) login (`/csb/login`): the origin the CSB section is served on, e.g. `https://csb.example.nl` (`http://localhost:3000` in development). Its host is the WebAuthn relying-party id, so keys enrolled for one host only work there. Outside `dev-features` builds it requires `CSB_BIND_ADDRESS` (startup fails without it), so the login is never served on the main listener. |

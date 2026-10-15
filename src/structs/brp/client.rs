@@ -1,9 +1,10 @@
 use std::{str::FromStr, sync::Arc, time::Duration};
 
 use chrono::NaiveDate;
-use reqwest::Client;
+use reqwest::{Client, Identity};
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
+use tokio::{sync::Mutex, time::Instant};
 
 use super::{
     BrpCheckedField, BrpField, BrpFinding, BrpFindingKind, BrpLastName, BrpLookup,
@@ -12,6 +13,7 @@ use super::{
 };
 use crate::{
     AppError,
+    core::BrpConfig,
     structs::{
         common::{Bsn, BsnOrNoneConfirmed, DateOfBirth, Gender, LastNamePrefix},
         persons::{Person, PersonId},
@@ -63,24 +65,32 @@ struct BrpClientInner {
     api_key: SecretString,
     persons_endpoint: String,
     timeout: Duration,
+    request_interval: Duration,
+    last_request: Mutex<Instant>,
 }
 
 impl BrpClient {
-    pub fn new(
-        base_url: &str,
-        api_key: SecretString,
-        persons_endpoint: &str,
-        timeout: Duration,
-    ) -> Self {
-        Self {
-            inner: Arc::new(BrpClientInner {
-                http_client: Client::new(),
-                base_url: base_url.to_string(),
-                api_key,
-                persons_endpoint: persons_endpoint.to_string(),
-                timeout,
-            }),
+    /// Fails when the configured client certificate cannot be read or parsed.
+    pub fn new(config: &BrpConfig) -> Result<Self, AppError> {
+        let mut builder = Client::builder();
+        if let Some(cert) = &config.client_cert {
+            // reqwest takes the chain and the key as one PEM buffer.
+            let mut pem = std::fs::read(&cert.cert_path).map_err(brp_cert_error)?;
+            pem.extend(std::fs::read(&cert.key_path).map_err(brp_cert_error)?);
+            builder = builder.identity(Identity::from_pem(&pem).map_err(brp_cert_error)?);
         }
+
+        Ok(Self {
+            inner: Arc::new(BrpClientInner {
+                http_client: builder.build().map_err(brp_cert_error)?,
+                base_url: config.base_url.clone(),
+                api_key: config.api_key.clone(),
+                persons_endpoint: config.persons_endpoint.clone(),
+                timeout: config.timeout,
+                request_interval: config.request_interval,
+                last_request: Mutex::new(Instant::now()),
+            }),
+        })
     }
 
     /// A client pointed at `base_url`, for tests serving their own responses.
@@ -88,16 +98,29 @@ impl BrpClient {
     pub fn new_for_test(base_url: &str) -> Self {
         use crate::constants;
 
-        BrpClient::new(
-            base_url,
-            SecretString::from(""),
-            constants::BRP_PERSONS_ENDPOINT,
-            Duration::from_secs(5),
-        )
+        BrpClient::new(&BrpConfig {
+            base_url: base_url.to_string(),
+            api_key: SecretString::from(""),
+            persons_endpoint: constants::BRP_PERSONS_ENDPOINT.to_string(),
+            timeout: Duration::from_secs(5),
+            request_interval: Duration::ZERO,
+            client_cert: None,
+        })
+        .expect("no certificate to fail on")
+    }
+
+    /// Holds the lock while sleeping, so concurrent callers queue up and each
+    /// starts at least `request_interval` after the one before.
+    async fn wait_for_turn(&self) {
+        let mut last_request = self.inner.last_request.lock().await;
+        tokio::time::sleep_until(*last_request + self.inner.request_interval).await;
+        *last_request = Instant::now();
     }
 
     pub async fn get_persons(&self, query: &BrpQuery) -> Result<Vec<BrpPerson>, AppError> {
         let url = format!("{}/{}", self.inner.base_url, self.inner.persons_endpoint);
+
+        self.wait_for_turn().await;
 
         let response = self
             .inner
@@ -339,6 +362,10 @@ impl BrpClient {
             .into_iter()
             .next())
     }
+}
+
+fn brp_cert_error(err: impl std::fmt::Display) -> AppError {
+    AppError::ConfigLoadError(format!("BRP client certificate: {err}"))
 }
 
 /// The outcome of checking one batch of candidates: every request sent to the
@@ -1486,6 +1513,45 @@ mod tests {
             batch.lookups[0].persons,
             candidates.iter().map(|c| c.id).collect::<Vec<_>>()
         );
+    }
+
+    #[test]
+    fn a_client_certificate_that_cannot_be_read_is_a_config_error() {
+        let config = BrpConfig {
+            base_url: "http://127.0.0.1:1".to_string(),
+            api_key: SecretString::from(""),
+            persons_endpoint: constants::BRP_PERSONS_ENDPOINT.to_string(),
+            timeout: Duration::from_secs(5),
+            request_interval: Duration::ZERO,
+            client_cert: Some(crate::core::TlsConfig {
+                cert_path: "/nonexistent/cert.pem".into(),
+                key_path: "/nonexistent/key.pem".into(),
+            }),
+        };
+
+        assert!(matches!(
+            BrpClient::new(&config),
+            Err(AppError::ConfigLoadError(_))
+        ));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn consecutive_requests_are_spaced_by_the_request_interval() {
+        let interval = Duration::from_millis(250);
+        let client = BrpClient::new(&BrpConfig {
+            base_url: "http://127.0.0.1:1".to_string(),
+            api_key: SecretString::from(""),
+            persons_endpoint: constants::BRP_PERSONS_ENDPOINT.to_string(),
+            timeout: Duration::from_secs(5),
+            request_interval: interval,
+            client_cert: None,
+        })
+        .expect("no certificate to fail on");
+
+        let start = Instant::now();
+        tokio::join!(client.wait_for_turn(), client.wait_for_turn());
+
+        assert_eq!(start.elapsed(), 2 * interval);
     }
 
     /// Smoke test against the real mock, which `cargo test` does not start.
