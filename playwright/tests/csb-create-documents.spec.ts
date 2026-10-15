@@ -146,16 +146,18 @@ test.describe("create documents", async () => {
     await hearingDetailsPage.buttonSave.click();
     await expect(finalizeCandidateListsPage.headerFinalize).toBeVisible();
 
-    // add objections, then delete one and verify that the other is still present
-    await finalizeCandidateListsPage.addObjection("Dit is een testbezwaar");
-    await expect(page.getByText("Dit is een testbezwaar")).toBeVisible();
-    await finalizeCandidateListsPage.addObjection(
-      "Dit is een tweede testbezwaar",
-    );
-    await expect(page.getByText("Dit is een tweede testbezwaar")).toBeVisible();
-    await finalizeCandidateListsPage.deleteObjection("Dit is een testbezwaar");
-    await expect(page.getByText("Dit is een testbezwaar")).not.toBeVisible();
-    await expect(page.getByText("Dit is een tweede testbezwaar")).toBeVisible();
+    // add objections, then delete one and verify that the other is still present;
+    // objections are shared by all browsers running this test, so make them unique
+    const suffix = Math.random().toString(36).slice(2, 10);
+    const firstObjection = `Eerste testbezwaar ${suffix}`;
+    const secondObjection = `Tweede testbezwaar ${suffix}`;
+    await finalizeCandidateListsPage.addObjection(firstObjection);
+    await expect(page.getByText(firstObjection)).toBeVisible();
+    await finalizeCandidateListsPage.addObjection(secondObjection);
+    await expect(page.getByText(secondObjection)).toBeVisible();
+    await finalizeCandidateListsPage.deleteObjection(firstObjection);
+    await expect(page.getByText(firstObjection)).not.toBeVisible();
+    await expect(page.getByText(secondObjection)).toBeVisible();
 
     // download I 4 in pdf format
     const pdfPromise = page.waitForEvent("download");
@@ -179,8 +181,6 @@ test.describe("create documents", async () => {
     expect((await stat(await zipDownload.path())).size).toBeGreaterThan(1024);
 
     // delete objection for clean up
-    await finalizeCandidateListsPage.deleteObjection(
-      "Dit is een tweede testbezwaar",
-    );
+    await finalizeCandidateListsPage.deleteObjection(secondObjection);
   });
 });
