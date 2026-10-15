@@ -25,6 +25,17 @@ pub struct CsbPreSubmissionBrpCheckPath {
     pub stream_id: StreamId,
 }
 
+/// Whether the package's BRP sweep is still running, as JSON for the script
+/// that tells the user when it finished.
+#[derive(TypedPath, Deserialize)]
+#[typed_path(
+    "/csb/pre-submission/{stream_id}/brp-check/status",
+    rejection(AppError)
+)]
+pub struct CsbPreSubmissionBrpCheckStatusPath {
+    pub stream_id: StreamId,
+}
+
 #[derive(TypedPath, Deserialize)]
 #[typed_path(
     "/csb/pre-submission/{stream_id}/brp-overzicht.pdf",

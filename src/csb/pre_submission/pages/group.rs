@@ -1,5 +1,6 @@
 use askama::Template;
 use axum::{
+    Json,
     extract::State,
     response::{IntoResponse, Response},
 };
@@ -10,10 +11,13 @@ use crate::{
     AppError, AppRequestState, Context, CsbContext, HtmlTemplate,
     csb::{
         examination::structs::{BrpBadge, ProblematicCandidate, brp_incomplete_reason},
-        import::{brp_sweep_running, do_brp_verification},
+        import::{BrpSweepStatus, brp_sweep_running, brp_sweep_status, do_brp_verification},
         pre_submission::{
             extractors::{PreSubmissionGroup, PreSubmissionStore},
-            pages::{CsbPreSubmissionBrpCheckPath, CsbPreSubmissionGroupPath},
+            pages::{
+                CsbPreSubmissionBrpCheckPath, CsbPreSubmissionBrpCheckStatusPath,
+                CsbPreSubmissionGroupPath,
+            },
         },
     },
     filters, redirect_success,
@@ -79,6 +83,14 @@ pub async fn start_brp_check<S: AppRequestState>(
     Ok(redirect_success(CsbPreSubmissionGroupPath {
         stream_id: path.stream_id,
     }))
+}
+
+/// Polled by the group page while a sweep runs.
+pub async fn brp_check_status(
+    _: CsbPreSubmissionBrpCheckStatusPath,
+    store: PreSubmissionStore,
+) -> Json<BrpSweepStatus> {
+    brp_sweep_status(store.stream_id)
 }
 
 #[cfg(test)]
@@ -156,6 +168,33 @@ mod tests {
         assert!(body.contains("Check against the BRP"));
         // Nothing to download before the check ran.
         assert!(!body.contains("brp-overzicht"));
+    }
+
+    #[tokio::test]
+    async fn a_running_check_lets_the_page_poll_for_its_end() {
+        use crate::csb::import::claim_sweep_for_test;
+
+        let (store, _) = store_with_a_candidate();
+        let stream_id = store.stream_id;
+        store
+            .update(CsbAction::SetBrpStatus(BrpStatus::in_progress()))
+            .await
+            .unwrap();
+        let _sweep = claim_sweep_for_test(stream_id);
+
+        let body = render(PreSubmissionStore(store.clone())).await;
+
+        assert!(body.contains("Refresh this page"), "{body}");
+        assert!(
+            body.contains(&format!(
+                r#"data-brp-status-url="/csb/pre-submission/{stream_id}/brp-check/status""#
+            )),
+            "{body}"
+        );
+
+        let status =
+            brp_check_status(CsbPreSubmissionBrpCheckStatusPath { stream_id }, store).await;
+        assert!(status.running);
     }
 
     #[tokio::test]
