@@ -94,7 +94,7 @@ mod fixtures;
 pub use acme::{create_acme_account, parse_acme_account_credentials, start_acme_renewal};
 pub use app::AppState;
 pub use auth::session_store::run_session_sweeper;
-pub use core::{Config, CsbIpAllowList, logging, server};
+pub use core::{Config, CsbIpAllowList, ProxyProtocolPeers, logging, server};
 pub use error::AppError;
 pub use store::{run_db_prober, run_store_cache_sweeper};
 

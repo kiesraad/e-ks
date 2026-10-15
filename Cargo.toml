@@ -42,7 +42,7 @@ rcgen = { version = "0.14.8", default-features = false, features = ["aws_lc_rs",
 time = { version = "0.3.53", default-features = false, features = ["std"] }
 hyper-util = { version = "0.1.20", features = ["client-legacy"] }
 tokio = { version = "1.52.1", features = ["fs", "io-util", "macros", "net", "parking_lot", "process", "rt-multi-thread", "signal", "sync", "test-util", "time"] }
-tower-http = { version = "0.7.0", features = ["csrf", "set-header", "trace"] }
+tower-http = { version = "0.7.0", features = ["add-extension", "csrf", "set-header", "trace"] }
 tracing = { version = "0.1.44", default-features = false, features = ["std"] }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 bytes = "1.11.1"
