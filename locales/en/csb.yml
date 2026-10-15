@@ -88,6 +88,7 @@ examination: Examination
 finalise:
   add_objection: Add objection
   district_count: Electoral districts
+  download_final_zip: Download final ZIP
   draft_title: Draft version
   final_title: Final version
   i4_note: Official report on the validity and numbering of the candidate lists. Create the form for the report of the public session.

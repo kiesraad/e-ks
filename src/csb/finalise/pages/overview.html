@@ -28,16 +28,11 @@
            class="button primary icon-download"
            id="i4-draft-pdf">{{ "csb.finish_examination.download_pdf"|trans }}</a>
       </div>
-      <h4 class="mb-sm mt-sm">{{ "csb.finalise.final_title"|trans }}</h4>
+      <h3 class="mt-xl mb-sm">{{ "csb.finalise.final_title"|trans }}</h3>
       <div class="examination-strip">
-        <a href="{{ crate::csb::finalise::CsbI4FinalDocxDownloadPath }}"
-           class="button secondary icon-download"
-           id="i4-final-docx">{{ "csb.finish_examination.download_word"|trans }}</a>
-        <a href="{{ crate::csb::finalise::CsbI4FinalDownloadPath }}"
-           class="button primary icon-download">{{ "csb.finish_examination.download_pdf"|trans }}</a>
         <a href="{{ crate::csb::finalise::paths::CsbFinalZipDownloadPath }}"
            class="button primary icon-download"
-           id="i4-draft-pdf">Zippity Zoppity</a>
+           id="final-zip">{{ "csb.finalise.download_final_zip"|trans }}</a>
       </div>
     </div>
     <div class="examination-panel">

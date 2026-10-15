@@ -88,6 +88,7 @@ examination: Onderzoek
 finalise:
   add_objection: Bezwaar toevoegen
   district_count: Kieskringen
+  download_final_zip: Download afrondings ZIP
   draft_title: Concept versie
   final_title: Definitieve versie
   i4_note: Proces-verbaal over geldigheid en nummering kandidatenlijsten. Maak het document aan van het verslag van de openbare zitting.
