@@ -26,7 +26,7 @@ pub(super) async fn eml230_files(
     context: &CsbContext,
     registry: &StoreRegistry<CsbStoreData>,
     main_store: &CsbMainStore,
-) -> Result<Vec<(String, Vec<u8>)>, AppError> {
+) -> Result<(Files, Files), AppError> {
     let election = main_store.election;
     let streams = registry.stores_for_election(election).await?;
     let political_groups: Vec<CsbPoliticalGroup> = streams
@@ -55,22 +55,24 @@ pub(super) async fn eml230_files(
         })
         .collect();
 
-    let mut files = Vec::new();
+    let mut eml230bs = Files::new();
 
     for (contest_identifier, district) in contests(&election)? {
-        let Some(bytes) = eml230b(&election, contest_identifier, district, &numbered_groups)?
-        else {
-            continue;
-        };
-
-        files.push((eml230b_filename(&election, district)?, bytes));
+        if let Some(bytes) = eml230b(&election, contest_identifier, district, &numbered_groups)? {
+            eml230bs.push((eml230b_filename(&election, district)?, bytes));
+        }
     }
 
-    if let Some(bytes) = eml230c(&election, &numbered_groups)? {
-        files.push((eml230c_filename(&election)?, bytes));
-    }
-
-    Ok(files)
+    Ok((
+        vec![(
+            format!(
+                "Totaallijsten_{}.eml.xml",
+                ElectionId::try_from(election)?.value()
+            ),
+            eml230c(&election, &numbered_groups)?,
+        )],
+        eml230bs,
+    ))
 }
 
 /// The file name for the EML 230b of `district`, e.g.
@@ -89,14 +91,6 @@ fn eml230b_filename(
         ),
         None => format!("Kandidatenlijsten_{}.eml.xml", election_id.value()),
     })
-}
-
-/// The file name for the EML 230c, e.g. `Totaallijsten_EK2027.eml.xml`
-fn eml230c_filename(election: &ElectionConfig) -> Result<String, AppError> {
-    Ok(format!(
-        "Totaallijsten_{}.eml.xml",
-        ElectionId::try_from(*election)?.value()
-    ))
 }
 
 pub(super) fn eml110a_files(main_store: &CsbMainStore) -> Result<Files, AppError> {
@@ -424,7 +418,7 @@ mod tests {
         let main_store = CsbMainStore::new_for_test();
         assert_eq!(main_store.list_order_events(), 0);
 
-        let assert_numbered = |files: Vec<(String, Vec<u8>)>| {
+        let assert_numbered = |files: Files| {
             let xml = String::from_utf8(files[0].1.clone()).unwrap();
             let position = |needle: &str| xml.find(needle).expect("group in export");
             assert!(position(r#"<AffiliationIdentifier Id="1">"#) < position("Andere Partij"));

@@ -41,7 +41,7 @@ static LETTERS: LazyLock<Regex> =
 pub fn eml230c(
     election: &ElectionConfig,
     numbered_groups: &[(NonZeroU64, &CsbStream)],
-) -> Result<Option<Vec<u8>>, AppError> {
+) -> Result<Vec<u8>, AppError> {
     let mut short_codes = ShortCodes::default();
     let mut eml_contests = Vec::new();
 
@@ -62,15 +62,11 @@ pub fn eml230c(
         );
     }
 
-    if eml_contests.is_empty() {
-        return Ok(None);
-    }
-
-    Ok(Some(candidate_lists_document(
+    Ok(candidate_lists_document(
         election,
         CandidateListsType::Multiple,
         eml_contests,
-    )?))
+    )?)
 }
 
 /// The short codes handed out so far in a 230c document

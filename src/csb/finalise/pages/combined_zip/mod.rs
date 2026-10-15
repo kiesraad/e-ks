@@ -56,14 +56,14 @@ async fn final_files<S: AppRequestState>(
     context: &CsbContext,
     main_store: &CsbMainStore,
     state: &S,
-) -> Result<Vec<(String, Vec<u8>)>, AppError> {
+) -> Result<Files, AppError> {
     let election_id = ElectionId::try_from(main_store.election)?;
 
     let mut lists_per_district = Vec::new();
     for model in candidate_list_per_district_model(context, main_store, state).await? {
         lists_per_district.extend(pdf_and_docx(&model).await?);
     }
-    let eml230 = eml230_files(context, state.csb_store_registry(), main_store).await?;
+    let (eml230bs, eml230c) = eml230_files(context, state.csb_store_registry(), main_store).await?;
     let eml110a = eml110a_files(main_store)?;
 
     let mut files = vec![
@@ -72,8 +72,12 @@ async fn final_files<S: AppRequestState>(
             zip(&lists_per_district).await?,
         ),
         (
-            format!("eml-{}.zip", main_store.election.filename_slug()),
-            zip(&eml230).await?,
+            format!("Totaallijsten_{}.zip", election_id.value()),
+            zip(&eml230bs).await?,
+        ),
+        (
+            format!("Kanidatenlijsten_{}.zip", election_id.value()),
+            zip(&eml230c).await?,
         ),
         (
             format!("Verkiezingsdefinitie_{}.zip", election_id.value()),
@@ -100,7 +104,7 @@ async fn pdf_and_docx(model: &impl Pdf) -> Result<[(String, Vec<u8>); 2], AppErr
     ])
 }
 
-fn zip_response(filename: &str, files: Vec<(String, Vec<u8>)>) -> Result<Response, AppError> {
+fn zip_response(filename: &str, files: Files) -> Result<Response, AppError> {
     let headers = no_cache_headers::generate_attachment_headers(
         filename,
         HeaderValue::from_static(ZIP_CONTENT_TYPE),
