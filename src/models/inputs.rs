@@ -218,7 +218,7 @@ impl DetailedCandidate {
         let needs_representative = candidate.person.needs_representative();
         let (representative, postal_address) = if needs_representative {
             (
-                candidate.person.representative.as_ref().map(Person::from),
+                candidate.person.representative.as_deref().map(Person::from),
                 None,
             )
         } else {
@@ -444,7 +444,7 @@ mod tests {
     fn non_dutch_candidate_with_representative() {
         let mut candidate = sample_candidate(1);
         candidate.person.personal_data.country = Some(CountryCode::from_str("BE").unwrap());
-        candidate.person.representative = Some(Representative {
+        candidate.person.representative = Some(Box::new(Representative {
             name: FullName {
                 first_name: Some("Anne".parse().unwrap()),
                 last_name: LastName::from_str("Dijk").unwrap(),
@@ -459,7 +459,7 @@ mod tests {
                 locality: Some(Locality::from_str("Amsterdam").unwrap()),
                 known_in_bag: Some(true),
             },
-        });
+        }));
         let detailed_candidate = DetailedCandidate::try_from(&candidate, ModelLocale::Nl).unwrap();
 
         assert!(detailed_candidate.postal_address.is_none());

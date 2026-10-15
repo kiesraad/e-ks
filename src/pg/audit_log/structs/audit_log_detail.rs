@@ -409,7 +409,7 @@ mod tests {
     #[test]
     fn compute_create_event() {
         let person = sample_person(PersonId::new());
-        let events = vec![StoreEvent::new(1, PgEvent::CreatePerson(person))];
+        let events = vec![StoreEvent::new(1, PgEvent::CreatePerson(Box::new(person)))];
 
         let detail = AuditLogDetail::compute(&empty_state(), &events, 1, Locale::En).unwrap();
         assert_eq!(detail.event_id, 1);
@@ -431,8 +431,8 @@ mod tests {
         };
 
         let events = vec![
-            StoreEvent::new(1, PgEvent::CreatePerson(person)),
-            StoreEvent::new(2, PgEvent::UpdatePerson(updated_person)),
+            StoreEvent::new(1, PgEvent::CreatePerson(Box::new(person))),
+            StoreEvent::new(2, PgEvent::UpdatePerson(Box::new(updated_person))),
         ];
 
         let detail = AuditLogDetail::compute(&empty_state(), &events, 2, Locale::En).unwrap();
@@ -457,7 +457,7 @@ mod tests {
             first_name: Some("Updated".parse().unwrap()),
             ..person.name.clone()
         };
-        let events = vec![StoreEvent::new(2, PgEvent::UpdatePerson(updated))];
+        let events = vec![StoreEvent::new(2, PgEvent::UpdatePerson(Box::new(updated)))];
 
         let detail = AuditLogDetail::compute(&base, &events, 2, EN).unwrap();
         let change = detail
@@ -506,8 +506,8 @@ mod tests {
             Some(PlaceOfResidence::Known("Utrecht".to_string()));
 
         let events = vec![
-            StoreEvent::new(1, PgEvent::CreatePerson(person)),
-            StoreEvent::new(2, PgEvent::UpdatePerson(updated)),
+            StoreEvent::new(1, PgEvent::CreatePerson(Box::new(person))),
+            StoreEvent::new(2, PgEvent::UpdatePerson(Box::new(updated))),
         ];
 
         let detail = AuditLogDetail::compute(&empty_state(), &events, 2, EN).unwrap();
@@ -525,7 +525,7 @@ mod tests {
     #[test]
     fn compute_create_person_shows_user_facing_personal_data_values() {
         let person = sample_person(PersonId::new());
-        let events = vec![StoreEvent::new(1, PgEvent::CreatePerson(person))];
+        let events = vec![StoreEvent::new(1, PgEvent::CreatePerson(Box::new(person)))];
 
         let detail = AuditLogDetail::compute(&empty_state(), &events, 1, EN).unwrap();
         let value_of = |field: &str| {
@@ -552,7 +552,7 @@ mod tests {
         let person = sample_person(person_id);
 
         let events = vec![
-            StoreEvent::new(1, PgEvent::CreatePerson(person)),
+            StoreEvent::new(1, PgEvent::CreatePerson(Box::new(person))),
             StoreEvent::new(2, PgEvent::DeletePerson { person_id }),
         ];
 
@@ -603,7 +603,7 @@ mod tests {
         list.electoral_districts = BTreeSet::from([ElectoralDistrict::Groningen]);
 
         let events = vec![
-            StoreEvent::new(1, PgEvent::CreateCandidateList(list)),
+            StoreEvent::new(1, PgEvent::CreateCandidateList(Box::new(list))),
             StoreEvent::new(
                 2,
                 PgEvent::UpdateCandidateListDistricts {
@@ -643,10 +643,10 @@ mod tests {
         list.candidates = vec![p1_id, p2_id, p3_id];
 
         let events = vec![
-            StoreEvent::new(1, PgEvent::CreatePerson(p1)),
-            StoreEvent::new(2, PgEvent::CreatePerson(p2)),
-            StoreEvent::new(3, PgEvent::CreatePerson(p3)),
-            StoreEvent::new(4, PgEvent::CreateCandidateList(list)),
+            StoreEvent::new(1, PgEvent::CreatePerson(Box::new(p1))),
+            StoreEvent::new(2, PgEvent::CreatePerson(Box::new(p2))),
+            StoreEvent::new(3, PgEvent::CreatePerson(Box::new(p3))),
+            StoreEvent::new(4, PgEvent::CreateCandidateList(Box::new(list))),
             // Swap positions 0 and 1; position 2 unchanged.
             StoreEvent::new(
                 5,
@@ -697,8 +697,8 @@ mod tests {
         };
 
         let events = vec![
-            StoreEvent::new(1, PgEvent::CreatePerson(person)),
-            StoreEvent::new(2, PgEvent::UpdatePerson(updated)),
+            StoreEvent::new(1, PgEvent::CreatePerson(Box::new(person))),
+            StoreEvent::new(2, PgEvent::UpdatePerson(Box::new(updated))),
         ];
 
         let detail = AuditLogDetail::compute(&empty_state(), &events, 2, Locale::En).unwrap();
@@ -724,8 +724,8 @@ mod tests {
         list.candidates = vec![person_id];
 
         let events = vec![
-            StoreEvent::new(1, PgEvent::CreatePerson(person)),
-            StoreEvent::new(2, PgEvent::CreateCandidateList(list)),
+            StoreEvent::new(1, PgEvent::CreatePerson(Box::new(person))),
+            StoreEvent::new(2, PgEvent::CreateCandidateList(Box::new(list))),
             StoreEvent::new(
                 3,
                 PgEvent::RemoveCandidateFromCandidateList { list_id, person_id },
@@ -758,11 +758,11 @@ mod tests {
         let mut events: Vec<_> = persons
             .iter()
             .enumerate()
-            .map(|(i, p)| StoreEvent::new(i + 1, PgEvent::CreatePerson(p.clone())))
+            .map(|(i, p)| StoreEvent::new(i + 1, PgEvent::CreatePerson(Box::new(p.clone()))))
             .collect();
         events.push(StoreEvent::new(
             persons.len() + 1,
-            PgEvent::CreateCandidateList(list),
+            PgEvent::CreateCandidateList(Box::new(list)),
         ));
 
         let detail =
@@ -792,21 +792,21 @@ mod tests {
         let created_name = created.name.display();
 
         let events = vec![
-            StoreEvent::new(1, PgEvent::CreatePerson(existing.clone())),
+            StoreEvent::new(1, PgEvent::CreatePerson(Box::new(existing.clone()))),
             StoreEvent::new(
                 2,
-                PgEvent::CreateCandidateList(sample_candidate_list(list_id)),
+                PgEvent::CreateCandidateList(Box::new(sample_candidate_list(list_id))),
             ),
             StoreEvent::new(
                 3,
-                PgEvent::ImportCandidates {
+                PgEvent::ImportCandidates(Box::new(crate::projection::CandidateImport {
                     list_id,
                     file_name: "candidates.csv".to_string(),
                     file_size: 200,
                     created_persons: vec![created.clone()],
                     updated_persons: vec![existing.clone()],
                     candidates: vec![created.id, existing.id],
-                },
+                })),
             ),
         ];
 

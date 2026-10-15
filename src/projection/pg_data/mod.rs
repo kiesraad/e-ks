@@ -3,7 +3,7 @@ mod event;
 mod getters;
 mod problems;
 
-pub use event::PgEvent;
+pub use event::{CandidateImport, PgEvent};
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -70,19 +70,22 @@ impl StoreData for PgStoreData {
             | PgEvent::UpdateSubstituteSubmitter(_)
             | PgEvent::DeleteSubstituteSubmitter { .. }) => self.apply_submitter_event(event),
 
-            PgEvent::ImportCandidates {
-                list_id,
-                created_persons,
-                updated_persons,
-                candidates,
-                ..
-            } => self.apply_import_candidates_event(
-                list_id,
-                created_persons,
-                updated_persons,
-                candidates,
-                event_time,
-            ),
+            PgEvent::ImportCandidates(import) => {
+                let CandidateImport {
+                    list_id,
+                    created_persons,
+                    updated_persons,
+                    candidates,
+                    ..
+                } = *import;
+                self.apply_import_candidates_event(
+                    list_id,
+                    created_persons,
+                    updated_persons,
+                    candidates,
+                    event_time,
+                )
+            }
 
             // Only the serialized event is relevant for logging.
             PgEvent::DeveloperLogin { .. }
@@ -152,7 +155,7 @@ impl PgStoreData {
         match event {
             PgEvent::CreatePerson(mut person) => {
                 person.updated_at = event_time;
-                self.persons.insert(person.id, person);
+                self.persons.insert(person.id, *person);
             }
             PgEvent::CreatePersonPersonalData {
                 person_id,
@@ -161,8 +164,8 @@ impl PgStoreData {
             } => {
                 let person = Person {
                     id: person_id,
-                    name,
-                    personal_data,
+                    name: *name,
+                    personal_data: *personal_data,
                     updated_at: event_time,
                     ..Default::default()
                 };
@@ -179,7 +182,7 @@ impl PgStoreData {
                 person.updated_at = event_time;
                 let person_id = person.id;
                 self.persons.entry(person_id).and_modify(|existing| {
-                    *existing = person;
+                    *existing = *person;
                 });
             }
             PgEvent::UpdatePersonPersonalData {
@@ -188,14 +191,14 @@ impl PgStoreData {
                 personal_data,
             } => {
                 self.persons.entry(person_id).and_modify(|existing| {
-                    existing.name = name;
-                    existing.personal_data = personal_data;
+                    existing.name = *name;
+                    existing.personal_data = *personal_data;
                     existing.updated_at = event_time;
                 });
             }
             PgEvent::UpdatePersonAddress { person_id, address } => {
                 self.persons.entry(person_id).and_modify(|existing| {
-                    existing.address = address;
+                    existing.address = *address;
                     existing.updated_at = event_time;
                 });
             }
@@ -217,7 +220,7 @@ impl PgStoreData {
         match event {
             PgEvent::CreateCandidateList(mut cl) => {
                 cl.created_at = event_time;
-                self.candidate_lists.insert(cl.id, cl);
+                self.candidate_lists.insert(cl.id, *cl);
             }
             PgEvent::UpdateCandidateListDistricts {
                 list_id,
@@ -258,14 +261,14 @@ impl PgStoreData {
     fn apply_name_authorisation_event(&mut self, event: PgEvent) {
         match event {
             PgEvent::CreateNameAuthorisation(aa) => {
-                self.name_authorisations.insert(aa.id, aa);
+                self.name_authorisations.insert(aa.id, *aa);
             }
             PgEvent::UpdateNameAuthorisation(aa) => {
                 let aa_id = aa.id;
                 self.name_authorisations
                     .entry(aa_id)
                     .and_modify(|existing| {
-                        *existing = aa;
+                        *existing = *aa;
                     });
             }
             PgEvent::DeleteNameAuthorisation(aa_id) => {
@@ -281,10 +284,10 @@ impl PgStoreData {
     fn apply_submitter_event(&mut self, event: PgEvent) {
         match event {
             PgEvent::UpdateListSubmitter(ls) => {
-                self.list_submitter = ls;
+                self.list_submitter = *ls;
             }
             PgEvent::CreateSubstituteSubmitter(ss) => {
-                self.substitute_submitters.push(ss);
+                self.substitute_submitters.push(*ss);
             }
             PgEvent::UpdateSubstituteSubmitter(ss) => {
                 let ss_id = ss.id;
@@ -293,7 +296,7 @@ impl PgStoreData {
                     .iter_mut()
                     .find(|existing| existing.id == ss_id)
                 {
-                    *existing = ss;
+                    *existing = *ss;
                 }
             }
             PgEvent::DeleteSubstituteSubmitter {
@@ -408,7 +411,7 @@ mod tests {
             1,
             PgEvent::UpdatePersonAddress {
                 person_id,
-                address: new_address.clone(),
+                address: Box::new(new_address.clone()),
             },
             event_time,
         ));
@@ -430,7 +433,7 @@ mod tests {
             1,
             PgEvent::UpdatePersonRepresentative {
                 person_id,
-                representative: Some(representative.clone()),
+                representative: Some(Box::new(representative.clone())),
             },
             event_time,
         ));
@@ -454,7 +457,7 @@ mod tests {
         let created_at = Utc::now() - Duration::seconds(60);
         data.apply(StoreEvent::new_at(
             1,
-            PgEvent::CreateCandidateList(list.clone()),
+            PgEvent::CreateCandidateList(Box::new(list.clone())),
             created_at,
         ));
 
@@ -495,12 +498,12 @@ mod tests {
 
         data.apply(StoreEvent::new_at(
             1,
-            PgEvent::CreateCandidateList(list_with),
+            PgEvent::CreateCandidateList(Box::new(list_with)),
             base_time - Duration::seconds(50),
         ));
         data.apply(StoreEvent::new_at(
             2,
-            PgEvent::CreateCandidateList(list_without),
+            PgEvent::CreateCandidateList(Box::new(list_without)),
             base_time - Duration::seconds(40),
         ));
 
@@ -537,7 +540,7 @@ mod tests {
 
         data.apply(StoreEvent::new_at(
             1,
-            PgEvent::CreateCandidateList(list),
+            PgEvent::CreateCandidateList(Box::new(list)),
             base_time - Duration::seconds(45),
         ));
 
@@ -563,7 +566,7 @@ mod tests {
 
         data.apply(StoreEvent::new_at(
             1,
-            PgEvent::CreateCandidateList(list),
+            PgEvent::CreateCandidateList(Box::new(list)),
             base_time - Duration::seconds(50),
         ));
 
@@ -598,7 +601,7 @@ mod tests {
 
         data.apply(StoreEvent::new_at(
             1,
-            PgEvent::CreateCandidateList(list),
+            PgEvent::CreateCandidateList(Box::new(list)),
             base_time - Duration::seconds(40),
         ));
 
@@ -636,8 +639,8 @@ mod tests {
         let person_a = PersonId::new();
         let person_b = PersonId::new();
         let events = vec![
-            StoreEvent::new(1, PgEvent::CreatePerson(sample_person(person_a))),
-            StoreEvent::new(2, PgEvent::CreatePerson(sample_person(person_b))),
+            StoreEvent::new(1, PgEvent::CreatePerson(Box::new(sample_person(person_a)))),
+            StoreEvent::new(2, PgEvent::CreatePerson(Box::new(sample_person(person_b)))),
             StoreEvent::new(
                 3,
                 PgEvent::DeletePerson {
@@ -664,8 +667,8 @@ mod tests {
         let person_a = PersonId::new();
         let person_b = PersonId::new();
         let events = vec![
-            StoreEvent::new(1, PgEvent::CreatePerson(sample_person(person_a))),
-            StoreEvent::new(2, PgEvent::CreatePerson(sample_person(person_b))),
+            StoreEvent::new(1, PgEvent::CreatePerson(Box::new(sample_person(person_a)))),
+            StoreEvent::new(2, PgEvent::CreatePerson(Box::new(sample_person(person_b)))),
         ];
 
         // Stopping at event 1 leaves the later creation out of the snapshot.
@@ -1043,7 +1046,7 @@ mod tests {
 
             let old_cipher = StreamKey::generate().cipher();
             let created_at = Utc::now();
-            let event = PgEvent::CreatePerson(sample_person(PersonId::new()));
+            let event = PgEvent::CreatePerson(Box::new(sample_person(PersonId::new())));
             let payload = old_cipher.encrypt(&event, &event_aad(1, created_at, &GENESIS_HASH))?;
             let hash = chain_hash(&GENESIS_HASH, 1, created_at, &payload);
             sqlx::query(

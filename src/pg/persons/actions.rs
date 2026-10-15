@@ -23,8 +23,8 @@ impl Person {
         store
             .update(PgEvent::CreatePersonPersonalData {
                 person_id,
-                name,
-                personal_data,
+                name: Box::new(name),
+                personal_data: Box::new(personal_data),
             })
             .await?;
 
@@ -40,8 +40,8 @@ impl Person {
         store
             .update(PgEvent::UpdatePersonPersonalData {
                 person_id: self.id,
-                name: name.clone(),
-                personal_data: personal_data.clone(),
+                name: Box::new(name.clone()),
+                personal_data: Box::new(personal_data.clone()),
             })
             .await?;
 
@@ -49,11 +49,15 @@ impl Person {
     }
 
     pub async fn create(&self, store: &PgStore) -> Result<(), AppError> {
-        store.update(PgEvent::CreatePerson(self.clone())).await
+        store
+            .update(PgEvent::CreatePerson(Box::new(self.clone())))
+            .await
     }
 
     pub async fn update(&self, store: &PgStore) -> Result<(), AppError> {
-        store.update(PgEvent::UpdatePerson(self.clone())).await
+        store
+            .update(PgEvent::UpdatePerson(Box::new(self.clone())))
+            .await
     }
 
     pub async fn update_representative(
@@ -64,7 +68,7 @@ impl Person {
         store
             .update(PgEvent::UpdatePersonRepresentative {
                 person_id: self.id,
-                representative,
+                representative: representative.map(Box::new),
             })
             .await
     }
@@ -88,7 +92,7 @@ impl Person {
         store
             .update(PgEvent::UpdatePersonAddress {
                 person_id: self.id,
-                address,
+                address: Box::new(address),
             })
             .await
     }

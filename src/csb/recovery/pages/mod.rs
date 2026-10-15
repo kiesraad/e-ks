@@ -581,9 +581,9 @@ mod tests {
         // add a name authorisation
         store
             .update(CsbAction::PaperCorrectedUpdate(Box::new(
-                PgEvent::CreateNameAuthorisation(sample_name_authorisation(
+                PgEvent::CreateNameAuthorisation(Box::new(sample_name_authorisation(
                     NameAuthorisationId::new(),
-                )),
+                ))),
             )))
             .await
             .expect("Create name authorisation");
