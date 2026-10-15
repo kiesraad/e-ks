@@ -20,9 +20,9 @@ use crate::{
 };
 
 /// Collect the store data the I 4 model needs.
-async fn i4_model<S: AppRequestState>(
-    context: CsbContext,
-    main_store: CsbMainStore,
+pub(in crate::csb::finalise::pages) async fn i4_model<S: AppRequestState>(
+    context: &CsbContext,
+    main_store: &CsbMainStore,
     state: &S,
     is_draft: bool,
 ) -> Result<I4, AppError> {
@@ -85,7 +85,7 @@ pub async fn gen_i4_final<S: AppRequestState>(
     main_store: CsbMainStore,
     State(state): State<S>,
 ) -> Result<Response, AppError> {
-    i4_model(context, main_store, &state, false)
+    i4_model(&context, &main_store, &state, false)
         .await?
         .pdf_response()
         .await
@@ -98,7 +98,7 @@ pub async fn gen_i4_final_docx<S: AppRequestState>(
     main_store: CsbMainStore,
     State(state): State<S>,
 ) -> Result<Response, AppError> {
-    i4_model(context, main_store, &state, false)
+    i4_model(&context, &main_store, &state, false)
         .await?
         .docx_response()
         .await
@@ -110,7 +110,7 @@ pub async fn gen_i4_draft<S: AppRequestState>(
     main_store: CsbMainStore,
     State(state): State<S>,
 ) -> Result<Response, AppError> {
-    i4_model(context, main_store, &state, true)
+    i4_model(&context, &main_store, &state, true)
         .await?
         .pdf_response()
         .await
@@ -123,7 +123,7 @@ pub async fn gen_i4_draft_docx<S: AppRequestState>(
     main_store: CsbMainStore,
     State(state): State<S>,
 ) -> Result<Response, AppError> {
-    i4_model(context, main_store, &state, true)
+    i4_model(&context, &main_store, &state, true)
         .await?
         .docx_response()
         .await
@@ -192,7 +192,7 @@ mod tests {
             )
             .await?;
 
-        let model = i4_model(context, main_store, &state, false).await?;
+        let model = i4_model(&context, &main_store, &state, false).await?;
 
         assert_eq!(model.public_session.date, "09-04-2027");
         assert_eq!(model.public_session.time, "10:15");
@@ -222,7 +222,7 @@ mod tests {
             )
             .await?;
 
-        let model = i4_model(context, main_store, &state, false).await?;
+        let model = i4_model(&context, &main_store, &state, false).await?;
 
         let configured = ElectionConfig::EK27.public_session();
         assert_eq!(model.public_session.date, configured.formatted_date());
@@ -322,7 +322,7 @@ mod tests {
             )
             .await?;
 
-        let model = i4_model(context, main_store, &state, false).await?;
+        let model = i4_model(&context, &main_store, &state, false).await?;
 
         let on_votes: Vec<_> = model
             .numbered_based_on_votes
@@ -365,14 +365,14 @@ mod tests {
         assert_eq!(main_store.list_order_events(), 0);
 
         let numbered = [(Some(1), "Eerste"), (Some(2), "Tweede")];
-        let model = i4_model(CsbContext::new_test(), main_store.clone(), &state, false).await?;
+        let model = i4_model(&CsbContext::new_test(), &main_store.clone(), &state, false).await?;
         assert_eq!(by_lot(&model), numbered);
         assert_eq!(main_store.list_order_events(), 1);
         assert_eq!(main_store.list_order(), [first, second]);
 
-        let model = i4_model(CsbContext::new_test(), main_store.clone(), &state, false).await?;
+        let model = i4_model(&CsbContext::new_test(), &main_store.clone(), &state, false).await?;
         assert_eq!(by_lot(&model), numbered);
-        let model = i4_model(CsbContext::new_test(), main_store.clone(), &state, true).await?;
+        let model = i4_model(&CsbContext::new_test(), &main_store.clone(), &state, true).await?;
         assert_eq!(by_lot(&model), numbered);
         assert_eq!(main_store.list_order_events(), 1);
 
@@ -388,8 +388,8 @@ mod tests {
         seed_group(&state, "Tweede").await;
         let main_store = CsbMainStore::new_for_test();
 
-        i4_model(CsbContext::new_test(), main_store.clone(), &state, true).await?;
-        let model = i4_model(CsbContext::new_test(), main_store.clone(), &state, true).await?;
+        i4_model(&CsbContext::new_test(), &main_store.clone(), &state, true).await?;
+        let model = i4_model(&CsbContext::new_test(), &main_store.clone(), &state, true).await?;
 
         assert_eq!(by_lot(&model), [(None, "Eerste"), (None, "Tweede")]);
         assert_eq!(main_store.list_order_events(), 0);

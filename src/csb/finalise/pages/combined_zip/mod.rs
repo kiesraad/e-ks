@@ -1,34 +1,121 @@
-use axum::{extract::State, response::IntoResponse};
+use axum::{
+    body::Body,
+    extract::State,
+    http::HeaderValue,
+    response::{IntoResponse, Response},
+};
+use tokio::io::{AsyncWrite, duplex};
+use tokio_util::io::ReaderStream;
 
 use crate::{
     AppError, AppRequestState, CsbContext, CsbMainStore,
+    core::ZipResponseWriter,
     csb::finalise::{
         pages::combined_zip::{
             candidate_list_overview::candidate_list_overview_model,
             candidate_list_per_district::candidate_list_per_district_model,
-            candidate_list_publication::candidate_list_publication_model,
+            candidate_list_publication::candidate_list_publication_model, eml::eml230_files,
         },
+        pages::i4::i4_model,
         paths::CsbFinalZipDownloadPath,
     },
+    models::{Pdf, documents::ZIP_CONTENT_TYPE},
+    utils::no_cache_headers,
 };
 
 mod candidate_list_overview;
 mod candidate_list_per_district;
 mod candidate_list_publication;
-mod eml_zip;
+mod eml;
 
+/// All finalisation documents in one ZIP available on the CSB finalise page
 pub async fn download_final_zip<S: AppRequestState>(
     _: CsbFinalZipDownloadPath,
     context: CsbContext,
     main_store: CsbMainStore,
     State(state): State<S>,
-) -> Result<impl IntoResponse, AppError> {
-    let candidate_list_publication =
-        candidate_list_publication_model(&context, &main_store, &state).await?;
-    let candidate_list_per_district =
-        candidate_list_per_district_model(&context, &main_store, &state).await?;
-    let candidate_list_overview =
-        candidate_list_overview_model(&context, &main_store, &state).await?;
+) -> Result<Response, AppError> {
+    let files = final_files(&context, &main_store, &state).await?;
+    let filename = format!(
+        "afronding-kandidaatstellen-{}.zip",
+        main_store.election.filename_slug()
+    );
 
-    Ok("Handler is bereikbaar")
+    zip_response(&filename, files)
+}
+
+/// The filenames of the final documents, along with the raw bytes that represent them
+async fn final_files<S: AppRequestState>(
+    context: &CsbContext,
+    main_store: &CsbMainStore,
+    state: &S,
+) -> Result<Vec<(String, Vec<u8>)>, AppError> {
+    let mut lists_per_district = Vec::new();
+    for model in candidate_list_per_district_model(context, main_store, state).await? {
+        lists_per_district.extend(pdf_and_docx(&model).await?);
+    }
+    let eml = eml230_files(context, state.csb_store_registry(), main_store).await?;
+
+    let mut files = vec![
+        (
+            "overzicht-kandidatenlijsten.zip".to_string(),
+            zip(&lists_per_district).await?,
+        ),
+        (
+            format!("eml-{}.zip", main_store.election.filename_slug()),
+            zip(&eml).await?,
+        ),
+    ];
+    files.extend(
+        pdf_and_docx(&candidate_list_publication_model(context, main_store, state).await?).await?,
+    );
+    files.extend(
+        pdf_and_docx(&candidate_list_overview_model(context, main_store, state).await?).await?,
+    );
+    files.extend(pdf_and_docx(&i4_model(context, main_store, state, false).await?).await?);
+
+    Ok(files)
+}
+
+/// `model` rendered as PDF and as Word document
+async fn pdf_and_docx(model: &impl Pdf) -> Result<[(String, Vec<u8>); 2], AppError> {
+    Ok([
+        (model.filename(), model.generate_bytes().await?),
+        (model.docx_filename(), model.generate_docx_bytes().await?),
+    ])
+}
+
+fn zip_response(filename: &str, files: Vec<(String, Vec<u8>)>) -> Result<Response, AppError> {
+    let headers = no_cache_headers::generate_attachment_headers(
+        filename,
+        HeaderValue::from_static(ZIP_CONTENT_TYPE),
+    )?;
+
+    let (reader, writer) = duplex(64 * 1024);
+    tokio::spawn(async move {
+        if let Err(err) = write_zip(&files, writer).await {
+            tracing::error!(error = ?err, "failed to stream ZIP");
+        }
+    });
+
+    Ok((headers, Body::from_stream(ReaderStream::new(reader))).into_response())
+}
+
+async fn zip(files: &[(String, Vec<u8>)]) -> Result<Vec<u8>, AppError> {
+    let mut buffer = Vec::new();
+    write_zip(files, &mut buffer).await?;
+
+    Ok(buffer)
+}
+
+async fn write_zip(
+    files: &[(String, Vec<u8>)],
+    writer: impl AsyncWrite + Unpin,
+) -> Result<(), AppError> {
+    let mut zipper = ZipResponseWriter::new(writer);
+    for (name, bytes) in files {
+        zipper.add_file(name, bytes).await?;
+    }
+
+    zipper.finish().await
 }
