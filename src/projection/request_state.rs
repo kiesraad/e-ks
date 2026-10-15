@@ -20,7 +20,8 @@ pub trait AppRequestState: Clone + Send + Sync + 'static {
     /// Derives the per-user stream id from an authenticated identity.
     fn id_deriver(&self) -> &IdDeriver;
 
-    /// One-shot request ids with a TTL (SAML `InResponseTo`, OAuth `state`).
+    /// One-shot request ids with a TTL (SAML `InResponseTo`, WebAuthn
+    /// challenges).
     fn pending_requests(&self) -> &PendingRequestStore;
 
     /// Registry for the per-import CSB stores.

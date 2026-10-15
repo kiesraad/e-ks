@@ -3,6 +3,10 @@
 /// The authenticated identity behind a CSB (committee) session.
 pub mod csb_user;
 
+/// The CSB security-key (WebAuthn) login mechanism: challenge lifecycle and
+/// assertion verification.
+pub(crate) mod csb_webauthn;
+
 /// BSN-based identifier derivation using HKDF-SHA256.
 pub mod derive_id;
 

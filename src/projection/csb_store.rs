@@ -296,9 +296,8 @@ mod tests {
 
     #[tokio::test]
     async fn update_records_the_acting_user() -> Result<(), AppError> {
-        let user = CsbUser::Github {
-            user_id: "42".parse().expect("valid id"),
-            login: "octocat".parse().expect("valid login"),
+        let user = CsbUser::SecurityKey {
+            username: "bob".parse().expect("valid username"),
         };
         let store = CsbStore::acting_as(CsbStream::new_for_test(), user.clone());
 

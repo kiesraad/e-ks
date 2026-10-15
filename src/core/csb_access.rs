@@ -1,20 +1,11 @@
 //! Access guards for the CSB section, loaded from environment variables into
 //! [`Config`](crate::Config): the peer-address allow list and the hours in
-//! which committee activity raises an alert, plus the throttle that keeps
-//! that alert from repeating on every request.
+//! which committee activity raises an alert.
 
-use std::{
-    collections::{HashMap, hash_map::Entry},
-    hash::Hash,
-    net::IpAddr,
-    str::FromStr,
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{net::IpAddr, str::FromStr};
 
 use chrono::NaiveTime;
 use ipnet::IpNet;
-use parking_lot::Mutex;
 
 use crate::AppError;
 
@@ -122,39 +113,6 @@ impl CsbAlertHours {
     }
 }
 
-/// Suppresses repeats of an alert for the same key within an interval, so a
-/// working session raises it once rather than on every request. Shared by
-/// the clones of one `AppState`, so both listeners count as one.
-#[derive(Debug, Clone)]
-pub struct AlertThrottle<K> {
-    interval: Duration,
-    last_raised: Arc<Mutex<HashMap<K, Instant>>>,
-}
-
-impl<K: Hash + Eq> AlertThrottle<K> {
-    pub fn new(interval: Duration) -> Self {
-        Self {
-            interval,
-            last_raised: Arc::default(),
-        }
-    }
-
-    /// Whether the alert for `key` may be raised at `now`: once per interval,
-    /// recording the time when it may. Expired entries are dropped on the way,
-    /// so the map holds only the keys alerted on within the last interval.
-    pub fn allows(&self, key: K, now: Instant) -> bool {
-        let mut last_raised = self.last_raised.lock();
-        last_raised.retain(|_, raised| now.duration_since(*raised) < self.interval);
-        match last_raised.entry(key) {
-            Entry::Occupied(_) => false,
-            Entry::Vacant(entry) => {
-                entry.insert(now);
-                true
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -234,18 +192,6 @@ mod tests {
         assert!(hours.contains(time("16:59")));
         assert!(!hours.contains(time("17:00")));
         assert!(!hours.contains(time("08:59")));
-    }
-
-    #[test]
-    fn throttle_allows_once_per_key_and_interval() {
-        let throttle = AlertThrottle::new(Duration::from_secs(60));
-        let start = Instant::now();
-
-        assert!(throttle.allows("a", start));
-        assert!(!throttle.allows("a", start + Duration::from_secs(59)));
-        assert!(throttle.allows("b", start));
-        assert!(throttle.allows("a", start + Duration::from_secs(60)));
-        assert!(!throttle.allows("a", start + Duration::from_secs(61)));
     }
 
     #[test]

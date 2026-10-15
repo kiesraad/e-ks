@@ -14,8 +14,11 @@
 //! reason.
 
 use std::{
+    collections::{HashMap, hash_map::Entry},
+    hash::Hash,
     net::{IpAddr, SocketAddr},
-    time::Instant,
+    sync::Arc,
+    time::{Duration, Instant},
 };
 
 use axum::{
@@ -25,9 +28,10 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use chrono::Utc;
+use parking_lot::Mutex;
 use tracing::warn;
 
-use crate::{AppState, Session, SessionUser, constants::DEFAULT_TIMEZONE};
+use crate::{AppState, Session, SessionUser, constants::DEFAULT_TIMEZONE, utils::peer_ip_label};
 
 /// The connection's peer address, recorded by the server through
 /// `into_make_service_with_connect_info`.
@@ -36,11 +40,6 @@ fn peer_ip(request: &Request) -> Option<IpAddr> {
         .extensions()
         .get::<ConnectInfo<SocketAddr>>()
         .map(|ConnectInfo(addr)| addr.ip())
-}
-
-/// The peer address for a log field; `unknown` when none was recorded.
-fn peer_ip_label(request: &Request) -> String {
-    peer_ip(request).map_or_else(|| "unknown".to_string(), |ip| ip.to_string())
 }
 
 /// Refuses requests whose peer address is not on the allow list with `403`.
@@ -61,7 +60,7 @@ pub async fn csb_ip_allow_list_middleware(
 
     warn!(
         event = "csb.ip_denied",
-        ip = %peer_ip_label(&request),
+        ip = %peer_ip_label(peer_ip(&request)),
         method = %request.method(),
         path = %request.uri().path(),
         "request from an IP outside the CSB allow list refused"
@@ -93,12 +92,45 @@ pub(super) fn report_alert_hours_activity(state: &AppState, session: &Session, r
     warn!(
         event = "csb.alert_hours_activity",
         user = ?user,
-        ip = %peer_ip_label(request),
+        ip = %peer_ip_label(peer_ip(request)),
         method = %request.method(),
         path = %request.uri().path(),
         local_time = %now.format("%H:%M"),
         "CSB user active within the alert hours"
     );
+}
+
+/// Suppresses repeats of an alert for the same key within an interval, so a
+/// working session raises it once rather than on every request. Shared by
+/// the clones of one `AppState`, so both listeners count as one.
+#[derive(Debug, Clone)]
+pub struct AlertThrottle<K> {
+    interval: Duration,
+    last_raised: Arc<Mutex<HashMap<K, Instant>>>,
+}
+
+impl<K: Hash + Eq> AlertThrottle<K> {
+    pub fn new(interval: Duration) -> Self {
+        Self {
+            interval,
+            last_raised: Arc::default(),
+        }
+    }
+
+    /// Whether the alert for `key` may be raised at `now`: once per interval,
+    /// recording the time when it may. Expired entries are dropped on the way,
+    /// so the map holds only the keys alerted on within the last interval.
+    pub fn allows(&self, key: K, now: Instant) -> bool {
+        let mut last_raised = self.last_raised.lock();
+        last_raised.retain(|_, raised| now.duration_since(*raised) < self.interval);
+        match last_raised.entry(key) {
+            Entry::Occupied(_) => false,
+            Entry::Vacant(entry) => {
+                entry.insert(now);
+                true
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -296,5 +328,17 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         assert!(!logs_contain("csb.alert_hours_activity"));
+    }
+
+    #[test]
+    fn throttle_allows_once_per_key_and_interval() {
+        let throttle = AlertThrottle::new(Duration::from_secs(60));
+        let start = Instant::now();
+
+        assert!(throttle.allows("a", start));
+        assert!(!throttle.allows("a", start + Duration::from_secs(59)));
+        assert!(throttle.allows("b", start));
+        assert!(throttle.allows("a", start + Duration::from_secs(60)));
+        assert!(!throttle.allows("a", start + Duration::from_secs(61)));
     }
 }

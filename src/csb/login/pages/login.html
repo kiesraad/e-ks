@@ -6,7 +6,24 @@
       <h2>{{ "csb.auth.start.title"|trans }}</h2>
       {% if show_error %}<div class="alert alert-error">{{ "csb.auth.error.message"|trans }}</div>{% endif %}
       <p>{{ "csb.auth.start.intro"|trans }}</p>
-      <a href="{{ crate::csb::login::CsbLoginStartPath }}" class="button">{{ "csb.auth.button.github"|trans }}</a>
+      <p>{{ "csb.auth.ceremony.intro"|trans }}</p>
+      <form method="post"
+            action="{{ crate::csb::login::CsbLoginFinishPath }}"
+            class="form"
+            data-webauthn-options="{{ options }}"
+            {% if show_error %}data-webauthn-autostart="false"{% endif %}>
+        <input type="hidden" name="credential" value="">
+        <noscript>
+          <div class="alert alert-error">{{ "csb.auth.ceremony.unsupported"|trans }}</div>
+        </noscript>
+        <div class="alert alert-error hidden" data-webauthn-unsupported>{{ "csb.auth.ceremony.unsupported"|trans }}</div>
+        <div class="alert alert-error hidden" data-webauthn-error>{{ "csb.auth.ceremony.failed"|trans }}</div>
+        <p class="mt-md">
+          <button type="button"
+                  class="button{% if !show_error %} hidden{% endif %}"
+                  data-webauthn-retry>{{ "csb.auth.ceremony.retry"|trans }}</button>
+        </p>
+      </form>
     </div>
   </main>
 {% endblock %}

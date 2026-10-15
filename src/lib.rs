@@ -133,8 +133,8 @@ pub(crate) use auth::{
 #[cfg(feature = "tls")]
 pub(crate) use core::TlsConfig;
 pub(crate) use core::{
-    AnyLocale, ElectionConfig, ElectionType, ElectoralDistrict, GithubLogin, GithubOauthConfig,
-    GithubUserId, HtmlTemplate, Locale, LocaleValues, Province, RateLimit, RateLimits, Scope,
+    AnyLocale, CredentialId, CsbUsername, CsbWebauthnConfig, ElectionConfig, ElectionType,
+    ElectoralDistrict, HtmlTemplate, Locale, LocaleValues, Province, RateLimit, RateLimits, Scope,
     WaterCouncil,
     constants::{self, MAX_CANDIDATES},
     http_trace, translate,
