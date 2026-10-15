@@ -75,7 +75,7 @@ fn i1_found_omissions() -> Vec<OmissionGroup> {
 fn i1_example(found_omissions: Vec<OmissionGroup>) -> I1 {
     I1 {
         election_name: "de Eerste Kamer der Staten-Generaal".to_string(),
-        election_date: "24-05-2027".to_string(),
+        election_date: "27-05-2027".to_string(),
         session: i1_session(),
         submitted_lists: i1_submitted_lists(),
         found_omissions,

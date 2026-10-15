@@ -97,7 +97,7 @@ textris-pdf = { version = "0.11.1", features = ["docx"] }
 bagatel = "0.8.3"
 
 # kiesraad
-eml-nl = { git = "https://github.com/kiesraad/rust-eml-nl", branch = "shortcode-refs" }
+eml-nl = "0.8.1"
 
 # dev-dependencies
 futures-lite = { version = "2.1.0", default-features = false, features = ["std"] }

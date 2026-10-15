@@ -219,7 +219,7 @@ fn i4_example(
 ) -> I4 {
     I4 {
         election_name: "de Eerste Kamer der Staten-Generaal".to_string(),
-        election_date: "24-05-2027".to_string(),
+        election_date: "27-05-2027".to_string(),
         public_session: i4_public_session(),
         found_omissions: i4_found_omissions(),
         recovered_omissions: i4_recovered_omissions(),
