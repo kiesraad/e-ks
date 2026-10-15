@@ -2,15 +2,21 @@ use std::num::NonZeroU64;
 
 use eks_utils::slugify_teletex;
 use eml_nl::utils::ElectionId;
+use sha2::{Digest, Sha256};
 
 use crate::{
     AppError, CsbContext, CsbMainStore, CsbStoreData, CsbStream, ElectionConfig, ElectoralDistrict,
-    csb::{examination::extractors::CsbPoliticalGroup, finalise::numbering::ListNumbering},
+    csb::{
+        examination::extractors::CsbPoliticalGroup,
+        finalise::{numbering::ListNumbering, pages::combined_zip::Files},
+    },
     models::eml::{
+        eml110a::eml110a,
         eml230b::{contests, eml230b},
         eml230c::eml230c,
     },
     store::StoreRegistry,
+    utils::format_hash,
 };
 
 /// One EML 230b file per district, and the EML 230c for the whole election
@@ -91,6 +97,31 @@ fn eml230c_filename(election: &ElectionConfig) -> Result<String, AppError> {
         "Totaallijsten_{}.eml.xml",
         ElectionId::try_from(*election)?.value()
     ))
+}
+
+pub(super) fn eml110a_files(main_store: &CsbMainStore) -> Result<Files, AppError> {
+    let election_id = ElectionId::try_from(main_store.election)?;
+
+    let eml110a = eml110a(
+        &main_store.election,
+        &main_store.registered_political_groups(),
+    )?;
+
+    let hash = Sha256::digest(&eml110a);
+
+    Ok(vec![
+        (
+            format!("Verkiezingsdefinitie_{}.eml.xml", election_id.value()),
+            eml110a,
+        ),
+        (
+            format!(
+                "Verkiezingsdefinitie_{}.eml.xml.hashcode.txt",
+                election_id.value()
+            ),
+            format_hash(&hash, false).as_bytes().to_vec(),
+        ),
+    ])
 }
 
 #[cfg(test)]

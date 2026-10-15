@@ -48,9 +48,15 @@ impl Objection {
 pub struct CsbFinalZipDownloadPath;
 
 #[derive(TypedPath)]
-#[typed_path("/csb/finalise/concept_i4.pdf", rejection(AppError))]
+#[typed_path(
+    "/csb/finalise/Model_I4_proces_verbaal_concept.pdf",
+    rejection(AppError)
+)]
 pub struct CsbI4DraftDownloadPath;
 
 #[derive(TypedPath)]
-#[typed_path("/csb/finalise/concept_i4.docx", rejection(AppError))]
+#[typed_path(
+    "/csb/finalise/Model_I4_proces_verbaal_concept.docx",
+    rejection(AppError)
+)]
 pub struct CsbI4DraftDocxDownloadPath;

@@ -30,6 +30,6 @@ impl Pdf for CandidateListPerDistrict {
     }
 
     fn filename(&self) -> String {
-        format!("kandidatenlijst-{}.pdf", self.electoral_district)
+        format!("Kandidatenlijst_{}.pdf", self.electoral_district)
     }
 }

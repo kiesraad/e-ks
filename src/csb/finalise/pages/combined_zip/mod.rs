@@ -4,6 +4,7 @@ use axum::{
     http::HeaderValue,
     response::{IntoResponse, Response},
 };
+use eml_nl::utils::ElectionId;
 use tokio::io::{AsyncWrite, duplex};
 use tokio_util::io::ReaderStream;
 
@@ -11,12 +12,15 @@ use crate::{
     AppError, AppRequestState, CsbContext, CsbMainStore,
     core::ZipResponseWriter,
     csb::finalise::{
-        pages::combined_zip::{
-            candidate_list_overview::candidate_list_overview_model,
-            candidate_list_per_district::candidate_list_per_district_model,
-            candidate_list_publication::candidate_list_publication_model, eml::eml230_files,
+        pages::{
+            combined_zip::{
+                candidate_list_overview::candidate_list_overview_model,
+                candidate_list_per_district::candidate_list_per_district_model,
+                candidate_list_publication::candidate_list_publication_model,
+                eml::{eml110a_files, eml230_files},
+            },
+            i4::i4_model,
         },
-        pages::i4::i4_model,
         paths::CsbFinalZipDownloadPath,
     },
     models::{Pdf, documents::ZIP_CONTENT_TYPE},
@@ -26,7 +30,10 @@ use crate::{
 mod candidate_list_overview;
 mod candidate_list_per_district;
 mod candidate_list_publication;
+// mod election_definition;
 mod eml;
+
+pub(self) type Files = Vec<(String, Vec<u8>)>;
 
 /// All finalisation documents in one ZIP available on the CSB finalise page
 pub async fn download_final_zip<S: AppRequestState>(
@@ -50,22 +57,30 @@ async fn final_files<S: AppRequestState>(
     main_store: &CsbMainStore,
     state: &S,
 ) -> Result<Vec<(String, Vec<u8>)>, AppError> {
+    let election_id = ElectionId::try_from(main_store.election)?;
+
     let mut lists_per_district = Vec::new();
     for model in candidate_list_per_district_model(context, main_store, state).await? {
         lists_per_district.extend(pdf_and_docx(&model).await?);
     }
-    let eml = eml230_files(context, state.csb_store_registry(), main_store).await?;
+    let eml230 = eml230_files(context, state.csb_store_registry(), main_store).await?;
+    let eml110a = eml110a_files(main_store)?;
 
     let mut files = vec![
         (
-            "overzicht-kandidatenlijsten.zip".to_string(),
+            "Overzicht_Kandidatenlijsten.zip".to_string(),
             zip(&lists_per_district).await?,
         ),
         (
             format!("eml-{}.zip", main_store.election.filename_slug()),
-            zip(&eml).await?,
+            zip(&eml230).await?,
+        ),
+        (
+            format!("Verkiezingsdefinitie_{}.zip", election_id.value()),
+            zip(&eml110a).await?,
         ),
     ];
+
     files.extend(
         pdf_and_docx(&candidate_list_publication_model(context, main_store, state).await?).await?,
     );
@@ -101,7 +116,7 @@ fn zip_response(filename: &str, files: Vec<(String, Vec<u8>)>) -> Result<Respons
     Ok((headers, Body::from_stream(ReaderStream::new(reader))).into_response())
 }
 
-async fn zip(files: &[(String, Vec<u8>)]) -> Result<Vec<u8>, AppError> {
+async fn zip(files: &Files) -> Result<Vec<u8>, AppError> {
     let mut buffer = Vec::new();
     write_zip(files, &mut buffer).await?;
 

@@ -60,6 +60,6 @@ impl Pdf for CandidateListPublication {
     }
 
     fn filename(&self) -> String {
-        "publicatie-kandidatenlijsten.pdf".to_string()
+        "Publicatie_Kandidatenlijsten.pdf".to_string()
     }
 }

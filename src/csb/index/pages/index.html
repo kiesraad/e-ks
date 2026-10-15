@@ -3,11 +3,14 @@
   {% let election = "election"|election_value %}
   {{ (&election)|election_title }}
 {% endblock %}
+<<<<<<< HEAD
 {% block header_action %}
   <a href="{{ crate::csb::index::CsbElectionDefinitionDownloadPath }}"
      download
      class="button secondary icon-download">{{ "csb.index.download_election_definition"|trans }}</a>
 {% endblock %}
+=======
+>>>>>>> 9a24dadc (Hash election definition and make document naming more consistent)
 {% block content %}
   {% let election = "election"|election_value %}
   <div class="cards cards-csb-phases">
