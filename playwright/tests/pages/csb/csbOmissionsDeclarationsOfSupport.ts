@@ -55,7 +55,7 @@ export class CsbOmissionsDeclarationsOfSupportPage {
       name: "Verwijderen",
     });
     this.checkboxAllLists = this.page.getByRole("checkbox", {
-      name: "Selecteer alle kandidatenlijsten",
+      name: "Selecteer alle kieskringen",
     });
   }
 
