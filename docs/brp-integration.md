@@ -28,7 +28,9 @@ zoals die in de code en het auditlog voorkomt.
   aan en geeft e-KS daarvoor een API-sleutel.
 - Per kandidaat vraagt e-KS een vaste, beperkte set gegevens op: naam,
   geslacht, geboortedatum, woonplaats, overlijden, nationaliteit, uitsluiting
-  van het kiesrecht en de achternamen van (ex-)partners. Niets anders.
+  van het kiesrecht en de achternamen van (ex-)partners. Niets anders. Deze
+  set is toegesneden op de Eerste Kamerverkiezing (en de Tweede
+  Kamerverkiezing); andere verkiezingen vragen later om meer, zie 4.1.
 - Wat de BRP over een kandidaat zegt, wordt een **bevinding** bij die
   kandidaat. Het wordt nooit automatisch een verzuim: het CSB beoordeelt elke
   bevinding zelf.
@@ -66,11 +68,14 @@ sessie, geen paginering en geen doorlopende verbinding.
 
 ## 3. Wanneer de BRP wordt bevraagd
 
-De BRP wordt uitsluitend bevraagd voor kandidaten op een lijst die het CSB in
-e-KS heeft geïmporteerd. Een controle is altijd een **controleronde** over één
-geïmporteerde lijst: elke kandidaat op die lijst voor wie nog geen resultaat is
-vastgelegd, wordt gecontroleerd. De ronde draait op de achtergrond; de
-gebruiker wacht er niet op.
+De BRP wordt uitsluitend bevraagd voor de kandidaten op een lijst die het CSB
+in e-KS heeft geïmporteerd: de kandidaten die de politieke groepering heeft
+aangeleverd en de kandidaten die het CSB bij een papieren correctie heeft
+toegevoegd. De lijstinleveraar wordt niet bevraagd; bij de Eerste
+Kamerverkiezing is die er niet. Een controle is altijd een **controleronde**
+over één geïmporteerde lijst: elke kandidaat op die lijst voor wie nog geen
+resultaat is vastgelegd, wordt gecontroleerd. De ronde draait op de
+achtergrond; de gebruiker wacht er niet op.
 
 Een controleronde start in drie situaties:
 
@@ -121,9 +126,10 @@ in het auditlog vastgelegd precies zoals het is verstuurd.
 
 ### 4.1 Raadplegen op burgerservicenummer
 
-Type `RaadpleegMetBurgerservicenummer`. Dit is de hoofdbevraging. Per groep
-van tien kandidaten wordt één bericht verstuurd met daarin de
-burgerservicenummers van alle kandidaten in die groep die er een hebben.
+Type `RaadpleegMetBurgerservicenummer`. Bij de Eerste Kamerverkiezing is dit
+de hoofdbevraging. Per groep van tien kandidaten wordt één bericht verstuurd
+met daarin de burgerservicenummers van alle kandidaten in die groep die er een
+hebben.
 
 ```json
 {
@@ -147,11 +153,15 @@ burgerservicenummers van alle kandidaten in die groep die er een hebben.
 ```
 
 De lijst `fields` is de volledige set persoonsgegevens die e-KS over een
-kandidaat opvraagt. Er wordt niets anders opgevraagd. Het correspondentieadres
-ontbreekt bewust: alleen de woonplaats wordt op de kandidatenlijst gedrukt, dus
-alleen de woonplaats wordt gecontroleerd. De namen van partners worden
-opgevraagd omdat een kandidaat volgens de Kieswet ook onder de naam van een
-(ex-)echtgenoot of geregistreerd partner op de lijst mag staan.
+kandidaat opvraagt. Er wordt niets anders opgevraagd. De set is toegesneden op
+de Eerste Kamerverkiezing (en de Tweede Kamerverkiezing). Andere verkiezingen
+vragen om meer gegevens die nu nog niet worden opgevraagd: voor de
+gemeenteraadsverkiezing de gemeente van inschrijving, voor de verkiezing van
+het Europees Parlement de aanduiding bijzonder Nederlanderschap. Het
+correspondentieadres ontbreekt bewust: alleen de woonplaats wordt op de
+kandidatenlijst gedrukt, dus alleen de woonplaats wordt gecontroleerd. De namen
+van partners worden opgevraagd omdat een kandidaat volgens de Kieswet ook onder
+de naam van een (ex-)echtgenoot of geregistreerd partner op de lijst mag staan.
 
 Kandidaten zonder burgerservicenummer (niet ingevuld, of expliciet vastgelegd
 als "heeft geen") staan niet in dit bericht. Als geen enkele kandidaat in de
