@@ -63,6 +63,7 @@
                href="{{ political_group.all_brp_findings_path() }}">{{ "csb.group.examine_all"|trans }}</a>
           </div>
         </div>
+        {% if brp_running %}{{ restorations::brp_finished_notice(political_group.brp_check_status_path() ) }}{% endif %}
         {{ restorations::brp_strip(brp, brp_badges, brp_incomplete.as_deref() , all_problems) }}
       </div>
     {% endif %}

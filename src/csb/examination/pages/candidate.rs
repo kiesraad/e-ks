@@ -426,6 +426,12 @@ mod tests {
         let body = examination_body(store, list_id, person_id).await;
 
         assert!(body.contains("Refresh this page"), "{body}");
+        assert!(
+            body.contains(&format!(
+                r#"data-brp-status-url="/csb/examination/{stream_id}/brp-check/status""#
+            )),
+            "{body}"
+        );
         // A check of their own would only ask the BRP the same thing twice.
         assert!(!body.contains(&format!(
             "/csb/examination/{stream_id}/list/{list_id}/candidate/{person_id}/brp-check"
