@@ -47,10 +47,7 @@ test.describe("check for BRP errors", async () => {
     await expect(
       page.getByText("De kandidaten zijn nog niet tegen de BRP gecontroleerd."),
     ).toBeVisible();
-    await groupPage.buttonBRPCheck.click();
-    await expect(page.getByText("Bezig met controleren")).toBeVisible();
-    await page.waitForTimeout(3000); // wait 3 seconds for check to run, as the check is done in the background and we don't have a way to know when it is finished
-    await groupPage.linkRefresh.click();
+    await groupPage.startBrpCheck();
     await expect(page.getByText("Geen BRP fouten")).toBeVisible();
 
     // delete group to clean up
@@ -122,10 +119,7 @@ test.describe("check for BRP errors", async () => {
     await expect(
       page.getByText("De kandidaten zijn nog niet tegen de BRP gecontroleerd."),
     ).toBeVisible();
-    await groupPage.buttonBRPCheck.click();
-    await expect(page.getByText("Bezig met controleren")).toBeVisible();
-    await page.waitForTimeout(3000); // wait 3 seconds for check to run in background
-    await groupPage.linkRefresh.click();
+    await groupPage.startBrpCheck();
     await expect(page.getByText("9 BRP fouten")).toBeVisible();
     await groupPage.linkAllErrors.click();
 
