@@ -49,7 +49,7 @@ pub struct ScrappedCandidate {
 
 /// Districts named the way the `district_name` filter does, joined with
 /// commas: "1. Groningen, 2. Fryslân".
-fn districts_label(districts: &[ElectoralDistrict]) -> String {
+pub(super) fn districts_label(districts: &[ElectoralDistrict]) -> String {
     districts
         .iter()
         .map(|district| format!("{}. {}", district.region_number(), district.title()))

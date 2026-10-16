@@ -7,6 +7,7 @@ mod correction_field;
 mod csb_candidate;
 mod csb_candidate_list;
 mod paper_corrected;
+mod paper_corrections_overview;
 mod restoration_status;
 mod scrapped_overview;
 
@@ -23,6 +24,6 @@ pub use paper_corrected::{
     PaperCorrectedPoliticalGroupInfo, PaperCorrectedSubmitter, paper_corrected_list_submitter,
     paper_corrected_name_authorisations, paper_corrected_substitute_submitters,
 };
-
+pub use paper_corrections_overview::PaperCorrectionsOverview;
 pub use restoration_status::RestorationStatus;
 pub use scrapped_overview::ScrappedOverview;
