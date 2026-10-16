@@ -6,7 +6,7 @@ use std::{
 
 use super::{CsbStoreData, Scrapped};
 use crate::{
-    AppError, CsbStream, ElectionConfig, ElectoralDistrict, Locale, PgStore, PgStoreData,
+    AppError, CsbStream, ElectionConfig, ElectoralDistrict, Locale, PgEvent, PgStore, PgStoreData,
     structs::{
         brp::{BrpFinding, BrpStatus},
         candidate_lists::{CandidateList, CandidateListId},
@@ -80,6 +80,17 @@ impl CsbStream {
                 event.payload.action,
                 crate::CsbAction::PaperCorrectedUpdate(_)
             )
+        })
+    }
+
+    /// Whether paper corrections changed more than which lists, districts and
+    /// candidates there are: that much shows by comparing the projections.
+    pub fn has_paper_corrected_values(&self) -> bool {
+        let data = self.snapshot();
+
+        data.events.iter().any(|event| match &event.payload.action {
+            crate::CsbAction::PaperCorrectedUpdate(payload) => !only_adds_or_removes(payload),
+            _ => false,
         })
     }
 
@@ -612,6 +623,24 @@ impl CsbStream {
             problems.info_problems = Vec::new();
             problems
         })
+    }
+}
+
+/// Whether an app event only adds or removes a list, district or candidate.
+fn only_adds_or_removes(event: &PgEvent) -> bool {
+    match event {
+        PgEvent::CreateCandidateList(_)
+        | PgEvent::DeleteCandidateList(_)
+        | PgEvent::UpdateCandidateListDistricts { .. }
+        | PgEvent::AddCandidateToCandidateList { .. }
+        | PgEvent::RemoveCandidateFromCandidateList { .. }
+        | PgEvent::CreatePerson(_)
+        | PgEvent::CreatePersonPersonalData { .. }
+        | PgEvent::DeletePerson { .. } => true,
+        PgEvent::ImportCandidates {
+            updated_persons, ..
+        } => updated_persons.is_empty(),
+        _ => false,
     }
 }
 
