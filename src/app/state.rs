@@ -3,7 +3,7 @@
 
 use std::net::IpAddr;
 
-use auth_service::AuthServiceState;
+use auth_service::{AuthServiceState, config::AuthConfig};
 use axum::extract::FromRef;
 use secrecy::ExposeSecret;
 
@@ -149,10 +149,11 @@ impl AppState {
             PendingRequestStore::from_storage_url(config.storage_url.expose_secret())?;
         let id_deriver = IdDeriver::new(&config.id_derivation_key);
 
-        let auth_service_state = if config.disable_auth_service {
-            AuthServiceState::new_empty()
-        } else {
-            AuthServiceState::new_from_env().await?
+        let auth_service_state = match &config.auth {
+            Some(settings) => {
+                AuthServiceState::from_config(AuthConfig::new(settings.clone()).await?).await?
+            }
+            None => AuthServiceState::new_empty(),
         };
 
         let brp_client = BrpClient::new(&config.brp_client)?;

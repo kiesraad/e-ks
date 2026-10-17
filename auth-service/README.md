@@ -230,23 +230,26 @@ are evidence-only (§9.1), and claims are read only from the outer assertion
 
 ## Configuration
 
-[`AuthConfig::from_env`](src/config.rs) reads four inputs; everything
-environment-specific (RD endpoints, the Kiesraad DV EntityID / ServiceUUID, the
-back-channel trust anchor, cert/key paths) derives from them:
+The crate does not read the environment itself. The embedding application fills
+an [`AuthSettings`](src/config/mod.rs) with four inputs (in e-KS they come from
+the `TVS_ENV`, `CERTS_DIR`, `BASE_URL` and `PRESELECTED_AD` variables) and
+passes it to `AuthConfig::new`; everything environment-specific (RD endpoints,
+the Kiesraad DV EntityID / ServiceUUID, the back-channel trust anchor, cert/key
+paths) derives from them:
 
-| Variable | Meaning |
+| Setting | Meaning |
 |---|---|
-| `TVS_ENV` | `test` \| `preproduction` \| `production` |
-| `CERTS_DIR` | Directory holding the DV certificate/key bundle |
-| `BASE_URL` | Public origin (used to derive the SP ACS/SLO URLs) |
-| `PRESELECTED_AD` | `Select` (default, RD shows its own picker) \| `DigiD` \| `eHerkenning` \| `eIDAS` |
+| `environment` | `Test` \| `Preproduction` \| `Production` |
+| `certs_dir` | Directory holding the DV certificate/key bundle |
+| `base_url` | Public origin (used to derive the SP ACS/SLO URLs) |
+| `preselected_ad` | `Select` (default, RD shows its own picker) \| `DigiD` \| `eHerkenning` \| `eIDAS` |
 
-The `tvs-mock` cargo feature targets the online shared TVS mock: it defaults
-`TVS_ENV`/`BASE_URL` and embeds the committed test DV bundle from
-[`fixtures/`](fixtures/). The embedded bundle is extracted and used whenever
-`CERTS_DIR` is unset or points somewhere that holds no bundle, so a mock build
-starts on a host with no certificates on disk. **Mock builds only; never enable
-it for a real deployment** (it bakes in test private keys).
+The `tvs-mock` cargo feature targets the online shared TVS mock: it embeds the
+committed test DV bundle from [`fixtures/`](fixtures/). The embedded bundle is
+extracted and used whenever `certs_dir` is unset or points somewhere that holds
+no bundle, so a mock build starts on a host with no certificates on disk.
+**Mock builds only; never enable it for a real deployment** (it bakes in test
+private keys).
 
 ## Cryptography
 

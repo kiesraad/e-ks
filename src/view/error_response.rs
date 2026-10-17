@@ -253,7 +253,6 @@ impl ErrorResponse {
             AppError::InternalServerError
             | AppError::NoStorageConfigured
             | AppError::IntegrityViolation
-            | AppError::MissingEnvVar(_)
             | AppError::ConfigLoadError(_)
             | AppError::PdfError(_)
             | AppError::DocxError(_)
@@ -504,7 +503,6 @@ mod tests {
             form_rejection,
             AppError::from(json_rejection),
             AppError::from(path_rejection),
-            AppError::MissingEnvVar("STORAGE_URL"),
             AppError::ConfigLoadError("bad".to_string()),
             AppError::ServerError(std::io::Error::other("oh nooo")),
             #[cfg(feature = "database")]

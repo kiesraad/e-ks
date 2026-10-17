@@ -20,9 +20,8 @@ redundant_else = "warn"
 wildcard_imports = "warn"
 
 [features]
-# Talk to the online TVS mock service: default `TVS_ENV` to `test` and `BASE_URL`
-# to `http://localhost:3000`, and embed the committed DV cert/key bundle
-# (`auth-service/fixtures`)
+# Talk to the online TVS mock service: embed the committed DV cert/key bundle
+# (`auth-service/fixtures`) as the fallback for a missing certs dir
 tvs-mock = []
 
 [dependencies]

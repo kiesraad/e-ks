@@ -6,12 +6,8 @@ use tokio::net::TcpListener;
 
 #[tokio::main]
 async fn main() {
-    // first arguments is the address to bind to
-    let address = std::env::args()
-        .nth(1)
-        .unwrap_or(std::env::var("BIND_ADDRESS").unwrap_or("0.0.0.0:3000".to_string()));
-
-    start(address).await;
+    // The first argument overrides the configured bind address.
+    start(std::env::args().nth(1)).await;
 }
 
 /// Unwraps a startup step, logging the error and exiting on failure.
@@ -25,14 +21,15 @@ fn or_exit<T>(result: Result<T, impl std::fmt::Display>, context: &str) -> T {
     }
 }
 
-/// Starts the server on the given address.
-async fn start(address: String) {
-    // Initialize tracing subscriber (logging)
-    logging::init();
+/// Starts the server on `address`, or on the configured one when `None`.
+async fn start(address: Option<String>) {
+    // Load and validate configuration first so misconfiguration fails fast;
+    // the log format is part of it, so logging follows.
+    let config = Config::from_env();
+    logging::init(config.as_ref().map(|c| c.log_format).unwrap_or_default());
+    let config = or_exit(config, "Invalid configuration");
 
-    // Load and validate configuration before binding so misconfiguration fails fast.
-    let config = or_exit(Config::from_env(), "Invalid configuration");
-
+    let address = address.unwrap_or_else(|| config.bind_address.clone());
     let listener = or_exit(
         TcpListener::bind(&address).await,
         &format!("Failed to bind to address {address}"),
@@ -336,8 +333,7 @@ mod tests {
 
             let mut config = Config::from_env().expect("config");
             config.csb_bind_address = Some(csb_addr);
-            config.csb_ip_allow_list =
-                Some(eks::CsbIpAllowList::parse(allow_list).expect("allow list"));
+            config.csb_ip_allow_list = Some(allow_list.parse().expect("allow list"));
 
             let server =
                 tokio::spawn(
@@ -363,7 +359,7 @@ mod tests {
 
         let address = format!("127.0.0.1:{port}");
         let server = tokio::spawn(async move {
-            start(address).await;
+            start(Some(address)).await;
         });
 
         let base = format!("http://127.0.0.1:{port}");

@@ -585,7 +585,11 @@ frontend's `/lookup` and `/suggest` endpoints.
 
 Runtime configuration is read from environment variables once at startup into a
 `Config` struct (`src/core/config.rs`), which is then `Box::leak`-ed to a
-`&'static Config` and shared through `AppState`. The variables:
+`&'static Config` and shared through `AppState`. The [`config`
+crate](https://docs.rs/config) does the reading, with the environment as its
+only source: every variable is a field of a private `Env` struct, named after
+the variable in lowercase, so an error names that field (e.g. ``missing field
+`storage_url` ``). A variable set to nothing counts as unset. The variables:
 
 | Variable | Purpose |
 |----------|---------|
@@ -603,7 +607,13 @@ Runtime configuration is read from environment variables once at startup into a
 | `CSB_WEBAUTHN_ORIGIN` | Enable the CSB security-key (WebAuthn) login (`/csb/login`): the origin the CSB section is served on, e.g. `https://csb.example.nl` (`http://localhost:3000` in development). Its host is the WebAuthn relying-party id, so keys enrolled for one host only work there. Outside `dev-features` builds it requires `CSB_BIND_ADDRESS` (startup fails without it), so the login is never served on the main listener. |
 | `CSB_WEBAUTHN_USERS` | Comma-separated `username:credential-id:public-key` entries (blobs base64url without padding), one per committee member allowed to log in, as printed by `bin/enrol_csb_user` (see [docs/csb-enrolment.md](csb-enrolment.md)). Requires `CSB_WEBAUTHN_ORIGIN`. One malformed entry, a duplicate username, or a key listed for two users refuses the whole configuration. The entries are public keys, not secrets. |
 | `DEFAULT_ELECTION` | Election a login lands on when the flow has no election selection of its own (CSB logins, dev logins): the election code, with the election domain appended after a colon where the type needs one (e.g. `EK27`, `PS27:prov1`). Dev builds default to `EK27`. |
-| `BIND_ADDRESS` | Address the server binds to (also accepted as a CLI argument). |
+| `BIND_ADDRESS` | Address the server binds to (default `0.0.0.0:3000`; the first CLI argument overrides it). |
+| `LOG_FORMAT` | `json` for one JSON object per log event on stdout (for ingestion by a Loki agent); unset keeps the human-readable format. The filter itself comes from `RUST_LOG`. |
+| `DISABLE_AUTH_SERVICE` | `true` boots without the live auth-service (no startup IdP-metadata fetch), for environments that only use the `/dev/login` bypass, e.g. the Playwright container. The four variables below are then not needed. |
+| `TVS_ENV` | TVS environment for the login: `test` (the shared TVS mock), `preproduction` or `production`. Everything environment-specific (RD endpoints, DV EntityID / ServiceUUID, trust anchor) derives from it. `tvs-mock` builds default to `test` and refuse anything else. |
+| `CERTS_DIR` | Directory holding the DV certificate/key bundle for the TVS login. `tvs-mock` builds fall back to their embedded test bundle when it is unset or holds no bundle. |
+| `BASE_URL` | Public origin the SAML ACS/SLO URLs derive from; must be `https` outside `TVS_ENV=test`. `tvs-mock` builds default to `http://localhost:3000`. |
+| `PRESELECTED_AD` | Authentication service to pre-select on the TVS: `Select` (default, the TVS shows its own picker), `DigiD`, `eHerkenning` or `eIDAS`. |
 | `CSB_BIND_ADDRESS` | Serve the CSB section on a second listener, so it can be published on a domain of its own: a port number (bound on `0.0.0.0`) or an `address:port` with a numeric address. `/csb` is then unreachable on `BIND_ADDRESS`. The second listener serves the whole application, since a committee session correcting paper documents uses the political-group routes as well. It is not behind the `EKS_KEY` gate. |
 | `CSB_DOMAIN` | Domain the CSB listener is published on. With ACME it gets a certificate of its own, stored next to the `TLS_CERT_PATH` / `TLS_KEY_PATH` files with a `csb-` name prefix; without it the CSB listener presents the certificate ordered for `ACME_DOMAIN`. |
 | `CSB_IP_ALLOW_LIST` | Comma-separated IP addresses and CIDR ranges (IPv4 or IPv6) allowed to reach the CSB section. Any other peer gets a `403` and a warning with `event="csb.ip_denied"`. Gates the whole CSB listener except `/lb-health` and the ACME challenge, and therefore requires `CSB_BIND_ADDRESS` (startup fails without it). Matched against the TCP peer address, or against the client a proxy listed in `CSB_PROXY_PROTOCOL_FROM` announces; any other proxy in front hides the committee behind its own address. Unset leaves the section open. |
@@ -614,15 +624,16 @@ Runtime configuration is read from environment variables once at startup into a
 | `RATE_LIMIT_EVENTS_TOTAL` | Absolute cap on the number of events in one stream (default 20000). |
 | `STORE_CACHE_IDLE_MINUTES` | Evict cached political-group stores not used for this many minutes (default 1440, i.e. 24 hours); evicted streams reload from persistence on their next use. |
 
-The binary itself only reads `env::var`, but the deployment can supply these
-variables from a file (e.g. systemd `EnvironmentFile=`, Docker `--env-file`,
-Kubernetes secret mounts). This is the preferred way to provide the master
-secrets (`ID_DERIVATION_KEY`, `MASTER_ENCRYPTION_KEY`, `EKS_KEY`) so they
-never end up in shell history or process listings.
+The binary itself only reads the environment (no configuration files), but the
+deployment can supply these variables from a file (e.g. systemd
+`EnvironmentFile=`, Docker `--env-file`, Kubernetes secret mounts). This is the
+preferred way to provide the master secrets (`ID_DERIVATION_KEY`,
+`MASTER_ENCRYPTION_KEY`, `EKS_KEY`) so they never end up in shell history or
+process listings.
 
 In `dev-features` builds a missing variable falls back to a built-in development
 default; in a production build a missing required variable is a startup error
-(`AppError::MissingEnvVar`).
+(`AppError::ConfigLoadError`, naming the field).
 
 For local development, `bin/dev` reads `.env` and then `.env.local` (which
 wins) from the repository root and hands the variables to the processes it

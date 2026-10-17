@@ -141,15 +141,11 @@ mod tests {
     use tower::ServiceExt;
     use tracing_test::traced_test;
 
-    use crate::{
-        AppState, Config, SESSION_COOKIE_NAME,
-        core::{CsbAlertHours, CsbIpAllowList},
-        session_middleware,
-    };
+    use crate::{AppState, Config, SESSION_COOKIE_NAME, core::CsbAlertHours, session_middleware};
 
     async fn ip_gate_app(allow_list: Option<&str>) -> Router {
         let mut config = Config::new_test();
-        config.csb_ip_allow_list = allow_list.map(|raw| CsbIpAllowList::parse(raw).expect("list"));
+        config.csb_ip_allow_list = allow_list.map(|raw| raw.parse().expect("list"));
         let state = AppState::new_for_tests_with_config(config).await;
 
         Router::new()

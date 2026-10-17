@@ -455,7 +455,7 @@ controle:
 
 | Situatie | Fout |
 | --- | --- |
-| `BRP_BASE_URL` of `BRP_API_KEY` is niet ingesteld | Ontbrekende omgevingsvariabele (`MissingEnvVar`) |
+| `BRP_BASE_URL` of `BRP_API_KEY` is niet ingesteld | Ontbrekende omgevingsvariabele (`ConfigLoadError`, ``missing field `brp_base_url` ``) |
 | `BRP_TIMEOUT` is geen getal | Configuratiefout: *Invalid BRP_TIMEOUT; please enter a number* |
 
 ## 8. Testen

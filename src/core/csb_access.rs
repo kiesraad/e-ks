@@ -1,13 +1,11 @@
-//! Access guards for the CSB section, loaded from environment variables into
-//! [`Config`](crate::Config): the peer-address allow list and the hours in
-//! which committee activity raises an alert.
+//! Access guards for the CSB section, part of [`Config`](crate::Config): the
+//! peer-address allow list and the hours in which committee activity raises
+//! an alert. Both parse from their variable's text.
 
 use std::{net::IpAddr, str::FromStr};
 
 use chrono::NaiveTime;
 use ipnet::IpNet;
-
-use crate::AppError;
 
 /// Peer addresses allowed to reach the CSB section (`CSB_IP_ALLOW_LIST`):
 /// single addresses and CIDR ranges, IPv4 or IPv6.
@@ -23,11 +21,15 @@ impl CsbIpAllowList {
     pub fn allows(&self, ip: IpAddr) -> bool {
         ip_in_nets(&self.0, ip)
     }
+}
+
+impl FromStr for CsbIpAllowList {
+    type Err = String;
 
     /// Parses the comma-separated list. Strict: one malformed entry rejects the
     /// configuration rather than silently shrinking the allow list.
-    pub fn parse(raw: &str) -> Result<Self, AppError> {
-        parse_ip_nets("CSB_IP_ALLOW_LIST", raw).map(Self)
+    fn from_str(raw: &str) -> Result<Self, String> {
+        parse_ip_nets(raw).map(Self)
     }
 }
 
@@ -41,33 +43,31 @@ pub(super) fn ip_in_nets(nets: &[IpNet], ip: IpAddr) -> bool {
         .any(|net| net.contains(&ip) || also_as_v4.is_some_and(|v4| net.contains(&v4)))
 }
 
-/// Parses `var`'s comma-separated addresses and CIDR ranges; a malformed or
-/// empty list is rejected.
-pub(super) fn parse_ip_nets(var: &str, raw: &str) -> Result<Vec<IpNet>, AppError> {
+/// Parses comma-separated addresses and CIDR ranges; a malformed or empty
+/// list is rejected.
+pub(super) fn parse_ip_nets(raw: &str) -> Result<Vec<IpNet>, String> {
     let nets = raw
         .split(',')
         .map(str::trim)
         .filter(|entry| !entry.is_empty())
-        .map(|entry| parse_entry(var, entry))
+        .map(parse_entry)
         .collect::<Result<Vec<_>, _>>()?;
     if nets.is_empty() {
-        return Err(AppError::ConfigLoadError(format!(
-            "{var} must contain at least one IP address or CIDR range"
-        )));
+        return Err("must contain at least one IP address or CIDR range".to_string());
     }
     Ok(nets)
 }
 
 /// One list entry: a bare address or a CIDR range.
-fn parse_entry(var: &str, entry: &str) -> Result<IpNet, AppError> {
+fn parse_entry(entry: &str) -> Result<IpNet, String> {
     if let Ok(ip) = IpAddr::from_str(entry) {
         return Ok(IpNet::from(ip));
     }
     IpNet::from_str(entry).map_err(|_| {
-        AppError::ConfigLoadError(format!(
-            "{var} entry {entry:?} is neither an IP address nor a CIDR range \
+        format!(
+            "entry {entry:?} is neither an IP address nor a CIDR range \
              (e.g. 203.0.113.7, 203.0.113.0/24, 2001:db8::/32)"
-        ))
+        )
     })
 }
 
@@ -92,22 +92,20 @@ impl CsbAlertHours {
             time >= self.start || time < self.end
         }
     }
+}
+
+impl FromStr for CsbAlertHours {
+    type Err = String;
 
     /// Parses `HH:MM-HH:MM`. Equal start and end are rejected as ambiguous.
-    pub fn parse(raw: &str) -> Result<Self, AppError> {
-        let malformed = || {
-            AppError::ConfigLoadError(format!(
-                "CSB_ALERT_HOURS {raw:?} is not a time range of the form HH:MM-HH:MM \
-                 (e.g. 22:00-06:00)"
-            ))
-        };
+    fn from_str(raw: &str) -> Result<Self, String> {
+        let malformed =
+            || format!("{raw:?} is not a time range of the form HH:MM-HH:MM (e.g. 22:00-06:00)");
         let (start, end) = raw.trim().split_once('-').ok_or_else(malformed)?;
         let parse = |s: &str| NaiveTime::parse_from_str(s.trim(), "%H:%M").map_err(|_| malformed());
         let (start, end) = (parse(start)?, parse(end)?);
         if start == end {
-            return Err(AppError::ConfigLoadError(format!(
-                "CSB_ALERT_HOURS {raw:?} starts and ends at the same time"
-            )));
+            return Err(format!("{raw:?} starts and ends at the same time"));
         }
         Ok(Self { start, end })
     }
@@ -127,8 +125,9 @@ mod tests {
 
     #[test]
     fn allow_list_accepts_addresses_and_ranges() {
-        let list =
-            CsbIpAllowList::parse(" 203.0.113.7, 10.0.0.0/8 ,2001:db8::/32, ::1 ").expect("list");
+        let list: CsbIpAllowList = " 203.0.113.7, 10.0.0.0/8 ,2001:db8::/32, ::1 "
+            .parse()
+            .expect("list");
 
         for allowed in ["203.0.113.7", "10.1.2.3", "2001:db8::1", "::1"] {
             assert!(list.allows(ip(allowed)), "{allowed}");
@@ -143,7 +142,7 @@ mod tests {
     /// 32 bits stays outside an IPv4 entry.
     #[test]
     fn allow_list_matches_v4_mapped_peers_against_v4_entries() {
-        let list = CsbIpAllowList::parse("10.0.0.0/8").expect("list");
+        let list: CsbIpAllowList = "10.0.0.0/8".parse().expect("list");
 
         assert!(list.allows(ip("::ffff:10.1.2.3")));
         assert!(!list.allows(ip("::ffff:11.1.2.3")));
@@ -163,10 +162,7 @@ mod tests {
             "10.0.0",
         ] {
             assert!(
-                matches!(
-                    CsbIpAllowList::parse(raw),
-                    Err(AppError::ConfigLoadError(_))
-                ),
+                raw.parse::<CsbIpAllowList>().is_err(),
                 "{raw:?} must be rejected"
             );
         }
@@ -174,7 +170,7 @@ mod tests {
 
     #[test]
     fn alert_hours_parse_and_wrap_midnight() {
-        let hours = CsbAlertHours::parse(" 22:00 - 06:00 ").expect("hours");
+        let hours: CsbAlertHours = " 22:00 - 06:00 ".parse().expect("hours");
 
         for inside in ["22:00", "23:59", "00:00", "03:30", "05:59"] {
             assert!(hours.contains(time(inside)), "{inside}");
@@ -186,7 +182,7 @@ mod tests {
 
     #[test]
     fn alert_hours_within_one_day() {
-        let hours = CsbAlertHours::parse("09:00-17:00").expect("hours");
+        let hours: CsbAlertHours = "09:00-17:00".parse().expect("hours");
 
         assert!(hours.contains(time("09:00")));
         assert!(hours.contains(time("16:59")));
@@ -207,7 +203,7 @@ mod tests {
             "night",
         ] {
             assert!(
-                matches!(CsbAlertHours::parse(raw), Err(AppError::ConfigLoadError(_))),
+                raw.parse::<CsbAlertHours>().is_err(),
                 "{raw:?} must be rejected"
             );
         }
