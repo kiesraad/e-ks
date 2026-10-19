@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{CsbUser, ElectionConfig, Scope, StreamId};
+use crate::{CsbUser, CsbWebauthnConfig, ElectionConfig, Scope, StreamId};
 
 /// Who a session belongs to. One variant per role, carrying exactly the state
 /// that role needs, so an incomplete or mixed-role session cannot be
@@ -51,11 +51,15 @@ impl SessionUser {
         }
     }
 
-    #[cfg(any(feature = "database", test))]
-    pub(crate) fn tag(&self) -> &'static str {
+    /// Whether a security-key committee user is still in the configured
+    /// user list; other sessions are always authorised.
+    pub(crate) fn is_authorized(&self, config: Option<&CsbWebauthnConfig>) -> bool {
         match self {
-            Self::PoliticalGroup { .. } => "PoliticalGroup",
-            Self::CentralElectoralCommittee { .. } => "CentralElectoralCommittee",
+            Self::CentralElectoralCommittee {
+                user: CsbUser::SecurityKey { username },
+                ..
+            } => config.is_some_and(|config| config.users.iter().any(|u| &u.username == username)),
+            _ => true,
         }
     }
 }
@@ -125,17 +129,6 @@ mod tests {
         assert_eq!(user.election(), None);
 
         assert_eq!(committee().election(), Some(ElectionConfig::EK27));
-    }
-
-    /// The serde external tag must match `tag()`: the database same-role guard
-    /// (`identity ? $tag`) relies on it.
-    #[test]
-    fn serde_external_tag_matches_tag() {
-        for user in [political_group(), committee()] {
-            let value = serde_json::to_value(&user).expect("serialize");
-            let keys: Vec<&String> = value.as_object().expect("object").keys().collect();
-            assert_eq!(keys, [user.tag()]);
-        }
     }
 
     #[test]
