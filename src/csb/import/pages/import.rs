@@ -1,7 +1,6 @@
 use std::{
     collections::HashSet,
     sync::{LazyLock, Mutex},
-    time::Duration,
 };
 
 use askama::Template;
@@ -30,11 +29,6 @@ use crate::{
 };
 
 use super::{CsbCreateEmptyPath, CsbImportPath};
-
-#[cfg(not(test))]
-const BRP_COURTESY_TIMEOUT: Duration = Duration::from_secs(1);
-#[cfg(test)]
-const BRP_COURTESY_TIMEOUT: Duration = Duration::from_millis(20);
 
 #[derive(Template)]
 #[template(path = "csb/import/pages/import.html")]
@@ -414,7 +408,7 @@ async fn record_brp_result(
 }
 
 /// Check every candidate not covered by `CsbStoreData::brp_findings` yet,
-/// [`BRP_BSN_BATCH_SIZE`] per request with `BRP_COURTESY_TIMEOUT` in between.
+/// [`BRP_BSN_BATCH_SIZE`] per request; the client paces the requests.
 ///
 /// The corrected data is checked, since that is what the committee examines.
 /// Errors propagate: the BRP being unreachable must not record the remaining
@@ -427,10 +421,7 @@ async fn verify_candidates(store: CsbStore, brp_client: BrpClient) -> Result<(),
         .filter(|person| !already_checked.contains_key(&person.id))
         .collect();
 
-    let mut ticker = tokio::time::interval(BRP_COURTESY_TIMEOUT);
     for batch in unchecked.chunks(BRP_BSN_BATCH_SIZE) {
-        ticker.tick().await;
-
         let checked = brp_client.verify_batch(batch).await;
         // Every request goes on record first, answered or failed.
         for lookup in checked.lookups {
@@ -459,6 +450,8 @@ async fn verify_candidates(store: CsbStore, brp_client: BrpClient) -> Result<(),
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::*;
     use axum::http::StatusCode;
 
@@ -750,7 +743,7 @@ mod tests {
     }
 
     /// Poll for the background check to reach `status`, rather than sleeping
-    /// out the full courtesy timeout.
+    /// out the client's request interval.
     async fn wait_for_brp_status(store: &CsbStore, expected: fn(&BrpStatus) -> bool) -> BrpStatus {
         for _ in 0..200 {
             let status = store.get_brp_status();
@@ -957,19 +950,20 @@ mod tests {
             .await?
             .acting_as_test_user();
 
-        // Two batches means one BRP_COURTESY_TIMEOUT tick; the call should
-        // return well before that.
+        // Two batches, so the sweep waits out the request interval at least
+        // once; the call should return well before that.
         for _ in 0..=BRP_BSN_BATCH_SIZE {
             csb_store.add_person(sample_person_from_brp());
         }
 
-        let stub = BrpStub::serving(Vec::new()).await;
+        let interval = Duration::from_millis(20);
+        let stub = BrpStub::serving_with_interval(Vec::new(), interval).await;
 
         let start = tokio::time::Instant::now();
         do_brp_verification(&csb_store, &stub.client).await?;
         let elapsed = start.elapsed();
         assert!(
-            elapsed < BRP_COURTESY_TIMEOUT,
+            elapsed < interval,
             "do_brp_verification should return immediately instead of waiting for the background check, took {elapsed:?}"
         );
 
@@ -1089,13 +1083,13 @@ mod tests {
             .await?
             .acting_as_test_user();
 
-        // Two batches, so the first sweep is still waiting out the courtesy
-        // timeout when the second call arrives.
+        // Two batches, so the first sweep is still waiting out the request
+        // interval when the second call arrives.
         for _ in 0..=BRP_BSN_BATCH_SIZE {
             csb_store.add_person(sample_person_from_brp());
         }
 
-        let stub = BrpStub::serving(Vec::new()).await;
+        let stub = BrpStub::serving_with_interval(Vec::new(), Duration::from_millis(20)).await;
         do_brp_verification(&csb_store, &stub.client).await?;
         assert!(brp_sweep_running(csb_store.stream_id));
 

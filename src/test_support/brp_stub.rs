@@ -1,6 +1,6 @@
 //! A stub BRP, so `cargo test` stays hermetic.
 
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use axum::{Json, Router, extract::State, routing::post};
 use parking_lot::Mutex;
@@ -25,7 +25,14 @@ pub struct BrpStub {
 }
 
 impl BrpStub {
+    /// A stub whose client does not pace its requests.
     pub async fn serving(persons: Vec<Value>) -> Self {
+        Self::serving_with_interval(persons, Duration::ZERO).await
+    }
+
+    /// A stub whose client pauses `interval` between requests, for tests that
+    /// need a sweep to still be running.
+    pub async fn serving_with_interval(persons: Vec<Value>, interval: Duration) -> Self {
         let queries = Arc::new(Mutex::new(Vec::new()));
         let state = StubState {
             persons: Arc::new(persons),
@@ -55,7 +62,7 @@ impl BrpStub {
         });
 
         Self {
-            client: BrpClient::new_for_test(&format!("http://{addr}")),
+            client: BrpClient::new_for_test_with_interval(&format!("http://{addr}"), interval),
             queries,
             server,
         }

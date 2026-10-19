@@ -94,8 +94,15 @@ impl BrpClient {
     }
 
     /// A client pointed at `base_url`, for tests serving their own responses.
+    /// Requests are not paced, so tests stay fast.
     #[cfg(test)]
     pub fn new_for_test(base_url: &str) -> Self {
+        Self::new_for_test_with_interval(base_url, Duration::ZERO)
+    }
+
+    /// Like [`Self::new_for_test`], pausing `request_interval` between requests.
+    #[cfg(test)]
+    pub fn new_for_test_with_interval(base_url: &str, request_interval: Duration) -> Self {
         use crate::constants;
 
         BrpClient::new(&BrpConfig {
@@ -103,7 +110,7 @@ impl BrpClient {
             api_key: SecretString::from(""),
             persons_endpoint: constants::BRP_PERSONS_ENDPOINT.to_string(),
             timeout: Duration::from_secs(5),
-            request_interval: Duration::ZERO,
+            request_interval,
             client_cert: None,
         })
         .expect("no certificate to fail on")

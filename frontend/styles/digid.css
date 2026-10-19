@@ -58,4 +58,8 @@
     margin-top: var(--space-4);
     margin-bottom: var(--space-4);
   }
+
+  .alert {
+    margin-top: var(--space-6);
+  }
 }
