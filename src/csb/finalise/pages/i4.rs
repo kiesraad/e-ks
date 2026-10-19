@@ -29,9 +29,7 @@ pub(in crate::csb::finalise::pages) async fn i4_model<S: AppRequestState>(
 
     // A draft does not record the numbering
     if document_status.is_final() {
-        numbering
-            .record_if_incomplete(context, main_store)
-            .await?;
+        numbering.record_if_incomplete(context, main_store).await?;
     }
 
     let i4_inputs = i4_inputs(registry, &election, &numbering.stream_ids()).await?;

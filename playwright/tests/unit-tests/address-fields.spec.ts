@@ -64,10 +64,9 @@ async function setupPage(page: Page) {
   await page.evaluate(staleErrors);
 }
 
-const fieldClass = (page: Page, id: string) =>
-  page
-    .locator(`#${id}`)
-    .evaluate((input) => input.closest(".form-field")?.className ?? "");
+// The `.form-field` wrapping `#id`, so class checks retry like the others.
+const field = (page: Page, id: string) =>
+  page.locator(".form-field").filter({ has: page.locator(`#${id}`) });
 
 test.describe("address fields", () => {
   test("a corrected postal code drops the stale error and runs the lookup", async ({
@@ -91,8 +90,8 @@ test.describe("address fields", () => {
     await expect(page.locator("#street_name")).toHaveValue("Dam");
     await expect(page.locator("#locality")).toHaveValue("Amsterdam");
     await expect(page.locator("#unknown-address")).toHaveClass(/hidden/);
-    expect(await fieldClass(page, "postal_code")).toContain("success");
-    expect(await fieldClass(page, "postal_code")).not.toContain("warning");
+    await expect(field(page, "postal_code")).toHaveClass(/success/);
+    await expect(field(page, "postal_code")).not.toHaveClass(/warning/);
     await expect(error).toHaveClass(/hidden/);
   });
 
@@ -109,8 +108,8 @@ test.describe("address fields", () => {
     // The stale message is gone, but the address is still flagged as unknown.
     await expect(error).toHaveClass(/hidden/);
     await expect(page.locator("#unknown-address")).not.toHaveClass(/hidden/);
-    expect(await fieldClass(page, "postal_code")).toContain("warning");
-    expect(await fieldClass(page, "house_number")).toContain("warning");
+    await expect(field(page, "postal_code")).toHaveClass(/warning/);
+    await expect(field(page, "house_number")).toHaveClass(/warning/);
   });
 
   test("accepting a locality suggestion still clears the locality warning", async ({
@@ -126,10 +125,10 @@ test.describe("address fields", () => {
     await expect(page.locator("#locality-suggestion")).not.toHaveClass(
       /hidden/,
     );
-    expect(await fieldClass(page, "locality")).toContain("warning");
+    await expect(field(page, "locality")).toHaveClass(/warning/);
 
     await page.click("#locality-suggestion-name");
     await expect(page.locator("#locality")).toHaveValue("Amsterdam");
-    expect(await fieldClass(page, "locality")).not.toContain("warning");
+    await expect(field(page, "locality")).not.toHaveClass(/warning/);
   });
 });

@@ -20,9 +20,7 @@ pub(super) async fn candidate_list_per_district_model<S: AppRequestState>(
     let mut numbering = list_numbering(registry, main_store).await?;
     let stream_ids = numbering.stream_ids();
 
-    numbering
-        .record_if_incomplete(context, main_store)
-        .await?;
+    numbering.record_if_incomplete(context, main_store).await?;
 
     let published_lists = published_lists(registry, &election, &stream_ids).await?;
 

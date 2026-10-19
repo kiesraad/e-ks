@@ -5,7 +5,7 @@
 // CSB stelt de definitieve kandidatatenlijsten vast in een proces-verbaal over geldigheid en nummering kandidatenlijsten (model I4)
 // CSB maakt een concept proces-verbaal model I4 aan in e-KS
 
-import { stat } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { expect } from "@playwright/test";
 import { test } from "./fixtures.ts";
 import { CsbExaminationPage } from "./pages/csb/csbExaminationPage.ts";
@@ -14,21 +14,9 @@ import { CsbFinalizeExaminationPage } from "./pages/csb/csbFinalizeExaminationPa
 import { CsbHearingDetailsPage } from "./pages/csb/csbHearingDetailsPage.ts";
 import { CsbOmissionLetterPage } from "./pages/csb/csbOmissionLetterPage.ts";
 import { CsbOmissionsDeclarationsOfSupportPage } from "./pages/csb/csbOmissionsDeclarationsOfSupport.ts";
-import { CsbOverviewPage } from "./pages/csb/csbOverviewPage.ts";
 import { CsbPoliticalGroupPage } from "./pages/csb/csbPoliticalGroupPage.ts";
 
 test.describe("create documents", async () => {
-  test("Election definition", async ({ csbLogin }) => {
-    const { page } = csbLogin;
-    const overviewPage = new CsbOverviewPage(page);
-    await expect(overviewPage.headerElection).toBeVisible();
-    const downloadPromise = page.waitForEvent("download");
-    await overviewPage.linkElectionDefinition.click();
-    const download = await downloadPromise;
-    expect(download.suggestedFilename()).toMatch(/eml110a\.eml\.xml/);
-    expect((await stat(await download.path())).size).toBeGreaterThan(1024);
-  });
-
   test("I 1", async ({ csbImport }) => {
     const { page } = csbImport;
     const finalizeExaminationPage = new CsbFinalizeExaminationPage(page);
@@ -159,26 +147,41 @@ test.describe("create documents", async () => {
     await expect(page.getByText(firstObjection)).not.toBeVisible();
     await expect(page.getByText(secondObjection)).toBeVisible();
 
-    // download I 4 in pdf format
+    // download draft I 4 in pdf format
     const pdfPromise = page.waitForEvent("download");
-    await finalizeCandidateListsPage.downloadPdfFinal.click();
+    await finalizeCandidateListsPage.downloadPdfDraft.click();
     const pdfDownload = await pdfPromise;
-    expect(pdfDownload.suggestedFilename()).toMatch(/i4-proces-verbaal\.pdf/);
+    expect(pdfDownload.suggestedFilename()).toBe(
+      "Model_I4_Proces_Verbaal_Concept.pdf",
+    );
     expect((await stat(await pdfDownload.path())).size).toBeGreaterThan(1024);
 
-    // download I 4 in word format
+    // download draft I 4 in word format
     const wordPromise = page.waitForEvent("download");
-    await finalizeCandidateListsPage.downloadWordFinal.click();
+    await finalizeCandidateListsPage.downloadWordDraft.click();
     const wordDownload = await wordPromise;
-    expect(wordDownload.suggestedFilename()).toMatch(/i4-proces-verbaal\.docx/);
+    expect(wordDownload.suggestedFilename()).toBe(
+      "Model_I4_Proces_Verbaal_Concept.docx",
+    );
     expect((await stat(await wordDownload.path())).size).toBeGreaterThan(1024);
 
-    // download emls in zip format
+    // download the final zip with the final I 4, the EMLs and the
+    // election definition; entry names are stored uncompressed
     const zipPromise = page.waitForEvent("download");
-    await finalizeCandidateListsPage.downloadEml.click();
+    await finalizeCandidateListsPage.downloadFinalZip.click();
     const zipDownload = await zipPromise;
-    expect(zipDownload.suggestedFilename()).toMatch(/eml-ek27\.zip/);
-    expect((await stat(await zipDownload.path())).size).toBeGreaterThan(1024);
+    expect(zipDownload.suggestedFilename()).toBe(
+      "Afronding_Kandidaatstellen_ek27.zip",
+    );
+    const zip = (await readFile(await zipDownload.path())).toString("latin1");
+    for (const entry of [
+      "Model_I4_Proces_Verbaal.pdf",
+      "Model_I4_Proces_Verbaal.docx",
+      "Totaallijsten_",
+      "Verkiezingsdefinitie_",
+    ]) {
+      expect(zip).toContain(entry);
+    }
 
     // delete objection for clean up
     await finalizeCandidateListsPage.deleteObjection(secondObjection);

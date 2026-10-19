@@ -9,7 +9,6 @@ export class CsbOverviewPage {
   readonly linkExamination: Locator;
   readonly linkPreSubmission: Locator;
   readonly linkRegisteredPoliticalGroups: Locator;
-  readonly linkElectionDefinition: Locator;
   readonly linkRecoveredLists: Locator;
 
   constructor(protected readonly page: Page) {
@@ -38,9 +37,6 @@ export class CsbOverviewPage {
     });
     this.linkPreSubmission = this.page.getByRole("link", {
       name: "Fase 1",
-    });
-    this.linkElectionDefinition = this.page.getByRole("link", {
-      name: "Verkiezingsdefinitie downloaden",
     });
     this.linkRecoveredLists = this.page.getByRole("link", {
       name: "Herstelde lijsten",

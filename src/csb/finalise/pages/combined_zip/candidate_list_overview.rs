@@ -15,9 +15,7 @@ pub(super) async fn candidate_list_overview_model<S: AppRequestState>(
     let registry = state.csb_store_registry();
     let mut numbering = list_numbering(registry, main_store).await?;
 
-    numbering
-        .record_if_incomplete(context, main_store)
-        .await?;
+    numbering.record_if_incomplete(context, main_store).await?;
 
     Ok(CandidateListOverview {
         election_name: election.formal_title(ModelLocale::Nl),

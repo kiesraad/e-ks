@@ -92,6 +92,23 @@ mod tests {
         );
     }
 
+    /// A group without an appellation (not registered yet) still renders.
+    #[test]
+    fn group_without_appellation_renders() {
+        let overview = CandidateListOverview {
+            election_name: "Eerste Kamer".to_string(),
+            election_date: "01-01-2027".to_string(),
+            electoral_districts: vec![Groningen],
+            groups: vec![OverviewGroup {
+                number: 1,
+                appellation: String::new(),
+                sets: ListSets::new([vec![Groningen]]).unwrap().unwrap(),
+            }],
+        };
+
+        overview.document().expect("renders");
+    }
+
     #[test]
     fn lists_in_one_district_get_no_stel_number_and_are_skipped_in_the_count() {
         assert_eq!(

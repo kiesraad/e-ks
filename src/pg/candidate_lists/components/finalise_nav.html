@@ -3,10 +3,9 @@
     <a href="{{ delete_path }}" class="delete-link">{{ "candidate_list.actions.delete_list"|trans }}</a>
   {% endif %}
   {% if !("paper_correction_mode"|value_true) %}
-  <div class="footer-nav-end">
-    <p>{{ "candidate_list.finalise_nav.question"|trans }}</p>
-    <a href="{{ crate::finalise::FinalisePath }}"
-        class="button secondary">{{ "candidate_list.finalise_nav.action"|trans }}</a>
-  </div>
+    <div class="footer-nav-end">
+      <p>{{ "candidate_list.finalise_nav.question"|trans }}</p>
+      <a href="{{ crate::finalise::FinalisePath }}" class="button secondary">{{ "candidate_list.finalise_nav.action"|trans }}</a>
+    </div>
   {% endif %}
 </nav>
