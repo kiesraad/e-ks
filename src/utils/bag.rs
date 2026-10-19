@@ -89,6 +89,14 @@ pub fn address_exists(
     }
 }
 
+/// Length limit of the locality form fields, in characters. The suggest
+/// endpoint refuses longer queries: the fuzzy match costs time linear in the
+/// query, and a URI can carry tens of kilobytes.
+pub(crate) const MAX_LOCALITY_CHARS: usize = 200;
+
+/// Most suggestions one request returns, whatever `limit` asks for.
+const MAX_SUGGEST_LIMIT: usize = 25;
+
 #[derive(Default, Deserialize)]
 struct SuggestQuery {
     wp: Option<String>,
@@ -117,6 +125,12 @@ async fn suggest(Query(params): Query<SuggestQuery>) -> impl IntoResponse {
             Json(json!({"error": "missing wp"})),
         );
     };
+    if query.chars().count() > MAX_LOCALITY_CHARS {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "wp too long"})),
+        );
+    }
 
     // An accepted name is its own suggestion: the fuzzy search below returns
     // only its best matches, so a correct name can lose to a closer-scoring one.
@@ -129,7 +143,10 @@ async fn suggest(Query(params): Query<SuggestQuery>) -> impl IntoResponse {
         return (StatusCode::OK, Json(json!([official])));
     }
 
-    let limit = params.limit.unwrap_or(DEFAULT_SUGGEST_LIMIT);
+    let limit = params
+        .limit
+        .unwrap_or(DEFAULT_SUGGEST_LIMIT)
+        .min(MAX_SUGGEST_LIMIT);
 
     let names = DATABASE.suggest(
         &query,
@@ -196,6 +213,26 @@ mod tests {
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
         let body = response_body_string(response).await;
         assert!(body.contains("missing wp"));
+    }
+
+    #[tokio::test]
+    async fn suggest_clamps_the_limit() {
+        let response = suggest(Query(SuggestQuery {
+            wp: Some("berg".to_string()),
+            limit: Some(usize::MAX),
+            municipalities: true,
+            ..Default::default()
+        }))
+        .await
+        .into_response();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let names: Vec<String> =
+            serde_json::from_str(&response_body_string(response).await).expect("json array");
+        assert!(
+            names.len() > 1 && names.len() <= MAX_SUGGEST_LIMIT,
+            "{names:?}"
+        );
     }
 
     #[tokio::test]
