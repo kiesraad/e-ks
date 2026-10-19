@@ -147,7 +147,8 @@
   font-size: var(--font-size-sm);
   gap: var(--space-2);
   line-height: var(--leading-sm);
-  padding: var(--space-1) var(--space-3);
+  /* DM Sans reads a touch high when centered; nudge the label down 1px. */
+  padding: calc(var(--space-1) + 1px) var(--space-3) calc(var(--space-1) - 1px);
   text-decoration: none;
 
   &::before {
@@ -186,6 +187,12 @@
 .restoration-tag-paper {
   --restoration-tag-color: var(--blue-700);
   --restoration-tag-bg: var(--blue-100);
+  --restoration-tag-icon: url("../icons/edit.svg");
+}
+
+.restoration-tag-paper-change {
+  --restoration-tag-color: var(--gray-800);
+  --restoration-tag-bg: var(--gray-50);
   --restoration-tag-icon: url("../icons/edit.svg");
 }
 

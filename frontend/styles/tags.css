@@ -62,7 +62,7 @@
   font-size: var(--font-size-sm);
   font-weight: 400;
   line-height: var(--leading-sm);
-  padding: var(--space-1) var(--space-2);
+  padding: calc(var(--space-1) + 1px) var(--space-2) calc(var(--space-1) - 1px);
   display: flex;
   align-items: center;
   gap: var(--space-1);
