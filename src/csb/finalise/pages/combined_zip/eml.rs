@@ -40,7 +40,7 @@ pub(super) async fn eml230_files(
         &main_store.list_order(),
     );
 
-    numbering.record_if_incomplete(&context, main_store).await?;
+    numbering.record_if_incomplete(context, main_store).await?;
 
     // Each group's established, final list number, paired with its store
     let numbered_groups: Vec<(NonZeroU64, &CsbStream)> = numbering

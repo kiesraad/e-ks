@@ -42,7 +42,7 @@ pub(super) fn markdown_document(template: impl Template) -> Result<Textris, AppE
 pub(super) fn i4_document(template: impl Template, hash: &I4Status) -> Result<Textris, AppError> {
     let mut doc = markdown_document(template)?;
     if let I4Status::Final(hash) = hash {
-        hash_footer(&mut doc, &hash);
+        hash_footer(&mut doc, hash);
     }
     Ok(doc)
 }

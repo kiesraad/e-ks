@@ -25,12 +25,12 @@ pub(in crate::csb::finalise::pages) async fn i4_model<S: AppRequestState>(
 ) -> Result<I4, AppError> {
     let election = main_store.election;
     let registry = state.csb_store_registry();
-    let mut numbering = list_numbering(registry, &main_store).await?;
+    let mut numbering = list_numbering(registry, main_store).await?;
 
     // A draft does not record the numbering
     if document_status.is_final() {
         numbering
-            .record_if_incomplete(&context, &main_store)
+            .record_if_incomplete(context, main_store)
             .await?;
     }
 

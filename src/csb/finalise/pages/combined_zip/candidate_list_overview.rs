@@ -13,10 +13,10 @@ pub(super) async fn candidate_list_overview_model<S: AppRequestState>(
 ) -> Result<CandidateListOverview, AppError> {
     let election = main_store.election;
     let registry = state.csb_store_registry();
-    let mut numbering = list_numbering(registry, &main_store).await?;
+    let mut numbering = list_numbering(registry, main_store).await?;
 
     numbering
-        .record_if_incomplete(&context, &main_store)
+        .record_if_incomplete(context, main_store)
         .await?;
 
     Ok(CandidateListOverview {
