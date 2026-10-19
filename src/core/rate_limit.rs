@@ -139,7 +139,7 @@ where
 
 /// Parse a numeric environment variable: unset or blank keeps `default`, a
 /// non-numeric value stops startup.
-fn number<T, F>(name: &'static str, default: T, lookup: &mut F) -> Result<T, AppError>
+pub(super) fn number<T, F>(name: &'static str, default: T, lookup: &mut F) -> Result<T, AppError>
 where
     T: std::str::FromStr,
     F: FnMut(&'static str) -> Result<String, env::VarError>,

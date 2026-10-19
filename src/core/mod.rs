@@ -21,9 +21,9 @@ pub mod translate;
 
 #[cfg(feature = "acme")]
 pub use config::AcmeConfig;
-pub use config::Config;
-#[cfg(feature = "tls")]
+#[cfg(any(feature = "tls", test))]
 pub use config::TlsConfig;
+pub use config::{BrpConfig, Config};
 pub use csb_access::{CsbAlertHours, CsbIpAllowList};
 pub use csb_username::CsbUsername;
 #[cfg(test)]
