@@ -7,8 +7,10 @@ pub(crate) use super::paths::{CsbCreateEmptyPath, CsbImportPath};
 
 mod import;
 
+pub use import::{
+    BrpSweepStatus, brp_sweep_running, brp_sweep_status, do_brp_verification, is_brp_status_poll,
+};
 pub(in crate::csb) use import::{ImportForm, ImportResult, import_package};
-pub use import::{brp_sweep_running, do_brp_verification};
 
 #[cfg(test)]
 pub use import::claim_sweep_for_test;

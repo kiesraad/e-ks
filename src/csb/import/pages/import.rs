@@ -5,10 +5,12 @@ use std::{
 
 use askama::Template;
 use axum::{
+    Json,
     extract::State,
+    http::{Method, Request},
     response::{IntoResponse, Redirect, Response},
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     AppError, AppRequestState, Context, CsbAction, CsbContext, CsbStore, CsbStoreData, CsbUser,
@@ -288,6 +290,29 @@ pub fn brp_sweep_running(stream_id: StreamId) -> bool {
         .contains(&stream_id)
 }
 
+/// The answer of the status routes a page polls while a sweep runs, so it
+/// can tell the user when the check finished.
+#[derive(Debug, Serialize)]
+pub struct BrpSweepStatus {
+    pub running: bool,
+}
+
+pub fn brp_sweep_status(stream_id: StreamId) -> Json<BrpSweepStatus> {
+    Json(BrpSweepStatus {
+        running: brp_sweep_running(stream_id),
+    })
+}
+
+/// What the status routes of the examination and the pre-submission check
+/// have in common, so the session middleware can recognise both.
+const BRP_CHECK_STATUS_SUFFIX: &str = "/brp-check/status";
+
+/// Whether `request` is a page polling for the end of a sweep. Such a poll is
+/// not the user working, so it must not keep an idle session alive.
+pub fn is_brp_status_poll<B>(request: &Request<B>) -> bool {
+    request.method() == Method::GET && request.uri().path().ends_with(BRP_CHECK_STATUS_SUFFIX)
+}
+
 /// One stream claimed for one sweep, released on drop so that a sweep ending
 /// without recording its outcome still frees the stream.
 struct SweepClaim(StreamId);
@@ -464,6 +489,28 @@ mod tests {
         test_utils::{response_body_string, sample_person_from_brp},
         utils::format_hash,
     };
+
+    /// The middleware recognises the status polls by their suffix, so both
+    /// status routes have to end with it.
+    #[test]
+    fn both_status_routes_are_recognised_as_polls() {
+        use crate::csb::{
+            examination::paths::CsbBrpCheckStatusPath,
+            pre_submission::pages::CsbPreSubmissionBrpCheckStatusPath,
+        };
+        use axum::body::Body;
+
+        let stream_id = StreamId::new();
+        for path in [
+            CsbBrpCheckStatusPath { stream_id }.to_string(),
+            CsbPreSubmissionBrpCheckStatusPath { stream_id }.to_string(),
+        ] {
+            let get = Request::get(&path).body(Body::empty()).unwrap();
+            assert!(is_brp_status_poll(&get), "{path}");
+            let post = Request::post(&path).body(Body::empty()).unwrap();
+            assert!(!is_brp_status_poll(&post), "{path}");
+        }
+    }
 
     #[tokio::test]
     async fn a_brp_result_for_a_corrected_candidate_is_dropped() -> Result<(), AppError> {

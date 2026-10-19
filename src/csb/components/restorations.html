@@ -202,7 +202,8 @@
   </div>
 {% endmacro omission_strip %}
 {% macro brp_strip(brp, badges, incomplete_reason, problems) %}
-  <div class="restoration-strip {% if brp.has_unhandled_errors() %}restoration-strip-error{% endif %}">
+  <div class="restoration-strip {% if brp.has_unhandled_errors() %}restoration-strip-error{% endif %}"
+       data-brp-strip>
     <ul class="restoration-tags">
       {% for badge in badges %}
         <li>
@@ -216,8 +217,15 @@
       {% endif %}
     </ul>
   </div>
-  {% if let Some(reason) = incomplete_reason %}<p class="restoration-strip-note">{{ reason }}</p>{% endif %}
+  {% if let Some(reason) = incomplete_reason %}
+    <p class="restoration-strip-note" data-brp-strip>{{ reason }}</p>
+  {% endif %}
 {% endmacro brp_strip %}
+{% macro brp_finished_notice(status_url) %}
+  <div class="alert alert-success"
+       hidden
+       data-brp-status-url="{{ status_url }}">{{ "csb.brp.finished"|trans }}</div>
+{% endmacro brp_finished_notice %}
 {% macro brp_group(candidate) %}
   <h3 class="examination-panel-group">{{ candidate.person.name.display() }}</h3>
   <div class="restoration-strip {% if !candidate.is_all_handled() %}restoration-strip-error{% endif %}">

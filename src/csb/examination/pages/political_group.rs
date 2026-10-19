@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use askama::Template;
 use axum::{
+    Json,
     extract::{Query, State},
     response::{IntoResponse, Response},
 };
@@ -15,13 +16,16 @@ use crate::{
     csb::{
         examination::{
             extractors::CsbPoliticalGroup,
-            pages::{CsbBrpCheckPath, CsbPoliticalGroupPath, CsbPoliticalGroupToggleFinishPath},
+            pages::{
+                CsbBrpCheckPath, CsbBrpCheckStatusPath, CsbPoliticalGroupPath,
+                CsbPoliticalGroupToggleFinishPath,
+            },
             structs::{
                 BrpBadge, BrpCheckState, CsbCandidateList, RestorationStatus, ScrappedOverview,
                 brp_incomplete_reason,
             },
         },
-        import::{brp_sweep_running, do_brp_verification},
+        import::{BrpSweepStatus, brp_sweep_running, brp_sweep_status, do_brp_verification},
     },
     filters, redirect_success,
     structs::{
@@ -157,6 +161,11 @@ pub async fn start_brp_check<S: AppRequestState>(
     Ok(redirect_success(CsbPoliticalGroupPath {
         stream_id: path.stream_id,
     }))
+}
+
+/// Polled by the group, list and candidate pages while a sweep runs.
+pub async fn brp_check_status(_: CsbBrpCheckStatusPath, store: CsbStore) -> Json<BrpSweepStatus> {
+    brp_sweep_status(store.stream_id)
 }
 
 pub async fn toggle_examination_finish(
@@ -369,6 +378,27 @@ mod tests {
 
         assert!(body.contains("Refresh this page"), "{body}");
         assert!(body.contains("still running"), "{body}");
+        assert!(
+            body.contains(&format!(
+                r#"data-brp-status-url="/csb/examination/{stream_id}/brp-check/status""#
+            )),
+            "{body}"
+        );
+        // The strip still reporting a running check goes once the notice shows.
+        assert!(body.contains("data-brp-strip"), "{body}");
+    }
+
+    #[tokio::test]
+    async fn the_status_route_reports_whether_the_sweep_runs() {
+        let (store, _) = store_with_a_candidate();
+        let stream_id = store.stream_id;
+
+        let idle = brp_check_status(CsbBrpCheckStatusPath { stream_id }, store.clone()).await;
+        assert!(!idle.running);
+
+        let _sweep = claim_sweep_for_test(stream_id);
+        let busy = brp_check_status(CsbBrpCheckStatusPath { stream_id }, store).await;
+        assert!(busy.running);
     }
 
     #[tokio::test]

@@ -142,13 +142,14 @@
     {% let examining = political_group.mode.is_examination() %}
     {% if examining %}
       {% if let Some(reason) = brp.incomplete %}
-        <div class="restoration-strip">
+        <div class="restoration-strip" data-brp-strip>
           <ul class="restoration-tags">
             <li>
               <span class="restoration-tag {% if brp.running %}restoration-tag-running{% else %}restoration-tag-pending{% endif %}">{{ reason }}</span>
             </li>
           </ul>
         </div>
+        {% if brp.running %}{{ restorations::brp_finished_notice(political_group.brp_check_status_path() ) }}{% endif %}
         {% if brp.state.is_not_checked() %}
           <div class="examination-panel-actions">
             {% if brp.running %}

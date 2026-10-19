@@ -4,9 +4,10 @@ use axum_extra::routing::RouterExt;
 use crate::AppRequestState;
 
 pub(in crate::csb) use super::paths::{
-    CsbPreSubmissionBrpCheckPath, CsbPreSubmissionBrpOverviewDocxPath,
-    CsbPreSubmissionBrpOverviewMarkdownPath, CsbPreSubmissionBrpOverviewPdfPath,
-    CsbPreSubmissionGroupPath, CsbPreSubmissionImportPath, CsbPreSubmissionOverviewPath,
+    CsbPreSubmissionBrpCheckPath, CsbPreSubmissionBrpCheckStatusPath,
+    CsbPreSubmissionBrpOverviewDocxPath, CsbPreSubmissionBrpOverviewMarkdownPath,
+    CsbPreSubmissionBrpOverviewPdfPath, CsbPreSubmissionGroupPath, CsbPreSubmissionImportPath,
+    CsbPreSubmissionOverviewPath,
 };
 
 pub(in crate::csb) mod brp_overview;
@@ -21,6 +22,7 @@ pub fn router<S: AppRequestState>() -> Router<S> {
         .typed_post(import::import_submit::<S>)
         .typed_get(group::group)
         .typed_post(group::start_brp_check::<S>)
+        .typed_get(group::brp_check_status)
         .typed_get(brp_overview::gen_brp_overview)
         .typed_get(brp_overview::gen_brp_overview_docx)
         .typed_get(brp_overview::gen_brp_overview_markdown)

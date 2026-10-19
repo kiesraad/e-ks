@@ -18,7 +18,7 @@ use crate::{
     AppError, AppState, CsbStore, PgStore, SESSION_COOKIE_NAME, Session, SessionUser,
     auth::{csrf_guard::enforce_csrf, session_extractor::user_agent_hash},
     common::{LoginStartPath, PgIndexPath, SelectElectionPath, SessionExpiryPath},
-    csb::index::CsbIndexPath,
+    csb::{import::is_brp_status_poll, index::CsbIndexPath},
     csrf_rejection_response,
     finalise::FinalisePath,
     store::{Store, StoreData},
@@ -59,9 +59,10 @@ pub async fn session_middleware(
         Err(rejection) => return csrf_rejection_response(rejection, session.locale),
     };
 
-    // Every request is activity, except the expiry-warning script peeking at
-    // how much time is left: that must not keep an idle session alive.
-    if !SessionExpiryPath::is_activity_free(&request) {
+    // Every request is activity, except the scripts polling on the user's
+    // behalf (the expiry warning, the end of a BRP sweep): those must not
+    // keep an idle session alive.
+    if !SessionExpiryPath::is_activity_free(&request) && !is_brp_status_poll(&request) {
         session.last_activity = Utc::now();
         state.sessions.touch(&session).await;
     }
@@ -355,6 +356,39 @@ mod tests {
             .oneshot(
                 HttpRequest::builder()
                     .uri(SessionExpiryPath::PATH)
+                    .header(header::COOKIE, &cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .expect("response");
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(stored_expires_in(&state, &cookie).await <= 5 * 60);
+    }
+
+    /// A page polling for the end of a BRP sweep is not the user working, so
+    /// it leaves the activity timestamp alone as well.
+    #[tokio::test]
+    async fn middleware_does_not_refresh_activity_on_the_brp_status_poll() {
+        let state = AppState::new_for_tests().await;
+        let cookie = insert_idle_session(&state, 10).await;
+        let path = "/csb/examination/00000000-0000-0000-0000-000000000000/brp-check/status";
+        let app = Router::new()
+            .route(
+                path,
+                get(|session: Session| async move { session.token_hash().to_string() }),
+            )
+            .layer(middleware::from_fn_with_state(
+                state.clone(),
+                session_middleware,
+            ))
+            .with_state(state.clone());
+
+        let response = app
+            .oneshot(
+                HttpRequest::builder()
+                    .uri(path)
                     .header(header::COOKIE, &cookie)
                     .body(Body::empty())
                     .unwrap(),
