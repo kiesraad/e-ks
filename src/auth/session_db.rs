@@ -10,7 +10,7 @@ use chrono::{DateTime, Utc};
 use tracing::warn;
 
 use crate::{
-    AppError, Locale, Session, SessionUser, TokenValue,
+    AppError, ElectionConfig, Locale, Session, SessionUser, StreamId, TokenValue,
     auth::session::{session_absolute_timeout, session_idle_timeout},
 };
 
@@ -105,43 +105,86 @@ fn session_from_row(row: SessionRow) -> Option<Session> {
     })
 }
 
-/// Write the mutable fields of an existing session row. Like [`upsert`] but a
-/// plain UPDATE, so it never re-creates a row a concurrent logout deleted.
-/// `created_at` and `user_agent_hash` are fixed at login, and the identity can
-/// only change within its role (`identity ? $5` matches the serde external
-/// tag): role changes go through session establishment, never through
-/// mutation.
-pub async fn update(pool: &sqlx::PgPool, session: &Session) -> Result<(), AppError> {
-    sqlx::query(
+/// Change only the locale of an existing session row.
+pub async fn set_locale(
+    pool: &sqlx::PgPool,
+    session: &Session,
+    locale: Locale,
+) -> Result<(), AppError> {
+    let result = sqlx::query("UPDATE sessions SET locale = $2 WHERE token = $1")
+        .bind(session.token_hash())
+        .bind(locale.as_str())
+        .execute(pool)
+        .await?;
+    require_updated(result)
+}
+
+/// Change the election and CSRF token together, only while the request's
+/// CSRF token is still the stored one and the row is a political-group session.
+pub async fn set_election(
+    pool: &sqlx::PgPool,
+    session: &Session,
+    election: ElectionConfig,
+    csrf: &TokenValue,
+) -> Result<(), AppError> {
+    let result = sqlx::query(
         r#"
         UPDATE sessions SET
-            identity = $2,
-            locale = $3,
-            last_activity = $4,
-            csrf_token = $6
-        WHERE token = $1 AND identity ? $5
+            identity = jsonb_set(identity, '{PoliticalGroup,election}', $2),
+            csrf_token = $3
+        WHERE token = $1 AND csrf_token = $4 AND identity ? 'PoliticalGroup'
         "#,
     )
     .bind(session.token_hash())
-    .bind(serde_json::to_value(&session.user)?)
-    .bind(session.locale.as_str())
-    .bind(session.last_activity)
-    .bind(session.user.tag())
+    .bind(serde_json::to_value(election)?)
+    .bind(&csrf.0)
     .bind(&session.csrf_token().0)
     .execute(pool)
     .await?;
-
-    Ok(())
+    require_updated(result)
 }
 
-/// Refresh `last_activity` of an existing session row. A conditional UPDATE
-/// (not an upsert), so it never re-creates a row a concurrent logout deleted.
+/// Like [`set_election`], for the paper-corrections mode of a committee session.
+pub async fn set_paper_correction_stream_id(
+    pool: &sqlx::PgPool,
+    session: &Session,
+    stream_id: Option<StreamId>,
+    csrf: &TokenValue,
+) -> Result<(), AppError> {
+    let result = sqlx::query(
+        r#"
+        UPDATE sessions SET
+            identity = jsonb_set(identity, '{CentralElectoralCommittee,paper_correction_stream_id}', $2),
+            csrf_token = $3
+        WHERE token = $1 AND csrf_token = $4 AND identity ? 'CentralElectoralCommittee'
+        "#,
+    )
+    .bind(session.token_hash())
+    .bind(serde_json::to_value(stream_id)?)
+    .bind(&csrf.0)
+    .bind(&session.csrf_token().0)
+    .execute(pool)
+    .await?;
+    require_updated(result)
+}
+
+fn require_updated(result: sqlx::postgres::PgQueryResult) -> Result<(), AppError> {
+    if result.rows_affected() == 1 {
+        Ok(())
+    } else {
+        Err(AppError::Conflict)
+    }
+}
+
+/// Advance `last_activity` of an existing session row, never backwards. A
+/// conditional UPDATE (not an upsert), so it never re-creates a row a
+/// concurrent logout deleted.
 pub async fn touch(
     pool: &sqlx::PgPool,
     token_hash: &str,
     last_activity: DateTime<Utc>,
 ) -> Result<(), AppError> {
-    sqlx::query("UPDATE sessions SET last_activity = $2 WHERE token = $1")
+    sqlx::query("UPDATE sessions SET last_activity = GREATEST(last_activity, $2) WHERE token = $1")
         .bind(token_hash)
         .bind(last_activity)
         .execute(pool)
@@ -156,6 +199,19 @@ pub async fn delete(pool: &sqlx::PgPool, token_hash: &str) -> Result<(), AppErro
         .execute(pool)
         .await?;
     Ok(())
+}
+
+/// Delete a session and return it in one statement, so a failed delete is
+/// never mistaken for a successful logout.
+pub async fn remove(pool: &sqlx::PgPool, token_hash: &str) -> Result<Option<Session>, AppError> {
+    let row: Option<SessionRow> = sqlx::query_as(
+        r#"DELETE FROM sessions WHERE token = $1
+           RETURNING token, identity, locale, last_activity, created_at, user_agent_hash, csrf_token"#,
+    )
+    .bind(token_hash)
+    .fetch_optional(pool)
+    .await?;
+    Ok(row.and_then(session_from_row))
 }
 
 /// Delete all sessions that have passed either the idle timeout or the absolute

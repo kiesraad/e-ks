@@ -10,7 +10,10 @@ use parking_lot::RwLock;
 #[cfg(feature = "database")]
 use tracing::error;
 
-use crate::{AppError, Session, auth::session::hash_token, utils::StorageScheme};
+use crate::{
+    AppError, ElectionConfig, Locale, Session, SessionUser, StreamId, auth::session::hash_token,
+    form::generate_csrf_token, utils::StorageScheme,
+};
 
 #[cfg(feature = "database")]
 use crate::auth::session_db;
@@ -94,44 +97,97 @@ impl SessionStore {
         }
     }
 
-    /// Persists changes to a stored session. Unlike [`Self::insert`] this never
-    /// re-creates the entry, so an in-flight request holding a clone cannot undo
-    /// a concurrent logout. Use [`Self::insert`] only for a new session.
-    ///
-    /// The identity is written as one value (within its role: an update whose
-    /// identity changes role is refused, mirroring the database backend —
-    /// role changes go through session establishment, never through mutation);
-    /// `created_at` and `user_agent_hash` stay fixed at login.
-    pub async fn update(&self, session: &Session) {
+    /// Changes only the locale. Never writes back the request's snapshot of
+    /// the identity or CSRF token, and never re-creates a removed session.
+    pub async fn set_locale(&self, session: &Session, locale: Locale) -> Result<(), AppError> {
         match self {
             SessionStore::InMemory(inner) => {
-                if let Some(existing) = inner.write().get_mut(session.token_hash()) {
-                    if existing.user.scope() != session.user.scope() {
-                        tracing::error!("refusing session update that changes the session's role");
-                        return;
-                    }
-                    existing.csrf_token = session.csrf_token.clone();
-                    existing.last_activity = session.last_activity;
-                    existing.user = session.user.clone();
-                    existing.locale = session.locale;
-                }
+                let mut sessions = inner.write();
+                let existing = sessions
+                    .get_mut(session.token_hash())
+                    .ok_or(AppError::Conflict)?;
+                existing.locale = locale;
+                Ok(())
+            }
+            #[cfg(feature = "database")]
+            SessionStore::Database(pool) => session_db::set_locale(pool, session, locale).await,
+        }
+    }
+
+    /// Changes the political-group election and rotates the CSRF token in one
+    /// conditional write: a request whose CSRF token is no longer current
+    /// (a concurrent context switch) gets `Conflict`.
+    pub async fn set_election(
+        &self,
+        session: &Session,
+        election: ElectionConfig,
+    ) -> Result<(), AppError> {
+        let csrf = generate_csrf_token();
+        match self {
+            SessionStore::InMemory(inner) => {
+                let mut sessions = inner.write();
+                let existing = sessions
+                    .get_mut(session.token_hash())
+                    .filter(|stored| stored.csrf_matches(&session.csrf_token().0))
+                    .ok_or(AppError::Conflict)?;
+                let SessionUser::PoliticalGroup {
+                    election: current, ..
+                } = &mut existing.user
+                else {
+                    return Err(AppError::Unauthorised);
+                };
+                *current = Some(election);
+                existing.csrf_token = csrf;
+                Ok(())
             }
             #[cfg(feature = "database")]
             SessionStore::Database(pool) => {
-                if let Err(err) = session_db::update(pool, session).await {
-                    error!("failed to update session: {err}");
-                }
+                session_db::set_election(pool, session, election, &csrf).await
             }
         }
     }
 
-    /// Refreshes `last_activity` of an existing session. Unlike [`Self::insert`]
-    /// this never re-creates the row, so a concurrent logout stays terminal.
+    /// Enters or leaves paper-corrections mode and rotates the CSRF token in
+    /// one conditional write, like [`Self::set_election`].
+    pub async fn set_paper_correction_stream_id(
+        &self,
+        session: &Session,
+        stream_id: Option<StreamId>,
+    ) -> Result<(), AppError> {
+        let csrf = generate_csrf_token();
+        match self {
+            SessionStore::InMemory(inner) => {
+                let mut sessions = inner.write();
+                let existing = sessions
+                    .get_mut(session.token_hash())
+                    .filter(|stored| stored.csrf_matches(&session.csrf_token().0))
+                    .ok_or(AppError::Conflict)?;
+                let SessionUser::CentralElectoralCommittee {
+                    paper_correction_stream_id,
+                    ..
+                } = &mut existing.user
+                else {
+                    return Err(AppError::Unauthorised);
+                };
+                *paper_correction_stream_id = stream_id;
+                existing.csrf_token = csrf;
+                Ok(())
+            }
+            #[cfg(feature = "database")]
+            SessionStore::Database(pool) => {
+                session_db::set_paper_correction_stream_id(pool, session, stream_id, &csrf).await
+            }
+        }
+    }
+
+    /// Advances `last_activity` of an existing session, never backwards.
+    /// Unlike [`Self::insert`] this never re-creates the row, so a concurrent
+    /// logout stays terminal.
     pub async fn touch(&self, session: &Session) {
         match self {
             SessionStore::InMemory(inner) => {
                 if let Some(existing) = inner.write().get_mut(session.token_hash()) {
-                    existing.last_activity = session.last_activity;
+                    existing.last_activity = existing.last_activity.max(session.last_activity);
                 }
             }
             #[cfg(feature = "database")]
@@ -249,66 +305,6 @@ mod tests {
         assert!(store.get(&token).await.expect("load").is_none());
     }
 
-    /// `update` writes a session's mutable fields but, like `touch`, never
-    /// re-creates a removed one: a request that still holds a clone of a
-    /// logged-out session cannot bring it back.
-    #[tokio::test]
-    async fn update_persists_changes_without_resurrecting_a_removed_session() {
-        let store = SessionStore::default();
-        let mut session = Session::new_test();
-        let token = session.token_string();
-        store.insert(session.clone()).await;
-
-        let old_csrf = session.csrf_token().to_string();
-        session.rotate_csrf_token();
-        session.set_test_election(crate::ElectionConfig::EK27);
-        store.update(&session).await;
-
-        let updated = store.get(&token).await.expect("load").expect("present");
-        assert_eq!(
-            updated.user.election(),
-            Some(crate::ElectionConfig::EK27),
-            "the identity must be written as a whole"
-        );
-        assert!(!updated.csrf_matches(&old_csrf));
-
-        store.remove(&token).await;
-        store.update(&session).await;
-        assert!(store.get(&token).await.expect("load").is_none());
-    }
-
-    /// The login-time facts of a session are not writable after the fact, and
-    /// an update can never change the session's role: role changes go through
-    /// session establishment (a new session), not mutation.
-    #[tokio::test]
-    async fn update_leaves_login_time_fields_and_role_alone() {
-        let store = SessionStore::default();
-        let mut session = Session::new_test();
-        session.set_user_agent_hash("ua-hash".to_string());
-        let token = session.token_string();
-        let created_at = session.created_at;
-        let original_user = session.user.clone();
-        store.insert(session.clone()).await;
-
-        session.created_at = created_at + Duration::hours(1);
-        session.set_user_agent_hash("other-ua".to_string());
-        // Attempt a role escalation through the mutable-session path.
-        session.user = crate::SessionUser::CentralElectoralCommittee {
-            user: crate::CsbUser::new_test(),
-            election: crate::ElectionConfig::EK27,
-            paper_correction_stream_id: None,
-        };
-        store.update(&session).await;
-
-        let stored = store.get(&token).await.expect("load").expect("present");
-        assert_eq!(stored.created_at, created_at);
-        assert_eq!(stored.user_agent_hash.as_deref(), Some("ua-hash"));
-        assert_eq!(
-            stored.user, original_user,
-            "role escalation must be refused"
-        );
-    }
-
     /// Removes expired sessions on lookup.
     #[tokio::test]
     async fn get_removes_expired_sessions() {
@@ -401,35 +397,33 @@ mod tests {
             reloaded.created_at,
         );
 
-        // `update` writes the identity within its role and the CSRF token.
-        let mut changed = reloaded.clone();
-        changed.set_test_election(crate::ElectionConfig::EK27);
-        changed.rotate_csrf_token();
-        store.update(&changed).await;
+        // Field operations write their field only, conditionally on the CSRF
+        // token and role.
+        store.set_locale(&reloaded, crate::Locale::Nl).await?;
+        store
+            .set_election(&reloaded, crate::ElectionConfig::EK27)
+            .await?;
         let updated = store.get(&token).await?.expect("still present");
+        assert_eq!(updated.locale, crate::Locale::Nl);
         assert_eq!(updated.user.election(), Some(crate::ElectionConfig::EK27));
-        assert!(updated.csrf_matches(&changed.csrf_token().0));
+        assert!(!updated.csrf_matches(&reloaded.csrf_token().0));
+        assert!(matches!(
+            store
+                .set_election(&reloaded, crate::ElectionConfig::EK27)
+                .await,
+            Err(AppError::Conflict)
+        ));
+        assert!(matches!(
+            store.set_paper_correction_stream_id(&updated, None).await,
+            Err(AppError::Conflict)
+        ));
 
-        // An update that changes the session's role is refused.
-        let mut escalated = updated.clone();
-        escalated.user = crate::SessionUser::CentralElectoralCommittee {
-            user: crate::CsbUser::new_test(),
-            election: crate::ElectionConfig::EK27,
-            paper_correction_stream_id: None,
-        };
-        store.update(&escalated).await;
-        let unchanged = store.get(&token).await?.expect("still present");
-        assert_eq!(
-            unchanged.user, changed.user,
-            "role escalation must be refused"
-        );
-
-        store.remove(&token).await;
+        assert!(store.remove(&token).await?.is_some());
+        assert!(store.remove(&token).await?.is_none());
         assert!(store.get(&token).await?.is_none());
 
-        // A touch or an update after logout must not resurrect the session row.
+        // A touch after logout must not resurrect the session row.
         store.touch(&reloaded).await;
-        store.update(&reloaded).await;
         assert!(store.get(&token).await?.is_none());
         Ok(())
     }

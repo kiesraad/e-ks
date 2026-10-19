@@ -66,7 +66,7 @@ async fn existing_elections_for<S: AppRequestState>(
 pub async fn switch_election_submit<S: AppRequestState>(
     _: SwitchElectionPath,
     State(state): State<S>,
-    mut session: Session,
+    session: Session,
     axum::Form(form): axum::Form<SwitchElectionForm>,
 ) -> Result<Response, AppError> {
     let Some(election) = form.into_election_config() else {
@@ -81,7 +81,7 @@ pub async fn switch_election_submit<S: AppRequestState>(
         stream_id,
         election: current,
         ..
-    } = &mut session.user
+    } = &session.user
     else {
         return Ok(Redirect::to(&CsbIndexPath {}.to_string()).into_response());
     };
@@ -94,11 +94,9 @@ pub async fn switch_election_submit<S: AppRequestState>(
     // Ensure the store exists for the new election.
     state.store_for_stream(*stream_id, election, false).await?;
 
-    *current = Some(election);
-    // Invalidate forms rendered for the previous election, so a stale tab
-    // cannot submit its data against the newly selected one.
-    session.rotate_csrf_token();
-    state.sessions().update(&session).await;
+    // Also rotates the CSRF token, so a stale tab cannot submit its data
+    // against the newly selected election.
+    state.sessions().set_election(&session, election).await?;
 
     Ok(Redirect::to(&PgIndexPath.to_string()).into_response())
 }

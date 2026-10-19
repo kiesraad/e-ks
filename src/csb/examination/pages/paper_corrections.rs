@@ -15,14 +15,15 @@ use super::{
 pub async fn start_paper_corrections<S: AppRequestState>(
     _: CsbPaperCorrectionsStartPath,
     State(state): State<S>,
-    mut session: Session,
+    session: Session,
     store: CsbStore,
 ) -> Result<Response, AppError> {
-    session.set_paper_correction_stream_id(Some(store.stream_id))?;
-    // Invalidate forms rendered before the switch, so a stale tab cannot
-    // submit changes against this stream's data.
-    session.rotate_csrf_token();
-    state.sessions().update(&session).await;
+    // Also rotates the CSRF token, so a stale tab cannot submit changes
+    // against this stream's data.
+    state
+        .sessions()
+        .set_paper_correction_stream_id(&session, Some(store.stream_id))
+        .await?;
 
     Ok(Redirect::to(&PgIndexPath.to_string()).into_response())
 }
@@ -31,11 +32,12 @@ pub async fn start_paper_corrections<S: AppRequestState>(
 pub async fn stop_paper_corrections<S: AppRequestState>(
     path: CsbPaperCorrectionsStopPath,
     State(state): State<S>,
-    mut session: Session,
+    session: Session,
 ) -> Result<Response, AppError> {
-    session.set_paper_correction_stream_id(None)?;
-    session.rotate_csrf_token();
-    state.sessions().update(&session).await;
+    state
+        .sessions()
+        .set_paper_correction_stream_id(&session, None)
+        .await?;
 
     Ok(Redirect::to(
         &CsbPoliticalGroupPath {

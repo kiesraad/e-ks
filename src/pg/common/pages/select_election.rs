@@ -28,13 +28,11 @@ struct SelectElectionTemplate {
 pub async fn select_election<S: AppRequestState>(
     _: SelectElectionPath,
     session: Session,
-    State(state): State<S>,
+    _: State<S>,
 ) -> Result<Response, AppError> {
     if session.user.election().is_some() {
         return Ok(Redirect::to(&PgIndexPath.to_string()).into_response());
     }
-
-    state.sessions().update(&session).await;
 
     let template = SelectElectionTemplate {
         elections: crate::ElectionConfig::type_options(),
@@ -59,7 +57,7 @@ pub async fn select_election_submit<S: AppRequestState>(
     _: SelectElectionPath,
     State(state): State<S>,
     jar: CookieJar,
-    mut session: Session,
+    session: Session,
     axum::Form(form): axum::Form<SelectElectionForm>,
 ) -> Result<Response, AppError> {
     #[cfg(not(all(feature = "fixtures", feature = "dev-features")))]
@@ -99,12 +97,7 @@ pub async fn select_election_submit<S: AppRequestState>(
     }
 
     // use the stream ID derived from the authenticated login
-    let SessionUser::PoliticalGroup {
-        stream_id,
-        election: current,
-        ..
-    } = &mut session.user
-    else {
+    let SessionUser::PoliticalGroup { stream_id, .. } = &session.user else {
         return Ok(Redirect::to(&CsbIndexPath {}.to_string()).into_response());
     };
 
@@ -112,11 +105,9 @@ pub async fn select_election_submit<S: AppRequestState>(
         .store_for_stream(*stream_id, election, form.load_fixtures())
         .await?;
 
-    *current = Some(election);
-    // Invalidate forms rendered before an election was picked, so a stale tab
-    // cannot submit against the election chosen here.
-    session.rotate_csrf_token();
-    state.sessions().update(&session).await;
+    // Also rotates the CSRF token, so a stale tab cannot submit against the
+    // election chosen here.
+    state.sessions().set_election(&session, election).await?;
 
     Ok(Redirect::to(&PgIndexPath.to_string()).into_response())
 }

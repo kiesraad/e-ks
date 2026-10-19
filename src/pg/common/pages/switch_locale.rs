@@ -1,5 +1,5 @@
 use crate::{
-    AppRequestState, Locale, Session,
+    AppError, AppRequestState, Locale, Session,
     common::{PgIndexPath, SwitchLanguagePath},
     redirect_to_referer,
 };
@@ -16,15 +16,14 @@ pub async fn switch_language<S: AppRequestState>(
     _: SwitchLanguagePath,
     TypedHeader(referer): TypedHeader<headers::Referer>,
     State(state): State<S>,
-    mut session: Session,
+    session: Session,
     Form(form): Form<LanguageSwitch>,
-) -> Redirect {
-    session.locale = form.lang;
-    state.sessions().update(&session).await;
+) -> Result<Redirect, AppError> {
+    state.sessions().set_locale(&session, form.lang).await?;
 
     // Back to the page the switch was made on, never off-site (see
     // [`redirect_to_referer`]).
-    redirect_to_referer(&referer, PgIndexPath)
+    Ok(redirect_to_referer(&referer, PgIndexPath))
 }
 
 #[cfg(test)]
