@@ -13,7 +13,7 @@ use axum_extra::{
 use chrono::Utc;
 use serde::{Serialize, de::DeserializeOwned};
 
-use super::maintenance::handle_db_error;
+use super::{csb_access::PublicListener, maintenance::handle_db_error};
 use crate::{
     AppError, AppState, CsbStore, PgStore, SESSION_COOKIE_NAME, Session, SessionUser,
     auth::{csrf_guard::enforce_csrf, session_extractor::user_agent_hash},
@@ -48,10 +48,20 @@ pub async fn session_middleware(
         Err(err) => return handle_db_error(&state.db_health, err, &request),
     };
 
-    if let Some(rejection) =
-        reject_on_user_agent_mismatch(&state, &session, request.headers(), token).await
+    let public_listener = request.extensions().get::<PublicListener>().is_some();
+    match reject_session(
+        &state,
+        &session,
+        token,
+        public_listener,
+        &request.headers().clone(),
+        &jar,
+    )
+    .await
     {
-        return rejection;
+        Ok(Some(rejection)) => return rejection,
+        Err(err) => return handle_db_error(&state.db_health, err, &request),
+        Ok(None) => {}
     }
 
     let mut request = match enforce_csrf(request, &session).await {
@@ -73,6 +83,52 @@ pub async fn session_middleware(
     next.run(request).await
 }
 
+/// The checks a loaded session must pass before it serves the request:
+/// committee sessions are refused on the public listener (the session store
+/// is shared by both listeners and cookies are not port-scoped, but only the
+/// CSB listener is behind the IP allow list), a security key removed from
+/// `CSB_WEBAUTHN_USERS` ends its sessions, and the user agent must match.
+async fn reject_session(
+    state: &AppState,
+    session: &Session,
+    token: Option<&str>,
+    public_listener: bool,
+    headers: &HeaderMap,
+    jar: &CookieJar,
+) -> Result<Option<Response>, AppError> {
+    if public_listener && matches!(session.user, SessionUser::CentralElectoralCommittee { .. }) {
+        tracing::warn!(
+            event = "csb.session_on_public_listener",
+            user = ?session.user,
+            "committee session presented on the public listener refused"
+        );
+        return Ok(Some(
+            Redirect::to(&LoginStartPath.to_string()).into_response(),
+        ));
+    }
+
+    if !session
+        .user
+        .is_authorized(state.config.csb_webauthn.as_ref())
+    {
+        tracing::warn!(event = "csb.session_revoked", user = ?session.user,
+            "CSB session no longer matches a configured user");
+        if let Some(token) = token {
+            state.sessions.remove(token).await?;
+        }
+        return Ok(Some(
+            (
+                jar.clone()
+                    .remove(crate::auth::session_extractor::build_removal_cookie()),
+                Redirect::to(&crate::csb::login::CsbLoginPath.to_string()),
+            )
+                .into_response(),
+        ));
+    }
+
+    reject_on_user_agent_mismatch(state, session, headers, token).await
+}
+
 /// User-agent pinning: reject (and drop) sessions replayed from a different client.
 ///
 /// Returns the login redirect to short-circuit the middleware, or `None` when the UA
@@ -82,17 +138,21 @@ async fn reject_on_user_agent_mismatch(
     session: &Session,
     headers: &HeaderMap,
     token: Option<&str>,
-) -> Option<Response> {
-    let expected = session.user_agent_hash.as_deref()?;
+) -> Result<Option<Response>, AppError> {
+    let Some(expected) = session.user_agent_hash.as_deref() else {
+        return Ok(None);
+    };
     if user_agent_hash(headers) == expected {
-        return None;
+        return Ok(None);
     }
 
     tracing::warn!("session user-agent mismatch; dropping session");
     if let Some(token) = token {
-        state.sessions.remove(token).await;
+        state.sessions.remove(token).await?;
     }
-    Some(Redirect::to(&LoginStartPath.to_string()).into_response())
+    Ok(Some(
+        Redirect::to(&LoginStartPath.to_string()).into_response(),
+    ))
 }
 
 /// Middleware that resolves the scoped store for the session's current election.
@@ -398,6 +458,68 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         assert!(stored_expires_in(&state, &cookie).await <= 5 * 60);
+    }
+
+    #[tokio::test]
+    async fn committee_session_is_refused_on_the_public_listener() {
+        let state = AppState::new_for_tests().await;
+        let session = Session::new_test_committee();
+        let token = session.token_string();
+        state.sessions.insert(session).await;
+        let app = Router::new()
+            .route("/", get(|| async { "ok" }))
+            .layer(middleware::from_fn_with_state(
+                state.clone(),
+                session_middleware,
+            ))
+            .layer(axum::Extension(PublicListener))
+            .with_state(state.clone());
+        let request = HttpRequest::builder()
+            .uri("/")
+            .header(header::COOKIE, format!("{SESSION_COOKIE_NAME}={token}"))
+            .body(Body::empty())
+            .unwrap();
+
+        let response = app.oneshot(request).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        assert_eq!(response.headers()[header::LOCATION], "/login");
+        assert!(state.sessions.get(&token).await.unwrap().is_some());
+    }
+
+    /// A security-key session ends once its user leaves the configuration.
+    #[tokio::test]
+    async fn security_key_session_is_revoked_when_its_user_is_removed() {
+        let config = crate::auth::csb_webauthn::test_support::webauthn_test_config();
+        let session = Session::for_committee(
+            crate::CsbUser::SecurityKey {
+                username: crate::auth::csb_webauthn::test_support::alice(),
+            },
+            config.default_election,
+            crate::Locale::En,
+        );
+        let token = session.token_string();
+        let state = AppState::new_for_tests_with_config(config).await;
+        state.sessions.insert(session).await;
+        let request = || {
+            HttpRequest::builder()
+                .uri("/")
+                .header(header::COOKIE, format!("{SESSION_COOKIE_NAME}={token}"))
+                .body(Body::empty())
+                .unwrap()
+        };
+        let response = session_app(state.clone()).oneshot(request()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let mut revoked = state.clone();
+        let mut config = state.config.clone();
+        config.csb_webauthn = None;
+        revoked.config = Box::leak(Box::new(config));
+        let response = session_app(revoked).oneshot(request()).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        assert_eq!(response.headers()[header::LOCATION], "/csb/login");
+        assert!(state.sessions.get(&token).await.unwrap().is_none());
     }
 
     /// Builds an app whose only route echoes the session token hash behind the

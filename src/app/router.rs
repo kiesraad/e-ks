@@ -3,7 +3,7 @@
 
 use auth_service::SamlLogoutPath;
 use axum::{
-    Router,
+    Extension, Router,
     http::{HeaderName, HeaderValue, header},
     middleware,
     routing::get,
@@ -12,11 +12,11 @@ use axum_extra::routing::TypedPath;
 use tower_http::{csrf::CsrfLayer, set_header::SetResponseHeaderLayer};
 
 use crate::{
-    AppState, audit_log, candidate_lists, candidates, common, csb, csb_ip_allow_list_middleware,
-    csb_store_middleware, db_gate_middleware, eks_key_middleware, finalise, health_router,
-    http_trace, lb_health_router, list_designation, list_submitters, name_authorisations, persons,
-    political_groups, render_error_pages, session_middleware, store_middleware,
-    substitute_list_submitters, utils::bag,
+    AppState, app::middleware::PublicListener, audit_log, candidate_lists, candidates, common, csb,
+    csb_ip_allow_list_middleware, csb_store_middleware, db_gate_middleware, eks_key_middleware,
+    finalise, health_router, http_trace, lb_health_router, list_designation, list_submitters,
+    name_authorisations, persons, political_groups, render_error_pages, session_middleware,
+    store_middleware, substitute_list_submitters, utils::bag,
 };
 
 /// Whether a router serves the CSB section. The listener configured through
@@ -117,7 +117,7 @@ pub fn create_with(state: AppState, csb_routes: WithCsbRoutes) -> Router<AppStat
             state.clone(),
             csb_ip_allow_list_middleware,
         )),
-        WithCsbRoutes::Excluded => router,
+        WithCsbRoutes::Excluded => router.layer(Extension(PublicListener)),
     };
 
     // The load balancer only checks that this process is up, and holds no
