@@ -1,0 +1,34 @@
+[package]
+name = "auth-service-fuzz"
+version = "0.0.0"
+edition = "2024"
+license = "EUPL-1.2"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+# cargo-fuzz targets for the SAML pipeline; run them through `bin/fuzz`.
+# Not a member of the root workspace: fuzz builds need nightly and sanitizer
+# flags, and `--cfg fuzzing` exposes `auth_service::fuzzing`.
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4.13"
+
+[dependencies.auth-service]
+path = ".."
+
+[[bin]]
+name = "saml_xml_parser_diff"
+path = "fuzz_targets/saml_xml_parser_diff.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "saml_xsw"
+path = "fuzz_targets/saml_xsw.rs"
+test = false
+doc = false
+bench = false

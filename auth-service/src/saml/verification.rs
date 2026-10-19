@@ -55,7 +55,7 @@ const ENVELOPED_SIGNATURE_TRANSFORM: &str = "http://www.w3.org/2000/09/xmldsig#e
 // Attribute names that name an element for a `#id` reference. Must stay aligned
 // with the backend's ID map so both resolve a reference the same way;
 // `get_attribute` matches by local name, so `"id"` also covers `xml:id`.
-const ID_ATTRIBUTES: &[&str] = &["ID", "Id", "id", "AssertionID"];
+pub(crate) const ID_ATTRIBUTES: &[&str] = &["ID", "Id", "id", "AssertionID"];
 
 /// The element the caller is about to consume, read from the caller's own tree.
 ///

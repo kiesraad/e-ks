@@ -51,7 +51,7 @@ use tracing::{debug, error, info, warn};
 /// user out. An RD-signed Response naming the flow cookie's AuthnRequest cannot
 /// be provoked that way: the ID never left the signed POST body.
 #[derive(Debug, PartialEq, Eq)]
-enum Rejection {
+pub(crate) enum Rejection {
     /// No RD-signed Response for the flow cookie's AuthnRequest was seen: bad
     /// or missing input, transport, or a Response to some other request.
     Unanswered(AuthFailure),
@@ -241,20 +241,38 @@ async fn resolve_artifact_to_claims(
     let resolved = resolve_artifact(auth_state, params)
         .await
         .map_err(Rejection::Unanswered)?;
+    claims_from_soap(
+        auth_state,
+        &resolved.rd,
+        &resolved.soap,
+        &resolved.resolve_id,
+        bound_authn_id,
+    )
+}
 
-    // 3-5. Parse the SOAP ArtifactResponse exactly once and validate the
-    //      ArtifactResponse -> Response -> Assertion chain by navigating that
-    //      single tree. Inner elements (Response, Assertion) inherit their
-    //      namespaces from the ArtifactResponse and are never re-parsed as
-    //      standalone fragments; signature verification uses the self-contained
-    //      source bytes of the RD-signed ArtifactResponse element.
-    let doc = parse_soap_envelope(&resolved.soap).map_err(Rejection::Unanswered)?;
+/// Steps 3-5, once the back-channel has answered with `soap`: everything the
+/// ACS does with the RD's bytes. Also the entry point of the XSW fuzzer.
+///
+/// Parse the SOAP ArtifactResponse exactly once and validate the
+/// ArtifactResponse -> Response -> Assertion chain by navigating that single
+/// tree. Inner elements (Response, Assertion) inherit their namespaces from the
+/// ArtifactResponse and are never re-parsed as standalone fragments; signature
+/// verification uses the self-contained source bytes of the RD-signed
+/// ArtifactResponse element.
+pub(crate) fn claims_from_soap(
+    auth_state: &AuthServiceState,
+    rd: &IdpMetadata,
+    soap: &str,
+    resolve_id: &MessageId,
+    bound_authn_id: &MessageId,
+) -> Result<Claims, Rejection> {
+    let doc = parse_soap_envelope(soap).map_err(Rejection::Unanswered)?;
     let chain = ResponseChain {
         doc: &doc,
         auth_state,
-        rd: &resolved.rd,
+        rd,
     };
-    chain.claims(&resolved.resolve_id, bound_authn_id)
+    chain.claims(resolve_id, bound_authn_id)
 }
 
 /// The RD's SOAP ArtifactResponse, the `@ID` of the ArtifactResolve it must
@@ -1141,14 +1159,11 @@ mod tests {
     /// Run the handler's validation chain over `soap`, exactly as
     /// `resolve_artifact_to_claims` does once the back-channel has answered.
     fn chain_claims(auth: &AuthServiceState, soap: &str) -> Result<Claims, Rejection> {
-        let doc = parse_soap_envelope(soap).map_err(Rejection::Unanswered)?;
         let rd = auth.rd_metadata().expect("test RD metadata");
-        let chain = ResponseChain {
-            doc: &doc,
-            auth_state: auth,
-            rd: rd.as_ref(),
-        };
-        chain.claims(
+        claims_from_soap(
+            auth,
+            &rd,
+            soap,
             &MessageId::parse(RESOLVE_ID).expect("test resolve id"),
             &MessageId::parse(BOUND_ID).expect("test bound id"),
         )

@@ -12,6 +12,7 @@ publish = false
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(fuzzing)"] }
 
 [workspace.lints.rustdoc]
 private_intra_doc_links = "allow"
@@ -106,6 +107,10 @@ futures-lite = { version = "2.1.0", default-features = false, features = ["std"]
 http-body-util = "0.1"
 tower = "0.5"
 tracing-test = "0.2.6"
+
+# fuzzing and property tests
+arbitrary = { version = "1.4.2", features = ["derive"] }
+proptest = { version = "1.12.0", default-features = false, features = ["std", "bit-set"] }
 
 # codegen
 prettyplease = "0.3"
@@ -221,6 +226,14 @@ futures-lite = { workspace = true }
 tower = { workspace = true }
 tracing-test = { workspace = true }
 reqwest = { workspace = true, features = ["rustls"] }
+
+# Fuzz harnesses and property suites only build under `--cfg fuzzing` (set by
+# cargo-fuzz and `bin/fuzz`), never in normal builds and tests.
+[target.'cfg(fuzzing)'.dependencies]
+arbitrary = { workspace = true }
+
+[target.'cfg(fuzzing)'.dev-dependencies]
+proptest = { workspace = true }
 
 [lints]
 workspace = true

@@ -21,6 +21,9 @@ mod problematic;
 mod severity;
 mod utc_date_time;
 
+#[cfg(all(test, fuzzing))]
+mod parser_tests;
+
 pub use address::{Address, DutchAddress, InternationalAddress};
 pub use appellation::Appellation;
 pub use bsn::{BSN_NONE_CONFIRMATION, Bsn, BsnOrNoneConfirmed};

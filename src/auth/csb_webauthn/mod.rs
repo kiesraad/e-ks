@@ -28,6 +28,8 @@
 
 mod assertion;
 mod challenge;
+#[cfg(fuzzing)]
+pub(crate) mod fuzz;
 
 use std::fmt::Display;
 

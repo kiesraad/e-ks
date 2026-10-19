@@ -150,6 +150,9 @@ pub fn parse_v2(
     }
 }
 
+#[cfg(all(feature = "tls", fuzzing))]
+pub(crate) mod fuzz;
+
 #[cfg(all(test, feature = "tls"))]
 pub(crate) mod test_support {
     use std::net::SocketAddr;

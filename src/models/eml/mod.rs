@@ -2,6 +2,8 @@ pub(crate) mod eml110a;
 pub(crate) mod eml210;
 pub(crate) mod eml230b;
 pub(crate) mod eml230c;
+#[cfg(all(test, fuzzing))]
+mod eml_tests;
 
 use chrono::Datelike;
 use eks_utils::slugify_teletex;

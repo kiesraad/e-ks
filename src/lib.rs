@@ -84,6 +84,10 @@ pub use app::router;
 
 pub mod models;
 
+/// Fuzz harnesses, for the cargo-fuzz targets in `fuzz/`.
+#[cfg(fuzzing)]
+pub mod fuzzing;
+
 #[cfg(feature = "fixtures")]
 mod fixtures;
 

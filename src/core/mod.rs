@@ -13,6 +13,9 @@ mod scope;
 mod templates;
 mod zip;
 
+#[cfg(all(test, fuzzing))]
+mod parser_tests;
+
 pub mod constants;
 pub mod http_trace;
 pub mod logging;
@@ -34,6 +37,8 @@ pub use election::{ElectionConfig, ElectionType, ElectoralDistrict, Province, Wa
 pub use locale::Locale;
 pub use model_locale::{AnyLocale, ModelLocale};
 pub use proxy_protocol::ProxyProtocolPeers;
+#[cfg(all(feature = "tls", fuzzing))]
+pub(crate) use proxy_protocol::fuzz as proxy_protocol_fuzz;
 pub use rate_limit::{RateLimit, RateLimits};
 pub use scope::Scope;
 pub use templates::{HtmlTemplate, LocaleValues};

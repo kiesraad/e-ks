@@ -385,3 +385,6 @@ mod tests {
         assert_eq!(form.signers, vec!["Jan Klaassen", "", "Malle Babbe"]);
     }
 }
+
+#[cfg(all(test, fuzzing))]
+mod hearing_tests;

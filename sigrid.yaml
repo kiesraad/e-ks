@@ -15,6 +15,9 @@ languages:
         - ".*/tests[.]rs"
         - ".*/test_support/.*"
         - ".*/test_utils[.]rs"
+        - ".*/fuzz/.*"
+        - ".*/fuzz[.]rs"
+        - ".*/fuzzing[.]rs"
 
 exclude:
   - ".*/frontend/styles/variables[.]css"

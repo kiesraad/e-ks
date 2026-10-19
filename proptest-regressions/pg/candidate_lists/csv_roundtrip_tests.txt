@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 52ea9768db2bee2c94b8b91ca6819b8f9836e08740242b8cc52900208d2bd1f7 # shrinks to rows = [["A.", "", "", "!", "-0", "NL", "502201009", "", "m", "", "", "", "", "", "", "", "", "", "", "", "", ""]], delimiter = 59
+cc c8400cf9f36a8ae44bdd53166c0fd09f140ecd85d7f1aa89933956e484ff122f # shrinks to rows = [["A.", "'=", "", "A", " ", "NL", "100050001", "", "m", "", "", "", "", "", "", "", "", "", "", "", "", ""]], delimiter = 59

@@ -35,6 +35,8 @@ pub mod i4;
 pub mod inputs;
 mod layout;
 mod markdown;
+#[cfg(all(test, fuzzing))]
+mod markdown_tests;
 pub mod omission_letter;
 pub use examples::{Example, examples};
 pub use fonts::fonts;

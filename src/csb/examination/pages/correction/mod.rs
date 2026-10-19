@@ -1,3 +1,5 @@
+#[cfg(all(test, fuzzing))]
+mod correction_tests;
 mod structs;
 mod views;
 use serde::Deserialize;

@@ -1,0 +1,46 @@
+# cargo-fuzz targets for the eks crate; run them through `bin/fuzz`.
+# Not a member of the root workspace: fuzz builds need nightly and sanitizer
+# flags, and `--cfg fuzzing` exposes `eks::fuzzing`.
+[package]
+name = "eks-fuzz"
+version = "0.0.0"
+edition = "2024"
+license = "EUPL-1.2"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+eks = { path = "..", features = ["tls"] }
+libfuzzer-sys = "0.4.13"
+
+[workspace]
+
+[[bin]]
+name = "candidate_csv"
+path = "fuzz_targets/candidate_csv.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "proxy_protocol_v2"
+path = "fuzz_targets/proxy_protocol_v2.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "store_event_decode"
+path = "fuzz_targets/store_event_decode.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "webauthn_assertion"
+path = "fuzz_targets/webauthn_assertion.rs"
+test = false
+doc = false
+bench = false

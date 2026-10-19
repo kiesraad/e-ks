@@ -65,6 +65,10 @@ pub mod bindings;
 pub mod config;
 pub mod csp;
 pub mod error;
+#[cfg(fuzzing)]
+pub mod fuzzing;
+#[cfg(all(test, fuzzing))]
+mod fuzzing_tests;
 pub mod handlers;
 pub mod keys;
 pub mod pending;

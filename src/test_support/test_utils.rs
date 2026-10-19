@@ -519,3 +519,13 @@ async fn response_body(response: axum::response::Response) -> bytes::Bytes {
         .expect("collect body")
         .to_bytes()
 }
+
+/// Proptest config with `default` cases, overridable via `PROPTEST_CASES`.
+#[cfg(fuzzing)]
+pub fn proptest_config(default: u32) -> proptest::test_runner::Config {
+    let cases = std::env::var("PROPTEST_CASES")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(default);
+    proptest::test_runner::Config::with_cases(cases)
+}

@@ -94,6 +94,12 @@ impl<'a> Document<'a> {
         self.inner.get_node(id)
     }
 
+    /// The underlying tree, for the parser differential in [`crate::fuzzing`].
+    #[cfg(fuzzing)]
+    pub(crate) fn roxmltree(&self) -> &roxmltree::Document<'a> {
+        &self.inner
+    }
+
     /// The root (document) element. Guaranteed to exist: [`parse`] rejects a
     /// document without one.
     pub fn document_element(&self) -> NodeId {

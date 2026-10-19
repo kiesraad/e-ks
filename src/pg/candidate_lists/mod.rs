@@ -4,6 +4,8 @@
 //! their ordering, submitters, and related list summaries.
 mod actions;
 mod candidate_record;
+#[cfg(all(test, fuzzing))]
+mod csv_roundtrip_tests;
 mod extractors;
 mod forms;
 pub(crate) mod importer;

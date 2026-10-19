@@ -15,6 +15,9 @@ use crate::{
     trans,
 };
 
+#[cfg(fuzzing)]
+pub(crate) mod fuzz;
+
 #[derive(Debug)]
 pub(crate) enum ImportCandidateListError {
     App(AppError),
@@ -902,3 +905,6 @@ mod tests {
         )
     }
 }
+
+#[cfg(all(test, fuzzing))]
+mod importer_tests;

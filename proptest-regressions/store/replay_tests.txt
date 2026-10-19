@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 054d733d889662ba8812ec4230c7505076058be019a433653a37c2a301f0a937 # shrinks to payloads = [4294967296], warm = 0, tampers = [TruncatePayload { event: 0, len: 304511589837543657 }, FlipPayload { event: 0, bit: 0 }]

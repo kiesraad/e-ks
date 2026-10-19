@@ -12,3 +12,6 @@ pub mod name_authorisations;
 pub mod persons;
 pub mod political_groups;
 pub mod problems;
+
+#[cfg(all(test, fuzzing))]
+mod parser_tests;

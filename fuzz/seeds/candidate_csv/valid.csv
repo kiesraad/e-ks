@@ -1,0 +1,11 @@
+﻿voorletters;roepnaam;voorvoegsel;achternaam;woonplaats;landcode;bsn;geboortedatum;geslacht;correspondentie_postcode;correspondentie_huisnummer;correspondentie_toevoeging;correspondentie_straatnaam;correspondentie_plaats;gemachtigde_voorletters;gemachtigde_voorvoegsel;gemachtigde_achternaam;gemachtigde_postcode;gemachtigde_huisnummer;gemachtigde_toevoeging;gemachtigde_straatnaam;gemachtigde_plaats
+H.A.H.A.;Henk;;Jansen;Juinen;NL;kandidaat heeft geen BSN;01-02-1990;v;1234AB;10;A;Stationsstraat;Juinen;;;;;;;;
+H.A.H.A.;Henk;;Jansen;Juinen;NL;;01-02-1990;v;1234AB;10;A;Stationsstraat;Juinen;;;;;;;;
+L.;Lance;;Smit;Utrecht;NL;;09-02-1950;m;3565CE;151;;Mississippidreef;Utrecht;;;;;;;;
+T.;Tina-Antïna;;Bruin;Utrecht;NL;900194054;;v;3521BJ;15;;Croeselaan;Utrecht;;;;;;;;
+Z.;Zach;;Precise;;NL;999995273;01-05-2010;m;1234AB;2;;Dorpsstraat;Adorp;;;;;;;;
+G.;Gerrit;;Braber;Duckstad;NL;999994542;18-03-1968;m;1014AW;14;;Schakelstraat;Duckstad;;;;;;;;
+M.;Maria;;Akwasi;Ede;NL;999999321;01-09-1997;v;6711AV;;;Achterdoelen;Ede;;;;;;;;
+O.;Olinka;;Oei;'s-Gravenhage;NL;999999473;06-06-2020;;2511CA;29;;Turfmarkt;'s-Gravenhage;;;;;;;;
+A.M.P.;Anna;;Wesseling;Rotterdam;NL;999990196;18-04-1915;v;3089KG;20;;Eemhavenweg;Rotterdam;;;;;;;;
+F.;Felicia;;Felsen;'s-Gravenhage;NL;999999977;01-08-2014;v;2511CA;53;;Turfmarkt;'s-Gravenhage;;;;;;;;

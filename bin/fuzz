@@ -1,0 +1,174 @@
+#!/bin/bash
+
+# Runs the fuzzers: the cargo-fuzz (libFuzzer) targets in fuzz/ and
+# auth-service/fuzz/, and the proptest property suites. Both only build under
+# `--cfg fuzzing`, so they are never part of the normal test run.
+
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+ROOT=$(pwd)
+
+TOOLCHAIN=${FUZZ_TOOLCHAIN:-nightly}
+FUZZ_DIRS=(fuzz auth-service/fuzz)
+PROPS_TARGET_DIR=target/fuzz-props
+PROPS_FEATURES=development,tls
+export RUSTFLAGS="${RUSTFLAGS:-} --cfg fuzzing"
+
+usage() {
+    cat <<EOF
+Usage: bin/fuzz <command> [args]
+
+  list                     List the fuzz targets and property suites
+  run <target> [seconds]   Fuzz one target (default 300 s); new inputs go to
+                           <crate>/fuzz/corpus/<target>, crashes to
+                           <crate>/fuzz/artifacts/<target>
+  all [seconds]            Fuzz every target in turn (default 300 s each)
+  props [cases]            Run the property suites (default 10000 cases each)
+  repro <target> <file>    Run one input, e.g. a crash from artifacts/
+  findings [run]           List the open findings (ignored regression tests),
+                           or run them; each fails until its bug is fixed
+  seeds                    Regenerate the seeds in <crate>/fuzz/seeds/
+  check                    Build the targets and lint everything behind
+                           --cfg fuzzing
+
+Environment: FUZZ_JOBS (parallel fuzzing jobs, default 1), FUZZ_ARGS (extra
+libFuzzer flags), FUZZ_TOOLCHAIN (default nightly).
+EOF
+}
+
+require_cargo_fuzz() {
+    if ! cargo "+$TOOLCHAIN" fuzz --version >/dev/null 2>&1; then
+        echo "cargo-fuzz is missing: cargo install cargo-fuzz (and rustup toolchain install nightly)" >&2
+        exit 1
+    fi
+}
+
+# "<fuzz dir> <target>" for every cargo-fuzz target.
+targets() {
+    for dir in "${FUZZ_DIRS[@]}"; do
+        [ -f "$dir/Cargo.toml" ] || continue
+        sed -n 's/^name = "\(.*\)"$/\1/p' "$dir/Cargo.toml" |
+            grep -vx 'eks-fuzz\|auth-service-fuzz' |
+            sed "s|^|$dir |"
+    done
+}
+
+fuzz_dir_of() {
+    local dir
+    dir=$(targets | awk -v t="$1" '$2 == t { print $1 }')
+    if [ -z "$dir" ]; then
+        echo "Unknown fuzz target: $1 (see bin/fuzz list)" >&2
+        exit 1
+    fi
+    echo "$dir"
+}
+
+# Libtest filters for the property suites: modules declared under
+# `#[cfg(all(test, fuzzing...))]`, plus the harness self-checks.
+prop_filters() {
+    grep -rn -A1 --include='*.rs' '^#\[cfg(all(test, fuzzing' src |
+        sed -n 's/^src\/\(.*\)\.rs-[0-9]*-mod \([a-z0-9_]*\);$/\1 \2/p' |
+        while read -r file module; do
+            path=${file%/mod}
+            path=${path%lib}
+            path=${path//\//::}
+            echo "${path:+$path::}$module::"
+        done
+    echo "fuzzing::tests::harnesses_accept_their_seeds"
+    echo "::fuzz::tests::"
+}
+
+fuzz_target() {
+    local target=$1 seconds=${2:-300} dir
+    dir=$(fuzz_dir_of "$target")
+    local corpus="$ROOT/$dir/corpus/$target" seeds="$ROOT/$dir/seeds/$target"
+    mkdir -p "$corpus"
+    local inputs=("$corpus")
+    [ -d "$seeds" ] && inputs+=("$seeds")
+    echo "==> Fuzzing $target for ${seconds}s"
+    (
+        cd "$ROOT/$dir/.."
+        # shellcheck disable=SC2086
+        cargo "+$TOOLCHAIN" fuzz run --jobs "${FUZZ_JOBS:-1}" "$target" "${inputs[@]}" \
+            -- -max_total_time="$seconds" ${FUZZ_ARGS:-}
+    )
+}
+
+props() {
+    local filters
+    mapfile -t filters < <(prop_filters)
+    echo "==> Property suites: ${filters[*]}"
+    PROPTEST_CASES=${1:-10000} cargo test --locked --features "$PROPS_FEATURES" \
+        --target-dir "$PROPS_TARGET_DIR" --lib -- "${filters[@]}" --skip write_seeds
+    PROPTEST_CASES=${1:-10000} cargo test --locked -p auth-service \
+        --target-dir "$PROPS_TARGET_DIR" --lib -- fuzzing_tests:: --skip write_seeds
+}
+
+case "${1:-}" in
+list)
+    echo "Fuzz targets (bin/fuzz run <target>):"
+    targets | awk '{ printf "  %-28s %s\n", $2, $1 }'
+    echo "Property suites (bin/fuzz props):"
+    prop_filters | sed 's/^/  /'
+    ;;
+run)
+    [ $# -ge 2 ] || { usage; exit 1; }
+    require_cargo_fuzz
+    fuzz_target "$2" "${3:-300}"
+    ;;
+all)
+    require_cargo_fuzz
+    failed=()
+    while read -r _ target; do
+        fuzz_target "$target" "${2:-300}" </dev/null || failed+=("$target")
+    done < <(targets)
+    if [ ${#failed[@]} -gt 0 ]; then
+        echo "==> Failed: ${failed[*]} (inputs in <crate>/fuzz/artifacts/)" >&2
+        exit 1
+    fi
+    ;;
+props)
+    props "${2:-10000}"
+    ;;
+repro)
+    [ $# -ge 3 ] || { usage; exit 1; }
+    require_cargo_fuzz
+    dir=$(fuzz_dir_of "$2")
+    file=$(realpath "$3")
+    (cd "$ROOT/$dir/.." && cargo "+$TOOLCHAIN" fuzz run "$2" "$file")
+    ;;
+findings)
+    if [ "${2:-}" = run ]; then
+        mapfile -t filters < <(prop_filters)
+        cargo test --locked --features "$PROPS_FEATURES" --target-dir "$PROPS_TARGET_DIR" \
+            --lib -- "${filters[@]}" --ignored
+    else
+        grep -rn --include='*.rs' -o 'ignore = "finding: [^"]*"' src auth-service/src |
+            sed 's/:ignore = "finding: /: /; s/"$//'
+    fi
+    ;;
+seeds)
+    cargo test --locked --features "$PROPS_FEATURES" --target-dir "$PROPS_TARGET_DIR" \
+        --lib -- fuzzing::tests::write_seeds
+    cargo test --locked -p auth-service --target-dir "$PROPS_TARGET_DIR" \
+        --lib -- fuzzing_tests::write_seeds
+    ;;
+check)
+    require_cargo_fuzz
+    cargo clippy --locked --all-targets --features "$PROPS_FEATURES" \
+        --target-dir "$PROPS_TARGET_DIR" -- -D warnings
+    cargo clippy --locked --all-targets -p auth-service \
+        --target-dir "$PROPS_TARGET_DIR" -- -D warnings
+    for dir in "${FUZZ_DIRS[@]}"; do
+        (cd "$ROOT/$dir/.." && cargo "+$TOOLCHAIN" fuzz build)
+    done
+    ;;
+-h | --help | help)
+    usage
+    ;;
+*)
+    usage
+    exit 1
+    ;;
+esac

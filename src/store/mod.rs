@@ -6,10 +6,17 @@ pub(crate) mod persistence;
 
 mod encoding;
 mod event;
+#[cfg(fuzzing)]
+pub(crate) mod fuzz;
+
+#[cfg(all(test, fuzzing))]
+mod crypto_tests;
 mod event_hash_prefix;
 mod health;
 pub(crate) mod memory;
 mod registry;
+#[cfg(all(test, fuzzing, feature = "database"))]
+mod replay_tests;
 mod store_handle;
 mod stream_id;
 
