@@ -93,8 +93,11 @@ pub(crate) mod test_support {
             (status, [("x-test-end-session", end_session.to_string())]).into_response()
         }
 
-        async fn logout_session(&self, jar: CookieJar) -> (CookieJar, LoggedOutSession) {
-            (jar, self.session.clone())
+        async fn logout_session(
+            &self,
+            jar: CookieJar,
+        ) -> Result<(CookieJar, LoggedOutSession), Response> {
+            Ok((jar, self.session.clone()))
         }
 
         async fn register_pending_request(&self, id: MessageId) {

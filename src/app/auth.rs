@@ -82,11 +82,22 @@ impl AppState {
     /// Remove the current session (if any) from the store and return a jar with
     /// the session cookie cleared on the client. Used when an authentication
     /// attempt fails so no stale session survives (TVS L10).
-    async fn clear_session_cookie(&self, jar: CookieJar) -> CookieJar {
+    async fn clear_session_cookie(&self, jar: CookieJar) -> Result<CookieJar, AppError> {
         if let Some(token) = jar.get(SESSION_COOKIE_NAME).map(|c| c.value().to_string()) {
-            self.sessions.remove(&token).await;
+            self.sessions.remove(&token).await?;
         }
-        jar.remove(build_removal_cookie())
+        Ok(jar.remove(build_removal_cookie()))
+    }
+
+    /// A session storage failure: the cookie stays as it was, so the user
+    /// can retry at `retry_path`.
+    fn session_storage_error(&self, err: AppError, jar: CookieJar, retry_path: &str) -> Response {
+        let response = crate::app::middleware::maintenance::handle_db_error_at_path(
+            &self.db_health,
+            err,
+            retry_path.to_string(),
+        );
+        (jar, response).into_response()
     }
 }
 
@@ -114,26 +125,32 @@ impl AuthState for AppState {
             Locale::default(),
         );
         session.set_user_agent_hash(user_agent_hash(headers));
+        let scope = session.scope();
+
+        let jar = match establish_session(&self.sessions, jar.clone(), session).await {
+            Ok(jar) => jar,
+            Err(err) => return self.session_storage_error(err, jar, "/login"),
+        };
 
         info!(
             event = "auth.login",
             stream_id = %stream_id,
-            scope = session.scope().as_str(),
+            scope = scope.as_str(),
             "user authenticated"
         );
 
-        (
-            establish_session(&self.sessions, jar, session).await,
-            Redirect::to(&redirect_to),
-        )
-            .into_response()
+        (jar, Redirect::to(&redirect_to)).into_response()
     }
 
-    async fn logout_session(&self, jar: CookieJar) -> (CookieJar, LoggedOutSession) {
-        // Drop the session (if any) and always clear the cookie.
+    async fn logout_session(
+        &self,
+        jar: CookieJar,
+    ) -> Result<(CookieJar, LoggedOutSession), Response> {
+        // Drop the session (if any) and clear the cookie. A failed removal is
+        // not a logout: the cookie stays, so the user can retry.
         let ended = match jar.get(SESSION_COOKIE_NAME).map(|c| c.value().to_string()) {
             Some(token) => match self.sessions.remove(&token).await {
-                Some(session) => {
+                Ok(Some(session)) => {
                     self.record_logout(&session).await;
                     info!(
                         event = "auth.logout",
@@ -142,11 +159,12 @@ impl AuthState for AppState {
                     );
                     ended_session(session.user)
                 }
-                None => LoggedOutSession::None,
+                Ok(None) => LoggedOutSession::None,
+                Err(err) => return Err(self.session_storage_error(err, jar, "/logout")),
             },
             None => LoggedOutSession::None,
         };
-        (jar.remove(build_removal_cookie()), ended)
+        Ok((jar.remove(build_removal_cookie()), ended))
     }
 
     async fn on_authentication_failed(
@@ -158,7 +176,10 @@ impl AuthState for AppState {
         // TVS L10, only when the RD answered this browser's own flow: a
         // cross-site link to the ACS must not log anyone out.
         let jar = if end_session {
-            self.clear_session_cookie(jar).await
+            match self.clear_session_cookie(jar.clone()).await {
+                Ok(jar) => jar,
+                Err(err) => return self.session_storage_error(err, jar, "/logout"),
+            }
         } else {
             jar
         };

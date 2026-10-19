@@ -145,21 +145,15 @@ impl SessionStore {
         }
     }
 
-    /// Removes a session by its token. Returns the removed session, if any.
-    /// A failed delete is logged: a session that outlives the request that ended
-    /// it must be visible somewhere.
-    pub async fn remove(&self, token: &str) -> Option<Session> {
+    /// Removes a session by its token. Returns the removed session, if any. A
+    /// storage error reaches the caller: a logout must not look successful
+    /// while the session is still valid.
+    pub async fn remove(&self, token: &str) -> Result<Option<Session>, AppError> {
         let token_hash = hash_token(token);
         match self {
-            SessionStore::InMemory(inner) => inner.write().remove(&token_hash),
+            SessionStore::InMemory(inner) => Ok(inner.write().remove(&token_hash)),
             #[cfg(feature = "database")]
-            SessionStore::Database(pool) => {
-                let session = session_db::load(pool, &token_hash).await.ok().flatten();
-                if let Err(err) = session_db::delete(pool, &token_hash).await {
-                    error!("failed to remove session, it stays valid until it expires: {err}");
-                }
-                session
-            }
+            SessionStore::Database(pool) => session_db::remove(pool, &token_hash).await,
         }
     }
 
@@ -250,7 +244,7 @@ mod tests {
         let refreshed = store.get(&token).await.expect("load").expect("present");
         assert_eq!(refreshed.last_activity, session.last_activity);
 
-        store.remove(&token).await;
+        store.remove(&token).await.expect("remove");
         store.touch(&session).await;
         assert!(store.get(&token).await.expect("load").is_none());
     }

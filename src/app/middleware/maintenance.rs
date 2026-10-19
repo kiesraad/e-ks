@@ -40,7 +40,7 @@ pub async fn db_gate_middleware(
         return next.run(request).await;
     }
 
-    maintenance_response(&request)
+    maintenance_response_for(&request)
 }
 
 /// Turn a request-path error into a response, tripping the database-health gate
@@ -50,21 +50,39 @@ pub async fn db_gate_middleware(
 pub fn handle_db_error(health: &DbHealth, err: AppError, request: &Request) -> Response {
     if err.is_infrastructure_failure() {
         health.mark_unavailable(&err);
-        maintenance_response(request)
+        maintenance_response_for(request)
+    } else {
+        err.into_response()
+    }
+}
+
+fn maintenance_response_for(request: &Request) -> Response {
+    let retry_path = request
+        .uri()
+        .path_and_query()
+        .map(|pq| pq.as_str().to_string())
+        .unwrap_or_else(|| "/".to_string());
+    maintenance_response(retry_path)
+}
+
+/// [`handle_db_error`] for callers without a request, such as the
+/// auth-service hooks.
+pub(crate) fn handle_db_error_at_path(
+    health: &DbHealth,
+    err: AppError,
+    retry_path: String,
+) -> Response {
+    if err.is_infrastructure_failure() {
+        health.mark_unavailable(&err);
+        maintenance_response(retry_path)
     } else {
         err.into_response()
     }
 }
 
 /// Render the static 503 maintenance page in the default locale, with a
-/// `Retry-After` header and a "try again" link back to the request path.
-fn maintenance_response(request: &Request) -> Response {
-    let retry_path = request
-        .uri()
-        .path_and_query()
-        .map(|pq| pq.as_str().to_string())
-        .unwrap_or_else(|| "/".to_string());
-
+/// `Retry-After` header and a "try again" link back to `retry_path`.
+fn maintenance_response(retry_path: String) -> Response {
     let mut response = HtmlTemplate(
         MaintenanceTemplate { retry_path },
         LocaleValues {
@@ -103,7 +121,7 @@ mod tests {
 
     #[tokio::test]
     async fn maintenance_response_is_503_with_retry_after() {
-        let response = maintenance_response(&request_for("/persons?success=true"));
+        let response = maintenance_response_for(&request_for("/persons?success=true"));
 
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
         assert_eq!(response.headers().get(header::RETRY_AFTER).unwrap(), "30");
@@ -120,7 +138,7 @@ mod tests {
             .header(header::ACCEPT_LANGUAGE, "en-US,en;q=0.9")
             .body(Body::empty())
             .unwrap();
-        let response = maintenance_response(&request);
+        let response = maintenance_response_for(&request);
         let body = response_body_string(response).await;
         assert!(body.contains("Tijdelijk niet beschikbaar"));
     }

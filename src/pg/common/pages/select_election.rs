@@ -93,7 +93,7 @@ pub async fn select_election_submit<S: AppRequestState>(
         }
         let jar =
             crate::auth::session_extractor::establish_session(state.sessions(), jar, committee)
-                .await;
+                .await?;
 
         return Ok((jar, Redirect::to(&CsbIndexPath {}.to_string())).into_response());
     }

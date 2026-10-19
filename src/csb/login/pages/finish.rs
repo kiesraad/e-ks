@@ -95,17 +95,18 @@ async fn establish_committee_session<S: AppRequestState>(
     let mut session = Session::for_committee(user.clone(), election, Locale::default());
     session.set_user_agent_hash(user_agent_hash(headers));
 
-    store
-        .update(
-            CsbMainAction::SecurityKeyLogin {
-                credential_id,
-                sign_count,
-            }
-            .by(user),
-        )
-        .await?;
+    if !store
+        .record_security_key_login(user, credential_id, sign_count)
+        .await?
+    {
+        let failure = LoginFailure::Rejected {
+            username,
+            error: AssertionError::SignCountNotAdvanced,
+        };
+        return Ok(login_failed_with(failure, peer));
+    }
 
-    let jar = establish_session(state.sessions(), jar, session).await;
+    let jar = establish_session(state.sessions(), jar, session).await?;
 
     info!("committee member {username} logged in to the CSB");
     Ok((jar, Redirect::to(&CsbIndexPath {}.to_string())).into_response())
@@ -371,7 +372,7 @@ mod tests {
             crate::SESSION_COOKIE_NAME,
             token,
         ));
-        let _ = state.logout_session(jar).await;
+        let _ = state.logout_session(jar).await.expect("logout session");
 
         let store = state
             .csb_main_store(state.config.default_election)

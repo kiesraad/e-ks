@@ -370,7 +370,10 @@ mod tests {
             "login must be recorded"
         );
 
-        let _ = state.logout_session(jar_with_session_cookie(&token)).await;
+        let _ = state
+            .logout_session(jar_with_session_cookie(&token))
+            .await
+            .expect("logout session");
 
         assert!(
             recorded(&store, |e| matches!(e, PgEvent::Logout)),
@@ -382,7 +385,10 @@ mod tests {
     async fn logout_session_without_cookie_reports_no_session() {
         // Nothing to clear when the request carried no session cookie.
         let state = crate::AppState::new_for_tests().await;
-        let (_jar, ended) = state.logout_session(CookieJar::new()).await;
+        let (_jar, ended) = state
+            .logout_session(CookieJar::new())
+            .await
+            .expect("logout session");
         assert_eq!(ended, LoggedOutSession::None);
     }
 
@@ -390,7 +396,7 @@ mod tests {
     async fn logout_session_unknown_session_clears_and_reports_no_session() {
         let state = crate::AppState::new_for_tests().await;
         let jar = jar_with_session_cookie("no-such-token");
-        let (jar, ended) = state.logout_session(jar).await;
+        let (jar, ended) = state.logout_session(jar).await.expect("logout session");
         assert_eq!(ended, LoggedOutSession::None);
         assert!(clears_session_cookie(jar));
     }
@@ -408,7 +414,7 @@ mod tests {
         state.sessions().insert(session).await;
 
         let jar = jar_with_session_cookie(&token);
-        let (jar, ended) = state.logout_session(jar).await;
+        let (jar, ended) = state.logout_session(jar).await.expect("logout session");
         assert_eq!(
             ended,
             LoggedOutSession::WithSamlSubject(NameId::parse("name-id-xyz").unwrap())
@@ -435,7 +441,7 @@ mod tests {
         state.sessions().insert(session).await;
 
         let jar = jar_with_session_cookie(&token);
-        let (jar, ended) = state.logout_session(jar).await;
+        let (jar, ended) = state.logout_session(jar).await.expect("logout session");
         assert_eq!(ended, LoggedOutSession::WithoutSamlSubject);
         assert!(clears_session_cookie(jar));
         assert!(

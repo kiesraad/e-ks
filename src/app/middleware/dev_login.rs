@@ -54,7 +54,7 @@ pub async fn dev_login(
     let session = login.session;
 
     let mut response = (
-        establish_session(&state.sessions, jar, session).await,
+        establish_session(&state.sessions, jar, session).await?,
         Redirect::to(&redirect_to),
     )
         .into_response();

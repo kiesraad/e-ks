@@ -41,10 +41,13 @@ where
 {
     let auth_state = AuthServiceState::from_ref(state);
     debug!("[logout] Handler entered, calling AuthState::logout_session");
-    // The local session is always torn down and the cookie always cleared; the
-    // NameID is only present if one was recorded at login (needed to build the
-    // LogoutRequest, eID §7.7.1).
-    let (cleared_jar, ended) = state.logout_session(jar).await;
+    // The local session is torn down first; a failure there is the response.
+    // The NameID is only present if one was recorded at login (needed to build
+    // the LogoutRequest, eID §7.7.1).
+    let (cleared_jar, ended) = match state.logout_session(jar).await {
+        Ok(ended) => ended,
+        Err(response) => return response,
+    };
     let LoggedOutSession::WithSamlSubject(name_id) = ended else {
         debug!(
             "[logout] No SAML session to end ({ended:?}); completed local logout, redirecting to post-logout page"

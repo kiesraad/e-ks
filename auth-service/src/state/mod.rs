@@ -233,14 +233,17 @@ pub trait AuthState: Clone + Send + Sync + 'static {
         end_session: bool,
     ) -> impl std::future::Future<Output = Response> + Send;
 
-    /// Terminate the local session for SP-initiated logout. Always returns the
-    /// jar with the session cookie cleared, plus what was torn down (see
+    /// Terminate the local session for SP-initiated logout. On success returns
+    /// the jar with the session cookie cleared, plus what was torn down (see
     /// [`LoggedOutSession`]), which decides whether a `LogoutRequest` is sent to
-    /// the RD (eID §7.7.1).
+    /// the RD (eID §7.7.1). A failed invalidation returns the error response
+    /// to send instead: the logout must not look successful.
     fn logout_session(
         &self,
         jar: CookieJar,
-    ) -> impl std::future::Future<Output = (CookieJar, LoggedOutSession)> + Send;
+    ) -> impl std::future::Future<
+        Output = std::result::Result<(CookieJar, LoggedOutSession), Response>,
+    > + Send;
 
     /// Persist an outgoing AuthnRequest ID for the later `InResponseTo` replay
     /// check (eID §7.6.3.5 rule 4 / §9.7). Implementations should sweep entries
