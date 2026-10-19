@@ -39,6 +39,9 @@ multiple-versions = "allow"
 [advisories]
 ignore = [
     { id = "RUSTSEC-2023-0071", reason = "rsa 0.9 pulled transitively by bergshamra-crypto (XML-DSig/XML-Enc); no patched release available upstream (rsa 0.10 is still a release candidate). The only private-key operation is RSA-OAEP unwrapping of an EncryptedID, which is reached only after the RD signature on the ArtifactResponse has been verified, so a chosen-ciphertext timing oracle is not reachable. Revisit when bergshamra publishes a release on a constant-time rsa." },
+    { id = "RUSTSEC-2026-0367", reason = "zip 8.6 pulled transitively by docx-rs (via textris-pdf); only affects ZipArchive::extract / ZipStreamReader::extract, which docx-rs does not call. Revisit when docx-rs moves to zip >= 9." },
+    { id = "RUSTSEC-2026-0368", reason = "zip 8.6 pulled transitively by docx-rs (via textris-pdf); only affects ZipArchive::extract, which docx-rs does not call. Revisit when docx-rs moves to zip >= 9." },
+    { id = "RUSTSEC-2026-0369", reason = "zip 8.6 pulled transitively by docx-rs (via textris-pdf); only affects ZipArchive::extract / ZipStreamReader::extract, which docx-rs does not call. Revisit when docx-rs moves to zip >= 9." },
 ]
 
 [sources]
