@@ -5,7 +5,7 @@
   {% if !("paper_correction_mode"|value_true) %}
   <div class="footer-nav-end">
     <p>{{ "candidate_list.finalise_nav.question"|trans }}</p>
-    <a href="{{ crate::finalise::FinalisePath{}.to_string() }}"
+    <a href="{{ crate::finalise::FinalisePath }}"
         class="button secondary">{{ "candidate_list.finalise_nav.action"|trans }}</a>
   </div>
   {% endif %}
