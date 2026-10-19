@@ -83,9 +83,7 @@ where
 {
     debug!("[ACS] Handler entered, query params: {}", params.len());
 
-    // Cheapest gate first: a callback with no flow cookie can never be accepted,
-    // so refuse it before resolving. Resolving costs an mTLS SOAP round-trip to
-    // the RD, which an unauthenticated caller must not be able to trigger.
+    // Shape check first: a callback with no flow cookie can never be accepted.
     let (bound_authn_id, jar) = crate::handlers::flow::take_bound_authn_id(
         jar,
         &auth_state.auth_config().dv.acs_url,
@@ -100,12 +98,25 @@ where
         return fail(&state, rejection, jar).await;
     };
 
+    // The real gate: the cookie is not authenticated (its binding is a
+    // User-Agent hash anyone can compute), so consume its AuthnRequest before
+    // resolving. One `/login` then buys one mTLS ArtifactResolve round-trip to
+    // the RD, and a forged cookie cannot make this DV flood the RD.
+    if !state.consume_if_pending(bound_authn_id.clone()).await {
+        warn!(
+            "[ACS] Flow cookie names no outstanding AuthnRequest (unknown, expired, or \
+             already used): rejecting before resolving the artifact"
+        );
+        let rejection = Rejection::Unanswered(AuthFailure::Error);
+        return fail(&state, rejection, jar).await;
+    }
+
     let claims = match resolve_artifact_to_claims(&auth_state, &params, &bound_authn_id).await {
         Ok(c) => c,
         Err(rejection) => return fail(&state, rejection, jar).await,
     };
 
-    if !confirm_pending_request(&state, &bound_authn_id, &claims).await {
+    if !confirm_answers_bound_request(&bound_authn_id, &claims) {
         let rejection = Rejection::Answered(AuthFailure::Error);
         return fail(&state, rejection, jar).await;
     }
@@ -139,23 +150,14 @@ where
 }
 
 /// Require the validated assertion to answer the AuthnRequest this DV issued to
-/// this browser: `bound_authn_id` is the ID the (already verified and cleared)
-/// flow cookie carries. `false` means reject with `AuthFailure::Error` (TVS L10).
-///
-/// eID §7.6.3.5 rule 4 / §9.7: the Assertion must answer an AuthnRequest this DV
-/// actually issued, and the matched ID is consumed in the same atomic step so a
-/// replay can never be accepted (the store is the application's, so this holds
-/// even when /login and the ACS callback hit different instances). Fails closed:
-/// an absent, unknown, expired, or already-consumed InResponseTo is rejected.
+/// this browser (eID §7.6.3.5 rule 4): `bound_authn_id` is the ID the flow
+/// cookie carried, already consumed from the outstanding-request store by
+/// [`handle_acs`]. `false` means reject with `AuthFailure::Error` (TVS L10);
+/// an absent InResponseTo fails closed.
 ///
 /// Login-CSRF / forced-login defense: matching against the cookie's ID refuses
-/// an assertion for a flow this browser did not start, even one still
-/// outstanding in the store.
-async fn confirm_pending_request<S: AuthState>(
-    state: &S,
-    bound_authn_id: &MessageId,
-    claims: &Claims,
-) -> bool {
+/// an assertion for a flow this browser did not start.
+fn confirm_answers_bound_request(bound_authn_id: &MessageId, claims: &Claims) -> bool {
     let Some(in_response_to) = claims.in_response_to.as_ref() else {
         warn!("[ACS] Assertion has no InResponseTo: cannot correlate to a pending AuthnRequest");
         return false;
@@ -165,14 +167,6 @@ async fn confirm_pending_request<S: AuthState>(
         warn!(
             "[ACS] Assertion InResponseTo is not the AuthnRequest the SSO flow cookie is \
              bound to: rejecting (possible login CSRF / forced login)"
-        );
-        return false;
-    }
-
-    if !state.consume_if_pending(in_response_to.clone()).await {
-        warn!(
-            "[ACS] InResponseTo did not match an outstanding AuthnRequest \
-             (unknown, expired, or replayed): rejecting"
         );
         return false;
     }
@@ -375,7 +369,7 @@ impl ResponseChain<'_, '_> {
     // Cross-check only: both values come from the same Response, so this does
     // NOT by itself satisfy eID §7.6.3.5 rule 4. Rule 4 (the assertion answers an
     // AuthnRequest this DV actually issued) is enforced in
-    // `confirm_pending_request` below, which matches `claims.in_response_to`
+    // `confirm_answers_bound_request` below, which matches `claims.in_response_to`
     // against the pending-request store and consumes it.
     //
     // What this adds on top: eID §7.6.2 gives the Response an @InResponseTo of
@@ -404,7 +398,7 @@ impl ResponseChain<'_, '_> {
 /// cookie is bound to. Decides the [`Rejection`] variant of what follows: a
 /// Response to some other request, e.g. an attacker's own flow handed to this
 /// browser, is not this browser's failed login and must not end its session.
-/// `confirm_pending_request` later re-checks the assertion's copy of the ID
+/// `confirm_answers_bound_request` later checks the assertion's copy of the ID
 /// against the store and consumes it.
 fn check_answers_bound_request(
     doc: &Document,
@@ -714,7 +708,7 @@ mod tests {
     async fn artifact_without_rd_metadata_renders_unavailable() {
         // An artifact is present but no RD descriptor is loaded, so the flow
         // cannot be resolved or validated: the Unavailable page, session kept.
-        let mock = MockAuthState::empty();
+        let mock = MockAuthState::empty().with_pending("_pending");
         let headers = HeaderMap::new();
         let resp = handle_acs(
             SamlAcsPath,
@@ -727,6 +721,31 @@ mod tests {
         .await;
         assert_eq!(resp.status(), axum::http::StatusCode::SERVICE_UNAVAILABLE);
         assert!(!failure_ends_session(&resp));
+    }
+
+    #[tokio::test]
+    async fn flow_cookie_must_name_an_outstanding_request_which_is_then_consumed() {
+        let mock = MockAuthState::empty().with_pending("_pending");
+        let headers = HeaderMap::new();
+        let callback = |authn_id: &str| {
+            handle_acs(
+                SamlAcsPath,
+                State(mock.clone()),
+                State(mock.auth.clone()),
+                jar_with_flow_cookie(&mock.auth, authn_id, &headers),
+                headers.clone(),
+                Query(artifact_params()),
+            )
+        };
+
+        let resp = callback("_never_registered").await;
+        assert_eq!(resp.status(), axum::http::StatusCode::UNAUTHORIZED);
+        assert!(!failure_ends_session(&resp));
+
+        let resp = callback("_pending").await;
+        assert_eq!(resp.status(), axum::http::StatusCode::SERVICE_UNAVAILABLE);
+        let resp = callback("_pending").await;
+        assert_eq!(resp.status(), axum::http::StatusCode::UNAUTHORIZED);
     }
 
     #[tokio::test]
@@ -860,7 +879,8 @@ mod tests {
                 .expect("test ARS URL"),
             ..IdpMetadata::for_tests()
         };
-        let mock = MockAuthState::new(AuthServiceState::new(auth_cfg, keys, None, Some(rd)));
+        let mock = MockAuthState::new(AuthServiceState::new(auth_cfg, keys, None, Some(rd)))
+            .with_pending(BOUND_ID);
 
         let headers = HeaderMap::new();
         let resp = handle_acs(
@@ -1282,7 +1302,7 @@ mod tests {
     // pending-request store.
     // -----------------------------------------------------------------------
 
-    /// Claims that carry only what `confirm_pending_request` reads.
+    /// Claims that carry only what `confirm_answers_bound_request` reads.
     fn claims_answering(in_response_to: Option<&str>) -> Claims {
         Claims {
             name_id: crate::types::NameId::parse("transient-subject").expect("test NameID"),
@@ -1295,35 +1315,24 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn an_outstanding_authn_request_is_confirmed_once_and_then_consumed() {
-        let mock = MockAuthState::empty().with_pending(BOUND_ID);
-        let bound = MessageId::parse(BOUND_ID).expect("test message id");
-        let claims = claims_answering(Some(BOUND_ID));
-
-        assert!(confirm_pending_request(&mock, &bound, &claims).await);
-        // Consumed in the same step, so replaying the assertion finds nothing.
-        assert!(
-            !confirm_pending_request(&mock, &bound, &claims).await,
-            "a replayed assertion must not be accepted a second time"
-        );
-    }
-
-    #[tokio::test]
-    async fn an_assertion_is_confirmed_only_against_this_browsers_request() {
-        let mock = MockAuthState::empty().with_pending(BOUND_ID);
+    #[test]
+    fn an_assertion_is_confirmed_only_against_this_browsers_request() {
         let bound = MessageId::parse(BOUND_ID).expect("test message id");
 
+        assert!(confirm_answers_bound_request(
+            &bound,
+            &claims_answering(Some(BOUND_ID))
+        ));
         // Nothing to correlate: fails closed.
-        assert!(!confirm_pending_request(&mock, &bound, &claims_answering(None)).await);
-        // An assertion for a flow this browser did not start, even one the
-        // store still holds: login CSRF / forced login.
-        let mock = mock.with_pending("_theirs");
-        assert!(!confirm_pending_request(&mock, &bound, &claims_answering(Some("_theirs"))).await);
-        // And an ID the store never held, even though it is the bound one.
-        let unknown = MessageId::parse("_unknown").expect("test message id");
-        assert!(
-            !confirm_pending_request(&mock, &unknown, &claims_answering(Some("_unknown"))).await
-        );
+        assert!(!confirm_answers_bound_request(
+            &bound,
+            &claims_answering(None)
+        ));
+        // An assertion for a flow this browser did not start: login CSRF /
+        // forced login.
+        assert!(!confirm_answers_bound_request(
+            &bound,
+            &claims_answering(Some("_theirs"))
+        ));
     }
 }
