@@ -7,7 +7,7 @@ mod load_locales;
 mod naive_yaml_parse;
 
 pub use collect_locale_files::collect_locale_files;
-pub use find_used_keys::find_used_keys;
+pub use find_used_keys::{UsedKeys, find_used_keys};
 pub use load_locales::load_locales;
 
 /// Creates a fresh temporary directory for a single test.

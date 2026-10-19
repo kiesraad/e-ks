@@ -25,19 +25,19 @@ mod tests {
 
         for key in LOCALE_NL.keys() {
             assert!(
-                used_keys.contains(&key.to_string()),
+                used_keys.is_used(key),
                 "Translation key '{key}' (in locales/nl) is not used in any template or source file"
             );
         }
 
         for key in LOCALE_EN.keys() {
             assert!(
-                used_keys.contains(&key.to_string()),
+                used_keys.is_used(key),
                 "Translation key '{key}' (in locales/en) is not used in any template or source file"
             );
         }
 
-        for key in used_keys {
+        for key in used_keys.translated {
             assert!(
                 LOCALE_NL.contains_key(&key),
                 "Translation key '{key}' is used in a template or source file, but missing in locales/nl"

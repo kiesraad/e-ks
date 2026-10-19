@@ -6,7 +6,7 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use eks_locales::{collect_locale_files, find_used_keys};
+use eks_locales::{UsedKeys, collect_locale_files, find_used_keys};
 use saphyr::{LoadableYamlNode, Mapping, Scalar, Yaml, YamlEmitter};
 
 /// Escape text like `\u00AD` must survive the YAML round-trip verbatim (see
@@ -249,12 +249,22 @@ fn parse_locale_root(file: &Path) -> Result<LocaleNode> {
     }
 }
 
-fn used_keys_for_file(used_keys: &[String], basename: &str) -> HashSet<String> {
+/// The used keys of this file: every translated key, plus the literals that
+/// already are a key. Other literals are not keys, so they are never added.
+fn used_keys_for_file(
+    used_keys: &UsedKeys,
+    existing: &BTreeSet<String>,
+    basename: &str,
+) -> HashSet<String> {
     let prefix = format!("{basename}.");
-    used_keys
+    let strip = |key: &String| key.strip_prefix(&prefix).map(str::to_string);
+    let translated = used_keys.translated.iter().filter_map(strip);
+    let literals = used_keys
+        .literals
         .iter()
-        .filter_map(|key| key.strip_prefix(&prefix).map(str::to_string))
-        .collect()
+        .filter_map(strip)
+        .filter(|key| existing.contains(key));
+    translated.chain(literals).collect()
 }
 
 fn diff_key_sets(
@@ -300,7 +310,7 @@ fn write_locale_file(node: &LocaleNode, file: &Path) -> Result<()> {
         .with_context(|| format!("failed to write locale file {}", file.display()))
 }
 
-fn process_locale_file(file: &Path, used_keys: &[String], stats: &mut LocaleStats) -> Result<()> {
+fn process_locale_file(file: &Path, used_keys: &UsedKeys, stats: &mut LocaleStats) -> Result<()> {
     stats.files_processed += 1;
     let basename = file
         .file_stem()
@@ -310,7 +320,7 @@ fn process_locale_file(file: &Path, used_keys: &[String], stats: &mut LocaleStat
     let mut node = parse_locale_root(file)?;
 
     let existing_keys = collect_leaf_paths(&node);
-    let used_set = used_keys_for_file(used_keys, basename);
+    let used_set = used_keys_for_file(used_keys, &existing_keys, basename);
     let (added_keys, removed_keys) = diff_key_sets(&existing_keys, &used_set);
 
     if !added_keys.is_empty() || !removed_keys.is_empty() {
