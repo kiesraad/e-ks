@@ -161,9 +161,12 @@ impl<'a, 'input> SignatureChecks<'a, 'input> {
                 return;
             }
         };
+        let Some(reference) = self.single_reference(sig_node) else {
+            return;
+        };
         if let Some(key) = self.find_matching_key(sig_node, trusted_keys)
             && self.check_signature_algorithms(sig_node)
-            && self.signature_covers_root(root, sig_node)
+            && self.signature_covers_root(root, reference)
         {
             self.verify_with_cert(xml, key);
         }
@@ -424,42 +427,48 @@ impl<'a, 'input> SignatureChecks<'a, 'input> {
         ok
     }
 
-    // SECURITY (XSW): every `<Reference>` of the enveloping signature MUST
-    // target the root element `root` (the element whose data the caller
-    // consumes). Accepts an empty URI (whole document) or `#<id>` where `<id>`
-    // is the root's ID attribute. Returns `false` (and records an error) on a
-    // missing or off-root reference, so a signature whose digest matches a
-    // sibling/nested element cannot authenticate a forged root wrapped around
-    // it.
-    fn signature_covers_root(&mut self, root: NodeId, sig: NodeId) -> bool {
-        let root_id = self.root_id(root);
-
-        let refs = descendants_by_tag(self.doc, sig, NS_DSIG, "Reference");
-        if refs.is_empty() {
-            self.error("Signature has no Reference".to_string());
-            return false;
-        }
-        for r in refs {
-            let uri = self.doc.get_attribute(r, "URI").unwrap_or("");
-            if uri.is_empty() {
-                continue; // whole document, which is rooted at `root`
-            }
-            let targets_root = root_id
-                .as_deref()
-                .filter(|id| uri.strip_prefix('#') == Some(id));
-            let Some(id) = targets_root else {
+    /// The one `<Reference>` of the enveloping signature. eID messages carry
+    /// exactly one, over the message root (eID §9.1). Checked before any other
+    /// work on the signature: each Reference costs a walk over the document,
+    /// so an unauthenticated LogoutResponse stuffed with References would
+    /// otherwise burn CPU before it is rejected.
+    fn single_reference(&mut self, sig: NodeId) -> Option<NodeId> {
+        match *descendants_by_tag(self.doc, sig, NS_DSIG, "Reference").as_slice() {
+            [reference] => Some(reference),
+            ref refs => {
                 self.error(format!(
-                    "Signature Reference URI {uri:?} does not target the signed root element \
-                     (possible XML signature wrapping)"
+                    "Signature has {} References, expected exactly one",
+                    refs.len()
                 ));
-                return false;
-            };
-            // Names the root's ID, but uniquely only if nothing else carries it.
-            if !self.check_id_is_unique(root, id) {
-                return false;
+                None
             }
         }
-        true
+    }
+
+    // SECURITY (XSW): the enveloping signature's `<Reference>` MUST target the
+    // root element `root` (the element whose data the caller consumes).
+    // Accepts an empty URI (whole document) or `#<id>` where `<id>` is the
+    // root's ID attribute. Returns `false` (and records an error) on an
+    // off-root reference, so a signature whose digest matches a sibling/nested
+    // element cannot authenticate a forged root wrapped around it.
+    fn signature_covers_root(&mut self, root: NodeId, reference: NodeId) -> bool {
+        let uri = self.doc.get_attribute(reference, "URI").unwrap_or("");
+        if uri.is_empty() {
+            return true; // whole document, which is rooted at `root`
+        }
+        let root_id = self.root_id(root);
+        let Some(id) = root_id
+            .as_deref()
+            .filter(|id| uri.strip_prefix('#') == Some(id))
+        else {
+            self.error(format!(
+                "Signature Reference URI {uri:?} does not target the signed root element \
+                 (possible XML signature wrapping)"
+            ));
+            return false;
+        };
+        // Names the root's ID, but uniquely only if nothing else carries it.
+        self.check_id_is_unique(root, id)
     }
 
     /// The root's ID under any [`ID_ATTRIBUTES`] name. Owned so callers can hold
@@ -823,6 +832,11 @@ mod tests {
         assert!(errors.iter().any(|e| e.contains("DigestMethod")));
     }
 
+    /// The single Reference `check_and_verify` hands `signature_covers_root`.
+    fn only_reference(doc: &Document, sig: NodeId) -> NodeId {
+        descendants_by_tag(doc, sig, NS_DSIG, "Reference")[0]
+    }
+
     #[test]
     fn signature_covers_root_binds_reference_to_root() {
         // Reference "#_root" with a matching root ID, and empty URI, both pass.
@@ -836,7 +850,8 @@ mod tests {
                 crate::saml::xml_parser::find_child(&doc, root, NS_DSIG, "Signature").unwrap();
             let mut errors = Vec::new();
             assert!(
-                SignatureChecks::new(&doc, &mut errors).signature_covers_root(root, sig),
+                SignatureChecks::new(&doc, &mut errors)
+                    .signature_covers_root(root, only_reference(&doc, sig)),
                 "{errors:?}"
             );
         }
@@ -849,8 +864,41 @@ mod tests {
         let root = doc.document_element();
         let sig = crate::saml::xml_parser::find_child(&doc, root, NS_DSIG, "Signature").unwrap();
         let mut errors = Vec::new();
-        assert!(!SignatureChecks::new(&doc, &mut errors).signature_covers_root(root, sig));
+        assert!(
+            !SignatureChecks::new(&doc, &mut errors)
+                .signature_covers_root(root, only_reference(&doc, sig))
+        );
         assert!(errors.iter().any(|e| e.contains("wrapping")));
+    }
+
+    /// A document with many References is rejected on the count, before any
+    /// per-reference work.
+    #[test]
+    fn many_references_are_rejected_before_any_per_reference_work() {
+        let trusted = key_pair(TEST_PEM);
+        let references =
+            r##"<Reference URI="#_r"><DigestValue>AA==</DigestValue></Reference>"##.repeat(3);
+        let xml = format!(
+            r##"<samlp:LogoutResponse xmlns:samlp="{NS_SAMLP}" ID="_r"><Signature xmlns="{NS_DSIG}"><SignedInfo>{references}</SignedInfo><SignatureValue>AA==</SignatureValue><KeyInfo><X509Data><X509Certificate>{}</X509Certificate></X509Data></KeyInfo></Signature></samlp:LogoutResponse>"##,
+            trusted.cert_base64
+        );
+        let expected_root = ExpectedRoot {
+            namespace: NS_SAMLP,
+            local_name: "LogoutResponse",
+            id: None,
+        };
+
+        let result = verify_xml_signature(&xml, &[trusted], &expected_root);
+
+        assert!(!result.is_valid());
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| e.contains("3 References, expected exactly one")),
+            "{:?}",
+            result.errors
+        );
     }
 
     #[test]
@@ -944,7 +992,10 @@ mod tests {
         let root = doc.document_element();
         let sig = crate::saml::xml_parser::find_child(&doc, root, NS_DSIG, "Signature").unwrap();
         let mut errors = Vec::new();
-        assert!(!SignatureChecks::new(&doc, &mut errors).signature_covers_root(root, sig));
+        assert!(
+            !SignatureChecks::new(&doc, &mut errors)
+                .signature_covers_root(root, only_reference(&doc, sig))
+        );
         assert!(
             errors
                 .iter()
