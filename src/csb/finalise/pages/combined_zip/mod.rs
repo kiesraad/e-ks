@@ -32,7 +32,7 @@ mod candidate_list_per_district;
 mod candidate_list_publication;
 mod eml;
 
- type Files = Vec<(String, Vec<u8>)>;
+type Files = Vec<(String, Vec<u8>)>;
 
 /// All finalisation documents in one ZIP available on the CSB finalise page
 pub async fn download_final_zip<S: AppRequestState>(
@@ -71,11 +71,11 @@ async fn final_files<S: AppRequestState>(
             zip(&lists_per_district).await?,
         ),
         (
-            format!("Totaallijsten_{}.zip", election_id.value()),
+            format!("Kanidatenlijsten_{}.zip", election_id.value()),
             zip(&eml230bs).await?,
         ),
         (
-            format!("Kanidatenlijsten_{}.zip", election_id.value()),
+            format!("Totaallijsten_{}.zip", election_id.value()),
             zip(&eml230c).await?,
         ),
         (
