@@ -74,6 +74,7 @@ mod tests {
             axum::Router::new(),
             listener,
             rustls_config,
+            None,
         ));
 
         let client = reqwest::Client::builder()

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    CsbUser, Event, HasCsbUser, StreamId,
+    CredentialId, CsbUser, Event, HasCsbUser, StreamId,
     core::constants::DEFAULT_DATE_TIME_FORMAT,
     structs::csb::{
         HearingDetails, HearingModel, Objection, ObjectionId, RegisteredPoliticalGroup,
@@ -24,9 +24,16 @@ pub struct CsbMainEvent {
 /// features are implemented (process steps, audit log, etc.).
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum CsbMainAction {
-    /// A committee member logged in; the login method is carried by the
-    /// event's [`CsbUser`].
+    /// A committee member logged in without a security key (development
+    /// login); the login method is carried by the event's [`CsbUser`].
     Login,
+    /// A committee member logged in with their security key; `sign_count` is
+    /// the signature counter it reported, which the next login with the same
+    /// key must exceed (WebAuthn §7.2 step 22).
+    SecurityKeyLogin {
+        credential_id: CredentialId,
+        sign_count: u32,
+    },
     /// A committee member signed out.
     Logout,
     /// A political group's registered appellation and previous election result
@@ -57,7 +64,9 @@ impl HasCsbUser for CsbMainEvent {
 impl Event for CsbMainEvent {
     fn category(&self) -> &'static str {
         match self.action {
-            CsbMainAction::Login | CsbMainAction::Logout => "system",
+            CsbMainAction::Login
+            | CsbMainAction::SecurityKeyLogin { .. }
+            | CsbMainAction::Logout => "system",
             CsbMainAction::CreateRegisteredPoliticalGroup(_)
             | CsbMainAction::UpdateRegisteredPoliticalGroup(_)
             | CsbMainAction::DeleteRegisteredPoliticalGroup(_) => "registered_political_group",
@@ -71,7 +80,7 @@ impl Event for CsbMainEvent {
 
     fn key(&self) -> &'static str {
         match self.action {
-            CsbMainAction::Login => "login",
+            CsbMainAction::Login | CsbMainAction::SecurityKeyLogin { .. } => "login",
             CsbMainAction::Logout => "logout",
             CsbMainAction::CreateRegisteredPoliticalGroup(_) => "create_registered_political_group",
             CsbMainAction::UpdateRegisteredPoliticalGroup(_) => "update_registered_political_group",
@@ -86,7 +95,9 @@ impl Event for CsbMainEvent {
 
     fn description(&self, locale: crate::Locale) -> String {
         match self.action {
-            CsbMainAction::Login => trans!("audit_log.event.login", locale),
+            CsbMainAction::Login | CsbMainAction::SecurityKeyLogin { .. } => {
+                trans!("audit_log.event.login", locale)
+            }
             CsbMainAction::Logout => trans!("audit_log.event.logout", locale),
             CsbMainAction::CreateRegisteredPoliticalGroup(_) => {
                 trans!("audit_log.event.create_registered_political_group", locale)
@@ -112,6 +123,10 @@ impl Event for CsbMainEvent {
     fn details(&self) -> String {
         match &self.action {
             CsbMainAction::Login | CsbMainAction::Logout => String::new(),
+            CsbMainAction::SecurityKeyLogin {
+                credential_id,
+                sign_count,
+            } => format!("key {credential_id}, signature counter {sign_count}"),
             CsbMainAction::CreateRegisteredPoliticalGroup(group)
             | CsbMainAction::UpdateRegisteredPoliticalGroup(group) => format!(
                 "{}: {} votes, {} seats",
@@ -162,6 +177,27 @@ mod tests {
         assert_eq!(create.description(Locale::En), "Registered political group");
         assert_eq!(create.details(), "Test Partij: 1234 votes, 2 seats");
         assert_eq!(delete.details(), group.id.to_string());
+    }
+
+    #[test]
+    fn security_key_login_is_a_login_recording_the_counter() {
+        let event = CsbMainAction::SecurityKeyLogin {
+            credential_id: vec![0xfb, 0xff, 0xfe].into(),
+            sign_count: 42,
+        }
+        .by(CsbUser::SecurityKey {
+            username: "alice".parse().expect("valid username"),
+        });
+
+        assert_eq!(event.category(), "system");
+        assert_eq!(event.key(), "login");
+        assert_eq!(
+            event.description(Locale::En),
+            CsbMainAction::Login
+                .by(CsbUser::new_test())
+                .description(Locale::En)
+        );
+        assert_eq!(event.details(), "key -__-, signature counter 42");
     }
 
     #[test]

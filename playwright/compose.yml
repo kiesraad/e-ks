@@ -33,6 +33,9 @@ services:
       # so the container boots without reaching the TVS for IdP metadata.
       DISABLE_AUTH_SERVICE: "true"
       BRP_BASE_URL: http://personen-mock:5010
+      # The log is printed when a test fails; only keep failed requests (4xx
+      # and 5xx are logged at warn and error), not every successful one.
+      RUST_LOG: ${RUST_LOG:-eks=info,eks::core::http_trace=warn,tower_http=info,auth_service=info}
     # /lb-health answers before the database gate and without the eks key, so
     # it reports exactly what this needs to know: the server is up and serving.
     healthcheck:

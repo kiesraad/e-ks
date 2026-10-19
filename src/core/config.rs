@@ -11,9 +11,9 @@ use std::{
 
 use secrecy::SecretString;
 
-use super::{CsbAlertHours, CsbIpAllowList, RateLimits};
+use super::{CsbAlertHours, CsbIpAllowList, ProxyProtocolPeers, RateLimits};
 use crate::{
-    AppError, ElectionConfig, GithubUserId,
+    AppError, CsbWebauthnConfig, ElectionConfig,
     constants::{BRP_PERSONS_ENDPOINT, BRP_TIMEOUT, STORE_CACHE_IDLE_MINUTES},
 };
 
@@ -80,21 +80,6 @@ pub struct AcmeConfig {
     pub root_ca_path: Option<PathBuf>,
 }
 
-/// GitHub OAuth configuration for the CSB (central electoral committee) login.
-///
-/// Fully separate from the political-group login (SAML, auth-service):
-/// committee members authenticate against GitHub and must appear on the
-/// account-id allowlist.
-#[derive(Debug, Clone)]
-pub struct GithubOauthConfig {
-    /// Client id of the GitHub OAuth app.
-    pub client_id: String,
-    /// Client secret of the GitHub OAuth app.
-    pub client_secret: SecretString,
-    /// Numeric GitHub account ids allowed to log in as committee member.
-    pub allowed_user_ids: Vec<GithubUserId>,
-}
-
 /// Runtime configuration loaded from environment variables.
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -122,6 +107,10 @@ pub struct Config {
     /// refused with `403` and reported. Requires `csb_bind_address`, since
     /// only that listener is gated. Set via `CSB_IP_ALLOW_LIST`.
     pub csb_ip_allow_list: Option<CsbIpAllowList>,
+    /// Proxies that announce the client with a PROXY protocol v2 header.
+    /// Requires `csb_bind_address` and `tls`. Set via
+    /// `CSB_PROXY_PROTOCOL_FROM`.
+    pub csb_proxy_protocol_from: Option<ProxyProtocolPeers>,
     /// Local hours in which committee activity is reported (not blocked). Set
     /// via `CSB_ALERT_HOURS`, e.g. `22:00-06:00`.
     pub csb_alert_hours: Option<CsbAlertHours>,
@@ -134,9 +123,11 @@ pub struct Config {
     /// case-insensitive); anything else leaves the auth-service enabled.
     pub disable_auth_service: bool,
     pub brp_client: BrpConfig,
-    /// GitHub OAuth login for CSB users; the `/csb/login` routes answer 404
-    /// when unset.
-    pub github_oauth: Option<GithubOauthConfig>,
+    /// Security-key (WebAuthn) login for CSB users; the `/csb/login` routes
+    /// answer 404 when unset. Set via `CSB_WEBAUTHN_ORIGIN` and
+    /// `CSB_WEBAUTHN_USERS`. Requires `csb_bind_address` outside
+    /// development builds.
+    pub csb_webauthn: Option<CsbWebauthnConfig>,
     /// Election a login lands on when the flow has no election selection of
     /// its own (CSB logins, dev logins). Set via `DEFAULT_ELECTION` as the
     /// election code, with the election domain appended after a colon where
@@ -282,25 +273,6 @@ fn parse_csb_bind_address(raw: &str) -> Result<SocketAddr, AppError> {
     })
 }
 
-/// Parses the comma-separated `GITHUB_ALLOWED_USER_IDS` allowlist. Strict: a
-/// single malformed entry rejects the whole configuration rather than silently
-/// shrinking the allowlist.
-fn parse_github_allowlist(raw: &str) -> Result<Vec<GithubUserId>, AppError> {
-    let ids = raw
-        .split(',')
-        .map(str::trim)
-        .filter(|entry| !entry.is_empty())
-        .map(str::parse)
-        .collect::<Result<Vec<GithubUserId>, _>>()
-        .map_err(|err| AppError::ConfigLoadError(format!("GITHUB_ALLOWED_USER_IDS: {err}")))?;
-    if ids.is_empty() {
-        return Err(AppError::ConfigLoadError(
-            "GITHUB_ALLOWED_USER_IDS must contain at least one GitHub user id".to_string(),
-        ));
-    }
-    Ok(ids)
-}
-
 /// Idle time before a cached store projection is evicted, from
 /// `STORE_CACHE_IDLE_MINUTES` (default 24 hours).
 fn store_cache_idle_from_env<F>(lookup: &mut F) -> Result<Duration, AppError>
@@ -345,31 +317,36 @@ where
     })
 }
 
-/// GitHub OAuth config from `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, and
-/// `GITHUB_ALLOWED_USER_IDS` (comma-separated numeric account ids); all three
-/// or none must be set.
-fn github_oauth_from_env<F>(lookup: &mut F) -> Result<Option<GithubOauthConfig>, AppError>
+/// Security-key login config from `CSB_WEBAUTHN_ORIGIN` (the origin the CSB
+/// section is served on) and `CSB_WEBAUTHN_USERS` (comma-separated
+/// `username:credential-id:public-key` entries, as printed by
+/// `bin/enrol_csb_user`). Users without an origin are an error, and outside
+/// development so is an origin without `CSB_BIND_ADDRESS`: the login page
+/// lists every registered key, so it stays off the main listener, on the one
+/// `CSB_IP_ALLOW_LIST` can gate.
+fn csb_webauthn_from_env<F>(
+    lookup: &mut F,
+    csb_bind_address: Option<SocketAddr>,
+) -> Result<Option<CsbWebauthnConfig>, AppError>
 where
     F: FnMut(&'static str) -> Result<String, env::VarError>,
 {
-    let mut non_empty = |name| lookup(name).ok().filter(|s: &String| !s.is_empty());
-    let client_id = non_empty("GITHUB_CLIENT_ID");
-    let client_secret = non_empty("GITHUB_CLIENT_SECRET");
-    let allowed_user_ids = non_empty("GITHUB_ALLOWED_USER_IDS");
+    let mut non_empty = |name| lookup(name).ok().filter(|s: &String| !s.trim().is_empty());
+    let origin = non_empty("CSB_WEBAUTHN_ORIGIN");
+    let users = non_empty("CSB_WEBAUTHN_USERS");
 
-    match (client_id, client_secret, allowed_user_ids) {
-        (Some(client_id), Some(client_secret), Some(allowed_user_ids)) => {
-            Ok(Some(GithubOauthConfig {
-                client_id,
-                client_secret: SecretString::from(client_secret),
-                allowed_user_ids: parse_github_allowlist(&allowed_user_ids)?,
-            }))
+    match (origin, users) {
+        (Some(_), _) if !cfg!(feature = "dev-features") && csb_bind_address.is_none() => {
+            Err(AppError::ConfigLoadError(
+                "CSB_WEBAUTHN_ORIGIN requires CSB_BIND_ADDRESS: the CSB login must not be \
+                 served on the main listener"
+                    .to_string(),
+            ))
         }
-        (None, None, None) => Ok(None),
-        _ => Err(AppError::ConfigLoadError(
-            "GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET and GITHUB_ALLOWED_USER_IDS \
-             must all be set, or all unset"
-                .to_string(),
+        (Some(origin), users) => Ok(Some(CsbWebauthnConfig::parse(&origin, users.as_deref())?)),
+        (None, None) => Ok(None),
+        (None, Some(_)) => Err(AppError::ConfigLoadError(
+            "CSB_WEBAUTHN_USERS requires CSB_WEBAUTHN_ORIGIN".to_string(),
         )),
     }
 }
@@ -411,6 +388,34 @@ where
     Ok(allow_list)
 }
 
+/// `CSB_PROXY_PROTOCOL_FROM`: needs the CSB listener and TLS.
+fn csb_proxy_protocol_from_env<F>(
+    lookup: &mut F,
+    csb_bind_address: Option<SocketAddr>,
+    has_tls: bool,
+) -> Result<Option<ProxyProtocolPeers>, AppError>
+where
+    F: FnMut(&'static str) -> Result<String, env::VarError>,
+{
+    let peers =
+        parse_optional_env_with("CSB_PROXY_PROTOCOL_FROM", lookup, ProxyProtocolPeers::parse)?;
+    if peers.is_some() && csb_bind_address.is_none() {
+        return Err(AppError::ConfigLoadError(
+            "CSB_PROXY_PROTOCOL_FROM requires CSB_BIND_ADDRESS: the PROXY protocol header is \
+             read on the dedicated CSB listener only"
+                .to_string(),
+        ));
+    }
+    if peers.is_some() && !has_tls {
+        return Err(AppError::ConfigLoadError(
+            "CSB_PROXY_PROTOCOL_FROM requires TLS_CERT_PATH and TLS_KEY_PATH: only the TLS \
+             server reads the PROXY protocol header"
+                .to_string(),
+        ));
+    }
+    Ok(peers)
+}
+
 impl Config {
     pub fn from_env() -> Result<Self, AppError> {
         Self::from_env_with(env::var)
@@ -426,7 +431,6 @@ impl Config {
 
         let tls = tls_from_env(&mut lookup)?;
         let acme = acme_from_env(&mut lookup, tls.is_some())?;
-        let github_oauth = github_oauth_from_env(&mut lookup)?;
         let default_election =
             parse_default_election(&get_env_with("DEFAULT_ELECTION", &mut lookup)?)?;
 
@@ -441,6 +445,9 @@ impl Config {
             parse_optional_env_with("CSB_BIND_ADDRESS", &mut lookup, parse_csb_bind_address)?;
         let csb_domain = lookup("CSB_DOMAIN").ok().filter(|s| !s.is_empty());
         let csb_ip_allow_list = csb_ip_allow_list_from_env(&mut lookup, csb_bind_address)?;
+        let csb_proxy_protocol_from =
+            csb_proxy_protocol_from_env(&mut lookup, csb_bind_address, tls.is_some())?;
+        let csb_webauthn = csb_webauthn_from_env(&mut lookup, csb_bind_address)?;
         let csb_alert_hours =
             parse_optional_env_with("CSB_ALERT_HOURS", &mut lookup, CsbAlertHours::parse)?;
 
@@ -467,10 +474,11 @@ impl Config {
             csb_bind_address,
             csb_domain,
             csb_ip_allow_list,
+            csb_proxy_protocol_from,
             csb_alert_hours,
             disable_auth_service,
             brp_client,
-            github_oauth,
+            csb_webauthn,
             default_election,
             rate_limits,
             store_cache_idle_timeout,
@@ -512,6 +520,7 @@ impl Config {
             csb_bind_address: None,
             csb_domain: None,
             csb_ip_allow_list: None,
+            csb_proxy_protocol_from: None,
             csb_alert_hours: None,
             disable_auth_service: false,
             brp_client: BrpConfig {
@@ -520,7 +529,7 @@ impl Config {
                 persons_endpoint: constants::BRP_PERSONS_ENDPOINT.to_string(),
                 timeout: Duration::from_secs(5),
             },
-            github_oauth: None,
+            csb_webauthn: None,
             default_election: ElectionConfig::EK27,
             rate_limits: RateLimits::default(),
             store_cache_idle_timeout: Duration::from_secs(STORE_CACHE_IDLE_MINUTES.get() * 60),
@@ -968,10 +977,40 @@ mod tests {
         );
     }
 
+    /// The PROXY protocol peers need the CSB listener and TLS.
+    #[test]
+    fn from_env_reads_proxy_protocol_peers_with_csb_listener_and_tls() {
+        let tls = [
+            ("TLS_CERT_PATH", "/tmp/cert.pem"),
+            ("TLS_KEY_PATH", "/tmp/key.pem"),
+        ];
+        let peers = ("CSB_PROXY_PROTOCOL_FROM", "172.16.12.9");
+
+        let mut vars = tls.to_vec();
+        vars.extend([("CSB_BIND_ADDRESS", "8443"), peers]);
+        let config = Config::from_env_with(lookup_from(&config_env(vars))).expect("config");
+        let from = config.csb_proxy_protocol_from.expect("peers");
+        assert!(from.contains("172.16.12.9".parse().unwrap()));
+        assert!(!from.contains("172.16.12.5".parse().unwrap()));
+
+        let mut without_listener = tls.to_vec();
+        without_listener.push(peers);
+        let err = Config::from_env_with(lookup_from(&config_env(without_listener)))
+            .expect_err("no listener");
+        assert!(
+            matches!(err, AppError::ConfigLoadError(ref msg) if msg.contains("CSB_BIND_ADDRESS"))
+        );
+
+        let without_tls = config_env([("CSB_BIND_ADDRESS", "8443"), peers]);
+        let err = Config::from_env_with(lookup_from(&without_tls)).expect_err("no tls");
+        assert!(matches!(err, AppError::ConfigLoadError(ref msg) if msg.contains("TLS_CERT_PATH")));
+    }
+
     #[test]
     fn from_env_rejects_malformed_csb_guards() {
         for entry in [
             ("CSB_IP_ALLOW_LIST", "office"),
+            ("CSB_PROXY_PROTOCOL_FROM", "lb"),
             ("CSB_ALERT_HOURS", "night"),
         ] {
             let map = config_env([("CSB_BIND_ADDRESS", "8081"), entry]);
@@ -1022,59 +1061,95 @@ mod tests {
     }
 
     #[test]
-    fn from_env_returns_no_github_oauth_when_unset() {
+    fn from_env_returns_no_csb_webauthn_when_unset() {
         let map = config_env([]);
         let lookup = lookup_from(&map);
 
         let config = Config::from_env_with(lookup).expect("config");
 
-        assert!(config.github_oauth.is_none());
+        assert!(config.csb_webauthn.is_none());
     }
 
     #[test]
-    fn from_env_returns_github_oauth_when_all_set() {
+    fn from_env_returns_csb_webauthn_when_set() {
+        use super::super::csb_webauthn::test_support::{TEST_ORIGIN, test_credential_encoded};
+
+        let users: &'static str = format!("alice:{}", test_credential_encoded()).leak();
         let map = config_env([
-            ("GITHUB_CLIENT_ID", "Iv1.abc123"),
-            ("GITHUB_CLIENT_SECRET", "s3cret"),
-            ("GITHUB_ALLOWED_USER_IDS", "583231, 42,7"),
+            ("CSB_BIND_ADDRESS", "8081"),
+            ("CSB_WEBAUTHN_ORIGIN", TEST_ORIGIN),
+            ("CSB_WEBAUTHN_USERS", users),
         ]);
         let lookup = lookup_from(&map);
 
         let config = Config::from_env_with(lookup).expect("config");
-        let github = config.github_oauth.expect("github oauth present");
+        let webauthn = config.csb_webauthn.expect("csb webauthn present");
 
-        assert_eq!(github.client_id, "Iv1.abc123");
-        assert_eq!(github.client_secret.expose_secret(), "s3cret");
-        assert_eq!(
-            github.allowed_user_ids,
-            ["583231", "42", "7"].map(|id| id.parse().expect("valid id"))
-        );
+        assert_eq!(webauthn.users.len(), 1);
+        assert_eq!(webauthn.users[0].username.as_str(), "alice");
     }
 
+    /// The origin alone enables the login page (nobody can log in); a user
+    /// list without it is an error.
     #[test]
-    fn from_env_errors_when_github_oauth_partially_set() {
-        let map = config_env([("GITHUB_CLIENT_ID", "Iv1.abc123")]);
-        let lookup = lookup_from(&map);
+    fn from_env_csb_webauthn_origin_is_the_switch() {
+        let map = config_env([
+            ("CSB_BIND_ADDRESS", "8081"),
+            ("CSB_WEBAUTHN_ORIGIN", "http://localhost:3000"),
+        ]);
+        let config = Config::from_env_with(lookup_from(&map)).expect("config");
+        assert!(config.csb_webauthn.expect("present").users.is_empty());
 
-        let err = Config::from_env_with(lookup).expect_err("err");
+        let map = config_env([("CSB_WEBAUTHN_USERS", "alice:abc")]);
+        let err = Config::from_env_with(lookup_from(&map)).expect_err("err");
         assert!(matches!(err, AppError::ConfigLoadError(_)));
     }
 
     #[test]
-    fn from_env_errors_when_github_allowlist_is_malformed() {
-        for allowlist in ["", "octocat", "42,0", " , "] {
+    fn from_env_errors_when_csb_webauthn_users_are_malformed() {
+        for users in [
+            "alice",
+            "alice:abc",
+            "alice:abc:abc",
+            "alice:abc:abc:not-a-key",
+            "al ice:abc:abc:abc",
+        ] {
             let map = config_env([
-                ("GITHUB_CLIENT_ID", "Iv1.abc123"),
-                ("GITHUB_CLIENT_SECRET", "s3cret"),
-                ("GITHUB_ALLOWED_USER_IDS", allowlist),
+                ("CSB_BIND_ADDRESS", "8081"),
+                ("CSB_WEBAUTHN_ORIGIN", "https://csb.example.nl"),
+                ("CSB_WEBAUTHN_USERS", users),
             ]);
             let lookup = lookup_from(&map);
 
             let err = Config::from_env_with(lookup).expect_err("err");
             assert!(
                 matches!(err, AppError::ConfigLoadError(_)),
-                "allowlist {allowlist:?} must be rejected"
+                "users {users:?} must be rejected"
             );
         }
+    }
+
+    /// Development serves the CSB login on the single listener.
+    #[cfg(feature = "dev-features")]
+    #[test]
+    fn from_env_csb_webauthn_without_csb_listener_in_dev_features() {
+        let map = config_env([("CSB_WEBAUTHN_ORIGIN", "http://localhost:3000")]);
+
+        let config = Config::from_env_with(lookup_from(&map)).expect("config");
+
+        assert!(config.csb_webauthn.is_some());
+    }
+
+    #[cfg(not(feature = "dev-features"))]
+    #[test]
+    fn from_env_csb_webauthn_requires_csb_listener_without_dev_features() {
+        let map = config_env([("CSB_WEBAUTHN_ORIGIN", "https://csb.example.nl")]);
+
+        let err = Config::from_env_with(lookup_from(&map)).expect_err("err");
+
+        assert!(
+            matches!(err, AppError::ConfigLoadError(ref message) if message.contains("CSB_BIND_ADDRESS")),
+            "{err:?}"
+        );
     }
 }

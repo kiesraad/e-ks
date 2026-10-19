@@ -145,19 +145,12 @@ fn system_event_payload(event: &PgEvent) -> OldNew {
             "file_size": file_size,
             "list_id": list_id.to_string(),
         })),
-        PgEvent::ImportCandidates {
-            file_name,
-            file_size,
-            list_id,
-            created_persons,
-            updated_persons,
-            ..
-        } => added(json!({
-            "file_name": file_name,
-            "file_size": file_size,
-            "list_id": list_id.to_string(),
-            "created_persons": person_ids(created_persons),
-            "updated_persons": person_ids(updated_persons),
+        PgEvent::ImportCandidates(import) => added(json!({
+            "file_name": import.file_name,
+            "file_size": import.file_size,
+            "list_id": import.list_id.to_string(),
+            "created_persons": person_ids(&import.created_persons),
+            "updated_persons": person_ids(&import.updated_persons),
         })),
         // `HideDownloadWarning` and `Import` carry no payload. Entity-backed
         // events never reach here (they are handled by `entity_old_new`).
@@ -199,7 +192,11 @@ mod tests {
         let mut after = empty_state();
         after.persons.insert(person.id, person.clone());
 
-        let (old, new) = extract_old_new(&PgEvent::CreatePerson(person.clone()), &before, &after);
+        let (old, new) = extract_old_new(
+            &PgEvent::CreatePerson(Box::new(person.clone())),
+            &before,
+            &after,
+        );
         assert!(old.is_none());
         assert_eq!(new, serde_json::to_value(&person).ok());
     }
@@ -211,8 +208,11 @@ mod tests {
         let mut after = empty_state();
         after.candidate_lists.insert(list.id, list.clone());
 
-        let (old, new) =
-            extract_old_new(&PgEvent::CreateCandidateList(list.clone()), &before, &after);
+        let (old, new) = extract_old_new(
+            &PgEvent::CreateCandidateList(Box::new(list.clone())),
+            &before,
+            &after,
+        );
         assert!(old.is_none());
         assert_eq!(new, serde_json::to_value(&list).ok());
     }
@@ -225,7 +225,7 @@ mod tests {
         after.substitute_submitters.push(submitter.clone());
 
         let (old, new) = extract_old_new(
-            &PgEvent::CreateSubstituteSubmitter(submitter.clone()),
+            &PgEvent::CreateSubstituteSubmitter(Box::new(submitter.clone())),
             &before,
             &after,
         );
@@ -243,7 +243,7 @@ mod tests {
             .insert(name_auth.id, name_auth.clone());
 
         let (old, new) = extract_old_new(
-            &PgEvent::CreateNameAuthorisation(name_auth.clone()),
+            &PgEvent::CreateNameAuthorisation(Box::new(name_auth.clone())),
             &before,
             &after,
         );
@@ -266,7 +266,7 @@ mod tests {
         after.persons.insert(person_id, after_person.clone());
 
         let (old, new) = extract_old_new(
-            &PgEvent::UpdatePerson(after_person.clone()),
+            &PgEvent::UpdatePerson(Box::new(after_person.clone())),
             &before,
             &after,
         );
@@ -289,8 +289,8 @@ mod tests {
         let (old, new) = extract_old_new(
             &PgEvent::UpdatePersonPersonalData {
                 person_id,
-                name: after_person.name.clone(),
-                personal_data: after_person.personal_data.clone(),
+                name: Box::new(after_person.name.clone()),
+                personal_data: Box::new(after_person.personal_data.clone()),
             },
             &before,
             &after,
@@ -475,14 +475,14 @@ mod tests {
         let person_b = sample_person(PersonId::new());
         let person_c = sample_person(PersonId::new());
 
-        let event = PgEvent::ImportCandidates {
+        let event = PgEvent::ImportCandidates(Box::new(crate::projection::CandidateImport {
             list_id,
             file_name: "candidates.csv".to_string(),
             file_size: 123,
             created_persons: vec![person_a.clone(), person_b.clone()],
             updated_persons: vec![person_c.clone()],
             candidates: vec![person_a.id, person_b.id, person_c.id],
-        };
+        }));
 
         let (old, new) = extract_old_new(&event, &state, &state);
 

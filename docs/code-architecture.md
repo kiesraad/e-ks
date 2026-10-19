@@ -166,7 +166,7 @@ modules:
 | `src/csb/` | Central voting bureau (CSB) section: import, examination, monitoring, audit log, and its own event stores (see [The CSB section](#the-csb-section-srccsb)). |
 | `src/structs/` | Shared domain model structs (persons, political groups, candidate lists, common value types) used by both `src/pg/` and `src/csb/`. |
 | `src/models/` | The official PDF models (H 1, H 3-1, H 3-2, H 4, H 9, I 1, I 4) rendered with `textris-pdf`, plus the embedded fonts and the JSON example inputs. |
-| `src/auth/` | Authentication: the session model and token handling, session/pending-request storage, id derivation, and the session cookie helpers + `Session` extractor. The session/store middleware and the development login endpoint live in `src/middleware/`. |
+| `src/auth/` | Authentication: how a login is proven and a session established, for both login methods. The session model and token handling, session/pending-request storage, id derivation, the session cookie helpers + `Session` extractor, the CSB identity (`CsbUser`), and the CSB security-key mechanism (`csb_webauthn/`: challenge lifecycle and WebAuthn assertion verification). The login endpoints live with their section (`src/pg/common/pages/auth.rs`, `src/csb/login/`); the session/store middleware, the CSB access guards and the development login endpoint live in `src/app/middleware/`. |
 | `src/core/` | Cross-cutting infrastructure: `Config`, server startup, logging/tracing, election configuration, Askama rendering, CSV, ZIP, locales. |
 | `src/store/` | The generic event store: persistence backends (memory/file/Postgres), at-rest encryption, the event hash chain, and the per-stream `StoreRegistry`. |
 | `src/error/` | `AppError`, the application-wide error type. Its mapping to a response lives in `src/view/`, the page layouts in `src/pg/` and `src/csb/`. |
@@ -598,17 +598,18 @@ Runtime configuration is read from environment variables once at startup into a
 | `ACME_ROOT_CA_PATH` | Optional extra trust root for the ACME directory's own TLS (pebble testing only). |
 | `SERVER_NAME` | Short server identifier shown in the page footer. |
 | `EKS_KEY` | Optional shared secret for the `x-eks-key` request gate. |
-| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` / `GITHUB_ALLOWED_USER_IDS` | Enable the CSB GitHub OAuth login (`/csb/login`): the GitHub OAuth app's credentials and the comma-separated numeric GitHub account ids allowed to log in; all three or none. The client secret is a secret like the master keys. |
+| `CSB_WEBAUTHN_ORIGIN` | Enable the CSB security-key (WebAuthn) login (`/csb/login`): the origin the CSB section is served on, e.g. `https://csb.example.nl` (`http://localhost:3000` in development). Its host is the WebAuthn relying-party id, so keys enrolled for one host only work there. Outside `dev-features` builds it requires `CSB_BIND_ADDRESS` (startup fails without it), so the login is never served on the main listener. |
+| `CSB_WEBAUTHN_USERS` | Comma-separated `username:credential-id:public-key` entries (blobs base64url without padding), one per committee member allowed to log in, as printed by `bin/enrol_csb_user` (see [docs/csb-enrolment.md](csb-enrolment.md)). Requires `CSB_WEBAUTHN_ORIGIN`. One malformed entry, a duplicate username, or a key listed for two users refuses the whole configuration. The entries are public keys, not secrets. |
 | `DEFAULT_ELECTION` | Election a login lands on when the flow has no election selection of its own (CSB logins, dev logins): the election code, with the election domain appended after a colon where the type needs one (e.g. `EK27`, `PS27:prov1`). Dev builds default to `EK27`. |
 | `BIND_ADDRESS` | Address the server binds to (also accepted as a CLI argument). |
 | `CSB_BIND_ADDRESS` | Serve the CSB section on a second listener, so it can be published on a domain of its own: a port number (bound on `0.0.0.0`) or an `address:port` with a numeric address. `/csb` is then unreachable on `BIND_ADDRESS`. The second listener serves the whole application, since a committee session correcting paper documents uses the political-group routes as well. It is not behind the `EKS_KEY` gate. |
 | `CSB_DOMAIN` | Domain the CSB listener is published on. With ACME it gets a certificate of its own, stored next to the `TLS_CERT_PATH` / `TLS_KEY_PATH` files with a `csb-` name prefix; without it the CSB listener presents the certificate ordered for `ACME_DOMAIN`. |
-| `CSB_IP_ALLOW_LIST` | Comma-separated IP addresses and CIDR ranges (IPv4 or IPv6) allowed to reach the CSB section. Any other peer gets a `403` and a warning with `event="csb.ip_denied"`. Gates the whole CSB listener except `/lb-health` and the ACME challenge, and therefore requires `CSB_BIND_ADDRESS` (startup fails without it). Matched against the TCP peer address, so a proxy in front must not sit between the listener and the committee. Unset leaves the section open. |
+| `CSB_IP_ALLOW_LIST` | Comma-separated IP addresses and CIDR ranges (IPv4 or IPv6) allowed to reach the CSB section. Any other peer gets a `403` and a warning with `event="csb.ip_denied"`. Gates the whole CSB listener except `/lb-health` and the ACME challenge, and therefore requires `CSB_BIND_ADDRESS` (startup fails without it). Matched against the TCP peer address, or against the client a proxy listed in `CSB_PROXY_PROTOCOL_FROM` announces; any other proxy in front hides the committee behind its own address. Unset leaves the section open. |
+| `CSB_PROXY_PROTOCOL_FROM` | Comma-separated IP addresses and CIDR ranges of proxies in front of the CSB listener that announce the client with a [PROXY protocol](https://www.haproxy.org/download/2.9/doc/proxy-protocol.txt) v2 header. The announced address stands in for the TCP peer; a `LOCAL` header (health checks) keeps the TCP peer. A listed proxy without a valid header within 5 seconds is dropped and reported with `event="csb.proxy_protocol_rejected"`; a header from any other peer is left for the TLS handshake to reject. Requires `CSB_BIND_ADDRESS` and TLS. Unset reads no header. |
 | `CSB_ALERT_HOURS` | Local (Europe/Amsterdam) time range, `HH:MM-HH:MM` (e.g. `22:00-06:00`, wrapping midnight), in which committee activity is unexpected. A committee session active in that window logs a warning with `event="csb.alert_hours_activity"`, at most once per user and peer address per 30 minutes; nothing is blocked. Unset disables the check. |
 | `RATE_LIMIT_DOWNLOADS` / `RATE_LIMIT_DOWNLOADS_WINDOW_SECS` | Document downloads allowed per stream per window (default 60 per 3600s). |
 | `RATE_LIMIT_EVENTS` / `RATE_LIMIT_EVENTS_WINDOW_SECS` | Events one stream may record per window (default 2000 per 3600s). |
 | `RATE_LIMIT_EVENTS_TOTAL` | Absolute cap on the number of events in one stream (default 20000). |
-| `RATE_LIMIT_BLOCKED_NOTIFICATIONS` / `RATE_LIMIT_BLOCKED_NOTIFICATIONS_WINDOW_SECS` | CDN block notifications logged per logged-in user per window (default 10 per 3600s); see [Blocked-user notifications](#blocked-user-notifications). |
 | `STORE_CACHE_IDLE_MINUTES` | Evict cached political-group stores not used for this many minutes (default 1440, i.e. 24 hours); evicted streams reload from persistence on their next use. |
 
 The binary itself only reads `env::var`, but the deployment can supply these
@@ -625,14 +626,17 @@ For local development, `bin/dev` reads `.env` and then `.env.local` (which
 wins) from the repository root and hands the variables to the processes it
 starts; a variable already set in the surrounding shell is left alone. Both
 files are optional. `.env.local` is gitignored, so it is where the credentials
-that must not be committed belong, in particular the GitHub OAuth ones that
-have no development default:
+that must not be committed belong. The CSB security-key login has no
+development default either; enabling it for `bin/dev` takes:
 
 ```sh
-GITHUB_CLIENT_ID=Ov23li...
-GITHUB_CLIENT_SECRET=...
-GITHUB_ALLOWED_USER_IDS=1234567
+CSB_WEBAUTHN_ORIGIN=http://localhost:3000
+CSB_WEBAUTHN_USERS=alice:zGJB3Yi...:MFkwEwYH...
 ```
+
+`bin/enrol_csb_user alice localhost` prints the `CSB_WEBAUTHN_USERS` entry
+for a key (see [docs/csb-enrolment.md](csb-enrolment.md));
+`/dev/login?csb=true` remains the way to reach the CSB section without a key.
 
 ### Rate limiting
 
@@ -653,38 +657,10 @@ Every refused write logs a warning with `event="rate_limit.hit"`, the limit
 name (`downloads`, `events`, `events_total`) and the stream id; monitoring
 alerts on that marker.
 
-### Blocked-user notifications
-
-Bunny Shield, the CDN in front of the app, serves a custom page when it
-blocks a request. Blocked anonymous visitors are expected; a blocked logged-in
-user should raise an alert. The page's script therefore calls
-`GET /blocked-notification` with the page type (`block`, `challenge`,
-`rate_limit`), the blocked path, the referrer path and, where the browser
-exposes it, the response status. Bunny offers no template variables, so that
-is all the page can send.
-
-The handler (`src/app/blocked_notification.rs`) answers `204` to everyone and
-sits outside the session middleware: it reads the cookie itself, so anonymous
-calls are cheap and never logged, and a call is not session activity. For a
-logged-in user it logs a warning with `event="blocked_notification"`, the
-stream id (or committee member), the election, the page's fields and the
-headers Bunny adds to every proxied request: CDN request id, country code,
-bot classification and JA4 fingerprint. Client text is stripped of control
-characters and capped in length.
-
-It is a `GET` because the block page has no CSRF token and the handler
-changes nothing but a counter. That counter guards against flooding: each
-user is held to `RATE_LIMIT_BLOCKED_NOTIFICATIONS` per fixed window, per
-process. The first refusal logs `event="blocked_notification.throttled"`;
-the rest of the window is silent.
-
-A block on the client as a whole (IP block, rate limit) also blocks the
-notification, so those cases never reach the log.
-
 ### CSB access alerts
 
-Two further markers guard the CSB section, both off until configured (see
-`CSB_IP_ALLOW_LIST` and `CSB_ALERT_HOURS` above):
+Three markers guard the CSB section, all off until configured (see
+`CSB_IP_ALLOW_LIST`, `CSB_ALERT_HOURS` and `CSB_PROXY_PROTOCOL_FROM` above):
 
 - `event="csb.ip_denied"`: a request to the CSB listener from a peer address
   off the allow list, refused with `403`. Carries the peer address (`unknown`
@@ -694,6 +670,12 @@ Two further markers guard the CSB section, both off until configured (see
   (`CSB_ALERT_HOURS_REPEAT_INTERVAL`) so a working session reports once, not
   on every request. Carries the committee user, peer address, method, path
   and the local time. The request itself is served as usual.
+- `event="csb.proxy_protocol_rejected"`: a connection from a proxy in
+  `CSB_PROXY_PROTOCOL_FROM` without a valid PROXY protocol v2 header, dropped
+  before the TLS handshake. Carries the proxy's address and the error.
+
+The peer address in all of these is the TCP peer, or the client a listed
+proxy announced.
 
 ### Cargo features
 

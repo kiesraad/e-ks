@@ -113,6 +113,8 @@ async fn run(
 
     // Start the server
     let router = router::create_with(state.clone(), csb_routes).with_state(state.clone());
+    // Proxies that announce the client on the CSB listener.
+    let csb_proxies = state.config.csb_proxy_protocol_from.clone();
 
     // The renewer hot-reloads renewed certificates through a clone of the
     // TLS config the server listens with.
@@ -122,28 +124,28 @@ async fn run(
         let _ = eks::parse_acme_account_credentials(acme)?;
         let rustls_config =
             eks::start_acme_renewal(acme.clone(), tls.clone(), state.acme_store.clone()).await?;
-        let primary = server::serve_tls(router, listener, rustls_config.clone());
+        let primary = server::serve_tls(router, listener, rustls_config.clone(), None);
         return match csb {
             Some((csb_listener, csb_router)) => {
                 // `CSB_DOMAIN` gets a certificate of its own; without it the
                 // CSB listener presents the one ordered for `ACME_DOMAIN`.
-                let csb_rustls_config = match state.config.csb_acme() {
+                let csb_tls = match state.config.csb_acme() {
                     Some((acme, tls)) => {
                         eks::start_acme_renewal(acme, tls, state.acme_store.clone()).await?
                     }
                     None => rustls_config,
                 };
-                let csb = server::serve_tls(csb_router, csb_listener, csb_rustls_config);
+                let csb = server::serve_tls(csb_router, csb_listener, csb_tls, csb_proxies);
                 tokio::try_join!(primary, csb).map(|_| ())
             }
             None => primary.await,
         };
     }
 
-    let primary = server::serve(router, listener, state.config);
+    let primary = server::serve(router, listener, state.config, None);
     match csb {
         Some((csb_listener, csb_router)) => {
-            let csb = server::serve(csb_router, csb_listener, state.config);
+            let csb = server::serve(csb_router, csb_listener, state.config, csb_proxies);
             tokio::try_join!(primary, csb)?;
         }
         None => primary.await?,

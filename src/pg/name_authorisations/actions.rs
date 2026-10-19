@@ -5,13 +5,13 @@ use crate::{AppError, PgEvent, PgStore, structs::name_authorisations::NameAuthor
 impl NameAuthorisation {
     pub async fn create(&self, store: &PgStore) -> Result<(), AppError> {
         store
-            .update(PgEvent::CreateNameAuthorisation(self.clone()))
+            .update(PgEvent::CreateNameAuthorisation(Box::new(self.clone())))
             .await
     }
 
     pub async fn update(&self, store: &PgStore) -> Result<(), AppError> {
         store
-            .update(PgEvent::UpdateNameAuthorisation(self.clone()))
+            .update(PgEvent::UpdateNameAuthorisation(Box::new(self.clone())))
             .await
     }
 
