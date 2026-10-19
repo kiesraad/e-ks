@@ -10,7 +10,7 @@ use crate::{
     models::{
         Pdf,
         csb_model_inputs::i4_inputs,
-        i4::{I4, NumberedOnDistricts, NumberedOnVotes},
+        i4::{I4, I4Status, NumberedOnDistricts, NumberedOnVotes},
         inputs::PublicSession,
     },
     structs::csb::HearingModel,
@@ -21,14 +21,14 @@ pub(in crate::csb::finalise::pages) async fn i4_model<S: AppRequestState>(
     context: &CsbContext,
     main_store: &CsbMainStore,
     state: &S,
-    is_draft: bool,
+    document_status: I4Status,
 ) -> Result<I4, AppError> {
     let election = main_store.election;
     let registry = state.csb_store_registry();
     let mut numbering = list_numbering(registry, &main_store).await?;
 
     // A draft does not record the numbering
-    if !is_draft {
+    if document_status.is_final() {
         numbering
             .record_if_incomplete(&context, &main_store)
             .await?;
@@ -71,7 +71,7 @@ pub(in crate::csb::finalise::pages) async fn i4_model<S: AppRequestState>(
             .map(|o| o.objection_text.to_string())
             .collect(),
         response_objections: None,
-        is_draft,
+        document_status,
         ..i4_inputs.into()
     })
 }
@@ -82,7 +82,7 @@ pub async fn gen_i4_draft<S: AppRequestState>(
     main_store: CsbMainStore,
     State(state): State<S>,
 ) -> Result<Response, AppError> {
-    i4_model(&context, &main_store, &state, true)
+    i4_model(&context, &main_store, &state, I4Status::Draft)
         .await?
         .pdf_response()
         .await
@@ -95,7 +95,7 @@ pub async fn gen_i4_draft_docx<S: AppRequestState>(
     main_store: CsbMainStore,
     State(state): State<S>,
 ) -> Result<Response, AppError> {
-    i4_model(&context, &main_store, &state, true)
+    i4_model(&context, &main_store, &state, I4Status::Draft)
         .await?
         .docx_response()
         .await
@@ -124,6 +124,10 @@ mod tests {
         },
         test_utils::{sample_person, sample_political_group_named, seed_csb_group},
     };
+
+    fn empty_hash() -> String {
+        String::with_capacity(0)
+    }
 
     /// Import a group named `appellation` with one list in Groningen.
     async fn seed_group(state: &AppState, appellation: &str) -> StreamId {
@@ -164,7 +168,7 @@ mod tests {
             )
             .await?;
 
-        let model = i4_model(&context, &main_store, &state, false).await?;
+        let model = i4_model(&context, &main_store, &state, I4Status::Final(empty_hash())).await?;
 
         assert_eq!(model.public_session.date, "09-04-2027");
         assert_eq!(model.public_session.time, "10:15");
@@ -194,7 +198,7 @@ mod tests {
             )
             .await?;
 
-        let model = i4_model(&context, &main_store, &state, false).await?;
+        let model = i4_model(&context, &main_store, &state, I4Status::Final(empty_hash())).await?;
 
         let configured = ElectionConfig::EK27.public_session();
         assert_eq!(model.public_session.date, configured.formatted_date());
@@ -294,7 +298,7 @@ mod tests {
             )
             .await?;
 
-        let model = i4_model(&context, &main_store, &state, false).await?;
+        let model = i4_model(&context, &main_store, &state, I4Status::Final(empty_hash())).await?;
 
         let on_votes: Vec<_> = model
             .numbered_based_on_votes
@@ -337,14 +341,32 @@ mod tests {
         assert_eq!(main_store.list_order_events(), 0);
 
         let numbered = [(Some(1), "Eerste"), (Some(2), "Tweede")];
-        let model = i4_model(&CsbContext::new_test(), &main_store.clone(), &state, false).await?;
+        let model = i4_model(
+            &CsbContext::new_test(),
+            &main_store.clone(),
+            &state,
+            I4Status::Final(empty_hash()),
+        )
+        .await?;
         assert_eq!(by_lot(&model), numbered);
         assert_eq!(main_store.list_order_events(), 1);
         assert_eq!(main_store.list_order(), [first, second]);
 
-        let model = i4_model(&CsbContext::new_test(), &main_store.clone(), &state, false).await?;
+        let model = i4_model(
+            &CsbContext::new_test(),
+            &main_store.clone(),
+            &state,
+            I4Status::Final(empty_hash()),
+        )
+        .await?;
         assert_eq!(by_lot(&model), numbered);
-        let model = i4_model(&CsbContext::new_test(), &main_store.clone(), &state, true).await?;
+        let model = i4_model(
+            &CsbContext::new_test(),
+            &main_store.clone(),
+            &state,
+            I4Status::Draft,
+        )
+        .await?;
         assert_eq!(by_lot(&model), numbered);
         assert_eq!(main_store.list_order_events(), 1);
 
@@ -360,8 +382,20 @@ mod tests {
         seed_group(&state, "Tweede").await;
         let main_store = CsbMainStore::new_for_test();
 
-        i4_model(&CsbContext::new_test(), &main_store.clone(), &state, true).await?;
-        let model = i4_model(&CsbContext::new_test(), &main_store.clone(), &state, true).await?;
+        i4_model(
+            &CsbContext::new_test(),
+            &main_store.clone(),
+            &state,
+            I4Status::Draft,
+        )
+        .await?;
+        let model = i4_model(
+            &CsbContext::new_test(),
+            &main_store.clone(),
+            &state,
+            I4Status::Draft,
+        )
+        .await?;
 
         assert_eq!(by_lot(&model), [(None, "Eerste"), (None, "Tweede")]);
         assert_eq!(main_store.list_order_events(), 0);

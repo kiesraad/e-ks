@@ -372,4 +372,9 @@ mod tests {
             include_str!("testdata/230c-ws27.eml.xml"),
         );
     }
+
+    #[test]
+    fn no_groups_produces_no_document() {
+        assert!(eml230c(&ElectionConfig::EK27, &[]).unwrap().is_none());
+    }
 }

@@ -17,20 +17,19 @@ use crate::{
                 candidate_list_overview::candidate_list_overview_model,
                 candidate_list_per_district::candidate_list_per_district_model,
                 candidate_list_publication::candidate_list_publication_model,
-                eml::{eml110a_files, eml230_files},
+                eml::{eml_hash, eml110a_files, eml230_files},
             },
             i4::i4_model,
         },
         paths::CsbFinalZipDownloadPath,
     },
-    models::{Pdf, documents::ZIP_CONTENT_TYPE},
+    models::{Pdf, documents::ZIP_CONTENT_TYPE, i4::I4Status},
     utils::no_cache_headers,
 };
 
 mod candidate_list_overview;
 mod candidate_list_per_district;
 mod candidate_list_publication;
-// mod election_definition;
 mod eml;
 
 pub(self) type Files = Vec<(String, Vec<u8>)>;
@@ -64,7 +63,16 @@ async fn final_files<S: AppRequestState>(
         lists_per_district.extend(pdf_and_docx(&model).await?);
     }
     let (eml230bs, eml230c) = eml230_files(context, state.csb_store_registry(), main_store).await?;
-    let eml110a = eml110a_files(main_store)?;
+    let mut eml110a = eml110a_files(main_store)?;
+    let hash = eml_hash(&eml110a[0].1);
+
+    eml110a.push((
+        format!(
+            "Verkiezingsdefinitie_{}.eml.xml.hashcode.txt",
+            election_id.value()
+        ),
+        hash.as_bytes().to_vec(),
+    ));
 
     let mut files = vec![
         (
@@ -91,7 +99,9 @@ async fn final_files<S: AppRequestState>(
     files.extend(
         pdf_and_docx(&candidate_list_overview_model(context, main_store, state).await?).await?,
     );
-    files.extend(pdf_and_docx(&i4_model(context, main_store, state, false).await?).await?);
+    files.extend(
+        pdf_and_docx(&i4_model(context, main_store, state, I4Status::Final(hash)).await?).await?,
+    );
 
     Ok(files)
 }

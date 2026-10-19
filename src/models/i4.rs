@@ -7,10 +7,9 @@ use textris_pdf::build::Textris;
 use super::{
     Pdf,
     inputs::{DistrictLists, OmissionGroup, PublicSession, ValidList},
-    layout::markdown_document,
     markdown::{filters, model_template},
 };
-use crate::AppError;
+use crate::{AppError, models::layout::i4_document};
 
 #[derive(Debug, Default)]
 pub struct I4 {
@@ -29,7 +28,26 @@ pub struct I4 {
     /// Empty: no objections raised.
     pub objections: Vec<String>,
     pub response_objections: Option<String>,
-    pub is_draft: bool,
+    pub document_status: I4Status,
+}
+
+/// `Draft` document does not number lists that still have have to be numbered by lot.
+/// The `Final` document gets a hash in the header.
+#[derive(Debug, Default)]
+pub enum I4Status {
+    #[default]
+    Draft,
+    Final(String),
+}
+
+impl I4Status {
+    pub fn is_draft(&self) -> bool {
+        matches!(self, I4Status::Draft)
+    }
+
+    pub fn is_final(&self) -> bool {
+        matches!(self, I4Status::Final(_))
+    }
 }
 
 #[derive(Debug)]
@@ -81,14 +99,14 @@ model_template!(I4Template, I4, "models/templates/i4.md");
 
 impl Pdf for I4 {
     fn document(&self) -> Result<Textris, AppError> {
-        markdown_document(I4Template(self))
+        i4_document(I4Template(self), &self.document_status)
     }
 
     fn filename(&self) -> String {
-        if self.is_draft {
-            "Model_I4_Proces_Verbaal_Concept.pdf"
-        } else {
+        if self.document_status.is_final() {
             "Model_I4_Proces_Verbaal.pdf"
+        } else {
+            "Model_I4_Proces_Verbaal_Concept.pdf"
         }
         .to_string()
     }

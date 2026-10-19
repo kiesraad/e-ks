@@ -105,21 +105,15 @@ pub(super) fn eml110a_files(main_store: &CsbMainStore) -> Result<Files, AppError
         &main_store.registered_political_groups(),
     )?;
 
-    let hash = Sha256::digest(&eml110a);
+    Ok(vec![(
+        format!("Verkiezingsdefinitie_{}.eml.xml", election_id.value()),
+        eml110a,
+    )])
+}
 
-    Ok(vec![
-        (
-            format!("Verkiezingsdefinitie_{}.eml.xml", election_id.value()),
-            eml110a,
-        ),
-        (
-            format!(
-                "Verkiezingsdefinitie_{}.eml.xml.hashcode.txt",
-                election_id.value()
-            ),
-            format_hash(&hash, false).as_bytes().to_vec(),
-        ),
-    ])
+pub(super) fn eml_hash(data: &[u8]) -> String {
+    let hash = Sha256::digest(data);
+    format_hash(&hash, false)
 }
 
 #[cfg(test)]

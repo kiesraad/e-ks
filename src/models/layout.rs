@@ -8,7 +8,7 @@ use textris_pdf::{
 };
 
 use super::inputs::ModelData;
-use crate::{AppError, core::ModelLocale};
+use crate::{AppError, core::ModelLocale, models::i4::I4Status};
 
 fn theme() -> Theme {
     let mut theme = Theme::default();
@@ -35,6 +35,23 @@ pub(super) fn markdown_document(template: impl Template) -> Result<Textris, AppE
     };
     doc.push_markdown(&template.render()?, &options)?;
     Ok(doc)
+}
+
+/// [`markdown_document`] plus the hash footer that the final I 4 version holds.
+pub(super) fn i4_document(template: impl Template, hash: &I4Status) -> Result<Textris, AppError> {
+    let mut doc = markdown_document(template)?;
+    if let I4Status::Final(hash) = hash {
+        hash_footer(&mut doc, &hash);
+    }
+    Ok(doc)
+}
+
+/// The left page footer carrying the event hash. The muted labels and mono
+/// values have no Markdown dialect syntax, so this stays on the builder API.
+/// The hash is the hash over the Election Definition EML, not over the I 4
+/// itself.
+fn hash_footer(doc: &mut Textris, sha_hash: &str) {
+    doc.footer_left(Text::new().muted("Hash:").normal(" ").mono(sha_hash));
 }
 
 /// [`markdown_document`] plus the event version footer that all H models
