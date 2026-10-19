@@ -9,7 +9,7 @@ use super::{
     inputs::{DistrictLists, OmissionGroup, PublicSession, ValidList},
     markdown::{filters, model_template},
 };
-use crate::{AppError, models::layout::i4_document};
+use crate::{AppError, models::layout::eml_hash_document};
 
 #[derive(Debug, Default)]
 pub struct I4 {
@@ -32,12 +32,13 @@ pub struct I4 {
 }
 
 /// `Draft` document does not number lists that still have have to be numbered by lot.
-/// The `Final` document gets a hash in the header.
+/// The `Final` document gets the hash of the EML 230c in the footer; none when
+/// no list qualifies for the 230c.
 #[derive(Debug, Default)]
 pub enum I4Status {
     #[default]
     Draft,
-    Final(String),
+    Final(Option<String>),
 }
 
 impl I4Status {
@@ -47,6 +48,13 @@ impl I4Status {
 
     pub fn is_final(&self) -> bool {
         matches!(self, I4Status::Final(_))
+    }
+
+    fn hash(&self) -> Option<&str> {
+        match self {
+            I4Status::Final(hash) => hash.as_deref(),
+            I4Status::Draft => None,
+        }
     }
 }
 
@@ -99,7 +107,7 @@ model_template!(I4Template, I4, "models/templates/i4.md");
 
 impl Pdf for I4 {
     fn document(&self) -> Result<Textris, AppError> {
-        i4_document(I4Template(self), &self.document_status)
+        eml_hash_document(I4Template(self), self.document_status.hash())
     }
 
     fn filename(&self) -> String {

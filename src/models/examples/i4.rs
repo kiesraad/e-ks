@@ -256,7 +256,7 @@ pub fn i4_example_1() -> I4 {
             "Namens De Herstelde Partij wordt de Kiesraad bedankt voor al het werk en de hulp bij het proces. De partij heeft dat als zeer prettig ervaren, maar het zou fijn zijn als het systeem wordt aangepast.",
         ]),
         Some("Reactie van de Kiesraad op de bezwaren:\nWat betreft de opmerkingen die door een aantal bezwaarmakers zijn gemaakt over het proces van het verkrijgen van ondersteuningsverklaringen stelt de Kiesraad dit ook heel vervelend te vinden. Het gaat hier over een proces onder de verantwoordelijkheid van de gemeenten. De Kiesraad geeft gemeenten informatie en instrueert hen.".to_string()),
-        I4Status::Final("C0FF 33C0 FF33 CAFE C0FF 33C0 FF33 CAFE".to_string())
+        I4Status::Final(Some("C0FF 33C0 FF33 CAFE C0FF 33C0 FF33 CAFE".to_string()))
     )
 }
 

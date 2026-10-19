@@ -353,6 +353,24 @@ pub async fn published_lists(
     election: &ElectionConfig,
     numbered_groups: &[StreamId],
 ) -> Result<Vec<DistrictLists<NumberedList>>, AppError> {
+    Ok(
+        published_lists_by_district(registry, election, numbered_groups)
+            .await?
+            .into_iter()
+            .map(|(district, lists)| DistrictLists {
+                electoral_district: district.title().to_string(),
+                lists,
+            })
+            .collect(),
+    )
+}
+
+/// [`published_lists`], keyed by the district itself rather than its title.
+pub async fn published_lists_by_district(
+    registry: &StoreRegistry<CsbStoreData>,
+    election: &ElectionConfig,
+    numbered_groups: &[StreamId],
+) -> Result<BTreeMap<ElectoralDistrict, Vec<NumberedList>>, AppError> {
     let stores = examined_stores(registry, election).await?;
     let mut by_district: BTreeMap<ElectoralDistrict, Vec<NumberedList>> = BTreeMap::new();
     election.electoral_districts().iter().for_each(|district| {
@@ -381,13 +399,7 @@ pub async fn published_lists(
         }
     }
 
-    Ok(by_district
-        .into_iter()
-        .map(|(district, lists)| DistrictLists {
-            electoral_district: district.title().to_string(),
-            lists,
-        })
-        .collect())
+    Ok(by_district)
 }
 
 /// Whether a scrapping omission of this category is reported under the

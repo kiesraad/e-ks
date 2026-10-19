@@ -9,5 +9,7 @@ pub fn candidate_list_per_district_example_1() -> CandidateListPerDistrict {
         election_date: "27-05-2027".to_string(),
         electoral_district: "Groningen".to_string(),
         lists: vec![kiesraad_demo(1), correcte_partij(2), blanco_nagelhout(3)],
+        file_stem: "Kandidatenlijsten_EK2027_Groningen".to_string(),
+        hash: Some("C0FF 33C0 FF33 CAFE C0FF 33C0 FF33 CAFE".to_string()),
     }
 }

@@ -123,10 +123,6 @@ mod tests {
         test_utils::{sample_person, sample_political_group_named, seed_csb_group},
     };
 
-    fn empty_hash() -> String {
-        String::with_capacity(0)
-    }
-
     /// Import a group named `appellation` with one list in Groningen.
     async fn seed_group(state: &AppState, appellation: &str) -> StreamId {
         let list = CandidateList {
@@ -166,7 +162,7 @@ mod tests {
             )
             .await?;
 
-        let model = i4_model(&context, &main_store, &state, I4Status::Final(empty_hash())).await?;
+        let model = i4_model(&context, &main_store, &state, I4Status::Final(None)).await?;
 
         assert_eq!(model.public_session.date, "09-04-2027");
         assert_eq!(model.public_session.time, "10:15");
@@ -196,7 +192,7 @@ mod tests {
             )
             .await?;
 
-        let model = i4_model(&context, &main_store, &state, I4Status::Final(empty_hash())).await?;
+        let model = i4_model(&context, &main_store, &state, I4Status::Final(None)).await?;
 
         let configured = ElectionConfig::EK27.public_session();
         assert_eq!(model.public_session.date, configured.formatted_date());
@@ -296,7 +292,7 @@ mod tests {
             )
             .await?;
 
-        let model = i4_model(&context, &main_store, &state, I4Status::Final(empty_hash())).await?;
+        let model = i4_model(&context, &main_store, &state, I4Status::Final(None)).await?;
 
         let on_votes: Vec<_> = model
             .numbered_based_on_votes
@@ -343,7 +339,7 @@ mod tests {
             &CsbContext::new_test(),
             &main_store.clone(),
             &state,
-            I4Status::Final(empty_hash()),
+            I4Status::Final(None),
         )
         .await?;
         assert_eq!(by_lot(&model), numbered);
@@ -354,7 +350,7 @@ mod tests {
             &CsbContext::new_test(),
             &main_store.clone(),
             &state,
-            I4Status::Final(empty_hash()),
+            I4Status::Final(None),
         )
         .await?;
         assert_eq!(by_lot(&model), numbered);

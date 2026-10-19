@@ -17,7 +17,7 @@ use crate::{
                 candidate_list_overview::candidate_list_overview_model,
                 candidate_list_per_district::candidate_list_per_district_model,
                 candidate_list_publication::candidate_list_publication_model,
-                eml::{eml110a_files, eml230_files},
+                eml::{eml_hash, eml110a_files, eml230_files},
             },
             i4::i4_model,
         },
@@ -58,12 +58,13 @@ async fn final_files<S: AppRequestState>(
 ) -> Result<Files, AppError> {
     let election_id = ElectionId::try_from(main_store.election)?;
 
+    let (eml230bs, eml230c) = eml230_files(context, state.csb_store_registry(), main_store).await?;
     let mut lists_per_district = Vec::new();
-    for model in candidate_list_per_district_model(context, main_store, state).await? {
+    for model in candidate_list_per_district_model(context, main_store, state, &eml230bs).await? {
         lists_per_district.extend(pdf_and_docx(&model).await?);
     }
-    let (eml230bs, eml230c) = eml230_files(context, state.csb_store_registry(), main_store).await?;
-    let (eml110a, hash) = eml110a_files(main_store)?;
+    // The I 4 carries the hash of the EML 230c
+    let i4_hash = eml230c.first().map(|(_, eml)| eml_hash(eml));
 
     let mut files = vec![
         (
@@ -71,7 +72,7 @@ async fn final_files<S: AppRequestState>(
             zip(&lists_per_district).await?,
         ),
         (
-            format!("Kanidatenlijsten_{}.zip", election_id.value()),
+            format!("Kandidatenlijsten_{}.zip", election_id.value()),
             zip(&eml230bs).await?,
         ),
         (
@@ -80,7 +81,7 @@ async fn final_files<S: AppRequestState>(
         ),
         (
             format!("Verkiezingsdefinitie_{}.zip", election_id.value()),
-            zip(&eml110a).await?,
+            zip(&eml110a_files(main_store)?).await?,
         ),
     ];
 
@@ -91,7 +92,8 @@ async fn final_files<S: AppRequestState>(
         pdf_and_docx(&candidate_list_overview_model(context, main_store, state).await?).await?,
     );
     files.extend(
-        pdf_and_docx(&i4_model(context, main_store, state, I4Status::Final(hash)).await?).await?,
+        pdf_and_docx(&i4_model(context, main_store, state, I4Status::Final(i4_hash)).await?)
+            .await?,
     );
 
     Ok(files)
@@ -150,7 +152,7 @@ mod tests {
         AppState, ElectionConfig, ElectoralDistrict, StreamId,
         structs::{candidate_lists::CandidateList, persons::PersonId},
         test_utils::{
-            sample_person, sample_political_group_named, seed_csb_group, zip_entry_names,
+            sample_person, sample_political_group_named, seed_csb_group, zip_entry, zip_entry_names,
         },
     };
 
@@ -215,7 +217,7 @@ mod tests {
         assert_eq!(
             names,
             [
-                "Kanidatenlijsten_EK2027.zip",
+                "Kandidatenlijsten_EK2027.zip",
                 "Model_I4_Proces_Verbaal.docx",
                 "Model_I4_Proces_Verbaal.pdf",
                 "Overzicht_Kandidatenlijsten.docx",
@@ -227,6 +229,63 @@ mod tests {
                 "Verkiezingsdefinitie_EK2027.zip"
             ]
         );
+
+        Ok(())
+    }
+
+    /// The footer text of the Word document `docx`.
+    async fn docx_footer(docx: &[u8]) -> String {
+        String::from_utf8(zip_entry(docx, "word/footer1.xml").await).expect("utf-8 footer")
+    }
+
+    /// The final I 4 carries the hash of the EML 230c and each district's
+    /// candidate lists the hash of its own EML 230b, as OSV asks for them on
+    /// import.
+    #[tokio::test]
+    async fn documents_carry_the_hash_of_their_eml() -> Result<(), AppError> {
+        let state = AppState::new_for_tests().await;
+        seed_group(&state, "Eerste").await;
+
+        let files = final_files(
+            &CsbContext::new_test(),
+            &CsbMainStore::new_for_test(),
+            &state,
+        )
+        .await?;
+        let file = |name: &str| {
+            files
+                .iter()
+                .find(|(file_name, _)| file_name == name)
+                .map(|(_, bytes)| bytes.as_slice())
+                .unwrap_or_else(|| panic!("no file {name}"))
+        };
+
+        let eml230c = zip_entry(
+            file("Totaallijsten_EK2027.zip"),
+            "Totaallijsten_EK2027.eml.xml",
+        )
+        .await;
+        let eml110a = zip_entry(
+            file("Verkiezingsdefinitie_EK2027.zip"),
+            "Verkiezingsdefinitie_EK2027.eml.xml",
+        )
+        .await;
+        let i4_footer = docx_footer(file("Model_I4_Proces_Verbaal.docx")).await;
+        assert!(i4_footer.contains(&eml_hash(&eml230c)));
+        assert!(!i4_footer.contains(&eml_hash(&eml110a)));
+
+        let eml230b = zip_entry(
+            file("Kandidatenlijsten_EK2027.zip"),
+            "Kandidatenlijsten_EK2027_Groningen.eml.xml",
+        )
+        .await;
+        let lists = file("Overzicht_Kandidatenlijsten.zip");
+        let groningen = zip_entry(lists, "Kandidatenlijsten_EK2027_Groningen.docx").await;
+        assert!(docx_footer(&groningen).await.contains(&eml_hash(&eml230b)));
+
+        // Fryslân has no lists, so no 230b to hash
+        let fryslan = zip_entry(lists, "Kandidatenlijsten_EK2027_Fryslan.docx").await;
+        assert!(!docx_footer(&fryslan).await.contains("Hash"));
 
         Ok(())
     }

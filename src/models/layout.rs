@@ -8,7 +8,7 @@ use textris_pdf::{
 };
 
 use super::inputs::ModelData;
-use crate::{AppError, core::ModelLocale, models::i4::I4Status};
+use crate::{AppError, core::ModelLocale};
 
 fn theme() -> Theme {
     let mut theme = Theme::default();
@@ -38,19 +38,22 @@ pub(super) fn markdown_document(template: impl Template) -> Result<Textris, AppE
     Ok(doc)
 }
 
-/// [`markdown_document`] plus the hash footer that the final I 4 version holds.
-pub(super) fn i4_document(template: impl Template, hash: &I4Status) -> Result<Textris, AppError> {
+/// [`markdown_document`] plus the hash footer of the EML the document
+/// accompanies, if any.
+pub(super) fn eml_hash_document(
+    template: impl Template,
+    hash: Option<&str>,
+) -> Result<Textris, AppError> {
     let mut doc = markdown_document(template)?;
-    if let I4Status::Final(hash) = hash {
+    if let Some(hash) = hash {
         hash_footer(&mut doc, hash);
     }
     Ok(doc)
 }
 
-/// The left page footer carrying the event hash. The muted labels and mono
-/// values have no Markdown dialect syntax, so this stays on the builder API.
-/// The hash is the hash over the Election Definition EML, not over the I 4
-/// itself.
+/// The left page footer carrying the hash of the accompanying EML, which OSV
+/// asks for on import. The muted labels and mono values have no Markdown
+/// dialect syntax, so this stays on the builder API.
 fn hash_footer(doc: &mut Textris, sha_hash: &str) {
     doc.footer_left(Text::new().muted("Hash:").normal(" ").mono(sha_hash));
 }

@@ -80,24 +80,39 @@ pub(super) async fn eml230_files(
 }
 
 /// The file name for the EML 230b of `district`, e.g.
-/// `Kandidatenlijsten_EK2027_Drenthe.eml.xml`, or without district when the
-/// election has only one
-fn eml230b_filename(
+/// `Kandidatenlijsten_EK2027_Drenthe.eml.xml`
+pub(super) fn eml230b_filename(
+    election: &ElectionConfig,
+    district: Option<ElectoralDistrict>,
+) -> Result<String, AppError> {
+    Ok(format!(
+        "{}.eml.xml",
+        candidate_lists_stem(election, district)?
+    ))
+}
+
+/// The file name without extension shared by the EML 230b and the candidate
+/// list document of `district`, e.g. `Kandidatenlijsten_EK2027_Drenthe`, or
+/// without district when the election has only one
+pub(super) fn candidate_lists_stem(
     election: &ElectionConfig,
     district: Option<ElectoralDistrict>,
 ) -> Result<String, AppError> {
     let election_id = ElectionId::try_from(*election)?;
-    Ok(match district {
-        Some(district) => format!(
-            "Kandidatenlijsten_{}_{}.eml.xml",
-            election_id.value(),
-            slugify_teletex(district.title(), false)
-        ),
-        None => format!("Kandidatenlijsten_{}.eml.xml", election_id.value()),
-    })
+    Ok(
+        match district.filter(|_| !election.has_only_one_district()) {
+            Some(district) => format!(
+                "Kandidatenlijsten_{}_{}",
+                election_id.value(),
+                slugify_teletex(district.title(), false)
+            ),
+            None => format!("Kandidatenlijsten_{}", election_id.value()),
+        },
+    )
 }
 
-pub(super) fn eml110a_files(main_store: &CsbMainStore) -> Result<(Files, String), AppError> {
+/// The EML 110a with its hashcode file
+pub(super) fn eml110a_files(main_store: &CsbMainStore) -> Result<Files, AppError> {
     let election_id = ElectionId::try_from(main_store.election)?;
 
     let eml110a = eml110a(
@@ -107,15 +122,15 @@ pub(super) fn eml110a_files(main_store: &CsbMainStore) -> Result<(Files, String)
     let hash = eml_hash(&eml110a);
 
     let filename = format!("Verkiezingsdefinitie_{}.eml.xml", election_id.value());
-    let files = vec![
-        (filename.clone(), eml110a),
-        (format!("{filename}.hashcode.txt"), hash.as_bytes().to_vec()),
-    ];
 
-    Ok((files, hash))
+    Ok(vec![
+        (filename.clone(), eml110a),
+        (format!("{filename}.hashcode.txt"), hash.into_bytes()),
+    ])
 }
 
-fn eml_hash(data: &[u8]) -> String {
+/// The SHA-256 of an EML as OSV asks for it on import, e.g. `8097 F58F ...`
+pub(super) fn eml_hash(data: &[u8]) -> String {
     let hash = Sha256::digest(data);
     format_hash(&hash, false)
 }
@@ -312,6 +327,15 @@ mod tests {
         );
         assert_eq!(
             eml230b_filename(&ElectionConfig::PS27(Province::Groningen), None).unwrap(),
+            "Kandidatenlijsten_PS2027_Groningen.eml.xml"
+        );
+        // The only district of an election is left out
+        assert_eq!(
+            eml230b_filename(
+                &ElectionConfig::PS27(Province::Groningen),
+                Some(ElectoralDistrict::PsGroningen)
+            )
+            .unwrap(),
             "Kandidatenlijsten_PS2027_Groningen.eml.xml"
         );
         assert_eq!(
