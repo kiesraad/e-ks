@@ -329,6 +329,12 @@ impl ResponseChain<'_, '_> {
         resolve_id: &MessageId,
         bound_authn_id: &MessageId,
     ) -> Result<Claims, Rejection> {
+        // The descriptor was captured before the back-channel await; it can
+        // expire while the RD is answering. Check again before using its keys.
+        if self.rd.is_expired_at(chrono::Utc::now()) {
+            warn!("[ACS] RD metadata expired during artifact resolution");
+            return Err(Rejection::Unanswered(AuthFailure::Unavailable));
+        }
         let root = self.doc.document_element();
         let Some(art_node) = unwrap_soap(self.doc, root) else {
             warn!(

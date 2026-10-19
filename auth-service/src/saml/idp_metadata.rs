@@ -39,6 +39,19 @@ pub struct IdpMetadata {
     /// descriptor may be cached. The background refresh task uses it, capped at
     /// 24h, to schedule the next fetch. `None` when absent or unparseable.
     pub cache_duration: Option<Duration>,
+    /// The published hard expiry (`validUntil`), retained so runtime users stop
+    /// trusting the descriptor even when a refresh fails.
+    pub valid_until: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+impl IdpMetadata {
+    pub(crate) fn is_expired_at(&self, now: chrono::DateTime<chrono::Utc>) -> bool {
+        self.valid_until.is_some_and(|until| {
+            until
+                .checked_add_signed(chrono::Duration::seconds(CLOCK_SKEW_SECONDS))
+                .is_none_or(|deadline| now > deadline)
+        })
+    }
 }
 
 #[cfg(test)]
@@ -57,6 +70,7 @@ impl IdpMetadata {
             slo_url: endpoint("slo"),
             signing_keys: Vec::new(),
             cache_duration: None,
+            valid_until: None,
         }
     }
 }
@@ -339,7 +353,7 @@ pub fn parse_idp_metadata(xml: &str, trust: &RdTrust) -> Result<IdpMetadata> {
     let root = doc.document_element();
 
     let entity_id = pinned_entity_id(&doc, root, trust)?;
-    check_metadata_expiry(&doc, root)?;
+    let valid_until = check_metadata_expiry(&doc, root)?;
     // Endpoints and keys are read only from the IdP role descriptor, never
     // document-wide (see `idp_sso_descriptor`).
     let idp = idp_sso_descriptor(&doc, root)?;
@@ -360,6 +374,7 @@ pub fn parse_idp_metadata(xml: &str, trust: &RdTrust) -> Result<IdpMetadata> {
         slo_url,
         signing_keys,
         cache_duration,
+        valid_until,
     })
 }
 
@@ -415,16 +430,20 @@ fn verified_signing_keys(
 /// eID §8.2/§8.5: do not use metadata past its hard expiry. If `validUntil` is
 /// present and has passed (subject to clock skew), reject the document so an
 /// expired descriptor, including a stale on-disk cache, is never trusted.
-fn check_metadata_expiry(doc: &Document, root: NodeId) -> Result<()> {
+fn check_metadata_expiry(
+    doc: &Document,
+    root: NodeId,
+) -> Result<Option<chrono::DateTime<chrono::Utc>>> {
     let valid_until = doc.get_attribute(root, "validUntil");
+    let mut parsed = None;
     if let Some(s) = valid_until {
         // This runs before the metadata signature is verified, so `s` is
         // attacker-influenced whenever the HTTPS fetch (or the on-disk cache) is
         // subverted. `checked_add_signed`, not `+`: chrono panics when a
         // timestamp near the edge of the representable range is shifted.
-        let expires_at = s
-            .parse::<chrono::DateTime<chrono::Utc>>()
-            .ok()
+        let until = s.parse::<chrono::DateTime<chrono::Utc>>().ok();
+        parsed = until;
+        let expires_at = until
             .and_then(|t| t.checked_add_signed(chrono::Duration::seconds(CLOCK_SKEW_SECONDS)))
             .ok_or_else(|| {
                 AuthError::Config(format!(
@@ -447,7 +466,7 @@ fn check_metadata_expiry(doc: &Document, root: NodeId) -> Result<()> {
                 .to_string(),
         ));
     }
-    Ok(())
+    Ok(parsed)
 }
 
 /// eID §9.1/§9.2: keep only signing certs that carry the RD OIN and chain to
@@ -734,6 +753,21 @@ mod tests {
         let signed = signed_rd_metadata_attrs(entity_id, r#" validUntil="2000-01-01T00:00:00Z""#);
         let err = parse_idp_metadata(&signed, &test_trust(entity_id)).unwrap_err();
         assert!(matches!(err, AuthError::Config(_)));
+    }
+
+    #[test]
+    fn parsed_metadata_retains_valid_until_for_runtime_expiry() {
+        let entity_id = "urn:nl-eid-gdi:1.0:RD:00000004000000149000:entities:9002";
+        let signed = signed_rd_metadata_attrs(entity_id, r#" validUntil="2999-01-01T00:00:00Z""#);
+        let metadata = parse_idp_metadata(&signed, &test_trust(entity_id)).unwrap();
+
+        assert_eq!(
+            metadata.valid_until,
+            Some("2999-01-01T00:00:00Z".parse().unwrap())
+        );
+        assert!(!metadata.is_expired_at(chrono::Utc::now()));
+        assert!(metadata.is_expired_at("3000-01-01T00:00:00Z".parse().unwrap()));
+        assert!(!IdpMetadata::for_tests().is_expired_at(chrono::Utc::now()));
     }
 
     #[test]
