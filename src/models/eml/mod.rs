@@ -159,7 +159,7 @@ pub(crate) fn contact(person: &Person) -> Option<Contact> {
 pub(crate) fn agent(person: &Person) -> Option<Agent> {
     person
         .needs_representative()
-        .then(|| person.representative.as_ref().map(Into::into))
+        .then(|| person.representative.as_deref().map(Into::into))
         .flatten()
 }
 

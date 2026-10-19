@@ -213,10 +213,10 @@ mod tests {
         sample_person2.personal_data.country = CountryCode::from_str("BE").ok();
         sample_person2.personal_data.gender = None;
 
-        sample_person2.representative = Some(Representative {
+        sample_person2.representative = Some(Box::new(Representative {
             name: sample_full_name(Some("Bob"), "Bouwer", Some("de"), "B."),
             address: sample_dutch_address("Nijmegen", "1234AB", "22", "c", "Bouwstraat"),
-        });
+        }));
         sample_person2.create(store).await?;
         list.candidates.push(person_id2);
 

@@ -22,7 +22,7 @@ pub struct Person {
     pub name: FullName,
     pub personal_data: PersonalData,
     pub address: DutchAddress,
-    pub representative: Option<Representative>,
+    pub representative: Option<Box<Representative>>,
     pub updated_at: UtcDateTime,
 }
 
@@ -48,7 +48,7 @@ pub struct Representative {
     pub address: DutchAddress,
 }
 
-impl Problematic<&Person> for Option<Representative> {
+impl Problematic<&Person> for Option<Box<Representative>> {
     fn get_problems(&self, associated_person: &Person) -> Problems {
         if !associated_person.needs_representative() {
             return Problems {
@@ -431,7 +431,7 @@ mod tests {
                 .contains(&PotentialProblems::NoRepresentative)
         );
 
-        person.representative = Some(complete_representative());
+        person.representative = Some(Box::new(complete_representative()));
         assert!(person.get_problems(ElectionConfig::EK27).is_all_good());
     }
 
@@ -439,7 +439,7 @@ mod tests {
     fn non_dutch_person_with_incomplete_representative_produces_wrapped_problems() {
         let mut person = sample_person(PersonId::new());
         person.personal_data.country = Some("BE".parse().expect("country code"));
-        person.representative = Some(Representative::default());
+        person.representative = Some(Box::new(Representative::default()));
         let problems = person.get_problems(ElectionConfig::EK27);
         assert!(
             problems
@@ -460,7 +460,7 @@ mod tests {
         person.personal_data.country = Some("BE".parse().expect("country code"));
         let mut representative = complete_representative();
         representative.address.known_in_bag = Some(false);
-        person.representative = Some(representative);
+        person.representative = Some(Box::new(representative));
         let problems = person.get_problems(ElectionConfig::EK27);
         // the representative's unknown address is surfaced through the wrapper
         assert!(
@@ -515,7 +515,7 @@ mod tests {
         let mut person = sample_person(PersonId::new());
         person.personal_data.country = Some("BE".parse().expect("country code"));
         person.address = DutchAddress::default();
-        person.representative = Some(complete_representative());
+        person.representative = Some(Box::new(complete_representative()));
         let problems = person.get_problems(ElectionConfig::EK27);
         assert!(
             !problems
@@ -539,14 +539,18 @@ mod tests {
         let mut representative = complete_representative();
 
         assert!(
-            Some(representative.clone())
+            Some(Box::new(representative.clone()))
                 .get_problems(&person)
                 .is_all_good()
         );
 
         representative.address = DutchAddress::default();
         person.personal_data.country = CountryCode::from_str("BE").ok();
-        assert!(!Some(representative).get_problems(&person).is_all_good());
+        assert!(
+            !Some(Box::new(representative))
+                .get_problems(&person)
+                .is_all_good()
+        );
     }
 
     #[test]
@@ -570,7 +574,7 @@ mod tests {
         person.personal_data.country = Some("BE".parse().expect("country code"));
         assert!(!person.is_representative_complete());
 
-        person.representative = Some(complete_representative());
+        person.representative = Some(Box::new(complete_representative()));
         assert!(person.is_representative_complete());
     }
 
@@ -596,7 +600,7 @@ mod tests {
                 .is_all_good()
         );
 
-        non_dutch_person.representative = Some(complete_representative());
+        non_dutch_person.representative = Some(Box::new(complete_representative()));
         assert!(
             non_dutch_person
                 .get_problems(ElectionConfig::EK27)

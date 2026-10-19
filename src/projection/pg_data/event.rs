@@ -18,30 +18,30 @@ use crate::{
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum PgEvent {
     UpdatePoliticalGroup(PoliticalGroup),
-    CreatePerson(Person),
+    CreatePerson(Box<Person>),
     CreatePersonPersonalData {
         person_id: PersonId,
-        name: FullName,
-        personal_data: PersonalData,
+        name: Box<FullName>,
+        personal_data: Box<PersonalData>,
     },
-    UpdatePerson(Person),
+    UpdatePerson(Box<Person>),
     UpdatePersonPersonalData {
         person_id: PersonId,
-        name: FullName,
-        personal_data: PersonalData,
+        name: Box<FullName>,
+        personal_data: Box<PersonalData>,
     },
     UpdatePersonAddress {
         person_id: PersonId,
-        address: DutchAddress,
+        address: Box<DutchAddress>,
     },
     UpdatePersonRepresentative {
         person_id: PersonId,
-        representative: Option<Representative>,
+        representative: Option<Box<Representative>>,
     },
     DeletePerson {
         person_id: PersonId,
     },
-    CreateCandidateList(CandidateList),
+    CreateCandidateList(Box<CandidateList>),
     UpdateCandidateListDistricts {
         list_id: CandidateListId,
         electoral_districts: BTreeSet<ElectoralDistrict>,
@@ -60,14 +60,14 @@ pub enum PgEvent {
     },
     DeleteCandidateList(CandidateListId),
 
-    CreateNameAuthorisation(NameAuthorisation),
-    UpdateNameAuthorisation(NameAuthorisation),
+    CreateNameAuthorisation(Box<NameAuthorisation>),
+    UpdateNameAuthorisation(Box<NameAuthorisation>),
     DeleteNameAuthorisation(NameAuthorisationId),
 
-    UpdateListSubmitter(ListSubmitter),
+    UpdateListSubmitter(Box<ListSubmitter>),
 
-    CreateSubstituteSubmitter(ListSubmitter),
-    UpdateSubstituteSubmitter(ListSubmitter),
+    CreateSubstituteSubmitter(Box<ListSubmitter>),
+    UpdateSubstituteSubmitter(Box<ListSubmitter>),
     DeleteSubstituteSubmitter {
         substitute_submitter_id: ListSubmitterId,
     },
@@ -94,14 +94,7 @@ pub enum PgEvent {
         list_id: CandidateListId,
     },
 
-    ImportCandidates {
-        list_id: CandidateListId,
-        file_name: String,
-        file_size: usize,
-        created_persons: Vec<Person>,
-        updated_persons: Vec<Person>,
-        candidates: Vec<PersonId>,
-    },
+    ImportCandidates(Box<CandidateImport>),
 
     /// Marks the CSB import that seeds a paper-corrections projection. Not
     /// persisted on an app stream: it is synthesised from
@@ -111,4 +104,18 @@ pub enum PgEvent {
     Import {
         hash: EventHash,
     },
+}
+
+// Large payloads are boxed so each in-memory event stays small.
+const _: () = assert!(std::mem::size_of::<PgEvent>() <= 56);
+
+/// Payload of [`PgEvent::ImportCandidates`]; encodes like the struct variant it replaced.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CandidateImport {
+    pub list_id: CandidateListId,
+    pub file_name: String,
+    pub file_size: usize,
+    pub created_persons: Vec<Person>,
+    pub updated_persons: Vec<Person>,
+    pub candidates: Vec<PersonId>,
 }

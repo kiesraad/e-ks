@@ -307,10 +307,11 @@ mod tests {
         };
 
         let mut with_representative = sample_person(PersonId::new());
-        with_representative.representative = Some(crate::structs::persons::Representative {
-            name: with_representative.name.clone(),
-            address: with_representative.address.clone(),
-        });
+        with_representative.representative =
+            Some(Box::new(crate::structs::persons::Representative {
+                name: with_representative.name.clone(),
+                address: with_representative.address.clone(),
+            }));
 
         let entities = [
             serde_json::to_value(sample_person(PersonId::new())).unwrap(),

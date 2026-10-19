@@ -150,7 +150,7 @@ impl From<Person> for CandidateRecordCsv {
         } = person;
 
         let representative = if needs_representative {
-            person_representative.unwrap_or_default()
+            person_representative.map(|r| *r).unwrap_or_default()
         } else {
             Representative::default()
         };
@@ -409,7 +409,7 @@ mod tests {
     #[test]
     fn csv_export_uses_representative_for_caribbean_nl_residents() {
         let mut person = sample_person(PersonId::new());
-        person.representative = Some(Representative {
+        person.representative = Some(Box::new(Representative {
             name: FullName {
                 first_name: None,
                 last_name: "Puk".parse().expect("last name"),
@@ -417,7 +417,7 @@ mod tests {
                 initials: Some("P.".parse().expect("initials")),
             },
             address: sample_dutch_address("Den Haag", "5678 CD", "34", "b", "Mooiere Straat"),
-        });
+        }));
 
         // a Dutch resident exports the correspondence address, not the representative
         let csv = CandidateRecordCsv::from(person.clone());
