@@ -19,7 +19,9 @@ jobs:
     name: SonarQube
     permissions:
       contents: read
-    environment: development
+    environment:
+      name: development
+      deployment: false # only needs the secrets
     runs-on: ubuntu-24.04
     env:
       CARGO_TERM_COLOR: always
