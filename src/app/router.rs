@@ -35,7 +35,7 @@ pub fn create(state: AppState) -> Router<AppState> {
 }
 
 pub fn create_with(state: AppState, csb_routes: WithCsbRoutes) -> Router<AppState> {
-    let app_router = session_router(&state, csb_routes);
+    let app_router = app_feature_router();
 
     #[cfg(feature = "dev-features")]
     let dev_router = Router::new().route(
@@ -43,17 +43,45 @@ pub fn create_with(state: AppState, csb_routes: WithCsbRoutes) -> Router<AppStat
         get(crate::app::middleware::dev_login::dev_login),
     );
 
+    let app_router = app_router
+        .fallback(get(common::not_found))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            render_error_pages,
+        ))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            store_middleware,
+        ));
+
+    // These routes need a session but NOT store middleware: select-election runs
+    // before a stream_id is chosen, and /language must stay reachable for CSB
+    // (committee) sessions that store_middleware redirects off app routes.
+    // `bag::router()` joins them: scanning the embedded BAG database is too
+    // expensive to expose anonymously, and it is only called from a logged-in
+    // form. The session middleware also verifies the CSRF token of every mutating
+    // request (see `auth::csrf_guard`), so no handler can forget the check.
+    let app_router = app_router
+        .merge(common::session_only_router())
+        .merge(bag::router());
+
+    let app_router = match csb_routes {
+        WithCsbRoutes::Included => app_router.merge(csb_router(&state)),
+        WithCsbRoutes::Excluded => app_router,
+    };
+
+    let app_router = app_router.layer(middleware::from_fn_with_state(
+        state.clone(),
+        session_middleware,
+    ));
+
     #[cfg(feature = "dev-features")]
     let router = Router::new().merge(dev_router).merge(app_router);
 
     #[cfg(not(feature = "dev-features"))]
     let router = app_router;
 
-    // Reads the session cookie itself and must not extend a session, so it
-    // sits with the public routes.
-    let router = router
-        .merge(public_router(csb_routes))
-        .merge(super::blocked_notification::router());
+    let router = router.merge(public_router(csb_routes));
 
     let router = router
         .layer(middleware::from_fn_with_state(
@@ -105,42 +133,6 @@ pub fn create_with(state: AppState, csb_routes: WithCsbRoutes) -> Router<AppStat
     apply_security_headers(router)
 }
 
-/// Routes behind the session middleware: the feature routes with their store
-/// middleware, the session-only routes and, when included, the CSB section.
-fn session_router(state: &AppState, csb_routes: WithCsbRoutes) -> Router<AppState> {
-    let app_router = app_feature_router()
-        .fallback(get(common::not_found))
-        .layer(middleware::from_fn_with_state(
-            state.clone(),
-            render_error_pages,
-        ))
-        .layer(middleware::from_fn_with_state(
-            state.clone(),
-            store_middleware,
-        ));
-
-    // These routes need a session but NOT store middleware: select-election runs
-    // before a stream_id is chosen, and /language must stay reachable for CSB
-    // (committee) sessions that store_middleware redirects off app routes.
-    // `bag::router()` joins them: scanning the embedded BAG database is too
-    // expensive to expose anonymously, and it is only called from a logged-in
-    // form. The session middleware also verifies the CSRF token of every mutating
-    // request (see `auth::csrf_guard`), so no handler can forget the check.
-    let app_router = app_router
-        .merge(common::session_only_router())
-        .merge(bag::router());
-
-    let app_router = match csb_routes {
-        WithCsbRoutes::Included => app_router.merge(csb_router(state)),
-        WithCsbRoutes::Excluded => app_router,
-    };
-
-    app_router.layer(middleware::from_fn_with_state(
-        state.clone(),
-        session_middleware,
-    ))
-}
-
 /// Global fetch-metadata CSRF protection, backstopping the session
 /// middleware's token check. SAML single logout is exempt (cross-site IdP
 /// POSTs, signature-validated); the typed path is shared with the route
@@ -151,7 +143,7 @@ fn csrf_layer() -> CsrfLayer {
 
 /// Routes mounted outside the session middleware (no session required): the
 /// SAML auth-service endpoints, the PG login and logged-out pages, and the
-/// CSB GitHub login.
+/// CSB security-key login.
 fn public_router(csb_routes: WithCsbRoutes) -> Router<AppState> {
     let router = auth_service::router().merge(common::public_router());
 
@@ -209,8 +201,9 @@ fn app_feature_router() -> Router<AppState> {
         .merge(substitute_list_submitters::router())
 }
 
-/// Deny every powerful browser feature; the app uses none. The names are the
-/// union of the directives listed on MDN
+/// Deny every powerful browser feature but WebAuthn assertions, which the
+/// CSB security-key login needs. Creation stays denied: keys are enrolled
+/// outside the browser. The names are the union of the directives listed on MDN
 /// (<https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Permissions-Policy>)
 /// and in the W3C feature registry
 /// (<https://github.com/w3c/webappsec-permissions-policy/blob/main/features.md>).
@@ -226,7 +219,7 @@ const PERMISSIONS_POLICY: &str = concat!(
     "join-ad-interest-group=(), keyboard-map=(), local-fonts=(), magnetometer=(), microphone=(), ",
     "midi=(), otp-credentials=(), payment=(), picture-in-picture=(), private-aggregation=(), ",
     "private-state-token-issuance=(), private-state-token-redemption=(), ",
-    "publickey-credentials-create=(), publickey-credentials-get=(), run-ad-auction=(), ",
+    "publickey-credentials-create=(), publickey-credentials-get=(self), run-ad-auction=(), ",
     "screen-wake-lock=(), serial=(), speaker-selection=(), storage-access=(), sync-xhr=(), ",
     "unload=(), usb=(), web-share=(), window-management=(), xr-spatial-tracking=()",
 );
@@ -372,21 +365,6 @@ mod tests {
         assert!(body.contains("Kiesraad - Kandidaatstelling"));
     }
 
-    /// Reachable without a session: `204`, not a login redirect.
-    #[tokio::test]
-    async fn blocked_notification_needs_no_session() {
-        let state = AppState::new_for_tests().await;
-        let app: Router = create(state.clone()).with_state(state);
-
-        let request = Request::builder()
-            .uri("/blocked-notification?kind=block&path=/")
-            .body(Body::empty())
-            .unwrap();
-        let response = app.oneshot(request).await.expect("response");
-
-        assert_eq!(response.status(), StatusCode::NO_CONTENT);
-    }
-
     /// Insert a committee session and build a GET request for `uri` that
     /// carries its cookie.
     async fn committee_request(state: &AppState, uri: &str) -> Request<Body> {
@@ -509,7 +487,7 @@ mod tests {
     #[tokio::test]
     async fn excluded_csb_routes_are_unreachable_on_the_main_router() {
         let state = AppState::new_for_tests_with_config(
-            crate::csb::login::test_support::github_test_config(),
+            crate::auth::csb_webauthn::test_support::webauthn_test_config(),
         )
         .await;
         let app: Router =
@@ -519,7 +497,7 @@ mod tests {
             csb::index::CsbIndexPath::PATH,
             csb::import::CsbImportPath::PATH,
             csb::login::CsbLoginPath::PATH,
-            csb::login::CsbLoginStartPath::PATH,
+            csb::login::CsbLoginFinishPath::PATH,
         ] {
             let request = committee_request(&state, uri).await;
             let response = app.clone().oneshot(request).await.expect("response");
@@ -539,7 +517,7 @@ mod tests {
 
     /// A router with `CSB_IP_ALLOW_LIST` set to `203.0.113.7` only.
     async fn ip_gated_app(csb_routes: WithCsbRoutes) -> Router {
-        let mut config = crate::csb::login::test_support::github_test_config();
+        let mut config = crate::auth::csb_webauthn::test_support::webauthn_test_config();
         config.csb_ip_allow_list =
             Some(crate::core::CsbIpAllowList::parse("203.0.113.7").expect("list"));
         let state = AppState::new_for_tests_with_config(config).await;
@@ -573,7 +551,7 @@ mod tests {
     async fn ip_allow_list_gates_the_router_with_csb_routes() {
         let app = ip_gated_app(WithCsbRoutes::Included).await;
 
-        for uri in ["/login", "/robots.txt", csb::login::CsbLoginStartPath::PATH] {
+        for uri in ["/login", "/robots.txt", csb::login::CsbLoginPath::PATH] {
             // The unlisted peer never reaches the route.
             let request = request_from_peer(uri, "203.0.113.8:4000");
             let response = app.clone().oneshot(request).await.expect("response");

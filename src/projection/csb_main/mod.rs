@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use crate::{
-    Scope, StreamId,
+    CredentialId, Scope, StreamId,
     store::{StoreData, StoreEvent},
     structs::csb::{HearingDetails, HearingModel, Objection, RegisteredPoliticalGroup},
 };
@@ -30,6 +30,8 @@ pub struct CsbMainStoreData {
     pub(crate) hearing_details: HashMap<HearingModel, HearingDetails>,
     pub(crate) list_order: Vec<StreamId>,
     pub(crate) objections: Vec<Objection>,
+    /// The signature counter each security key reported at its last login.
+    pub(crate) sign_counts: HashMap<CredentialId, u32>,
 }
 
 impl StoreData for CsbMainStoreData {
@@ -39,6 +41,12 @@ impl StoreData for CsbMainStoreData {
         self.events.push(event.clone());
         match event.payload.action {
             CsbMainAction::Login | CsbMainAction::Logout => {}
+            CsbMainAction::SecurityKeyLogin {
+                credential_id,
+                sign_count,
+            } => {
+                self.sign_counts.insert(credential_id, sign_count);
+            }
             CsbMainAction::CreateRegisteredPoliticalGroup(group) => {
                 self.registered_political_groups.push(group);
             }

@@ -116,9 +116,10 @@ fn event_details(event: &PgEvent) -> String {
         PgEvent::CreateSubstituteSubmitter(ss) | PgEvent::UpdateSubstituteSubmitter(ss) => {
             ss.name.display()
         }
-        PgEvent::DownloadFile { file_name, .. }
-        | PgEvent::ExportCsv { file_name, .. }
-        | PgEvent::ImportCandidates { file_name, .. } => file_name.clone(),
+        PgEvent::DownloadFile { file_name, .. } | PgEvent::ExportCsv { file_name, .. } => {
+            file_name.clone()
+        }
+        PgEvent::ImportCandidates(import) => import.file_name.clone(),
         PgEvent::Import { hash } => format_hash(hash, true),
         PgEvent::UpdatePersonAddress { .. }
         | PgEvent::UpdatePersonRepresentative { .. }
@@ -168,9 +169,8 @@ impl PgEvent {
                 ..
             } => substitute_submitter_id.to_string(),
             PgEvent::DeveloperLogin { stream_id, .. } => stream_id.to_string(),
-            PgEvent::ExportCsv { list_id, .. } | PgEvent::ImportCandidates { list_id, .. } => {
-                list_id.to_string()
-            }
+            PgEvent::ExportCsv { list_id, .. } => list_id.to_string(),
+            PgEvent::ImportCandidates(import) => import.list_id.to_string(),
             PgEvent::DownloadFile { .. }
             | PgEvent::HideDownloadWarning
             | PgEvent::Login
@@ -210,9 +210,8 @@ impl PgEvent {
             PgEvent::CreateSubstituteSubmitter(ss) | PgEvent::UpdateSubstituteSubmitter(ss) => {
                 ss.substitute_update_path().to_string()
             }
-            PgEvent::ExportCsv { list_id, .. } | PgEvent::ImportCandidates { list_id, .. } => {
-                candidate_list_path(*list_id)
-            }
+            PgEvent::ExportCsv { list_id, .. } => candidate_list_path(*list_id),
+            PgEvent::ImportCandidates(import) => candidate_list_path(import.list_id),
             _ => String::new(),
         }
     }

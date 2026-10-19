@@ -99,8 +99,10 @@ header {
             --header-item-font-weight: var(--font-weight-bold);
           }
 
+          /* a fixed width, not aspect-ratio: WebKit leaves aspect-ratio out
+             of the flex item's size, so the next breadcrumb overlaps it */
           &.home {
-            aspect-ratio: 1;
+            width: var(--header-height);
             position: relative;
             border-inline-start: 1px solid var(--blue-1000);
 

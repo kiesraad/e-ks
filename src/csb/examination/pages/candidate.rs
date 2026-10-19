@@ -608,10 +608,10 @@ mod tests {
 
         let mut person = sample_person(PersonId::new());
         person.personal_data.bsn = Some(BsnOrNoneConfirmed::Bsn("999995972".parse().unwrap()));
-        person.representative = Some(Representative {
+        person.representative = Some(Box::new(Representative {
             name: sample_full_name(None, "Gemachtigde", None, "G.G."),
             address: sample_dutch_address("Den Haag", "2513 AA", "1", "B", "Plein"),
-        });
+        }));
         let person_id = person.id;
         let list_id = CandidateListId::new();
         let mut list = sample_candidate_list(list_id);

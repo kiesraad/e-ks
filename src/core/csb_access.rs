@@ -1,20 +1,11 @@
 //! Access guards for the CSB section, loaded from environment variables into
 //! [`Config`](crate::Config): the peer-address allow list and the hours in
-//! which committee activity raises an alert, plus the throttle that keeps
-//! that alert from repeating on every request.
+//! which committee activity raises an alert.
 
-use std::{
-    collections::{HashMap, hash_map::Entry},
-    hash::Hash,
-    net::IpAddr,
-    str::FromStr,
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{net::IpAddr, str::FromStr};
 
 use chrono::NaiveTime;
 use ipnet::IpNet;
-use parking_lot::Mutex;
 
 use crate::AppError;
 
@@ -30,41 +21,51 @@ impl CsbIpAllowList {
     /// matched as plain IPv4 too. Only that exact `::ffff:0:0/96` prefix
     /// unmaps, so no other IPv6 address can reach an IPv4 entry.
     pub fn allows(&self, ip: IpAddr) -> bool {
-        let also_as_v4 = match ip {
-            IpAddr::V6(v6) => v6.to_ipv4_mapped().map(IpAddr::V4),
-            IpAddr::V4(_) => None,
-        };
-        self.0
-            .iter()
-            .any(|net| net.contains(&ip) || also_as_v4.is_some_and(|v4| net.contains(&v4)))
+        ip_in_nets(&self.0, ip)
     }
 
     /// Parses the comma-separated list. Strict: one malformed entry rejects the
     /// configuration rather than silently shrinking the allow list.
     pub fn parse(raw: &str) -> Result<Self, AppError> {
-        let nets = raw
-            .split(',')
-            .map(str::trim)
-            .filter(|entry| !entry.is_empty())
-            .map(parse_entry)
-            .collect::<Result<Vec<_>, _>>()?;
-        if nets.is_empty() {
-            return Err(AppError::ConfigLoadError(
-                "CSB_IP_ALLOW_LIST must contain at least one IP address or CIDR range".to_string(),
-            ));
-        }
-        Ok(Self(nets))
+        parse_ip_nets("CSB_IP_ALLOW_LIST", raw).map(Self)
     }
 }
 
-/// One allow-list entry: a bare address or a CIDR range.
-fn parse_entry(entry: &str) -> Result<IpNet, AppError> {
+/// Whether `ip` is in one of `nets`; v4-mapped IPv6 also matches as IPv4.
+pub(super) fn ip_in_nets(nets: &[IpNet], ip: IpAddr) -> bool {
+    let also_as_v4 = match ip {
+        IpAddr::V6(v6) => v6.to_ipv4_mapped().map(IpAddr::V4),
+        IpAddr::V4(_) => None,
+    };
+    nets.iter()
+        .any(|net| net.contains(&ip) || also_as_v4.is_some_and(|v4| net.contains(&v4)))
+}
+
+/// Parses `var`'s comma-separated addresses and CIDR ranges; a malformed or
+/// empty list is rejected.
+pub(super) fn parse_ip_nets(var: &str, raw: &str) -> Result<Vec<IpNet>, AppError> {
+    let nets = raw
+        .split(',')
+        .map(str::trim)
+        .filter(|entry| !entry.is_empty())
+        .map(|entry| parse_entry(var, entry))
+        .collect::<Result<Vec<_>, _>>()?;
+    if nets.is_empty() {
+        return Err(AppError::ConfigLoadError(format!(
+            "{var} must contain at least one IP address or CIDR range"
+        )));
+    }
+    Ok(nets)
+}
+
+/// One list entry: a bare address or a CIDR range.
+fn parse_entry(var: &str, entry: &str) -> Result<IpNet, AppError> {
     if let Ok(ip) = IpAddr::from_str(entry) {
         return Ok(IpNet::from(ip));
     }
     IpNet::from_str(entry).map_err(|_| {
         AppError::ConfigLoadError(format!(
-            "CSB_IP_ALLOW_LIST entry {entry:?} is neither an IP address nor a CIDR range \
+            "{var} entry {entry:?} is neither an IP address nor a CIDR range \
              (e.g. 203.0.113.7, 203.0.113.0/24, 2001:db8::/32)"
         ))
     })
@@ -109,39 +110,6 @@ impl CsbAlertHours {
             )));
         }
         Ok(Self { start, end })
-    }
-}
-
-/// Suppresses repeats of an alert for the same key within an interval, so a
-/// working session raises it once rather than on every request. Shared by
-/// the clones of one `AppState`, so both listeners count as one.
-#[derive(Debug, Clone)]
-pub struct AlertThrottle<K> {
-    interval: Duration,
-    last_raised: Arc<Mutex<HashMap<K, Instant>>>,
-}
-
-impl<K: Hash + Eq> AlertThrottle<K> {
-    pub fn new(interval: Duration) -> Self {
-        Self {
-            interval,
-            last_raised: Arc::default(),
-        }
-    }
-
-    /// Whether the alert for `key` may be raised at `now`: once per interval,
-    /// recording the time when it may. Expired entries are dropped on the way,
-    /// so the map holds only the keys alerted on within the last interval.
-    pub fn allows(&self, key: K, now: Instant) -> bool {
-        let mut last_raised = self.last_raised.lock();
-        last_raised.retain(|_, raised| now.duration_since(*raised) < self.interval);
-        match last_raised.entry(key) {
-            Entry::Occupied(_) => false,
-            Entry::Vacant(entry) => {
-                entry.insert(now);
-                true
-            }
-        }
     }
 }
 
@@ -224,18 +192,6 @@ mod tests {
         assert!(hours.contains(time("16:59")));
         assert!(!hours.contains(time("17:00")));
         assert!(!hours.contains(time("08:59")));
-    }
-
-    #[test]
-    fn throttle_allows_once_per_key_and_interval() {
-        let throttle = AlertThrottle::new(Duration::from_secs(60));
-        let start = Instant::now();
-
-        assert!(throttle.allows("a", start));
-        assert!(!throttle.allows("a", start + Duration::from_secs(59)));
-        assert!(throttle.allows("b", start));
-        assert!(throttle.allows("a", start + Duration::from_secs(60)));
-        assert!(!throttle.allows("a", start + Duration::from_secs(61)));
     }
 
     #[test]

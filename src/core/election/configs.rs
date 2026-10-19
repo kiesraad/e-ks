@@ -44,7 +44,7 @@ super::define_elections! {
             chair: "",
             members: &["", "", "", "", ""],
         },
-        election_date: const { date(2027, 5, 24) }
+        election_date: const { date(2027, 5, 27) }
     },
 
     PS27(province: Province) {

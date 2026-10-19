@@ -184,7 +184,7 @@ impl CandidateList {
 
     pub async fn create(&self, store: &PgStore) -> Result<(), AppError> {
         store
-            .update(PgEvent::CreateCandidateList(self.clone()))
+            .update(PgEvent::CreateCandidateList(Box::new(self.clone())))
             .await
     }
 

@@ -417,7 +417,9 @@ mod tests {
         let store = csb_store.paper_corrections();
         let mut corrected = store.get_person(person_id)?;
         corrected.name.first_name = Some("Gecorrigeerd".parse().unwrap());
-        store.update(PgEvent::UpdatePerson(corrected)).await?;
+        store
+            .update(PgEvent::UpdatePerson(Box::new(corrected)))
+            .await?;
 
         let event_id = store.get_events().last().unwrap().event_id;
         let response = audit_log_detail(

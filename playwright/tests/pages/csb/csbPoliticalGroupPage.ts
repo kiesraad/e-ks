@@ -12,6 +12,9 @@ export class CsbPoliticalGroupPage {
   readonly linkCandidateList: Locator;
   readonly linkDelete: Locator;
   readonly buttonDeleteConfirm: Locator;
+  readonly buttonBRPCheck: Locator;
+  readonly badgeBRPRunning: Locator;
+  readonly buttonHome: Locator;
 
   constructor(protected readonly page: Page) {
     this.switchFinalize = this.page.getByLabel(
@@ -45,12 +48,35 @@ export class CsbPoliticalGroupPage {
     this.buttonDeleteConfirm = this.page.getByRole("button", {
       name: "Verwijderen",
     });
+    this.buttonBRPCheck = this.page.getByRole("button", {
+      name: "Controleren met de BRP",
+    });
+    this.badgeBRPRunning = this.page.getByText("Bezig met controleren");
+    this.buttonHome = this.page.getByLabel("Start", {
+      exact: true,
+    });
   }
 
   async selectedGroup(politicalgroup: string) {
     await expect(
       this.page.getByRole("heading", { name: politicalgroup }),
     ).toBeVisible();
+  }
+
+  async startBrpCheck() {
+    await this.buttonBRPCheck.click();
+    await expect(this.badgeBRPRunning).toBeVisible();
+    // the check runs in the background and the page only reflects its
+    // progress after a reload, so reload until the running badge is gone
+    await expect
+      .poll(
+        async () => {
+          await this.page.reload();
+          return this.badgeBRPRunning.isVisible();
+        },
+        { message: "BRP check did not finish" },
+      )
+      .toBe(false);
   }
 
   async deleteGroup() {

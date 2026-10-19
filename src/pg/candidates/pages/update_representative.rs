@@ -35,7 +35,12 @@ pub async fn update_representative(
     Query(query): Query<QueryParamState>,
 ) -> AppResponse<impl IntoResponse> {
     let form = FormData::new_with_data(RepresentativeForm::from(
-        candidate.person.clone().representative.unwrap_or_default(),
+        candidate
+            .person
+            .representative
+            .as_deref()
+            .cloned()
+            .unwrap_or_default(),
     ));
 
     Ok(HtmlTemplate(

@@ -59,7 +59,7 @@ pub(in crate::models::examples) fn blanco_nagelhout(number: usize) -> NumberedLi
 pub fn candidate_list_publication_example_1() -> CandidateListPublication {
     CandidateListPublication {
         election_name: "de Eerste Kamer der Staten-Generaal".to_string(),
-        election_date: "24-05-2027".to_string(),
+        election_date: "27-05-2027".to_string(),
         valid_lists: vec![
             DistrictLists {
                 electoral_district: ElectoralDistrict::Groningen.title().to_string(),

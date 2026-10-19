@@ -303,10 +303,10 @@ mod tests {
         let mut candidate2 = candidate("Twee");
         candidate2.personal_data.gender = None;
         candidate2.personal_data.country = CountryCode::from_str("BE").ok();
-        candidate2.representative = Some(Representative {
+        candidate2.representative = Some(Box::new(Representative {
             name: sample_full_name(Some("Bob"), "Bouwer", Some("de"), "B."),
             address: sample_dutch_address("Nijmegen", "1234AB", "22", "c", "Bouwstraat"),
-        });
+        }));
         let store1 = group(
             election,
             "Kiesraad Demo",
