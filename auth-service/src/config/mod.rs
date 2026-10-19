@@ -1,6 +1,4 @@
-use std::{env, path::PathBuf};
-
-mod env_reader;
+use std::path::PathBuf;
 
 use axum_extra::routing::TypedPath;
 
@@ -311,54 +309,42 @@ impl AuthConfig {
         self
     }
 
-    /// Build the [`AuthConfig`] from environment variables.
-    ///
-    /// The deployment provides three TVS inputs plus the public origin:
-    ///
-    /// - `TVS_ENV`: the [`Environment`] (`test` / `preproduction` / `production`),
-    /// - `CERTS_DIR`: directory holding the DV certificate/key bundle,
-    /// - `PRESELECTED_AD`: which AD to pre-select; unset or empty defaults to
-    ///   [`PreselectedAd::Select`] (no `Scoping`, so the TVS shows its own AD
-    ///   selection screen),
-    /// - `BASE_URL`: the public origin (used to derive the SP ACS/SLO URLs).
-    ///
-    /// Everything else (the TVS RD endpoint, the Kiesraad DV EntityID /
-    /// ServiceUUID, the back-channel trust anchor, and the individual cert/key
-    /// paths) derives from those inputs (see [`Environment`]).
-    ///
-    /// With the `tvs-mock` feature enabled this targets the online (shared) TVS
-    /// mock: `TVS_ENV` defaults to `test`, `BASE_URL` to `http://localhost:3000`,
-    /// and the committed DV cert/key bundle is embedded into the binary and
-    /// extracted at runtime, so the auth flow works on a host with no `CERTS_DIR`
-    /// on disk. An explicit environment variable still overrides each default.
-    /// Without the feature, `TVS_ENV`, `CERTS_DIR`, and `BASE_URL` are required.
-    pub async fn from_env() -> Result<Self, AuthError> {
-        Self::from_env_with(|name| env::var(name)).await
-    }
+    /// Build the [`AuthConfig`] from `settings`; everything else derives from
+    /// them. With `tvs-mock` the embedded bundle stands in for a missing
+    /// `certs_dir`.
+    pub async fn new(settings: AuthSettings) -> Result<Self, AuthError> {
+        let AuthSettings {
+            environment,
+            certs_dir,
+            preselected_ad,
+            base_url,
+        } = settings;
 
-    async fn from_env_with<F>(lookup: F) -> Result<Self, AuthError>
-    where
-        F: FnMut(&str) -> Result<String, env::VarError>,
-    {
-        let mut env = env_reader::EnvReader::new(lookup);
-        let environment = env.environment()?;
-        let certs_dir = env.certs_dir().await?;
-        let preselected_ad = env.preselected_ad()?;
-        let base_url = env.base_url(environment)?;
-        Self::derive(environment, certs_dir, preselected_ad, &base_url).await
-    }
+        // tvs-mock embeds test keys and pins the test CA.
+        #[cfg(feature = "tvs-mock")]
+        if environment != Environment::Test {
+            return Err(AuthError::Config(format!(
+                "the `tvs-mock` feature is compiled in but {environment:?} is a real TVS \
+                 environment; tvs-mock embeds test keys and pins the test CA, so it must only \
+                 run against the TVS mock (environment Test)"
+            )));
+        }
 
-    /// Everything else derives from `{environment, certs_dir, base_url}`.
-    ///
-    /// Fallible only through the derived endpoint URLs: a `BASE_URL` that is not
-    /// an absolute http(s) origin is a deployment error, and failing here keeps
-    /// the SP metadata and the ACS/SLO checks from ever seeing an unusable value.
-    async fn derive(
-        environment: Environment,
-        certs_dir: PathBuf,
-        preselected_ad: PreselectedAd,
-        base_url: &str,
-    ) -> Result<Self, AuthError> {
+        // A non-https origin downgrades the `__Host-` flow cookie.
+        if environment != Environment::Test && !base_url.starts_with("https://") {
+            return Err(AuthError::Config(format!(
+                "the base URL must be https for environment {environment:?} (got {base_url:?}); \
+                 a non-https origin downgrades the __Host- SSO flow cookie"
+            )));
+        }
+
+        #[cfg(feature = "tvs-mock")]
+        let certs_dir = crate::tvs_mock::certs_dir(certs_dir).await?;
+        #[cfg(not(feature = "tvs-mock"))]
+        let certs_dir = certs_dir.ok_or_else(|| {
+            AuthError::Config("no directory holding the DV certificate/key bundle".to_string())
+        })?;
+
         let dv = DvConfig {
             entity_id: environment.dv_entity_id(),
             service_uuid: environment.dv_service_uuid(),
@@ -397,6 +383,17 @@ impl AuthConfig {
             post_logout_redirect: RedirectTarget::root(),
         })
     }
+}
+
+/// The inputs the embedding application supplies to [`AuthConfig::new`].
+#[derive(Debug, Clone)]
+pub struct AuthSettings {
+    pub environment: Environment,
+    /// Directory holding the DV cert/key bundle; `None` only with `tvs-mock`.
+    pub certs_dir: Option<PathBuf>,
+    pub preselected_ad: PreselectedAd,
+    /// The public origin the SP ACS/SLO URLs derive from.
+    pub base_url: String,
 }
 
 #[cfg(test)]
@@ -616,7 +613,7 @@ mod tests {
 
     #[tokio::test]
     async fn second_key_included_when_cert_file_exists() {
-        let dir = env::temp_dir().join(format!(
+        let dir = std::env::temp_dir().join(format!(
             "eks-key-paths-test-{}-{:?}",
             std::process::id(),
             std::thread::current().id()
@@ -636,28 +633,29 @@ mod tests {
         assert_eq!(paths[1].key, dir.join("dv-signing-2-key.pem"));
     }
 
-    /// Build an env lookup closure backed by an explicit set of overrides.
-    fn lookup_from(
-        pairs: &[(&'static str, &'static str)],
-    ) -> impl FnMut(&str) -> Result<String, env::VarError> {
-        let map: std::collections::HashMap<String, String> = pairs
-            .iter()
-            .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
-            .collect();
-        move |name: &str| map.get(name).cloned().ok_or(env::VarError::NotPresent)
+    /// Settings for `environment` with the certs dir `certs_dir`.
+    fn settings(environment: Environment, certs_dir: Option<&str>, base_url: &str) -> AuthSettings {
+        AuthSettings {
+            environment,
+            certs_dir: certs_dir.map(PathBuf::from),
+            preselected_ad: PreselectedAd::Select,
+            base_url: base_url.to_string(),
+        }
     }
 
     // Real-environment derivation: only valid without `tvs-mock` (which rejects a
-    // real TVS_ENV).
+    // real environment).
     #[cfg(not(feature = "tvs-mock"))]
     #[tokio::test]
     async fn preproduction_derives_dv_identity_and_rd_endpoint() {
-        let cfg = AuthConfig::from_env_with(lookup_from(&[
-            ("TVS_ENV", "preproduction"),
-            ("CERTS_DIR", "/tmp/certs"),
-            ("PRESELECTED_AD", "DigiD"),
-            ("BASE_URL", "https://preview.kandidaatstellen.nl"),
-        ]))
+        let cfg = AuthConfig::new(AuthSettings {
+            preselected_ad: PreselectedAd::DigiD,
+            ..settings(
+                Environment::Preproduction,
+                Some("/tmp/certs"),
+                "https://preview.kandidaatstellen.nl",
+            )
+        })
         .await
         .unwrap();
 
@@ -683,70 +681,41 @@ mod tests {
         assert_eq!(cfg.preselected_ad, PreselectedAd::DigiD);
     }
 
+    // Without `tvs-mock` there is no embedded bundle to fall back to.
     #[cfg(not(feature = "tvs-mock"))]
     #[tokio::test]
-    async fn preselected_ad_defaults_to_select_when_unset_or_empty() {
-        // Unset: no PRESELECTED_AD entry at all.
-        let cfg = AuthConfig::from_env_with(lookup_from(&[
-            ("TVS_ENV", "preproduction"),
-            ("CERTS_DIR", "/tmp/certs"),
-            ("BASE_URL", "https://preview.kandidaatstellen.nl"),
-        ]))
-        .await
-        .unwrap();
-        assert_eq!(cfg.preselected_ad, PreselectedAd::Select);
-
-        // Present but empty/whitespace: still falls back to Select.
-        let cfg = AuthConfig::from_env_with(lookup_from(&[
-            ("TVS_ENV", "preproduction"),
-            ("CERTS_DIR", "/tmp/certs"),
-            ("PRESELECTED_AD", "  "),
-            ("BASE_URL", "https://preview.kandidaatstellen.nl"),
-        ]))
-        .await
-        .unwrap();
-        assert_eq!(cfg.preselected_ad, PreselectedAd::Select);
+    async fn missing_certs_dir_is_an_error() {
+        let err = AuthConfig::new(settings(Environment::Test, None, "http://localhost:3000"))
+            .await
+            .unwrap_err();
+        assert!(matches!(err, AuthError::Config(_)), "{err:?}");
     }
 
-    #[tokio::test]
-    async fn invalid_environment_is_an_error() {
-        let err = AuthConfig::from_env_with(lookup_from(&[
-            ("TVS_ENV", "staging"),
-            ("CERTS_DIR", "/tmp/certs"),
-            ("PRESELECTED_AD", "DigiD"),
-            ("BASE_URL", "https://example.test"),
-        ]))
-        .await
-        .unwrap_err();
-        assert!(matches!(err, AuthError::Config(_)));
-    }
-
-    // tvs-mock must refuse a real TVS_ENV (it pins the test CA / keys).
+    // tvs-mock must refuse a real environment (it pins the test CA / keys).
     #[cfg(feature = "tvs-mock")]
     #[tokio::test]
     async fn tvs_mock_refuses_real_environment() {
-        for env in ["preproduction", "production"] {
-            let err = AuthConfig::from_env_with(lookup_from(&[("TVS_ENV", env)]))
+        for environment in [Environment::Preproduction, Environment::Production] {
+            let err = AuthConfig::new(settings(environment, None, "https://example.test"))
                 .await
                 .unwrap_err();
             assert!(
                 matches!(&err, AuthError::Config(m) if m.contains("tvs-mock")),
-                "env={env}: {err:?}"
+                "{environment:?}: {err:?}"
             );
         }
     }
 
-    // With `tvs-mock` on, TVS_ENV and BASE_URL fall back to their embedded
-    // defaults and the DV bundle is materialized from the embedded fixtures, so
-    // the config builds with no environment variables set at all.
+    // With `tvs-mock` on, the DV bundle is materialized from the embedded
+    // fixtures, so the config builds without a certs dir.
     #[cfg(feature = "tvs-mock")]
     #[tokio::test]
-    async fn tvs_mock_builds_from_embedded_defaults_with_no_env() {
-        let cfg = AuthConfig::from_env_with(lookup_from(&[])).await.unwrap();
+    async fn tvs_mock_builds_from_embedded_bundle_without_certs_dir() {
+        let cfg = AuthConfig::new(settings(Environment::Test, None, "http://localhost:3000"))
+            .await
+            .unwrap();
 
-        // TVS_ENV defaults to `test`; every derived value follows from it.
         assert_eq!(cfg.environment, Environment::Test);
-        // BASE_URL defaults to the local dev origin.
         assert_eq!(cfg.dv.acs_url.as_str(), "http://localhost:3000/saml/sp/acs");
         assert_eq!(
             cfg.dv.slo_url.as_str(),
@@ -756,15 +725,14 @@ mod tests {
             cfg.rd.metadata_url,
             format!("{TVS_TEST_BASE_URL}/kvs/rd/metadata")
         );
-        // CERTS_DIR was absent, so the embedded bundle was extracted to a real
+        // No certs dir, so the embedded bundle was extracted to a real
         // directory whose cert/key files exist.
         assert!(cfg.certs_dir.join("dv-signing-1.pem").exists());
         assert!(cfg.tls.client_cert.exists());
-        // PRESELECTED_AD unset => Select (no Scoping).
         assert_eq!(cfg.preselected_ad, PreselectedAd::Select);
     }
 
-    // A CERTS_DIR holding a real bundle, for the tvs-mock override tests.
+    // A certs dir holding a real bundle, for the tvs-mock override tests.
     #[cfg(feature = "tvs-mock")]
     fn bundle_dir(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!("eks-test-{name}-{}", std::process::id()));
@@ -776,19 +744,18 @@ mod tests {
         dir
     }
 
-    // An explicit CERTS_DIR / PRESELECTED_AD still override the tvs-mock
-    // defaults (exercises the env-var branches rather than the embedded ones).
+    // An explicit certs dir still wins over the embedded bundle.
     #[cfg(feature = "tvs-mock")]
     #[tokio::test]
-    async fn tvs_mock_honors_explicit_certs_dir_and_preselected_ad() {
+    async fn tvs_mock_honors_explicit_certs_dir() {
         let dir = bundle_dir("explicit-certs");
-        let certs_dir = dir.to_string_lossy().into_owned();
-        let cfg = AuthConfig::from_env_with(move |name: &str| match name {
-            "TVS_ENV" => Ok("test".to_string()),
-            "CERTS_DIR" => Ok(certs_dir.clone()),
-            "PRESELECTED_AD" => Ok("DigiD".to_string()),
-            "BASE_URL" => Ok("http://localhost:3000".to_string()),
-            _ => Err(env::VarError::NotPresent),
+        let cfg = AuthConfig::new(AuthSettings {
+            preselected_ad: PreselectedAd::DigiD,
+            ..settings(
+                Environment::Test,
+                Some(&dir.to_string_lossy()),
+                "http://localhost:3000",
+            )
         })
         .await
         .unwrap();
@@ -798,18 +765,18 @@ mod tests {
         assert_eq!(cfg.preselected_ad, PreselectedAd::DigiD);
     }
 
-    // A CERTS_DIR left over from an older layout points at a directory with no
+    // A certs dir left over from an older layout points at a directory with no
     // bundle in it; a mock build carries its own keys, so it falls back to the
     // embedded bundle rather than failing to start.
     #[cfg(feature = "tvs-mock")]
     #[tokio::test]
     async fn tvs_mock_falls_back_when_certs_dir_holds_no_bundle() {
         let stale = "src/fixtures/tvs";
-        let cfg = AuthConfig::from_env_with(lookup_from(&[
-            ("TVS_ENV", "test"),
-            ("CERTS_DIR", stale),
-            ("BASE_URL", "http://localhost:3000"),
-        ]))
+        let cfg = AuthConfig::new(settings(
+            Environment::Test,
+            Some(stale),
+            "http://localhost:3000",
+        ))
         .await
         .unwrap();
 
@@ -818,19 +785,19 @@ mod tests {
         assert!(cfg.tls.client_cert.exists());
     }
 
-    // A real environment must reject a non-https BASE_URL (cookie downgrade).
+    // A real environment must reject a non-https base URL (cookie downgrade).
     #[cfg(not(feature = "tvs-mock"))]
     #[tokio::test]
     async fn non_https_base_url_rejected_for_real_environment() {
-        let err = AuthConfig::from_env_with(lookup_from(&[
-            ("TVS_ENV", "preproduction"),
-            ("CERTS_DIR", "/tmp/certs"),
-            ("BASE_URL", "http://preview.kandidaatstellen.nl"),
-        ]))
+        let err = AuthConfig::new(settings(
+            Environment::Preproduction,
+            Some("/tmp/certs"),
+            "http://preview.kandidaatstellen.nl",
+        ))
         .await
         .unwrap_err();
         assert!(
-            matches!(&err, AuthError::Config(m) if m.contains("BASE_URL must be https")),
+            matches!(&err, AuthError::Config(m) if m.contains("must be https")),
             "{err:?}"
         );
     }

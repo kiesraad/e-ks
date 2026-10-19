@@ -58,9 +58,9 @@ pub(super) struct Inner {
 }
 
 impl AuthServiceState {
-    /// Build the state from the environment ([`AuthConfig::from_env`]). Loads
-    /// DV keys from disk and fetches the IdP metadata over HTTP, which yields
-    /// the RD entity ID, endpoints, and signing/encryption certs (eID §9.2).
+    /// Build the state from `auth_config` (see [`AuthConfig::new`]). Loads DV
+    /// keys from disk and fetches the IdP metadata over HTTP, which yields the
+    /// RD entity ID, endpoints, and signing/encryption certs (eID §9.2).
     ///
     /// On a failed fetch the on-disk cache from a previous run is used as a
     /// fallback (see [`crate::saml::idp_metadata::load_cached_idp_metadata`]). If
@@ -69,14 +69,12 @@ impl AuthServiceState {
     /// unavailable until the background refresh fetches one (see
     /// `load_rd_metadata_at_startup`). Deployments that only exercise the
     /// dev-login bypass construct the state via [`new_empty`](Self::new_empty)
-    /// (gated behind `DISABLE_AUTH_SERVICE` in the embedding app) instead of
-    /// calling this.
+    /// instead of calling this.
     ///
     /// A background task is spawned that re-fetches the metadata every
     /// `next_refresh_interval`, keeping the cached descriptor fresh within
     /// the RD metadata's `cacheDuration`/`validUntil` (eID §8.5).
-    pub async fn new_from_env() -> Result<Self> {
-        let auth_config = AuthConfig::from_env().await?;
+    pub async fn from_config(auth_config: AuthConfig) -> Result<Self> {
         debug!(
             "[state] AuthConfig loaded: environment={:?}, dv.entity_id={}, rd.metadata_url={}, certs_dir={}",
             auth_config.environment,

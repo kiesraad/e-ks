@@ -2,19 +2,16 @@
 //! before the first TLS byte. Only peers in `CSB_PROXY_PROTOCOL_FROM` may
 //! send it; anyone else's header is left for the TLS handshake to reject.
 
-use std::net::IpAddr;
 #[cfg(feature = "tls")]
 use std::{
     fmt,
     net::{Ipv4Addr, Ipv6Addr, SocketAddr},
 };
+use std::{net::IpAddr, str::FromStr};
 
 use ipnet::IpNet;
 
-use crate::{
-    AppError,
-    core::csb_access::{ip_in_nets, parse_ip_nets},
-};
+use crate::core::csb_access::{ip_in_nets, parse_ip_nets};
 
 /// Proxies that send a PROXY protocol v2 header (`CSB_PROXY_PROTOCOL_FROM`).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,10 +22,14 @@ impl ProxyProtocolPeers {
     pub fn contains(&self, ip: IpAddr) -> bool {
         ip_in_nets(&self.0, ip)
     }
+}
+
+impl FromStr for ProxyProtocolPeers {
+    type Err = String;
 
     /// Parses the comma-separated list; one malformed entry rejects it.
-    pub fn parse(raw: &str) -> Result<Self, AppError> {
-        parse_ip_nets("CSB_PROXY_PROTOCOL_FROM", raw).map(Self)
+    fn from_str(raw: &str) -> Result<Self, String> {
+        parse_ip_nets(raw).map(Self)
     }
 }
 
@@ -200,12 +201,12 @@ mod tests {
 
     #[test]
     fn peers_accept_addresses_and_ranges() {
-        let peers = ProxyProtocolPeers::parse("172.16.12.9, 10.0.0.0/8").expect("peers");
+        let peers: ProxyProtocolPeers = "172.16.12.9, 10.0.0.0/8".parse().expect("peers");
         assert!(peers.contains("172.16.12.9".parse().unwrap()));
         assert!(peers.contains("10.1.2.3".parse().unwrap()));
         assert!(!peers.contains("172.16.12.10".parse().unwrap()));
-        assert!(ProxyProtocolPeers::parse("lb").is_err());
-        assert!(ProxyProtocolPeers::parse(" ").is_err());
+        assert!("lb".parse::<ProxyProtocolPeers>().is_err());
+        assert!(" ".parse::<ProxyProtocolPeers>().is_err());
     }
 }
 

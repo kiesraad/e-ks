@@ -35,7 +35,6 @@ pub enum AppError {
     QueryRejection(QueryRejection),
 
     // Application level errors
-    MissingEnvVar(&'static str),
     ConfigLoadError(String),
     ServerError(std::io::Error),
     UpstreamError(reqwest::Error),
@@ -141,7 +140,6 @@ impl Display for AppError {
             ),
             AppError::InternalServerError => write!(f, "Internal server error"),
             AppError::JsonRejection(err) => write!(f, "JSON error: {err}"),
-            AppError::MissingEnvVar(var) => write!(f, "Missing environment variable: {var}"),
             AppError::MultipartError(err) => write!(f, "Multipart error: {err}"),
             AppError::MultipartFormError(err) => write!(f, "Multipart form error: {err}"),
             AppError::NoStorageConfigured => write!(f, "No event storage configured"),
@@ -228,6 +226,12 @@ impl From<textris_pdf::render::RenderError> for AppError {
 impl From<textris_pdf::markdown::MarkdownParseError> for AppError {
     fn from(err: textris_pdf::markdown::MarkdownParseError) -> Self {
         AppError::MarkdownError(err)
+    }
+}
+
+impl From<config::ConfigError> for AppError {
+    fn from(err: config::ConfigError) -> Self {
+        AppError::ConfigLoadError(err.to_string())
     }
 }
 
@@ -332,9 +336,12 @@ mod tests {
     }
 
     #[test]
-    fn displays_missing_env_var() {
-        let err = AppError::MissingEnvVar("STORAGE_URL");
-        assert_eq!(err.to_string(), "Missing environment variable: STORAGE_URL");
+    fn displays_config_load_error() {
+        let err = AppError::ConfigLoadError("missing field `storage_url`".to_string());
+        assert_eq!(
+            err.to_string(),
+            "Configuration load error: missing field `storage_url`"
+        );
     }
 
     #[test]

@@ -518,8 +518,7 @@ mod tests {
     /// A router with `CSB_IP_ALLOW_LIST` set to `203.0.113.7` only.
     async fn ip_gated_app(csb_routes: WithCsbRoutes) -> Router {
         let mut config = crate::auth::csb_webauthn::test_support::webauthn_test_config();
-        config.csb_ip_allow_list =
-            Some(crate::core::CsbIpAllowList::parse("203.0.113.7").expect("list"));
+        config.csb_ip_allow_list = Some("203.0.113.7".parse().expect("list"));
         let state = AppState::new_for_tests_with_config(config).await;
         create_with(state.clone(), csb_routes).with_state(state)
     }

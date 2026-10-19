@@ -337,7 +337,7 @@ mod tests {
 
     use super::tls::PeerAddressAcceptor;
     use crate::{
-        Config, ProxyProtocolPeers, TlsConfig,
+        Config, TlsConfig,
         core::proxy_protocol::test_support::{local_header, proxy_header},
         test_utils::response_body_string,
     };
@@ -376,7 +376,7 @@ mod tests {
     }
 
     fn proxies(raw: &str) -> PeerAddressAcceptor {
-        PeerAddressAcceptor::new(Some(ProxyProtocolPeers::parse(raw).expect("peers")))
+        PeerAddressAcceptor::new(Some(raw.parse().expect("peers")))
     }
 
     /// A listed proxy's header names the client; later bytes stay in the

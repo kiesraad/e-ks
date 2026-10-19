@@ -1,15 +1,10 @@
-//! Per-stream rate limits, loaded from environment variables into
-//! [`Config`](crate::Config).
+//! Per-stream rate limits, part of [`Config`](crate::Config).
 //!
 //! Counted from the stream's own event log in
 //! [`PgStore::update`](crate::PgStore::update), so there is no extra state and
 //! the counts survive restarts.
 
-use std::env;
-
 use chrono::{DateTime, TimeDelta, Utc};
-
-use crate::AppError;
 
 /// Downloads per window; one download renders a PDF per candidate.
 const DEFAULT_MAX_DOWNLOADS: usize = 60;
@@ -54,6 +49,14 @@ impl RateLimit {
         now.checked_sub_signed(self.window)
             .unwrap_or(DateTime::<Utc>::MIN_UTC)
     }
+
+    /// This limit with the configured `max` and window laid over it where set.
+    pub(super) fn with(self, max: Option<usize>, window_secs: Option<u64>) -> Self {
+        Self {
+            max: max.unwrap_or(self.max),
+            window: window_secs.map_or(self.window, window_from_secs),
+        }
+    }
 }
 
 /// The rate limits applied to a political group's own event stream.
@@ -83,28 +86,6 @@ impl Default for RateLimits {
     }
 }
 
-impl RateLimits {
-    /// Read the limits from the environment, defaulting every unset variable.
-    pub(super) fn from_env_with<F>(lookup: &mut F) -> Result<Self, AppError>
-    where
-        F: FnMut(&'static str) -> Result<String, env::VarError>,
-    {
-        let defaults = Self::default();
-
-        Ok(Self {
-            downloads: RateLimit {
-                max: number("RATE_LIMIT_DOWNLOADS", defaults.downloads.max, lookup)?,
-                window: window_from_env("RATE_LIMIT_DOWNLOADS_WINDOW_SECS", lookup)?,
-            },
-            events: RateLimit {
-                max: number("RATE_LIMIT_EVENTS", defaults.events.max, lookup)?,
-                window: window_from_env("RATE_LIMIT_EVENTS_WINDOW_SECS", lookup)?,
-            },
-            events_total: number("RATE_LIMIT_EVENTS_TOTAL", defaults.events_total, lookup)?,
-        })
-    }
-}
-
 #[cfg(test)]
 impl RateLimits {
     /// Limits with an explicit maximum per kind, counted over `window`.
@@ -128,53 +109,9 @@ impl RateLimits {
     }
 }
 
-/// Read a window length from a `*_WINDOW_SECS` environment variable, keeping
-/// [`DEFAULT_WINDOW_SECS`] when it is unset or blank.
-fn window_from_env<F>(name: &'static str, lookup: &mut F) -> Result<TimeDelta, AppError>
-where
-    F: FnMut(&'static str) -> Result<String, env::VarError>,
-{
-    Ok(window_from_secs(number(name, DEFAULT_WINDOW_SECS, lookup)?))
-}
-
-/// Parse a numeric environment variable: unset or blank keeps `default`, a
-/// non-numeric value stops startup.
-pub(super) fn number<T, F>(name: &'static str, default: T, lookup: &mut F) -> Result<T, AppError>
-where
-    T: std::str::FromStr,
-    F: FnMut(&'static str) -> Result<String, env::VarError>,
-{
-    let Ok(value) = lookup(name) else {
-        return Ok(default);
-    };
-    let value = value.trim();
-
-    if value.is_empty() {
-        return Ok(default);
-    }
-
-    value.parse().map_err(|_| {
-        AppError::ConfigLoadError(format!(
-            "{name} must be a non-negative whole number, got: {value}"
-        ))
-    })
-}
-
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
     use super::*;
-
-    fn lookup_from(
-        map: HashMap<&'static str, &'static str>,
-    ) -> impl FnMut(&'static str) -> Result<String, env::VarError> {
-        move |key| {
-            map.get(key)
-                .map(|value| (*value).to_string())
-                .ok_or(env::VarError::NotPresent)
-        }
-    }
 
     fn limit(max: usize) -> RateLimit {
         RateLimit {
@@ -206,57 +143,15 @@ mod tests {
         assert_eq!(absurd.window_start(now), DateTime::<Utc>::MIN_UTC);
     }
 
+    /// `with` keeps whatever is not set.
     #[test]
-    fn from_env_uses_defaults_when_unset() {
-        let mut lookup = lookup_from(HashMap::new());
-        let defaults = RateLimits::default();
+    fn with_lays_settings_over_the_limit() {
+        let configured = limit(5).with(Some(9), None);
+        assert_eq!(configured.max, 9);
+        assert_eq!(configured.window, TimeDelta::minutes(1));
 
-        let limits = RateLimits::from_env_with(&mut lookup).expect("limits");
-
-        assert_eq!(limits.downloads.max, defaults.downloads.max);
-        assert_eq!(limits.events.max, defaults.events.max);
-        assert_eq!(limits.events_total, defaults.events_total);
-        assert_eq!(limits.events.window, defaults.events.window);
-    }
-
-    #[test]
-    fn from_env_reads_configured_values() {
-        let mut lookup = lookup_from(HashMap::from([
-            ("RATE_LIMIT_DOWNLOADS", "3"),
-            ("RATE_LIMIT_DOWNLOADS_WINDOW_SECS", "60"),
-            ("RATE_LIMIT_EVENTS", "7"),
-            ("RATE_LIMIT_EVENTS_WINDOW_SECS", "120"),
-            ("RATE_LIMIT_EVENTS_TOTAL", "9"),
-        ]));
-
-        let limits = RateLimits::from_env_with(&mut lookup).expect("limits");
-
-        assert_eq!(limits.downloads.max, 3);
-        assert_eq!(limits.downloads.window, TimeDelta::seconds(60));
-        assert_eq!(limits.events.max, 7);
-        assert_eq!(limits.events.window, TimeDelta::seconds(120));
-        assert_eq!(limits.events_total, 9);
-    }
-
-    /// A blank value is treated as unset, a garbage value stops startup.
-    #[test]
-    fn from_env_rejects_a_non_numeric_value() {
-        let mut blank = lookup_from(HashMap::from([("RATE_LIMIT_EVENTS", "  ")]));
-        assert_eq!(
-            RateLimits::from_env_with(&mut blank)
-                .expect("limits")
-                .events
-                .max,
-            RateLimits::default().events.max
-        );
-
-        let mut garbage = lookup_from(HashMap::from([("RATE_LIMIT_EVENTS", "many")]));
-        let err = RateLimits::from_env_with(&mut garbage).expect_err("must be rejected");
-
-        assert!(
-            matches!(err, AppError::ConfigLoadError(ref message)
-                if message.contains("RATE_LIMIT_EVENTS")),
-            "got {err:?}"
-        );
+        let configured = limit(5).with(None, Some(90));
+        assert_eq!(configured.max, 5);
+        assert_eq!(configured.window, TimeDelta::seconds(90));
     }
 }
