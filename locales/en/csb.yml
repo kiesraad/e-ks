@@ -48,6 +48,7 @@ brp:
     residence_unknown: "This candidate's residence is unknown in the BRP."
     residence_without_address: "This candidate has no residential address in the BRP (a correspondence address, for instance), so the BRP holds no place of residence."
     unparsable: "The BRP value for {} could not be interpreted, so it was not compared: {}"
+  finished: "The check against the BRP has finished. Use 'Refresh this page' to see the results."
   handled:
     badge: Handled
     candidate: Candidate

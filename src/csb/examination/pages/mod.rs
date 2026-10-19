@@ -5,10 +5,10 @@ use crate::AppRequestState;
 
 use super::paths::{
     CsbAddOmissionPath, CsbAllBrpFindingsPath, CsbAllRestorationsPath,
-    CsbAppellationCorrectionPath, CsbBrpCheckPath, CsbBrpOverviewDocxDownloadPath,
-    CsbBrpOverviewDownloadPath, CsbBrpOverviewMarkdownDownloadPath, CsbCandidateBrpCheckPath,
-    CsbCandidateBrpFindingHandledPath, CsbCandidateListPath, CsbCandidatePath,
-    CsbDeleteOmissionPath, CsbExaminationOverviewPath, CsbFinishExaminationPath,
+    CsbAppellationCorrectionPath, CsbBrpCheckPath, CsbBrpCheckStatusPath,
+    CsbBrpOverviewDocxDownloadPath, CsbBrpOverviewDownloadPath, CsbBrpOverviewMarkdownDownloadPath,
+    CsbCandidateBrpCheckPath, CsbCandidateBrpFindingHandledPath, CsbCandidateListPath,
+    CsbCandidatePath, CsbDeleteOmissionPath, CsbExaminationOverviewPath, CsbFinishExaminationPath,
     CsbGeneralInformationPath, CsbI1DocxDownloadPath, CsbI1DownloadPath,
     CsbOmissionLetterDocxDownloadPath, CsbOmissionLetterDownloadPath, CsbOmissionLetterPath,
     CsbOmissionLettersDownloadPath, CsbOmissionOverviewPath, CsbPaperCorrectionsStartPath,
@@ -45,6 +45,7 @@ pub fn router<S: AppRequestState>() -> Router<S> {
         .typed_get(political_group::overview)
         .typed_post(political_group::toggle_examination_finish)
         .typed_post(political_group::start_brp_check::<S>)
+        .typed_get(political_group::brp_check_status)
         .typed_get(delete::delete)
         .typed_post(delete::delete_submit)
         .typed_get(general_information::overview)

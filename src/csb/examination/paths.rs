@@ -82,6 +82,14 @@ pub struct CsbBrpCheckPath {
     pub stream_id: StreamId,
 }
 
+/// Whether the group's BRP sweep is still running, as JSON for the script
+/// that tells the user when it finished.
+#[derive(TypedPath, Deserialize)]
+#[typed_path("/csb/examination/{stream_id}/brp-check/status", rejection(AppError))]
+pub struct CsbBrpCheckStatusPath {
+    pub stream_id: StreamId,
+}
+
 /// The overview of the BRP findings of one group for the political group, as
 /// PDF: the same document the pre-submission check offers.
 #[derive(TypedPath, Deserialize)]
@@ -364,6 +372,12 @@ impl CsbPoliticalGroup {
 
     pub fn start_brp_check_path(&self) -> impl TypedPath {
         CsbBrpCheckPath {
+            stream_id: self.stream_id,
+        }
+    }
+
+    pub fn brp_check_status_path(&self) -> impl TypedPath {
+        CsbBrpCheckStatusPath {
             stream_id: self.stream_id,
         }
     }

@@ -6,8 +6,11 @@ mod paths;
 #[cfg(all(feature = "fixtures", feature = "dev-features"))]
 pub mod fixture;
 
+pub use pages::{
+    BrpSweepStatus, brp_sweep_running, brp_sweep_status, do_brp_verification, is_brp_status_poll,
+    router,
+};
 pub(in crate::csb) use pages::{ImportForm, ImportResult, import_package};
-pub use pages::{brp_sweep_running, do_brp_verification, router};
 
 #[cfg(test)]
 pub use pages::claim_sweep_for_test;

@@ -100,6 +100,10 @@
   padding: var(--space-2) var(--space-4);
 }
 
+.restoration-strip.hidden {
+  display: none;
+}
+
 .restoration-strip-omission {
   --restoration-strip-color: var(--orange-100);
 }

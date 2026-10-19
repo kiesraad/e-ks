@@ -5,9 +5,9 @@ use crate::{
     csb::{
         examination::structs::BrpCheckState,
         pre_submission::paths::{
-            CsbPreSubmissionBrpCheckPath, CsbPreSubmissionBrpOverviewDocxPath,
-            CsbPreSubmissionBrpOverviewMarkdownPath, CsbPreSubmissionBrpOverviewPdfPath,
-            CsbPreSubmissionGroupPath,
+            CsbPreSubmissionBrpCheckPath, CsbPreSubmissionBrpCheckStatusPath,
+            CsbPreSubmissionBrpOverviewDocxPath, CsbPreSubmissionBrpOverviewMarkdownPath,
+            CsbPreSubmissionBrpOverviewPdfPath, CsbPreSubmissionGroupPath,
         },
     },
     projection::WithCorrections,
@@ -37,6 +37,12 @@ impl PreSubmissionGroup {
 
     pub fn brp_check_path(&self) -> CsbPreSubmissionBrpCheckPath {
         CsbPreSubmissionBrpCheckPath {
+            stream_id: self.stream_id,
+        }
+    }
+
+    pub fn brp_check_status_path(&self) -> CsbPreSubmissionBrpCheckStatusPath {
+        CsbPreSubmissionBrpCheckStatusPath {
             stream_id: self.stream_id,
         }
     }
