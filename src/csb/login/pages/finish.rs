@@ -3,7 +3,7 @@
 //! the CSB main stream, records this one there, and establishes a
 //! committee-scoped session.
 
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 
 use axum::{
     Extension,
@@ -16,10 +16,9 @@ use serde::Deserialize;
 use tracing::{info, warn};
 
 use crate::{
-    AppError, AppRequestState, CsbMainAction, CsbMainStore, CsbUser, CsbUsername, Form, Locale,
-    Session,
+    AppError, AppRequestState, CsbMainStore, CsbUser, CsbUsername, Form, Locale, Session,
     auth::{
-        csb_webauthn::{VerifiedLogin, verify_login},
+        csb_webauthn::{AssertionError, LoginFailure, VerifiedLogin, verify_login},
         session_extractor::{establish_session, user_agent_hash},
     },
     csb::{
@@ -48,6 +47,10 @@ pub async fn login_finish<S: AppRequestState>(
     let store = state
         .csb_main_store(state.config().default_election)
         .await?;
+    // This route sits outside `csb_store_middleware`, which would otherwise
+    // catch the cached projection up with logins recorded elsewhere.
+    store.load().await?;
+    let peer = connect_info.map(|Extension(ConnectInfo(addr))| addr.ip());
 
     let verified = verify_login(
         state.pending_requests(),
@@ -57,30 +60,33 @@ pub async fn login_finish<S: AppRequestState>(
     )
     .await;
     match verified {
-        Ok(login) => establish_committee_session(&state, &store, login, jar, &headers).await,
-        Err(failure) => {
-            let peer = connect_info.map(|Extension(ConnectInfo(addr))| addr.ip());
-            warn!(
-                event = "csb.login_failed",
-                ip = %peer_ip_label(peer),
-                user = failure.username().map(CsbUsername::as_str),
-                reason = %failure,
-                "CSB login attempt failed"
-            );
-            Ok(login_failed())
-        }
+        Ok(login) => establish_committee_session(&state, &store, login, jar, &headers, peer).await,
+        Err(failure) => Ok(login_failed_with(failure, peer)),
     }
 }
 
-/// Creates the committee session for an authenticated user and records the
-/// login, with the key's signature counter, on the shared CSB main stream
-/// (WebAuthn §7.2 step 24; the audit log shows it too).
+/// Reports the failed attempt and renders the generic failure page.
+fn login_failed_with(failure: LoginFailure, peer: Option<IpAddr>) -> Response {
+    warn!(
+        event = "csb.login_failed",
+        ip = %peer_ip_label(peer),
+        user = failure.username().map(CsbUsername::as_str),
+        reason = %failure,
+        "CSB login attempt failed"
+    );
+    login_failed()
+}
+
+/// Records the login, with the key's signature counter, on the shared CSB
+/// main stream (WebAuthn §7.2 step 24; the audit log shows it too) as one
+/// step with the counter check, and creates the committee session.
 async fn establish_committee_session<S: AppRequestState>(
     state: &S,
     store: &CsbMainStore,
     login: VerifiedLogin,
     jar: CookieJar,
     headers: &HeaderMap,
+    peer: Option<IpAddr>,
 ) -> Result<Response, AppError> {
     let VerifiedLogin {
         username,
@@ -120,7 +126,7 @@ mod tests {
     use tracing_test::traced_test;
 
     use crate::{
-        AppState,
+        AppState, CsbMainAction,
         auth::csb_webauthn::test_support::{self, TestAssertion},
         csb::login::pages::tests::{cookie_value, form_post, location, start_login, test_app},
         store::StoreEvent,
@@ -331,6 +337,7 @@ mod tests {
             test_support::alice_login(),
             jar,
             &HeaderMap::new(),
+            None,
         )
         .await
         .expect("response");
@@ -363,6 +370,7 @@ mod tests {
             test_support::alice_login(),
             CookieJar::new(),
             &HeaderMap::new(),
+            None,
         )
         .await
         .expect("response");
