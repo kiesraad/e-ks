@@ -119,3 +119,16 @@ pub struct CandidateImport {
     pub updated_persons: Vec<Person>,
     pub candidates: Vec<PersonId>,
 }
+
+impl PgEvent {
+    /// How many persons applying this event inserts (see
+    /// `PgStoreData::apply_person_create_event` and
+    /// `apply_import_candidates_event`); updates insert none.
+    pub fn created_person_count(&self) -> usize {
+        match self {
+            PgEvent::CreatePerson(_) | PgEvent::CreatePersonPersonalData { .. } => 1,
+            PgEvent::ImportCandidates(import) => import.created_persons.len(),
+            _ => 0,
+        }
+    }
+}

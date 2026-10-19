@@ -10,7 +10,8 @@ use chrono::Utc;
 use tracing::warn;
 
 use crate::{
-    AppError, CsbAction, CsbStore, MAX_CANDIDATES, PgEvent, PgStoreData, RateLimit, RateLimits,
+    AppError, CsbAction, CsbStore, MAX_CANDIDATES, MAX_PERSONS, PgEvent, PgStoreData, RateLimit,
+    RateLimits,
     store::{Store, StoreData},
 };
 
@@ -109,6 +110,7 @@ impl PgStore {
             WriteTarget::Own => {
                 let expected = self.seen_event_id.load(Ordering::Acquire);
                 self.check_rate_limits(&event)?;
+                self.check_person_limit(&event)?;
                 self.projection.update_if_unchanged(event, expected).await?;
                 self.seen_event_id.store(expected + 1, Ordering::Release);
                 Ok(())
@@ -195,6 +197,18 @@ impl PgStore {
             }
         }
 
+        Ok(())
+    }
+
+    /// Refuse a write that would take the stream past [`MAX_PERSONS`]. Only
+    /// events that insert persons count, so a stream already over the cap
+    /// stays editable. Like [`Self::candidate_limit`] this guards a political
+    /// group's own data only: paper corrections record what was handed in.
+    fn check_person_limit(&self, event: &PgEvent) -> Result<(), AppError> {
+        let created = event.created_person_count();
+        if created > 0 && self.projection.get_person_count() + created > MAX_PERSONS {
+            return Err(self.limit_hit("persons", AppError::TooManyPersons { max: MAX_PERSONS }));
+        }
         Ok(())
     }
 

@@ -24,6 +24,11 @@ pub const CSB_ALERT_HOURS_REPEAT_INTERVAL: Duration = Duration::from_mins(30);
 
 pub const MAX_CANDIDATES: usize = 80;
 
+/// Hard cap on the persons one political group's stream may hold. Persons
+/// are held in memory, cloned by the list and audit-log pages and copied into
+/// the CSB import, so the count is bounded independently of the event caps.
+pub const MAX_PERSONS: usize = 1_000;
+
 /// Default endpoint path for the BRP "personen" lookup, relative to
 /// `BrpConfig::base_url`.
 pub(crate) const BRP_PERSONS_ENDPOINT: &str = "haalcentraal/api/brp/personen";
