@@ -17,7 +17,7 @@ use crate::{
                 candidate_list_overview::candidate_list_overview_model,
                 candidate_list_per_district::candidate_list_per_district_model,
                 candidate_list_publication::candidate_list_publication_model,
-                eml::{eml_hash, eml110a_files, eml230_files},
+                eml::{eml110a_files, eml230_files},
             },
             i4::i4_model,
         },
@@ -63,16 +63,7 @@ async fn final_files<S: AppRequestState>(
         lists_per_district.extend(pdf_and_docx(&model).await?);
     }
     let (eml230bs, eml230c) = eml230_files(context, state.csb_store_registry(), main_store).await?;
-    let mut eml110a = eml110a_files(main_store)?;
-    let hash = eml_hash(&eml110a[0].1);
-
-    eml110a.push((
-        format!(
-            "Verkiezingsdefinitie_{}.eml.xml.hashcode.txt",
-            election_id.value()
-        ),
-        hash.as_bytes().to_vec(),
-    ));
+    let (eml110a, hash) = eml110a_files(main_store)?;
 
     let mut files = vec![
         (

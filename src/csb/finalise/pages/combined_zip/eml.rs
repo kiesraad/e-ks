@@ -97,21 +97,25 @@ fn eml230b_filename(
     })
 }
 
-pub(super) fn eml110a_files(main_store: &CsbMainStore) -> Result<Files, AppError> {
+pub(super) fn eml110a_files(main_store: &CsbMainStore) -> Result<(Files, String), AppError> {
     let election_id = ElectionId::try_from(main_store.election)?;
 
     let eml110a = eml110a(
         &main_store.election,
         &main_store.registered_political_groups(),
     )?;
+    let hash = eml_hash(&eml110a);
 
-    Ok(vec![(
-        format!("Verkiezingsdefinitie_{}.eml.xml", election_id.value()),
-        eml110a,
-    )])
+    let filename = format!("Verkiezingsdefinitie_{}.eml.xml", election_id.value());
+    let files = vec![
+        (filename.clone(), eml110a),
+        (format!("{filename}.hashcode.txt"), hash.as_bytes().to_vec()),
+    ];
+
+    Ok((files, hash))
 }
 
-pub(super) fn eml_hash(data: &[u8]) -> String {
+fn eml_hash(data: &[u8]) -> String {
     let hash = Sha256::digest(data);
     format_hash(&hash, false)
 }

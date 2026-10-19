@@ -18,6 +18,7 @@ fn theme() -> Theme {
     theme.spacing.heading_above.h3 = em(1.5);
     theme.spacing.heading_above.h4 = em(1.5);
     theme.spacing.heading_above.h5 = em(1.5);
+    theme.font_size.chrome = em(0.85);
     // Header baseline 30% of the top margin above the content edge
     theme.page.header_offset = 0.3 * theme.page.margin_y;
     theme
