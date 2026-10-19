@@ -191,6 +191,8 @@ mod tests {
             )),
             "{body}"
         );
+        // The strip still reporting a running check goes once the notice shows.
+        assert!(body.contains("data-brp-strip"), "{body}");
 
         let status =
             brp_check_status(CsbPreSubmissionBrpCheckStatusPath { stream_id }, store).await;

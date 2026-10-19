@@ -432,6 +432,8 @@ mod tests {
             )),
             "{body}"
         );
+        // The strip still reporting a running check goes once the notice shows.
+        assert!(body.contains("data-brp-strip"), "{body}");
         // A check of their own would only ask the BRP the same thing twice.
         assert!(!body.contains(&format!(
             "/csb/examination/{stream_id}/list/{list_id}/candidate/{person_id}/brp-check"

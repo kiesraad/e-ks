@@ -142,7 +142,7 @@
     {% let examining = political_group.mode.is_examination() %}
     {% if examining %}
       {% if let Some(reason) = brp.incomplete %}
-        <div class="restoration-strip">
+        <div class="restoration-strip" data-brp-strip>
           <ul class="restoration-tags">
             <li>
               <span class="restoration-tag {% if brp.running %}restoration-tag-running{% else %}restoration-tag-pending{% endif %}">{{ reason }}</span>

@@ -384,6 +384,8 @@ mod tests {
             )),
             "{body}"
         );
+        // The strip still reporting a running check goes once the notice shows.
+        assert!(body.contains("data-brp-strip"), "{body}");
     }
 
     #[tokio::test]
