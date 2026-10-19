@@ -113,7 +113,7 @@ pub async fn import_candidate_list(
     match import_candidate_list_csv(
         &mut list,
         &store,
-        &csv_data,
+        csv_data,
         context.session.locale,
         import_data.file_name.unwrap_or_default(),
         file_size,
