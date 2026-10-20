@@ -248,7 +248,7 @@ fn cells(value: &AuditValue, ctx: &RenderContext) -> Vec<Cell> {
 mod tests {
     use super::*;
     use crate::structs::{
-        audit_log::{EnumValue, FieldPath, Subject, value::EntityRef},
+        audit_log::{EntityRef, EnumValue, FieldPath, Subject},
         common::Gender,
         persons::PersonId,
     };

@@ -42,6 +42,7 @@ impl Change {
         }
     }
 
+    #[cfg(test)]
     pub fn removed(path: impl Into<FieldPath>, value: AuditValue) -> Self {
         Change {
             path: path.into(),

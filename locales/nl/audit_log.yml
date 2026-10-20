@@ -50,8 +50,6 @@ detail:
     list_id: Lijst-ID
     list_order: Lijstvolgorde
     locality: Woonplaats
-    long_list_allowed: Lange lijst toegestaan
-    person_id: Persoon-ID
     members: Ondertekenende leden
     name_authorisations: Statutaire namen en gemachtigden
     objection_text: Bezwaar
@@ -61,7 +59,6 @@ detail:
     omission_title: Titel
     persons: Personen
     place_of_residence: Woonplaats
-    political_group_id: Politieke groepering-ID
     postal_code: Postcode
     previous_election_results: Uitslag vorige verkiezing
     previous_seats: Zetels vorige verkiezing

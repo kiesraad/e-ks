@@ -1,0 +1,28 @@
+{% macro subject_id(subject) %}
+  {% if let Some(id_full) = subject.id_full %}
+    {% if let Some(href) = subject.href %}
+      <a href="{{ href }}"><abbr title="{{ id_full }}">{{ id_full|abbreviate_str }}</abbr></a>
+    {% else %}
+      <abbr title="{{ id_full }}">{{ id_full|abbreviate_str }}</abbr>
+    {% endif %}
+  {% else if let Some(href) = subject.href %}
+    <a href="{{ href }}">{{ "audit_log.detail.subject_link"|trans }}</a>
+  {% endif %}
+{% endmacro %}
+{% macro subject_rows(subject, events_path) %}
+  {% if let Some(id_full) = subject.id_full %}
+    <dt>{{ "audit_log.fields.subject_id"|trans }}</dt>
+    <dd>
+      <code>{{ id_full }}</code>
+      {% if let Some(events_path) = events_path %}
+        <a href="{{ events_path }}">{{ "audit_log.detail.subject_events"|trans }}</a>
+      {% endif %}
+    </dd>
+  {% endif %}
+  {% if let Some(href) = subject.href %}
+    <dt>{{ "audit_log.detail.subject_link"|trans }}</dt>
+    <dd>
+      <a href="{{ href }}">{{ href }}</a>
+    </dd>
+  {% endif %}
+{% endmacro %}

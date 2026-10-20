@@ -50,8 +50,6 @@ detail:
     list_id: List ID
     list_order: List order
     locality: Locality
-    long_list_allowed: Long list allowed
-    person_id: Person ID
     members: Signing members
     name_authorisations: Statutory names and authorised agents
     objection_text: Objection
@@ -61,7 +59,6 @@ detail:
     omission_title: Title
     persons: Persons
     place_of_residence: Place of residence
-    political_group_id: Political group ID
     postal_code: Postal code
     previous_election_results: Result of the previous election
     previous_seats: Seats at the previous election

@@ -1,3 +1,4 @@
+mod links;
 mod pages;
 mod paths;
 mod structs;
