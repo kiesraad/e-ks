@@ -21,8 +21,8 @@ use crate::{
                 CsbPoliticalGroupToggleFinishPath,
             },
             structs::{
-                BrpBadge, BrpCheckState, CsbCandidateList, RestorationStatus, ScrappedOverview,
-                brp_incomplete_reason,
+                BrpBadge, BrpCheckState, CsbCandidateList, PaperCorrectionsOverview,
+                RestorationStatus, ScrappedOverview, brp_incomplete_reason,
             },
         },
         import::{BrpSweepStatus, brp_sweep_running, brp_sweep_status, do_brp_verification},
@@ -51,7 +51,8 @@ struct CsbPoliticalGroupTemplate {
     candidate_lists: Vec<CsbCandidateList>,
     political_group_status: RestorationStatus,
     declarations_of_support_omissions: Vec<Omission>,
-    has_paper_corrections: bool,
+    /// One pill per list, district or candidate added or removed on paper.
+    paper_corrections: PaperCorrectionsOverview,
     /// What the unresolved omissions scrapped; only shown in the recovery
     /// phase, where omissions are decided.
     scrapped: ScrappedOverview,
@@ -106,6 +107,7 @@ pub(in crate::csb) async fn render(
     );
     let political_group_status = RestorationStatus::for_political_group(&store);
     let scrapped = store.get_scrapped_overview(&political_group);
+    let paper_corrections = store.get_paper_corrections_overview(&political_group);
     let all_problems = store.get_all_problems(context.election)?;
     Ok(HtmlTemplate(
         CsbPoliticalGroupTemplate {
@@ -117,7 +119,7 @@ pub(in crate::csb) async fn render(
             candidate_lists,
             political_group_status,
             declarations_of_support_omissions: store.get_all_declarations_of_support_omissions(),
-            has_paper_corrections: store.has_paper_corrections(),
+            paper_corrections,
             scrapped,
             all_problems,
         },
@@ -512,6 +514,38 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn paper_corrections_strip_has_a_pill_per_change() {
+        let (store, _) = store_with_a_candidate();
+        let stream_id = store.stream_id;
+        let list = store.get_candidate_lists(crate::projection::WithCorrections::All)[0].clone();
+        let mut corrected = list.clone();
+        corrected
+            .electoral_districts
+            .insert(ElectoralDistrict::Groningen);
+        corrected.candidates = Vec::new();
+        store.set_paper_corrected_candidate_list(corrected);
+        // A list added on paper has no imported counterpart.
+        let added_id = CandidateListId::new();
+        let mut added = sample_candidate_list(added_id);
+        added.electoral_districts = BTreeSet::from([ElectoralDistrict::Drenthe]);
+        store.set_paper_corrected_candidate_list(added);
+
+        let body = examination_body(store).await;
+
+        assert!(body.contains("restoration-strip-correction"), "{body}");
+        assert!(body.contains("List added: 3. Drenthe"), "{body}");
+        assert!(body.contains("District added: 1. Groningen"), "{body}");
+        assert!(
+            body.contains("Candidate removed: Jansen, H.A.H.A. (Henk)"),
+            "{body}"
+        );
+        assert!(body.contains(&format!("/csb/examination/{stream_id}/list/{added_id}")));
+        // Only value corrections get the generic pill.
+        assert!(!body.contains("Paper correction added"), "{body}");
+        assert!(!body.contains("No paper corrections have been taken over yet."));
+    }
+
+    #[tokio::test]
     async fn hides_card_for_list_deleted_in_paper_corrections() {
         use crate::{structs::candidate_lists::CandidateListId, test_utils::sample_candidate_list};
 
@@ -567,9 +601,11 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
-        // The card shows the corrected districts, not the imported ones.
+        // The card shows the corrected districts, not the imported ones; the
+        // imported district only remains in the paper corrections strip.
         assert!(body.contains("Groningen"));
-        assert!(!body.contains("Utrecht"));
+        assert!(body.contains("District removed: 7. Utrecht"), "{body}");
+        assert_eq!(body.matches("Utrecht").count(), 1, "{body}");
     }
 
     #[tokio::test]

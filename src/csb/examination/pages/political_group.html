@@ -32,12 +32,30 @@
           {{ macros::csrf_field() }}
           <button type="submit" class="button secondary icon-chevron-end">{{ "csb.paper_corrections.start"|trans }}</button>
         </div>
-        <div class="restoration-strip {% if has_paper_corrections %}restoration-strip-correction{% endif %}">
-          {% if has_paper_corrections %}
+        <div class="restoration-strip {% if !paper_corrections.is_empty() %}restoration-strip-correction{% endif %}">
+          {% if !paper_corrections.is_empty() %}
             <ul class="restoration-tags">
-              <li>
-                <span class="restoration-tag restoration-tag-paper">{{ "csb.paper_corrections.added"|trans }}</span>
-              </li>
+              {% if paper_corrections.has_other_corrections %}
+                <li>
+                  <span class="restoration-tag restoration-tag-paper">{{ "csb.paper_corrections.added"|trans }}</span>
+                </li>
+              {% endif %}
+              {% for item in paper_corrections.items %}
+                <li>
+                  {% if let Some(path) = item.path %}
+                    <a class="restoration-tag restoration-tag-paper-change"
+                       href="{{ path }}">
+                      {{ item.kind.label_key() |trans }}
+                      {%- if let Some(detail) = item.detail %}: {{ detail }}{% endif %}
+                    </a>
+                  {% else %}
+                    <span class="restoration-tag restoration-tag-paper-change">
+                      {{ item.kind.label_key() |trans }}
+                      {%- if let Some(detail) = item.detail %}: {{ detail }}{% endif %}
+                    </span>
+                  {% endif %}
+                </li>
+              {% endfor %}
             </ul>
           {% else %}
             <span class="restoration-strip-empty">{{ "csb.paper_corrections.none"|trans }}</span>

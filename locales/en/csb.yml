@@ -257,7 +257,13 @@ paper_corrections:
   added: Paper correction added
   banner: "You are correcting “{}”. Only enter corrections that are handwritten on the submitted paper documents, nothing else."
   banner_no_name: "You are correcting a political group that doesn't have an appellation yet. Only enter corrections that are handwritten on the submitted paper documents, nothing else."
+  candidate_added: Candidate added
+  candidate_removed: Candidate removed
+  district_added: District added
+  district_removed: District removed
   instruction: Copy handwritten corrections from the submitted paper documents into the imported data
+  list_added: List added
+  list_deleted: List deleted
   none: No paper corrections have been taken over yet.
   start: Go to data
   stop: Back to examination

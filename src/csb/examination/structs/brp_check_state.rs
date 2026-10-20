@@ -60,11 +60,6 @@ impl BrpBadge {
     }
 
     /// The compact one-word label, translated by the template.
-    ///
-    /// Keys, for the locale pruner: trans!("csb.brp.checking", _),
-    /// trans!("csb.brp.not_checked", _), trans!("csb.brp.incomplete", _),
-    /// trans!("csb.brp.correct", _), trans!("csb.brp.handled.badge", _),
-    /// trans!("csb.brp.errors", _)
     pub fn label_key(&self) -> &'static str {
         match self {
             Self::Running => "csb.brp.checking",
@@ -78,10 +73,6 @@ impl BrpBadge {
 
     /// The label of the wide strips, which spells the verdict out with
     /// [`Self::strip_label_count`] filled in.
-    ///
-    /// Keys, for the locale pruner: trans!("csb.group.brp_errors.none", _),
-    /// trans!("csb.group.brp_errors.singular", _),
-    /// trans!("csb.group.brp_errors.plural", _)
     pub fn strip_label_key(&self) -> &'static str {
         match self {
             Self::Correct => "csb.group.brp_errors.none",

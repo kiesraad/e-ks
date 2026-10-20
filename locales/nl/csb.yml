@@ -257,7 +257,13 @@ paper_corrections:
   added: Papieren correctie toegevoegd
   banner: "U corrigeert “{}”. Neem alleen correcties over die met de hand op de ingeleverde papieren documenten zijn geschreven, verder niets."
   banner_no_name: "U corrigeert een politieke groepering die nog geen aanduiding heeft. Neem alleen correcties over die met de hand op de ingeleverde papieren documenten zijn geschreven, verder niets."
+  candidate_added: Kandidaat toegevoegd
+  candidate_removed: Kandidaat verwijderd
+  district_added: Kieskring toegevoegd
+  district_removed: Kieskring verwijderd
   instruction: Neem handgeschreven correcties van de ingeleverde papieren documenten over in de geïmporteerde gegevens
+  list_added: Lijst toegevoegd
+  list_deleted: Lijst verwijderd
   none: Er zijn nog geen papieren correcties overgenomen.
   start: Ga naar gegevens
   stop: Terug naar onderzoek
