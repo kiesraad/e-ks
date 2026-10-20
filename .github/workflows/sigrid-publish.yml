@@ -16,7 +16,9 @@ jobs:
   sigridci:
     name: Sigrid CI
     if: github.repository == 'kiesraad/e-ks'
-    environment: development
+    environment:
+      name: development
+      deployment: false # only needs the secrets
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository

@@ -337,8 +337,8 @@ mod tests {
 
     fn export(election: ElectionConfig) -> String {
         let stores = sample_stores(election);
-        let eml = eml230c(&election, &numbered(&stores)).unwrap().unwrap();
-        String::from_utf8(eml).unwrap()
+        let eml = eml230c(&election, &numbered(&stores)).unwrap();
+        String::from_utf8(eml.unwrap()).unwrap()
     }
 
     #[test]

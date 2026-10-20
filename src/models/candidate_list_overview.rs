@@ -56,7 +56,7 @@ impl Pdf for CandidateListOverview {
     }
 
     fn filename(&self) -> String {
-        "overzicht-kandidatenlijsten.pdf".to_string()
+        "Overzicht_Kandidatenlijsten.pdf".to_string()
     }
 }
 
@@ -90,6 +90,23 @@ mod tests {
             stels(&[&[Drenthe, Groningen]]),
             [(None, "1, 3".to_string())]
         );
+    }
+
+    /// A group without an appellation (not registered yet) still renders.
+    #[test]
+    fn group_without_appellation_renders() {
+        let overview = CandidateListOverview {
+            election_name: "Eerste Kamer".to_string(),
+            election_date: "01-01-2027".to_string(),
+            electoral_districts: vec![Groningen],
+            groups: vec![OverviewGroup {
+                number: 1,
+                appellation: String::new(),
+                sets: ListSets::new([vec![Groningen]]).unwrap().unwrap(),
+            }],
+        };
+
+        overview.document().expect("renders");
     }
 
     #[test]

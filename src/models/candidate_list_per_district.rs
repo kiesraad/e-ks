@@ -5,7 +5,7 @@ use crate::{
     models::{
         Pdf,
         candidate_list_publication::NumberedList,
-        layout::markdown_document,
+        layout::eml_hash_document,
         markdown::{filters, model_template},
     },
 };
@@ -16,6 +16,11 @@ pub struct CandidateListPerDistrict {
     pub election_date: String,
     pub electoral_district: String,
     pub lists: Vec<NumberedList>,
+    /// File name without extension, shared with the district's EML 230b, e.g.
+    /// `Kandidatenlijsten_EK2027_Fryslan`
+    pub file_stem: String,
+    /// Hash of the district's EML 230b; none when the district has no 230b
+    pub hash: Option<String>,
 }
 
 model_template!(
@@ -26,10 +31,10 @@ model_template!(
 
 impl Pdf for CandidateListPerDistrict {
     fn document(&self) -> Result<Textris, AppError> {
-        markdown_document(CandidateListPerDistrictTemplate(self))
+        eml_hash_document(CandidateListPerDistrictTemplate(self), self.hash.as_deref())
     }
 
     fn filename(&self) -> String {
-        format!("kandidatenlijst-{}.pdf", self.electoral_district)
+        format!("{}.pdf", self.file_stem)
     }
 }

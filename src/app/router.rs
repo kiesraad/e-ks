@@ -430,23 +430,6 @@ mod tests {
                 "/csb/examination/i1.docx",
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             ),
-            ("/csb/examination/i4.pdf", "application/pdf"),
-            (
-                "/csb/examination/overzicht-kandidatenlijsten.docx",
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            ),
-            (
-                "/csb/examination/overzicht-kandidatenlijsten.pdf",
-                "application/pdf",
-            ),
-            (
-                "/csb/examination/publicatie-kandidatenlijsten.docx",
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            ),
-            (
-                "/csb/examination/publicatie-kandidatenlijsten.pdf",
-                "application/pdf",
-            ),
             (
                 "/csb/examination/finish/verzuimbrieven.zip",
                 "application/zip",

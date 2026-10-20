@@ -281,7 +281,7 @@ mod tests {
         assert_eq!(frisian.filename(), "h3-1-oantsjutting.pdf");
 
         assert_eq!(i1_example_1().filename(), "i1-proces-verbaal.pdf");
-        assert_eq!(i4_example_1().filename(), "i4-proces-verbaal.pdf");
+        assert_eq!(i4_example_1().filename(), "Model_I4_Proces_Verbaal.pdf");
 
         // The omission letter is stamped with the group it is addressed to and
         // the election; a blank list has no appellation to slugify.

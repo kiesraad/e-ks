@@ -3,38 +3,33 @@ use axum::{extract::State, response::Response};
 use crate::{
     AppError, AppRequestState, CsbContext, CsbMainStore,
     core::{ModelLocale, constants::DEFAULT_DATE_FORMAT},
-    csb::{
-        examination::paths::{CsbI4DraftDocxDownloadPath, CsbI4DraftDownloadPath},
-        finalise::{
-            numbering::list_numbering,
-            paths::{CsbI4FinalDocxDownloadPath, CsbI4FinalDownloadPath},
-        },
+    csb::finalise::{
+        numbering::list_numbering,
+        paths::{CsbI4DraftDocxDownloadPath, CsbI4DraftDownloadPath},
     },
     models::{
         Pdf,
         csb_model_inputs::i4_inputs,
-        i4::{I4, NumberedOnDistricts, NumberedOnVotes},
+        i4::{I4, I4Status, NumberedOnDistricts, NumberedOnVotes},
         inputs::PublicSession,
     },
     structs::csb::HearingModel,
 };
 
 /// Collect the store data the I 4 model needs.
-async fn i4_model<S: AppRequestState>(
-    context: CsbContext,
-    main_store: CsbMainStore,
+pub(in crate::csb::finalise::pages) async fn i4_model<S: AppRequestState>(
+    context: &CsbContext,
+    main_store: &CsbMainStore,
     state: &S,
-    is_draft: bool,
+    document_status: I4Status,
 ) -> Result<I4, AppError> {
     let election = main_store.election;
     let registry = state.csb_store_registry();
-    let mut numbering = list_numbering(registry, &main_store).await?;
+    let mut numbering = list_numbering(registry, main_store).await?;
 
     // A draft does not record the numbering
-    if !is_draft {
-        numbering
-            .record_if_incomplete(&context, &main_store)
-            .await?;
+    if document_status.is_final() {
+        numbering.record_if_incomplete(context, main_store).await?;
     }
 
     let i4_inputs = i4_inputs(registry, &election, &numbering.stream_ids()).await?;
@@ -74,34 +69,9 @@ async fn i4_model<S: AppRequestState>(
             .map(|o| o.objection_text.to_string())
             .collect(),
         response_objections: None,
-        is_draft,
+        document_status,
         ..i4_inputs.into()
     })
-}
-
-pub async fn gen_i4_final<S: AppRequestState>(
-    _: CsbI4FinalDownloadPath,
-    context: CsbContext,
-    main_store: CsbMainStore,
-    State(state): State<S>,
-) -> Result<Response, AppError> {
-    i4_model(context, main_store, &state, false)
-        .await?
-        .pdf_response()
-        .await
-}
-
-/// The same I 4 as [`gen_i4_final`], exported as a Word document.
-pub async fn gen_i4_final_docx<S: AppRequestState>(
-    _: CsbI4FinalDocxDownloadPath,
-    context: CsbContext,
-    main_store: CsbMainStore,
-    State(state): State<S>,
-) -> Result<Response, AppError> {
-    i4_model(context, main_store, &state, false)
-        .await?
-        .docx_response()
-        .await
 }
 
 pub async fn gen_i4_draft<S: AppRequestState>(
@@ -110,7 +80,7 @@ pub async fn gen_i4_draft<S: AppRequestState>(
     main_store: CsbMainStore,
     State(state): State<S>,
 ) -> Result<Response, AppError> {
-    i4_model(context, main_store, &state, true)
+    i4_model(&context, &main_store, &state, I4Status::Draft)
         .await?
         .pdf_response()
         .await
@@ -123,7 +93,7 @@ pub async fn gen_i4_draft_docx<S: AppRequestState>(
     main_store: CsbMainStore,
     State(state): State<S>,
 ) -> Result<Response, AppError> {
-    i4_model(context, main_store, &state, true)
+    i4_model(&context, &main_store, &state, I4Status::Draft)
         .await?
         .docx_response()
         .await
@@ -192,7 +162,7 @@ mod tests {
             )
             .await?;
 
-        let model = i4_model(context, main_store, &state, false).await?;
+        let model = i4_model(&context, &main_store, &state, I4Status::Final(None)).await?;
 
         assert_eq!(model.public_session.date, "09-04-2027");
         assert_eq!(model.public_session.time, "10:15");
@@ -222,7 +192,7 @@ mod tests {
             )
             .await?;
 
-        let model = i4_model(context, main_store, &state, false).await?;
+        let model = i4_model(&context, &main_store, &state, I4Status::Final(None)).await?;
 
         let configured = ElectionConfig::EK27.public_session();
         assert_eq!(model.public_session.date, configured.formatted_date());
@@ -236,7 +206,7 @@ mod tests {
         let context = CsbContext::new_test();
         let main_store = CsbMainStore::new_for_test();
         let state = AppState::new_for_tests().await;
-        let response = gen_i4_final(CsbI4FinalDownloadPath, context, main_store, State(state))
+        let response = gen_i4_draft(CsbI4DraftDownloadPath, context, main_store, State(state))
             .await?
             .into_response();
 
@@ -250,7 +220,7 @@ mod tests {
             headers
                 .get(header::CONTENT_DISPOSITION)
                 .expect("content disposition"),
-            "attachment; filename=\"i4-proces-verbaal.pdf\""
+            "attachment; filename=\"Model_I4_Proces_Verbaal_Concept.pdf\""
         );
         assert_eq!(
             headers.get(header::CACHE_CONTROL).expect("cache control"),
@@ -265,8 +235,8 @@ mod tests {
         let context = CsbContext::new_test();
         let main_store = CsbMainStore::new_for_test();
         let state = AppState::new_for_tests().await;
-        let response = gen_i4_final_docx(
-            CsbI4FinalDocxDownloadPath,
+        let response = gen_i4_draft_docx(
+            CsbI4DraftDocxDownloadPath,
             context,
             main_store,
             State(state),
@@ -284,7 +254,7 @@ mod tests {
             headers
                 .get(header::CONTENT_DISPOSITION)
                 .expect("content disposition"),
-            "attachment; filename=\"i4-proces-verbaal.docx\""
+            "attachment; filename=\"Model_I4_Proces_Verbaal_Concept.docx\""
         );
 
         // A .docx is a ZIP archive.
@@ -322,7 +292,7 @@ mod tests {
             )
             .await?;
 
-        let model = i4_model(context, main_store, &state, false).await?;
+        let model = i4_model(&context, &main_store, &state, I4Status::Final(None)).await?;
 
         let on_votes: Vec<_> = model
             .numbered_based_on_votes
@@ -365,14 +335,32 @@ mod tests {
         assert_eq!(main_store.list_order_events(), 0);
 
         let numbered = [(Some(1), "Eerste"), (Some(2), "Tweede")];
-        let model = i4_model(CsbContext::new_test(), main_store.clone(), &state, false).await?;
+        let model = i4_model(
+            &CsbContext::new_test(),
+            &main_store.clone(),
+            &state,
+            I4Status::Final(None),
+        )
+        .await?;
         assert_eq!(by_lot(&model), numbered);
         assert_eq!(main_store.list_order_events(), 1);
         assert_eq!(main_store.list_order(), [first, second]);
 
-        let model = i4_model(CsbContext::new_test(), main_store.clone(), &state, false).await?;
+        let model = i4_model(
+            &CsbContext::new_test(),
+            &main_store.clone(),
+            &state,
+            I4Status::Final(None),
+        )
+        .await?;
         assert_eq!(by_lot(&model), numbered);
-        let model = i4_model(CsbContext::new_test(), main_store.clone(), &state, true).await?;
+        let model = i4_model(
+            &CsbContext::new_test(),
+            &main_store.clone(),
+            &state,
+            I4Status::Draft,
+        )
+        .await?;
         assert_eq!(by_lot(&model), numbered);
         assert_eq!(main_store.list_order_events(), 1);
 
@@ -388,8 +376,20 @@ mod tests {
         seed_group(&state, "Tweede").await;
         let main_store = CsbMainStore::new_for_test();
 
-        i4_model(CsbContext::new_test(), main_store.clone(), &state, true).await?;
-        let model = i4_model(CsbContext::new_test(), main_store.clone(), &state, true).await?;
+        i4_model(
+            &CsbContext::new_test(),
+            &main_store.clone(),
+            &state,
+            I4Status::Draft,
+        )
+        .await?;
+        let model = i4_model(
+            &CsbContext::new_test(),
+            &main_store.clone(),
+            &state,
+            I4Status::Draft,
+        )
+        .await?;
 
         assert_eq!(by_lot(&model), [(None, "Eerste"), (None, "Tweede")]);
         assert_eq!(main_store.list_order_events(), 0);
@@ -438,7 +438,7 @@ mod tests {
             .await?;
 
         let main_store = CsbMainStore::new_for_test();
-        let response = gen_i4_final(CsbI4FinalDownloadPath, context, main_store, State(state))
+        let response = gen_i4_draft(CsbI4DraftDownloadPath, context, main_store, State(state))
             .await?
             .into_response();
 

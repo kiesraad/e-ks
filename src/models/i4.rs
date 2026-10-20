@@ -7,10 +7,9 @@ use textris_pdf::build::Textris;
 use super::{
     Pdf,
     inputs::{DistrictLists, OmissionGroup, PublicSession, ValidList},
-    layout::markdown_document,
     markdown::{filters, model_template},
 };
-use crate::AppError;
+use crate::{AppError, models::layout::eml_hash_document};
 
 #[derive(Debug, Default)]
 pub struct I4 {
@@ -29,7 +28,34 @@ pub struct I4 {
     /// Empty: no objections raised.
     pub objections: Vec<String>,
     pub response_objections: Option<String>,
-    pub is_draft: bool,
+    pub document_status: I4Status,
+}
+
+/// `Draft` document does not number lists that still have have to be numbered by lot.
+/// The `Final` document gets the hash of the EML 230c in the footer; none when
+/// no list qualifies for the 230c.
+#[derive(Debug, Default)]
+pub enum I4Status {
+    #[default]
+    Draft,
+    Final(Option<String>),
+}
+
+impl I4Status {
+    pub fn is_draft(&self) -> bool {
+        matches!(self, I4Status::Draft)
+    }
+
+    pub fn is_final(&self) -> bool {
+        matches!(self, I4Status::Final(_))
+    }
+
+    fn hash(&self) -> Option<&str> {
+        match self {
+            I4Status::Final(hash) => hash.as_deref(),
+            I4Status::Draft => None,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -81,14 +107,14 @@ model_template!(I4Template, I4, "models/templates/i4.md");
 
 impl Pdf for I4 {
     fn document(&self) -> Result<Textris, AppError> {
-        markdown_document(I4Template(self))
+        eml_hash_document(I4Template(self), self.document_status.hash())
     }
 
     fn filename(&self) -> String {
-        if self.is_draft {
-            "i4-proces-verbaal (concept).pdf"
+        if self.document_status.is_final() {
+            "Model_I4_Proces_Verbaal.pdf"
         } else {
-            "i4-proces-verbaal.pdf"
+            "Model_I4_Proces_Verbaal_Concept.pdf"
         }
         .to_string()
     }

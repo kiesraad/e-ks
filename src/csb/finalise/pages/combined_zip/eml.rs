@@ -1,87 +1,33 @@
 use std::num::NonZeroU64;
 
-use axum::{
-    body::Body,
-    extract::State,
-    http::HeaderValue,
-    response::{IntoResponse, Response},
-};
 use eks_utils::slugify_teletex;
 use eml_nl::utils::ElectionId;
-use tokio::io::{DuplexStream, duplex};
-use tokio_util::io::ReaderStream;
+use sha2::{Digest, Sha256};
 
 use crate::{
-    AppError, AppRequestState, CsbContext, CsbMainStore, CsbStoreData, CsbStream, ElectionConfig,
-    ElectoralDistrict,
-    core::ZipResponseWriter,
+    AppError, CsbContext, CsbMainStore, CsbStoreData, CsbStream, ElectionConfig, ElectoralDistrict,
     csb::{
         examination::extractors::CsbPoliticalGroup,
-        finalise::{numbering::ListNumbering, paths::CsbEmlZipDownloadPath},
+        finalise::{numbering::ListNumbering, pages::combined_zip::Files},
     },
-    models::{
-        documents::ZIP_CONTENT_TYPE,
-        eml::{
-            eml230b::{contests, eml230b},
-            eml230c::eml230c,
-        },
+    models::eml::{
+        eml110a::eml110a,
+        eml230b::{contests, eml230b},
+        eml230c::eml230c,
     },
     store::StoreRegistry,
-    utils::no_cache_headers,
+    utils::format_hash,
 };
 
-/// The established candidate lists per electoral district ("kieskring"):
-/// 1 EML 230b file per district plus 1 EML 230c file with all districts
-pub async fn download_eml_zip<S: AppRequestState>(
-    _: CsbEmlZipDownloadPath,
-    context: CsbContext,
-    main_store: CsbMainStore,
-    State(state): State<S>,
-) -> Result<Response, AppError> {
-    let election = main_store.election;
-
-    let files = eml230_files(context, state.csb_store_registry(), &main_store).await?;
-
-    let filename = format!("eml-{}.zip", election.filename_slug());
-    let headers = no_cache_headers::generate_attachment_headers(
-        &filename,
-        HeaderValue::from_static(ZIP_CONTENT_TYPE),
-    )?;
-
-    let (reader, writer) = duplex(64 * 1024);
-    let body = Body::from_stream(ReaderStream::new(reader));
-
-    tokio::spawn(async move {
-        if let Err(err) = write_eml_zip(files, writer).await {
-            tracing::error!(error = ?err, "failed to stream EML zip");
-        }
-    });
-
-    Ok((headers, body).into_response())
-}
-
-// Temporary EML zip: eventually these should be combined with all the other exported documents
-async fn write_eml_zip(
-    files: Vec<(String, Vec<u8>)>,
-    writer: DuplexStream,
-) -> Result<(), AppError> {
-    let mut zipper = ZipResponseWriter::new(writer);
-
-    for (name, bytes) in files {
-        zipper.add_file(&name, &bytes).await?;
-    }
-
-    zipper.finish().await
-}
-
-/// One EML 230b file per district, and the EML 230c for the whole election
+/// One EML 230b file per district, and the EML 230c for the whole election,
+/// in that order
 ///
-/// Districts without established lists are left out.
-async fn eml230_files(
-    context: CsbContext,
+/// Districts without established lists get no 230b file.
+pub(super) async fn eml230_files(
+    context: &CsbContext,
     registry: &StoreRegistry<CsbStoreData>,
     main_store: &CsbMainStore,
-) -> Result<Vec<(String, Vec<u8>)>, AppError> {
+) -> Result<(Files, Files), AppError> {
     let election = main_store.election;
     let streams = registry.stores_for_election(election).await?;
     let political_groups: Vec<CsbPoliticalGroup> = streams
@@ -94,7 +40,7 @@ async fn eml230_files(
         &main_store.list_order(),
     );
 
-    numbering.record_if_incomplete(&context, main_store).await?;
+    numbering.record_if_incomplete(context, main_store).await?;
 
     // Each group's established, final list number, paired with its store
     let numbered_groups: Vec<(NonZeroU64, &CsbStream)> = numbering
@@ -110,57 +56,92 @@ async fn eml230_files(
         })
         .collect();
 
-    let mut files = Vec::new();
+    let mut eml230bs = Files::new();
 
     for (contest_identifier, district) in contests(&election)? {
-        let Some(bytes) = eml230b(&election, contest_identifier, district, &numbered_groups)?
-        else {
-            continue;
-        };
-
-        files.push((eml230b_filename(&election, district)?, bytes));
+        if let Some(bytes) = eml230b(&election, contest_identifier, district, &numbered_groups)? {
+            eml230bs.push((eml230b_filename(&election, district)?, bytes));
+        }
     }
 
-    if let Some(bytes) = eml230c(&election, &numbered_groups)? {
-        files.push((eml230c_filename(&election)?, bytes));
-    }
+    let election_id = ElectionId::try_from(election)?;
 
-    Ok(files)
+    Ok((
+        eml230bs,
+        eml230c(&election, &numbered_groups)?
+            .map(|eml| {
+                vec![(
+                    format!("Totaallijsten_{}.eml.xml", election_id.value()),
+                    eml,
+                )]
+            })
+            .unwrap_or_default(),
+    ))
 }
 
 /// The file name for the EML 230b of `district`, e.g.
-/// `Kandidatenlijsten_EK2027_Drenthe.eml.xml`, or without district when the
-/// election has only one
-fn eml230b_filename(
+/// `Kandidatenlijsten_EK2027_Drenthe.eml.xml`
+pub(super) fn eml230b_filename(
+    election: &ElectionConfig,
+    district: Option<ElectoralDistrict>,
+) -> Result<String, AppError> {
+    Ok(format!(
+        "{}.eml.xml",
+        candidate_lists_stem(election, district)?
+    ))
+}
+
+/// The file name without extension shared by the EML 230b and the candidate
+/// list document of `district`, e.g. `Kandidatenlijsten_EK2027_Drenthe`, or
+/// without district when the election has only one
+pub(super) fn candidate_lists_stem(
     election: &ElectionConfig,
     district: Option<ElectoralDistrict>,
 ) -> Result<String, AppError> {
     let election_id = ElectionId::try_from(*election)?;
-    Ok(match district {
-        Some(district) => format!(
-            "Kandidatenlijsten_{}_{}.eml.xml",
-            election_id.value(),
-            slugify_teletex(district.title(), false)
-        ),
-        None => format!("Kandidatenlijsten_{}.eml.xml", election_id.value()),
-    })
+    Ok(
+        match district.filter(|_| !election.has_only_one_district()) {
+            Some(district) => format!(
+                "Kandidatenlijsten_{}_{}",
+                election_id.value(),
+                slugify_teletex(district.title(), false)
+            ),
+            None => format!("Kandidatenlijsten_{}", election_id.value()),
+        },
+    )
 }
 
-/// The file name for the EML 230c, e.g. `Totaallijsten_EK2027.eml.xml`
-fn eml230c_filename(election: &ElectionConfig) -> Result<String, AppError> {
-    Ok(format!(
-        "Totaallijsten_{}.eml.xml",
-        ElectionId::try_from(*election)?.value()
-    ))
+/// The EML 110a with its hashcode file
+pub(super) fn eml110a_files(main_store: &CsbMainStore) -> Result<Files, AppError> {
+    let election_id = ElectionId::try_from(main_store.election)?;
+
+    let eml110a = eml110a(
+        &main_store.election,
+        &main_store.registered_political_groups(),
+    )?;
+    let hash = eml_hash(&eml110a);
+
+    let filename = format!("Verkiezingsdefinitie_{}.eml.xml", election_id.value());
+
+    Ok(vec![
+        (filename.clone(), eml110a),
+        (format!("{filename}.hashcode.txt"), hash.into_bytes()),
+    ])
+}
+
+/// The SHA-256 of an EML as OSV asks for it on import, e.g. `8097 F58F ...`
+pub(super) fn eml_hash(data: &[u8]) -> String {
+    let hash = Sha256::digest(data);
+    format_hash(&hash, false)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::body::to_bytes;
 
     use crate::{
-        AppState, CsbMainAction, CsbUser, ElectionConfig, ElectoralDistrict, Province, StreamId,
+        AppRequestState, AppState, CsbMainAction, CsbUser, ElectionConfig, ElectoralDistrict,
+        Province, StreamId,
         structs::{
             candidate_lists::CandidateList, csb::sample_registered_political_group,
             list_designation::ListDesignation, persons::PersonId, political_groups::PoliticalGroup,
@@ -228,10 +209,12 @@ mod tests {
         .await;
 
         let main_store = main_store_for(election);
-        let files = eml230_files(context, state.csb_store_registry(), &main_store).await?;
+        let (eml230bs, eml230c) =
+            eml230_files(&context, state.csb_store_registry(), &main_store).await?;
 
-        assert_eq!(files.len(), 2);
-        for (_, bytes) in &files {
+        assert_eq!(eml230bs.len(), 1);
+        assert_eq!(eml230c.len(), 1);
+        for (_, bytes) in eml230bs.iter().chain(&eml230c) {
             let xml = String::from_utf8(bytes.clone()).unwrap();
             assert!(!xml.to_lowercase().contains("blanco"));
             assert!(xml.contains("<RegisteredName/>"));
@@ -257,12 +240,13 @@ mod tests {
         .await;
         let main_store = main_store_for(election);
 
-        let files = eml230_files(context, state.csb_store_registry(), &main_store).await?;
+        let (eml230bs, eml230c) =
+            eml230_files(&context, state.csb_store_registry(), &main_store).await?;
 
-        assert_eq!(files.len(), 2);
-        assert_eq!(files[0].0, "Kandidatenlijsten_PS2027_Groningen.eml.xml");
-        assert_eq!(files[1].0, "Totaallijsten_PS2027_Groningen.eml.xml");
-        let xml = String::from_utf8(files[0].1.clone()).unwrap();
+        assert_eq!(eml230bs.len(), 1);
+        assert_eq!(eml230bs[0].0, "Kandidatenlijsten_PS2027_Groningen.eml.xml");
+        assert_eq!(eml230c[0].0, "Totaallijsten_PS2027_Groningen.eml.xml");
+        let xml = String::from_utf8(eml230bs[0].1.clone()).unwrap();
         assert!(xml.contains(r#"<ContestIdentifier Id="geen"/>"#));
         assert!(xml.contains("Kiesraad Demo"));
 
@@ -282,16 +266,17 @@ mod tests {
         sample_group(&state, election, "Alleen Eerste", [districts[0]]).await;
         let main_store = main_store_for(election);
 
-        let files = eml230_files(context, state.csb_store_registry(), &main_store).await?;
+        let (eml230bs, eml230c) =
+            eml230_files(&context, state.csb_store_registry(), &main_store).await?;
 
-        // Only the district the group's list covers gets a 230b file, next to the 230c
-        assert_eq!(files.len(), 2);
-        assert_eq!(files[1].0, "Totaallijsten_PS2027_Limburg.eml.xml");
+        // Only the district the group's list covers gets a 230b file
+        assert_eq!(eml230c[0].0, "Totaallijsten_PS2027_Limburg.eml.xml");
+        assert_eq!(eml230bs.len(), 1);
         assert_eq!(
-            files[0].0,
+            eml230bs[0].0,
             "Kandidatenlijsten_PS2027_Limburg_Maastricht.eml.xml"
         );
-        let xml = String::from_utf8(files[0].1.clone()).unwrap();
+        let xml = String::from_utf8(eml230bs[0].1.clone()).unwrap();
         assert!(xml.contains(&format!(
             r#"<ContestIdentifier Id="{}">"#,
             districts[0].region_number()
@@ -316,11 +301,12 @@ mod tests {
         sample_group(&state, election, "Overal", districts.iter().copied()).await;
         let main_store = main_store_for(election);
 
-        let files = eml230_files(context, state.csb_store_registry(), &main_store).await?;
+        let (eml230bs, eml230c) =
+            eml230_files(&context, state.csb_store_registry(), &main_store).await?;
 
         // One 230b per district, plus the 230c for the whole election
-        assert_eq!(files.len(), districts.len() + 1);
-        for (_, bytes) in &files {
+        assert_eq!(eml230bs.len(), districts.len());
+        for (_, bytes) in eml230bs.iter().chain(&eml230c) {
             let xml = String::from_utf8(bytes.clone()).unwrap();
             assert!(xml.contains(r#"Id="1""#));
             assert!(xml.contains("Overal"));
@@ -343,6 +329,15 @@ mod tests {
             eml230b_filename(&ElectionConfig::PS27(Province::Groningen), None).unwrap(),
             "Kandidatenlijsten_PS2027_Groningen.eml.xml"
         );
+        // The only district of an election is left out
+        assert_eq!(
+            eml230b_filename(
+                &ElectionConfig::PS27(Province::Groningen),
+                Some(ElectoralDistrict::PsGroningen)
+            )
+            .unwrap(),
+            "Kandidatenlijsten_PS2027_Groningen.eml.xml"
+        );
         assert_eq!(
             eml230b_filename(
                 &ElectionConfig::PS27(Province::Limburg),
@@ -353,60 +348,10 @@ mod tests {
         );
     }
 
-    #[test]
-    fn filename_uses_election_id() {
-        assert_eq!(
-            eml230c_filename(&ElectionConfig::EK27).unwrap(),
-            "Totaallijsten_EK2027.eml.xml"
-        );
-        assert_eq!(
-            eml230c_filename(&ElectionConfig::PS27(Province::Groningen)).unwrap(),
-            "Totaallijsten_PS2027_Groningen.eml.xml"
-        );
-    }
-
+    /// A group without valid candidates gets no 230b file; the 230c is still
+    /// there.
     #[tokio::test]
-    async fn download_eml_zip_returns_zip_response() -> Result<(), AppError> {
-        let context = CsbContext::new_test();
-        let state = AppState::new_for_tests().await;
-        sample_group(
-            &state,
-            ElectionConfig::EK27,
-            "Kiesraad Demo",
-            ElectionConfig::EK27.electoral_districts().to_vec(),
-        )
-        .await;
-        let main_store = CsbMainStore::new_for_test();
-
-        let response = download_eml_zip(CsbEmlZipDownloadPath, context, main_store, State(state))
-            .await?
-            .into_response();
-
-        assert_eq!(response.status(), axum::http::StatusCode::OK);
-        let headers = response.headers();
-        assert_eq!(
-            headers
-                .get(axum::http::header::CONTENT_TYPE)
-                .expect("content type"),
-            ZIP_CONTENT_TYPE,
-        );
-        assert_eq!(
-            headers
-                .get(axum::http::header::CONTENT_DISPOSITION)
-                .expect("content disposition"),
-            "attachment; filename=\"eml-ek27.zip\""
-        );
-
-        let body = to_bytes(response.into_body(), usize::MAX)
-            .await
-            .expect("response body");
-        assert!(body.starts_with(b"PK"), "body is not a ZIP archive");
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn download_eml_zip_skips_groups_without_valid_candidates() -> Result<(), AppError> {
+    async fn eml230_files_skips_groups_without_valid_candidates() -> Result<(), AppError> {
         let context = CsbContext::new_test();
         let state = AppState::new_for_tests().await;
         let list = CandidateList {
@@ -426,9 +371,11 @@ mod tests {
         .await;
 
         let main_store = CsbMainStore::new_for_test();
-        let files = eml230_files(context, state.csb_store_registry(), &main_store).await?;
+        let (eml230bs, eml230c) =
+            eml230_files(&context, state.csb_store_registry(), &main_store).await?;
 
-        assert!(files.is_empty());
+        assert!(eml230bs.is_empty());
+        assert!(eml230c.is_empty());
 
         Ok(())
     }
@@ -462,11 +409,11 @@ mod tests {
             .update(CsbMainAction::UpdateListOrder(vec![by_lot, seated]).by(CsbUser::new_test()))
             .await?;
 
-        let files = eml230_files(context, state.csb_store_registry(), &main_store).await?;
+        let (eml230bs, _) = eml230_files(&context, state.csb_store_registry(), &main_store).await?;
 
         // The recorded order puts "Loting" first, so it gets list number 1
         // and prints first; "Gezeteld" is 2 and prints second.
-        let xml = String::from_utf8(files[0].1.clone()).unwrap();
+        let xml = String::from_utf8(eml230bs[0].1.clone()).unwrap();
         let position = |needle: &str| xml.find(needle).expect("group in export");
         assert!(position(r#"<AffiliationIdentifier Id="1">"#) < position("Loting"));
         assert!(position("Loting") < position(r#"<AffiliationIdentifier Id="2">"#));
@@ -494,8 +441,8 @@ mod tests {
         let main_store = CsbMainStore::new_for_test();
         assert_eq!(main_store.list_order_events(), 0);
 
-        let assert_numbered = |files: Vec<(String, Vec<u8>)>| {
-            let xml = String::from_utf8(files[0].1.clone()).unwrap();
+        let assert_numbered = |(eml230bs, _): (Files, Files)| {
+            let xml = String::from_utf8(eml230bs[0].1.clone()).unwrap();
             let position = |needle: &str| xml.find(needle).expect("group in export");
             assert!(position(r#"<AffiliationIdentifier Id="1">"#) < position("Andere Partij"));
             assert!(position("Andere Partij") < position(r#"<AffiliationIdentifier Id="2">"#));
@@ -504,7 +451,7 @@ mod tests {
 
         assert_numbered(
             eml230_files(
-                CsbContext::new_test(),
+                &CsbContext::new_test(),
                 state.csb_store_registry(),
                 &main_store,
             )
@@ -515,7 +462,7 @@ mod tests {
 
         assert_numbered(
             eml230_files(
-                CsbContext::new_test(),
+                &CsbContext::new_test(),
                 state.csb_store_registry(),
                 &main_store,
             )
@@ -545,9 +492,9 @@ mod tests {
         sample_group(&state, ElectionConfig::EK27, "Andere Partij", all_districts).await;
 
         let main_store = CsbMainStore::new_for_test();
-        let files = eml230_files(context, state.csb_store_registry(), &main_store).await?;
+        let (eml230bs, _) = eml230_files(&context, state.csb_store_registry(), &main_store).await?;
 
-        let xml = String::from_utf8(files[0].1.clone()).unwrap();
+        let xml = String::from_utf8(eml230bs[0].1.clone()).unwrap();
         let position = |needle: &str| xml.find(needle).expect("group in export");
         assert!(position("Andere Partij") < position("Zebra Partij"));
 

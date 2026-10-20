@@ -1,34 +1,25 @@
-use axum::{extract::State, response::Response};
-
 use crate::{
     AppError, AppRequestState, CsbContext, CsbMainStore,
     core::{ModelLocale, constants::DEFAULT_DATE_FORMAT},
-    csb::finalise::{
-        numbering::list_numbering,
-        paths::{
-            CsbCandidateListPublicationDocxDownloadPath, CsbCandidateListPublicationDownloadPath,
-        },
-    },
+    csb::finalise::numbering::list_numbering,
     models::{
-        Pdf, candidate_list_publication::CandidateListPublication,
-        csb_model_inputs::published_lists, inputs::PublicSession,
+        candidate_list_publication::CandidateListPublication, csb_model_inputs::published_lists,
+        inputs::PublicSession,
     },
     structs::csb::HearingModel,
 };
 
 /// Collect the store data the candidate list publication model needs.
-async fn candidate_list_publication_model<S: AppRequestState>(
-    context: CsbContext,
-    main_store: CsbMainStore,
+pub(super) async fn candidate_list_publication_model<S: AppRequestState>(
+    context: &CsbContext,
+    main_store: &CsbMainStore,
     state: &S,
 ) -> Result<CandidateListPublication, AppError> {
     let election = main_store.election;
     let registry = state.csb_store_registry();
-    let mut numbering = list_numbering(registry, &main_store).await?;
+    let mut numbering = list_numbering(registry, main_store).await?;
 
-    numbering
-        .record_if_incomplete(&context, &main_store)
-        .await?;
+    numbering.record_if_incomplete(context, main_store).await?;
 
     let mut public_session = PublicSession::from(election.public_session());
     if let Some(hearing_details) = main_store.get_hearing_details(HearingModel::I4) {
@@ -46,41 +37,9 @@ async fn candidate_list_publication_model<S: AppRequestState>(
     })
 }
 
-/// The publication of the candidate lists, as PDF.
-pub async fn gen_candidate_list_publication<S: AppRequestState>(
-    _: CsbCandidateListPublicationDownloadPath,
-    context: CsbContext,
-    main_store: CsbMainStore,
-    State(state): State<S>,
-) -> Result<Response, AppError> {
-    candidate_list_publication_model(context, main_store, &state)
-        .await?
-        .pdf_response()
-        .await
-}
-
-/// The same publication as [`gen_candidate_list_publication`], exported as a Word document.
-pub async fn gen_candidate_list_publication_docx<S: AppRequestState>(
-    _: CsbCandidateListPublicationDocxDownloadPath,
-    context: CsbContext,
-    main_store: CsbMainStore,
-    State(state): State<S>,
-) -> Result<Response, AppError> {
-    candidate_list_publication_model(context, main_store, &state)
-        .await?
-        .docx_response()
-        .await
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::DOCX_CONTENT_TYPE;
-    use axum::{
-        body::to_bytes,
-        http::{StatusCode, header},
-        response::IntoResponse,
-    };
     use std::collections::BTreeSet;
 
     use crate::{
@@ -160,7 +119,7 @@ mod tests {
             seed_group(&state, "Alleen Groningen", &[ElectoralDistrict::Groningen]).await;
         let main_store = main_store_with_order(vec![groningen, both]).await?;
 
-        let model = candidate_list_publication_model(context, main_store, &state).await?;
+        let model = candidate_list_publication_model(&context, &main_store, &state).await?;
 
         assert_eq!(
             rows(&model),
@@ -200,7 +159,7 @@ mod tests {
             .set_status(&store, OmissionStatus::NotRecovered)
             .await?;
 
-        let model = candidate_list_publication_model(context, main_store, &state).await?;
+        let model = candidate_list_publication_model(&context, &main_store, &state).await?;
 
         assert_eq!(
             rows(&model),
@@ -230,91 +189,15 @@ mod tests {
 
         let numbered = [("Groningen", vec![(1, "Eerste"), (2, "Tweede")])];
         let model =
-            candidate_list_publication_model(CsbContext::new_test(), main_store.clone(), &state)
-                .await?;
+            candidate_list_publication_model(&CsbContext::new_test(), &main_store, &state).await?;
         assert_eq!(rows(&model), numbered);
         assert_eq!(main_store.list_order_events(), 1);
         assert_eq!(main_store.list_order(), [first, second]);
 
         let model =
-            candidate_list_publication_model(CsbContext::new_test(), main_store.clone(), &state)
-                .await?;
+            candidate_list_publication_model(&CsbContext::new_test(), &main_store, &state).await?;
         assert_eq!(rows(&model), numbered);
         assert_eq!(main_store.list_order_events(), 1);
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn gen_candidate_list_publication_returns_pdf_response() -> Result<(), AppError> {
-        let context = CsbContext::new_test();
-        let state = AppState::new_for_tests().await;
-        let stream_id = seed_group(&state, "Kiesraad Demo", &[ElectoralDistrict::Groningen]).await;
-        let main_store = main_store_with_order(vec![stream_id]).await?;
-
-        let response = gen_candidate_list_publication(
-            CsbCandidateListPublicationDownloadPath,
-            context,
-            main_store,
-            State(state),
-        )
-        .await?
-        .into_response();
-
-        assert_eq!(response.status(), StatusCode::OK);
-        let headers = response.headers().clone();
-        assert_eq!(
-            headers.get(header::CONTENT_TYPE).expect("content type"),
-            "application/pdf"
-        );
-        assert_eq!(
-            headers
-                .get(header::CONTENT_DISPOSITION)
-                .expect("content disposition"),
-            "attachment; filename=\"publicatie-kandidatenlijsten.pdf\""
-        );
-        assert_eq!(
-            headers.get(header::CACHE_CONTROL).expect("cache control"),
-            "no-store, no-cache, must-revalidate, max-age=0"
-        );
-        let body = to_bytes(response.into_body(), usize::MAX)
-            .await
-            .expect("read body");
-        assert!(body.starts_with(b"%PDF"), "body is not a PDF");
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn gen_candidate_list_publication_docx_returns_word_response() -> Result<(), AppError> {
-        let context = CsbContext::new_test();
-        let state = AppState::new_for_tests().await;
-        let response = gen_candidate_list_publication_docx(
-            CsbCandidateListPublicationDocxDownloadPath,
-            context,
-            CsbMainStore::new_for_test(),
-            State(state),
-        )
-        .await?
-        .into_response();
-
-        assert_eq!(response.status(), StatusCode::OK);
-        let headers = response.headers().clone();
-        assert_eq!(
-            headers.get(header::CONTENT_TYPE).expect("content type"),
-            DOCX_CONTENT_TYPE
-        );
-        assert_eq!(
-            headers
-                .get(header::CONTENT_DISPOSITION)
-                .expect("content disposition"),
-            "attachment; filename=\"publicatie-kandidatenlijsten.docx\""
-        );
-        // A .docx is a ZIP archive.
-        let body = to_bytes(response.into_body(), usize::MAX)
-            .await
-            .expect("read body");
-        assert!(body.starts_with(b"PK"), "body is not a ZIP archive");
 
         Ok(())
     }

@@ -67,14 +67,15 @@ export class CsbPoliticalGroupPage {
     await this.buttonBRPCheck.click();
     await expect(this.badgeBRPRunning).toBeVisible();
     // the check runs in the background and the page only reflects its
-    // progress after a reload, so reload until the running badge is gone
+    // progress after a reload, so reload until the running badge is gone;
+    // BRP requests are paced app-wide, so it may queue behind other workers
     await expect
       .poll(
         async () => {
           await this.page.reload();
           return this.badgeBRPRunning.isVisible();
         },
-        { message: "BRP check did not finish" },
+        { message: "BRP check did not finish", timeout: 20_000 },
       )
       .toBe(false);
   }

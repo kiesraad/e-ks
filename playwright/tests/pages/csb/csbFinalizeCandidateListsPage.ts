@@ -3,9 +3,9 @@ import type { Locator, Page } from "@playwright/test";
 export class CsbFinalizeCandidateListsPage {
   readonly linkHearingDetails: Locator;
   readonly headerFinalize: Locator;
-  readonly downloadPdfFinal: Locator;
-  readonly downloadWordFinal: Locator;
-  readonly downloadEml: Locator;
+  readonly downloadPdfDraft: Locator;
+  readonly downloadWordDraft: Locator;
+  readonly downloadFinalZip: Locator;
   readonly buttonAddObjection: Locator;
   readonly textfieldObjection: Locator;
   readonly buttonSaveObjection: Locator;
@@ -19,15 +19,15 @@ export class CsbFinalizeCandidateListsPage {
       name: "Vaststellen kandidatenlijsten",
       exact: true,
     });
-    this.downloadPdfFinal = this.page
+    this.downloadPdfDraft = this.page
       .getByRole("link", { name: "Download PDF" })
-      .and(this.page.locator("#i4-final-pdf"));
-    this.downloadWordFinal = this.page
+      .and(this.page.locator("#i4-draft-pdf"));
+    this.downloadWordDraft = this.page
       .getByRole("link", { name: "Download Word" })
-      .and(this.page.locator("#i4-final-docx"));
-    this.downloadEml = this.page.getByRole("link", {
-      name: "EML-bestanden downloaden",
-    });
+      .and(this.page.locator("#i4-draft-docx"));
+    this.downloadFinalZip = this.page
+      .getByRole("link", { name: "Download afrondings ZIP" })
+      .and(this.page.locator("#final-zip"));
     this.buttonAddObjection = this.page.getByRole("link", {
       name: "Bezwaar toevoegen",
     });

@@ -3,8 +3,8 @@
 use super::strings;
 use crate::models::{
     i4::{
-        CorrectedAppellation, I4, NumberedOnDistricts, NumberedOnVotes, RemovedAppellation,
-        RemovedCandidate, RemovedCandidates,
+        CorrectedAppellation, I4, I4Status, NumberedOnDistricts, NumberedOnVotes,
+        RemovedAppellation, RemovedCandidate, RemovedCandidates,
     },
     inputs::{DistrictLists, OmissionGroup, PublicSession, ValidList, ValidListCandidate},
 };
@@ -215,7 +215,7 @@ fn i4_example(
     numbered_based_on_districts: Vec<NumberedOnDistricts>,
     objections: Vec<String>,
     response_objections: Option<String>,
-    is_draft: bool,
+    document_status: I4Status,
 ) -> I4 {
     I4 {
         election_name: "de Eerste Kamer der Staten-Generaal".to_string(),
@@ -232,7 +232,7 @@ fn i4_example(
         numbered_based_on_districts,
         objections,
         response_objections,
-        is_draft,
+        document_status,
     }
 }
 
@@ -256,7 +256,8 @@ pub fn i4_example_1() -> I4 {
             "Namens De Herstelde Partij wordt de Kiesraad bedankt voor al het werk en de hulp bij het proces. De partij heeft dat als zeer prettig ervaren, maar het zou fijn zijn als het systeem wordt aangepast.",
         ]),
         Some("Reactie van de Kiesraad op de bezwaren:\nWat betreft de opmerkingen die door een aantal bezwaarmakers zijn gemaakt over het proces van het verkrijgen van ondersteuningsverklaringen stelt de Kiesraad dit ook heel vervelend te vinden. Het gaat hier over een proces onder de verantwoordelijkheid van de gemeenten. De Kiesraad geeft gemeenten informatie en instrueert hen.".to_string()),
-    false)
+        I4Status::Final(Some("C0FF 33C0 FF33 CAFE C0FF 33C0 FF33 CAFE".to_string()))
+    )
 }
 
 pub fn i4_example_2() -> I4 {
@@ -275,6 +276,6 @@ pub fn i4_example_2() -> I4 {
         ],
         Vec::new(),
         None,
-        true,
+        I4Status::Draft,
     )
 }

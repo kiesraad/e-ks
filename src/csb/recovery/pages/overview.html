@@ -14,24 +14,7 @@
   </div>
 {% endblock %}
 {% block content %}
-  <div class="examination">
-    <div class="examination-side">
-      <div class="card mb-md">
-        <div class="card-header">
-          <div class="badge {% if all_omissions_assessed %}unlocked{% else %}locked{% endif %} info"></div>
-          <div>
-            <h4>{{ "csb.recovery.finish_title"|trans }}</h4>
-          </div>
-        </div>
-        <div class="card-content">
-          <p>{{ "csb.recovery.finish_note"|trans }}</p>
-          <a href="{{ crate::csb::examination::paths::CsbI4DraftDocxDownloadPath }}"
-             class="button secondary icon-download mt-md">{{ "csb.recovery.download_i4_word"|trans }}</a>
-          <a href="{{ crate::csb::examination::paths::CsbI4DraftDownloadPath }}"
-             class="button {% if all_omissions_assessed %}primary{% else %}secondary{% endif %} icon-download mt-md">{{ "csb.recovery.download_i4_pdf"|trans }}</a>
-        </div>
-      </div>
-    </div>
+  <div>
     <div class="examination-main card card-plain">
       {% if political_groups.is_empty() %}
         <p class="font-italic">{{ "csb.no_political_groups_added"|trans }}</p>

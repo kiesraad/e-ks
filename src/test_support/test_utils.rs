@@ -485,6 +485,30 @@ pub async fn zip_entry_names(response: axum::response::Response) -> Vec<String> 
         .collect()
 }
 
+/// The contents of entry `name` in the ZIP archive `bytes`.
+pub async fn zip_entry(bytes: &[u8], name: &str) -> Vec<u8> {
+    use async_zip::base::read1::seek::ZipArchiveReader;
+    use futures_lite::{AsyncReadExt, io::Cursor};
+
+    let mut zip = ZipArchiveReader::open(Cursor::new(bytes))
+        .await
+        .expect("zip");
+    let index = zip
+        .find(name.as_bytes())
+        .expect("zip entry lookup")
+        .next()
+        .unwrap_or_else(|| panic!("no zip entry {name}"));
+    let mut contents = Vec::new();
+    zip.file(index)
+        .await
+        .expect("zip entry")
+        .read_to_end(&mut contents)
+        .await
+        .expect("zip entry contents");
+
+    contents
+}
+
 async fn response_body(response: axum::response::Response) -> bytes::Bytes {
     use http_body_util::BodyExt;
 

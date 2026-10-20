@@ -7,10 +7,7 @@ use crate::{
         examination::extractors::CsbPoliticalGroups,
         finalise::{
             numbering::ListNumbering,
-            paths::{
-                CsbCandidateListOverviewDownloadPath, CsbCandidateListPublicationDownloadPath,
-                CsbFinalisePath, CsbListOrderPath,
-            },
+            paths::{CsbFinalisePath, CsbListOrderPath},
         },
     },
     filters,
@@ -77,40 +74,6 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         response_body_string(response).await
-    }
-
-    /// The I 4 download buttons point at the PDF and Word endpoints.
-    #[tokio::test]
-    async fn overview_links_the_i4_downloads() {
-        let body = render(CsbMainStore::new_for_test(), vec![]).await;
-
-        assert!(body.contains(r#"href="/csb/examination/i4.pdf""#));
-        assert!(body.contains(r#"href="/csb/examination/i4.docx""#));
-        assert!(body.contains("Add objection"));
-        // The page leads back to the CSB overview.
-        assert!(body.contains(r#"href="/csb" class="button secondary">Back<"#));
-    }
-
-    /// Each candidate list download is captioned with its own document.
-    #[tokio::test]
-    async fn overview_links_the_candidate_list_downloads() {
-        let body = render(CsbMainStore::new_for_test(), vec![]).await;
-        let link = |href: &str| {
-            let start = body
-                .find(&format!(r#"href="{href}""#))
-                .expect("download link");
-            let end = start + body[start..].find("</a>").expect("closing tag");
-            &body[start..end]
-        };
-
-        assert!(
-            link("/csb/examination/overzicht-kandidatenlijsten.pdf")
-                .ends_with(">Download candidate list overview")
-        );
-        assert!(
-            link("/csb/examination/publicatie-kandidatenlijsten.pdf")
-                .ends_with(">Download candidate list publication")
-        );
     }
 
     /// The I 4 hearing is recorded here, in phase 4, and nowhere else.

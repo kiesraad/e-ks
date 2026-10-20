@@ -1,30 +1,21 @@
-use axum::{extract::State, response::Response};
-
 use crate::{
     AppError, AppRequestState, CsbContext, CsbMainStore,
     constants::DEFAULT_DATE_FORMAT,
     core::ModelLocale,
-    csb::finalise::{
-        numbering::list_numbering,
-        paths::{CsbCandidateListOverviewDocxDownloadPath, CsbCandidateListOverviewDownloadPath},
-    },
-    models::{
-        Pdf, candidate_list_overview::CandidateListOverview, csb_model_inputs::lists_overview,
-    },
+    csb::finalise::numbering::list_numbering,
+    models::{candidate_list_overview::CandidateListOverview, csb_model_inputs::lists_overview},
 };
 
-async fn candidate_list_overview_model<S: AppRequestState>(
-    context: CsbContext,
-    main_store: CsbMainStore,
+pub(super) async fn candidate_list_overview_model<S: AppRequestState>(
+    context: &CsbContext,
+    main_store: &CsbMainStore,
     state: &S,
 ) -> Result<CandidateListOverview, AppError> {
     let election = main_store.election;
     let registry = state.csb_store_registry();
-    let mut numbering = list_numbering(registry, &main_store).await?;
+    let mut numbering = list_numbering(registry, main_store).await?;
 
-    numbering
-        .record_if_incomplete(&context, &main_store)
-        .await?;
+    numbering.record_if_incomplete(context, main_store).await?;
 
     Ok(CandidateListOverview {
         election_name: election.formal_title(ModelLocale::Nl),
@@ -35,32 +26,6 @@ async fn candidate_list_overview_model<S: AppRequestState>(
         electoral_districts: election.electoral_districts().to_vec(),
         groups: lists_overview(registry, &election, &numbering.stream_ids()).await?,
     })
-}
-
-/// The overview of the candidate lists, as PDF
-pub async fn gen_candidate_list_overview<S: AppRequestState>(
-    _: CsbCandidateListOverviewDownloadPath,
-    context: CsbContext,
-    main_store: CsbMainStore,
-    State(state): State<S>,
-) -> Result<Response, AppError> {
-    candidate_list_overview_model(context, main_store, &state)
-        .await?
-        .pdf_response()
-        .await
-}
-
-/// The overview of the candidate lists, as Word
-pub async fn gen_candidate_list_overview_docx<S: AppRequestState>(
-    _: CsbCandidateListOverviewDocxDownloadPath,
-    context: CsbContext,
-    main_store: CsbMainStore,
-    State(state): State<S>,
-) -> Result<Response, AppError> {
-    candidate_list_overview_model(context, main_store, &state)
-        .await?
-        .docx_response()
-        .await
 }
 
 #[cfg(test)]
@@ -116,15 +81,13 @@ mod tests {
 
         let numbered = [(1, "Eerste"), (2, "Tweede")];
         let model =
-            candidate_list_overview_model(CsbContext::new_test(), main_store.clone(), &state)
-                .await?;
+            candidate_list_overview_model(&CsbContext::new_test(), &main_store, &state).await?;
         assert_eq!(numbers(&model), numbered);
         assert_eq!(main_store.list_order_events(), 1);
         assert_eq!(main_store.list_order(), [first, second]);
 
         let model =
-            candidate_list_overview_model(CsbContext::new_test(), main_store.clone(), &state)
-                .await?;
+            candidate_list_overview_model(&CsbContext::new_test(), &main_store, &state).await?;
         assert_eq!(numbers(&model), numbered);
         assert_eq!(main_store.list_order_events(), 1);
 
