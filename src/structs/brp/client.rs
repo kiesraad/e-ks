@@ -18,6 +18,7 @@ use crate::{
         common::{Bsn, BsnOrNoneConfirmed, DateOfBirth, Gender, LastNamePrefix},
         persons::{Person, PersonId},
     },
+    utils::describe_json_error,
 };
 
 /// The BRP accepts at most twenty burgerservicenummers per request.
@@ -143,10 +144,15 @@ impl BrpClient {
             .await?
             .error_for_status()?;
 
-        match response.json::<BrpResponse>().await? {
-            BrpResponse::ConsultWithBsn { persons }
-            | BrpResponse::SearchByLastNameAndDateOfBirth { persons } => Ok(persons),
-        }
+        // Decoded with the path tracked, so a body this build cannot read is
+        // reported by field and never by value: it holds personal data.
+        let body = response.text().await?;
+        let mut json = serde_json::Deserializer::from_str(&body);
+        serde_path_to_error::deserialize::<_, BrpResponse>(&mut json)
+            .map(|response| response.persons)
+            .map_err(|err| {
+                AppError::BrpError(format!("unusable response: {}", describe_json_error(&err)))
+            })
     }
 
     /// Send `query` on behalf of `persons` and add it to `lookups` with what
@@ -671,19 +677,14 @@ fn parse_brp_date(raw: &str) -> Option<NaiveDate> {
     NaiveDate::parse_from_str(raw.trim(), BRP_DATE_FORMAT).ok()
 }
 
+/// The answer to either query type: both carry the persons found under
+/// `personen`. A plain struct rather than an enum tagged on `type`, which
+/// serde decodes through a buffer that loses the field path a decode error
+/// is reported by.
 #[derive(Debug, Deserialize)]
-#[serde(tag = "type")]
-pub enum BrpResponse {
-    #[serde(rename = "RaadpleegMetBurgerservicenummer")]
-    ConsultWithBsn {
-        #[serde(rename = "personen")]
-        persons: Vec<BrpPerson>,
-    },
-    #[serde(rename = "ZoekMetGeslachtsnaamEnGeboortedatum")]
-    SearchByLastNameAndDateOfBirth {
-        #[serde(rename = "personen")]
-        persons: Vec<BrpPerson>,
-    },
+struct BrpResponse {
+    #[serde(rename = "personen")]
+    persons: Vec<BrpPerson>,
 }
 
 #[cfg(test)]
@@ -1448,6 +1449,40 @@ mod tests {
             batch.outcome.is_err(),
             "a 503 from the BRP must not be ignored"
         );
+    }
+
+    /// A response this application cannot read is reported by field, never
+    /// by value: what the BRP sends back is personal data.
+    #[tokio::test]
+    async fn an_unreadable_brp_response_is_reported_without_its_contents() {
+        let router = Router::new().route(
+            &format!("/{}", constants::BRP_PERSONS_ENDPOINT),
+            post(|| async {
+                axum::Json(json!({
+                    "type": "RaadpleegMetBurgerservicenummer",
+                    "personen": "Jansen",
+                }))
+            }),
+        );
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
+
+        let (person, _) = candidate();
+        let client = BrpClient::new_for_test(&format!("http://{addr}"));
+        let batch = client.verify_batch(std::slice::from_ref(&person)).await;
+
+        server.abort();
+        let error = match batch.outcome {
+            Err(AppError::BrpError(error)) => error,
+            other => panic!("expected a BRP error, got {other:?}"),
+        };
+        assert!(error.contains("`personen`"), "{error}");
+        assert!(!error.contains("Jansen"), "{error}");
+        assert!(matches!(
+            &batch.lookups[0].outcome,
+            BrpLookupOutcome::Failed { error } if !error.contains("Jansen")
+        ));
     }
 
     /// Every request is on record: the lookup by burgerservicenummer, the
