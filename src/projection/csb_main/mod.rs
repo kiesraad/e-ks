@@ -35,10 +35,6 @@ pub struct CsbMainStoreData {
     pub(crate) sign_counts: HashMap<CredentialId, u32>,
 }
 
-/// Attempts to record a login once the stream moved under it; beyond this
-/// the login fails closed rather than spin.
-const RECORD_LOGIN_ATTEMPTS: usize = 3;
-
 impl CsbMainStore {
     /// Records a security-key login with its signature counter (WebAuthn
     /// §7.2 step 24) as one step with the step 22 counter check: counter and
@@ -51,26 +47,17 @@ impl CsbMainStore {
         credential_id: CredentialId,
         sign_count: u32,
     ) -> Result<bool, AppError> {
-        for _ in 0..RECORD_LOGIN_ATTEMPTS {
-            let data = self.snapshot();
+        self.update_when(|data| {
             let stored = data.sign_counts.get(&credential_id).copied().unwrap_or(0);
-            if !sign_count_advanced(stored, sign_count) {
-                return Ok(false);
-            }
-            let action = CsbMainAction::SecurityKeyLogin {
-                credential_id: credential_id.clone(),
-                sign_count,
-            };
-            match self
-                .update_if_unchanged(action.by(user.clone()), data.last_event_id())
-                .await
-            {
-                Ok(()) => return Ok(true),
-                Err(AppError::Conflict) => self.load().await?,
-                Err(err) => return Err(err),
-            }
-        }
-        Ok(false)
+            sign_count_advanced(stored, sign_count).then(|| {
+                CsbMainAction::SecurityKeyLogin {
+                    credential_id: credential_id.clone(),
+                    sign_count,
+                }
+                .by(user.clone())
+            })
+        })
+        .await
     }
 }
 

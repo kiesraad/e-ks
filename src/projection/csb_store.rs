@@ -49,15 +49,14 @@ impl CsbStore {
         self.stream.update(action.by(self.user.clone())).await
     }
 
-    /// [`Self::update`], refused with [`AppError::Conflict`] when the stream
-    /// moved past `expected_last_event_id`.
-    pub async fn update_if_unchanged(
+    /// [`Self::update`] for an action decided on the projection it lands on;
+    /// see [`CsbStream::update_when`].
+    pub async fn update_when(
         &self,
-        action: CsbAction,
-        expected_last_event_id: usize,
-    ) -> Result<(), AppError> {
+        mut decide: impl FnMut(&CsbStoreData) -> Option<CsbAction>,
+    ) -> Result<bool, AppError> {
         self.stream
-            .update_if_unchanged(action.by(self.user.clone()), expected_last_event_id)
+            .update_when(|data| decide(data).map(|action| action.by(self.user.clone())))
             .await
     }
 

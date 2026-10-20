@@ -298,6 +298,10 @@ where
     }
 }
 
+/// Attempts before [`Store::update_when`] gives up on a stream that keeps
+/// moving under it; beyond this the caller fails closed rather than spin.
+const UPDATE_WHEN_ATTEMPTS: usize = 3;
+
 impl<D> Store<D>
 where
     D: StoreData,
@@ -331,6 +335,31 @@ where
         expected_last_event_id: usize,
     ) -> Result<(), AppError> {
         self.append(event, Some(expected_last_event_id)).await
+    }
+
+    /// Append the event `decide` derives from the projection, as one step
+    /// with that decision: the append is refused when the stream moved since
+    /// the snapshot `decide` saw, and the decision is then made again on the
+    /// fresh projection, up to [`UPDATE_WHEN_ATTEMPTS`] times. `Ok(false)`
+    /// means `decide` declined or the stream kept moving.
+    pub async fn update_when(
+        &self,
+        mut decide: impl FnMut(&D) -> Option<D::Event>,
+    ) -> Result<bool, AppError> {
+        for _ in 0..UPDATE_WHEN_ATTEMPTS {
+            let data = self.snapshot();
+            let Some(event) = decide(&data) else {
+                return Ok(false);
+            };
+            // A refused append has already caught the projection up.
+            match self.append(event, Some(data.last_event_id())).await {
+                Ok(()) => return Ok(true),
+                Err(AppError::Conflict) => continue,
+                Err(err) => return Err(err),
+            }
+        }
+        tracing::warn!(stream_id = %self.stream_id, "event not recorded: stream kept changing");
+        Ok(false)
     }
 
     async fn append(&self, event: D::Event, expected: Option<usize>) -> Result<(), AppError> {
@@ -442,6 +471,41 @@ mod tests {
         let data = store.snapshot();
         assert_eq!(data.last_event_id(), 2);
         assert_eq!(data.applied, vec![10, 11]);
+
+        Ok(())
+    }
+
+    /// The decision is made on the projection the event lands on: a stream
+    /// that moved after the snapshot gets the decision made again on the new
+    /// one, and a declined decision leaves the stream untouched.
+    #[tokio::test]
+    async fn update_when_decides_on_the_projection_it_appends_to() -> Result<(), AppError> {
+        let store = test_store();
+        store.update(10).await?;
+
+        let mut seen = Vec::new();
+        let recorded = store
+            .update_when(|data| {
+                seen.push(data.last_event_id());
+                if seen.len() == 1 {
+                    // Another writer lands between the snapshot and the append.
+                    store.write().apply(StoreEvent {
+                        event_id: 2,
+                        payload: 20,
+                        created_at: Utc::now(),
+                        hash: super::super::GENESIS_HASH,
+                    });
+                }
+                Some(data.last_event_id() * 100)
+            })
+            .await?;
+        assert!(recorded);
+        assert_eq!(seen, vec![1, 2]);
+        assert_eq!(store.snapshot().applied, vec![10, 20, 200]);
+
+        let declined = store.update_when(|_| None).await?;
+        assert!(!declined);
+        assert_eq!(store.snapshot().last_event_id(), 3);
 
         Ok(())
     }
