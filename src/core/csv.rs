@@ -256,7 +256,7 @@ where
 /// since none of the trigger characters are multi-byte UTF-8.
 fn escape_csv_formula(cell: &str) -> Cow<'_, str> {
     match cell.as_bytes().first() {
-        Some(b'=' | b'+' | b'-' | b'@' | b'\t' | b'\r') => {
+        Some(b'=' | b'+' | b'-' | b'@' | b'\'' | b'\t' | b'\r') => {
             let mut out = String::with_capacity(cell.len() + 1);
             out.push('\'');
             out.push_str(cell);
@@ -316,10 +316,18 @@ impl<T: DeserializeOwned> Csv<T> {
         let mut errors = vec![];
 
         let mut reader = reader_from_bytes(data);
-        let mut rows = reader.deserialize::<T>().enumerate();
+        let headers = reader.headers().cloned();
+        let mut rows = reader.records().enumerate();
         while records.len() < max_records
             && let Some((index, res)) = rows.next()
         {
+            let res = res.and_then(|row| {
+                let row: StringRecord = row
+                    .iter()
+                    .map(|cell| cell.strip_prefix('\'').unwrap_or(cell))
+                    .collect();
+                row.deserialize::<T>(headers.as_ref().ok())
+            });
             match res {
                 Ok(record) => records.push(record),
                 Err(error) => {
@@ -627,8 +635,8 @@ mod tests {
             filename: "out.csv".to_string(),
             headers: Some(vec!["voorletters", "achternaam"]),
             records: vec![Person {
-                voorletters: "H.".to_string(),
-                achternaam: "Jansen".to_string(),
+                voorletters: "'=H.".to_string(),
+                achternaam: "-Jansen".to_string(),
             }],
         };
 
@@ -653,7 +661,7 @@ mod tests {
 
     #[test]
     fn escape_csv_formula_neutralises_leading_special_characters() {
-        for trigger in ["=", "+", "-", "@", "\t", "\r"] {
+        for trigger in ["=", "+", "-", "@", "'", "\t", "\r"] {
             let cell = format!("{trigger}HYPERLINK(\"x\")");
             let escaped = escape_csv_formula(&cell);
             assert!(

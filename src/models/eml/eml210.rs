@@ -251,6 +251,32 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn export_without_substitute_submitters_has_one_proposer() {
+        use eml_nl::io::{EMLParsingMode, EMLRead, EMLReadResult};
+
+        let store = PgStore::new_for_test();
+        let list_id = CandidateListId::new();
+        sample_candidate_list(list_id).create(&store).await.unwrap();
+
+        let eml = eml210(
+            &store,
+            &ElectionConfig::EK27,
+            &store.get_political_group(),
+            list_id,
+            ModelLocale::Nl,
+        )
+        .unwrap();
+
+        let eml = String::from_utf8(eml).unwrap();
+        let EMLReadResult::Ok(EML::Nomination(doc), _) =
+            EML::parse_eml(&eml, EMLParsingMode::StrictFallback)
+        else {
+            panic!("{eml}");
+        };
+        assert_eq!(doc.nomination_data.nominate.proposers.len(), 1);
+    }
+
+    #[tokio::test]
     async fn ek_export() {
         // setup
         let store = PgStore::new_for_test();
