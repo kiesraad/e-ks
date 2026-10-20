@@ -241,7 +241,7 @@ leest daaruit alleen de gegevens die het heeft opgevraagd.
       "geboorte": { "datum": { "datum": "1990-12-11" } },
       "overlijden": { "datum": { "datum": "2026-01-31" } },
       "nationaliteiten": [{ "nationaliteit": { "code": "0001" } }],
-      "uitsluitingKiesrecht": { "uitgeslotenVanKiesrecht": false },
+      "uitsluitingKiesrecht": { "uitgeslotenVanKiesrecht": true, "einddatum": { "type": "Datum", "datum": "2027-01-01" } },
       "verblijfplaats": { "type": "Adres", "verblijfadres": { "woonplaats": "Utrecht" } },
       "partners": [{ "naam": { "geslachtsnaam": "Jansen" } }]
     }
@@ -260,7 +260,8 @@ leest daaruit alleen de gegevens die het heeft opgevraagd.
 | `overlijden` | aanwezig als een overlijden is geregistreerd | Verkiesbaarheid: overleden |
 | `overlijden.datum.datum` | jaar-maand-dag; ontbreekt bij een onvolledige datum | De datum in de bevinding "overleden" |
 | `nationaliteiten[].nationaliteit.code` | code uit de landelijke tabel Nationaliteiten | Verkiesbaarheid: code `0001` (Nederlandse) moet voorkomen |
-| `uitsluitingKiesrecht.uitgeslotenVanKiesrecht` | waar/onwaar | Verkiesbaarheid: uitsluiting van het kiesrecht |
+| `uitsluitingKiesrecht.uitgeslotenVanKiesrecht` | waar; alleen aanwezig zolang de uitsluiting loopt | Verkiesbaarheid: uitsluiting van het kiesrecht |
+| `uitsluitingKiesrecht.einddatum.datum` | jaar-maand-dag; ontbreekt bij een onvolledige of onbekende datum | De datum in de bevinding "uitgesloten van het kiesrecht" |
 | `verblijfplaats.type` | `Adres`, `Locatie`, `VerblijfplaatsBuitenland` of `VerblijfplaatsOnbekend` | Bepalen welke bevinding over de verblijfplaats van toepassing is |
 | `verblijfplaats.verblijfadres.woonplaats` | tekst, alleen bij type `Adres` | Vergelijken met de woonplaats van de kandidaat |
 | `partners[].naam.voorvoegsel` en `.geslachtsnaam` | tekst | De achternamen waaronder de kandidaat op de lijst mag staan |
@@ -382,7 +383,7 @@ wordt gecontroleerd op de eigen gegevens van de kandidaat, niet via de BRP)
 | --- | --- | --- |
 | `Deceased` | Volgens de BRP is deze kandidaat overleden op {datum}. Of, zonder volledige datum: Volgens de BRP is deze kandidaat overleden, zonder volledige datum van overlijden. | De BRP heeft een overlijden geregistreerd. |
 | `NotDutch` | Volgens de BRP heeft deze kandidaat niet de Nederlandse nationaliteit. | Geen enkele nationaliteit in het antwoord heeft code `0001`. |
-| `ExcludedFromSuffrage` | Volgens de BRP is deze kandidaat uitgesloten van het kiesrecht. | `uitsluitingKiesrecht.uitgeslotenVanKiesrecht` is waar. |
+| `ExcludedFromSuffrage` | Volgens de BRP is deze kandidaat uitgesloten van het kiesrecht tot {datum}. Of, zonder volledige einddatum: Volgens de BRP is deze kandidaat uitgesloten van het kiesrecht. | `uitsluitingKiesrecht.uitgeslotenVanKiesrecht` is waar. De BRP levert dit alleen zolang de uitsluiting loopt: een uitsluiting waarvan de einddatum vandaag of eerder is, wordt niet geleverd. |
 
 ### 6.3 Status van de controleronde: *Status BRP-controle gezet*
 
@@ -422,8 +423,9 @@ verstuurd (de laatste regel) laat geen spoor na in het auditlog.
 Een fout bij een bevraging stopt de hele ronde. De status van de lijst wordt
 *voortijdig gestopt* met de foutmelding, en de fout wordt in het
 applicatielog geschreven. Een onverwachte crash van de achtergrondtaak wordt op
-dezelfde manier afgehandeld. De foutmelding is de volledige tekst van de fout,
-bijvoorbeeld `Upstream error: error sending request for url (...)`.
+dezelfde manier afgehandeld. De foutmelding is de tekst van de fout zonder
+het adres van het BRP endpoint, bijvoorbeeld `Upstream error: HTTP status
+server error (500 Internal Server Error)`.
 
 Een onbereikbare tussenpartij lijkt daardoor nooit op een groep kandidaten
 zonder bevindingen. De kandidaten in de mislukte groep en in alle latere groepen

@@ -137,7 +137,11 @@
           "field": "PlaceOfResidence"
         }
       },
-      "ExcludedFromSuffrage"
+      {
+        "ExcludedFromSuffrage": {
+          "until": null
+        }
+      }
     ]
   },
   {

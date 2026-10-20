@@ -300,7 +300,7 @@ impl From<Infallible> for AppError {
 
 impl From<reqwest::Error> for AppError {
     fn from(err: reqwest::Error) -> Self {
-        Self::UpstreamError(err)
+        Self::UpstreamError(err.without_url())
     }
 }
 

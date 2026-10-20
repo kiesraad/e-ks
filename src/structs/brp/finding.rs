@@ -179,6 +179,29 @@ enum BrpFindingRepr {
         handled: bool,
     },
     Bare(BrpFindingKind),
+    /// Recorded before the einddatum was read, when the kind had no fields.
+    FlaggedLegacy {
+        kind: LegacyBrpFindingKind,
+        #[serde(default)]
+        handled: bool,
+    },
+    BareLegacy(LegacyBrpFindingKind),
+}
+
+/// Kinds whose stored form changed; see [`BrpFindingRepr`].
+#[derive(Deserialize)]
+enum LegacyBrpFindingKind {
+    ExcludedFromSuffrage,
+}
+
+impl From<LegacyBrpFindingKind> for BrpFindingKind {
+    fn from(kind: LegacyBrpFindingKind) -> Self {
+        match kind {
+            LegacyBrpFindingKind::ExcludedFromSuffrage => {
+                Self::ExcludedFromSuffrage { until: None }
+            }
+        }
+    }
 }
 
 impl From<BrpFindingRepr> for BrpFinding {
@@ -186,6 +209,11 @@ impl From<BrpFindingRepr> for BrpFinding {
         match repr {
             BrpFindingRepr::Flagged { kind, handled } => Self { kind, handled },
             BrpFindingRepr::Bare(kind) => Self::from(kind),
+            BrpFindingRepr::FlaggedLegacy { kind, handled } => Self {
+                kind: kind.into(),
+                handled,
+            },
+            BrpFindingRepr::BareLegacy(kind) => Self::from(BrpFindingKind::from(kind)),
         }
     }
 }
@@ -260,7 +288,8 @@ pub enum BrpFindingKind {
     /// The BRP records no Dutch nationality for this candidate.
     NotDutch,
     /// The BRP records this candidate as excluded from the right to vote.
-    ExcludedFromSuffrage,
+    /// `until` is when that ends, if the BRP holds a full date for it.
+    ExcludedFromSuffrage { until: Option<NaiveDate> },
     /// The candidate lives abroad, so the BRP holds no `woonplaats`.
     ResidenceAbroad,
     /// The candidate's BRP residence is a location rather than an address (a
@@ -288,7 +317,7 @@ impl BrpFindingKind {
             | Self::BsnMatchedByPersonalDetails { .. }
             | Self::PersonalDetailsNotUnique => Some(BrpCheckedField::Bsn),
             Self::Deceased { .. } => Some(BrpCheckedField::DateOfBirth),
-            Self::NotDutch | Self::ExcludedFromSuffrage => None,
+            Self::NotDutch | Self::ExcludedFromSuffrage { .. } => None,
         }
     }
 
@@ -390,7 +419,14 @@ impl BrpFindingKind {
                 trans!("csb.brp.finding.deceased_date_unknown", locale)
             }
             Self::NotDutch => trans!("csb.brp.finding.not_dutch", locale),
-            Self::ExcludedFromSuffrage => {
+            Self::ExcludedFromSuffrage { until: Some(date) } => {
+                trans!(
+                    "csb.brp.finding.excluded_from_suffrage_until",
+                    locale,
+                    date.format(DEFAULT_DATE_FORMAT).to_string()
+                )
+            }
+            Self::ExcludedFromSuffrage { until: None } => {
                 trans!("csb.brp.finding.excluded_from_suffrage", locale)
             }
             Self::ResidenceAbroad => trans!("csb.brp.finding.residence_abroad", locale),
@@ -465,6 +501,42 @@ mod tests {
             }
         );
         assert!(!bare.handled);
+    }
+
+    #[test]
+    fn an_exclusion_recorded_before_the_einddatum_was_read_still_reads() {
+        let expected = BrpFindingKind::ExcludedFromSuffrage { until: None };
+
+        let bare: BrpFinding = serde_json::from_str(r#""ExcludedFromSuffrage""#).unwrap();
+        assert_eq!(bare.kind, expected);
+
+        let flagged: BrpFinding =
+            serde_json::from_str(r#"{"kind":"ExcludedFromSuffrage","handled":true}"#).unwrap();
+        assert_eq!(flagged.kind, expected);
+        assert!(flagged.handled);
+
+        let current = BrpFinding::from(BrpFindingKind::ExcludedFromSuffrage {
+            until: NaiveDate::from_ymd_opt(2027, 1, 1),
+        });
+        let json = serde_json::to_string(&current).unwrap();
+        let read: BrpFinding = serde_json::from_str(&json).unwrap();
+        assert_eq!(read, current);
+    }
+
+    #[test]
+    fn an_exclusion_names_its_einddatum_when_the_brp_holds_one() {
+        let until = BrpFindingKind::ExcludedFromSuffrage {
+            until: NaiveDate::from_ymd_opt(2027, 1, 1),
+        };
+        assert_eq!(
+            until.message(Locale::Nl),
+            "Volgens de BRP is deze kandidaat uitgesloten van het kiesrecht tot 01-01-2027."
+        );
+        let open = BrpFindingKind::ExcludedFromSuffrage { until: None };
+        assert_eq!(
+            open.message(Locale::Nl),
+            "Volgens de BRP is deze kandidaat uitgesloten van het kiesrecht."
+        );
     }
 
     #[test]

@@ -137,7 +137,6 @@ pub fn matching_record(bsn: &str) -> Value {
         "geslacht": { "code": "V" },
         "geboorte": { "datum": { "datum": "1990-12-11" } },
         "nationaliteiten": [ { "nationaliteit": { "code": "0001" } } ],
-        "uitsluitingKiesrecht": { "uitgeslotenVanKiesrecht": false },
         "verblijfplaats": {
             "type": "Adres",
             "verblijfadres": { "woonplaats": "Utrecht" },

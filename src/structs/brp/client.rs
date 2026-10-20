@@ -672,7 +672,9 @@ fn eligibility_findings(brp_person: &BrpPerson) -> Vec<BrpFindingKind> {
     }
 
     if brp_person.is_excluded_from_suffrage() {
-        findings.push(BrpFindingKind::ExcludedFromSuffrage);
+        findings.push(BrpFindingKind::ExcludedFromSuffrage {
+            until: brp_person.suffrage_exclusion_end().and_then(parse_brp_date),
+        });
     }
 
     findings
@@ -1301,12 +1303,28 @@ mod tests {
                 .contains(&BrpFindingKind::NotDutch)
         );
 
+        // The BRP only sends the exclusion while it runs, with the einddatum
+        // when it holds one.
         let mut excluded = matching_record(&bsn);
-        excluded["uitsluitingKiesrecht"]["uitgeslotenVanKiesrecht"] = json!(true);
+        excluded["uitsluitingKiesrecht"] = json!({
+            "uitgeslotenVanKiesrecht": true,
+            "einddatum": { "type": "Datum", "datum": "2027-01-01" },
+        });
+        assert!(findings_for_record(&person, excluded).await.contains(
+            &BrpFindingKind::ExcludedFromSuffrage {
+                until: NaiveDate::from_ymd_opt(2027, 1, 1),
+            }
+        ));
+
+        let mut excluded_year_only = matching_record(&bsn);
+        excluded_year_only["uitsluitingKiesrecht"] = json!({
+            "uitgeslotenVanKiesrecht": true,
+            "einddatum": { "type": "JaarDatum", "jaar": 2030 },
+        });
         assert!(
-            findings_for_record(&person, excluded)
+            findings_for_record(&person, excluded_year_only)
                 .await
-                .contains(&BrpFindingKind::ExcludedFromSuffrage)
+                .contains(&BrpFindingKind::ExcludedFromSuffrage { until: None })
         );
     }
 
@@ -1426,13 +1444,16 @@ mod tests {
             batch.outcome.is_err(),
             "an unreachable BRP must not look like a candidate with no findings"
         );
-        // The failed request is on record, with why it failed.
+        // The failed request is on record, with why it failed but not where
+        // it went: the URL is not for the committee to see.
         assert_eq!(batch.lookups.len(), 1);
         assert_eq!(batch.lookups[0].persons, vec![person.id]);
         assert!(matches!(
             &batch.lookups[0].outcome,
-            BrpLookupOutcome::Failed { error } if !error.is_empty()
+            BrpLookupOutcome::Failed { error } if !error.is_empty() && !error.contains("127.0.0.1")
         ));
+        let error = batch.outcome.unwrap_err().to_string();
+        assert!(!error.contains("127.0.0.1"), "got: {error}");
     }
 
     #[tokio::test]
@@ -1453,10 +1474,16 @@ mod tests {
         let batch = client.verify_batch(std::slice::from_ref(&person)).await;
 
         server.abort();
-        assert!(
-            batch.outcome.is_err(),
-            "a 503 from the BRP must not be ignored"
-        );
+        let error = batch
+            .outcome
+            .expect_err("a 503 from the BRP must not be ignored")
+            .to_string();
+        assert!(error.contains("503"), "got: {error}");
+        assert!(!error.contains(&addr.to_string()), "got: {error}");
+        assert!(matches!(
+            &batch.lookups[0].outcome,
+            BrpLookupOutcome::Failed { error } if !error.contains(&addr.to_string())
+        ));
     }
 
     /// A response this application cannot read is reported by field, never

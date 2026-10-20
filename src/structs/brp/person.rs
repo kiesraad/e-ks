@@ -80,10 +80,14 @@ pub struct BrpNationality {
     pub nationality: Option<BrpCodeValue>,
 }
 
+/// Only delivered while the exclusion runs: the BRP leaves it out once the
+/// einddatum has passed, and never sends `false`.
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct BrpSuffrageExclusion {
     #[serde(rename = "uitgeslotenVanKiesrecht")]
     pub excluded: Option<bool>,
+    #[serde(rename = "einddatum")]
+    pub end_date: Option<BrpDate>,
 }
 
 /// Only `Adres` carries a `woonplaats`. The other shapes are kept apart
@@ -150,5 +154,15 @@ impl BrpPerson {
             .as_ref()
             .and_then(|exclusion| exclusion.excluded)
             .unwrap_or(false)
+    }
+
+    /// When the exclusion ends, if the BRP holds a full date for it.
+    pub fn suffrage_exclusion_end(&self) -> Option<&str> {
+        self.suffrage_exclusion
+            .as_ref()?
+            .end_date
+            .as_ref()?
+            .date
+            .as_deref()
     }
 }
