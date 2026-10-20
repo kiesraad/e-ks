@@ -1,7 +1,7 @@
 //! The typed audit-log diff.
 //!
 //! Entities list their fields ([`AuditFields`], written with [`audit_fields!`]),
-//! [`diff`] compares two states of an entity into [`Change`]s, and
+//! [`diff()`] compares two states of an entity into [`Change`]s, and
 //! [`render_groups`] turns those into translated rows for the templates.
 //! Nothing here goes through JSON: every value keeps its type until it is
 //! rendered.

@@ -39,7 +39,7 @@ pub mod filters {
         value: T,
         _: &dyn askama::Values,
     ) -> askama::Result<Safe<String>> {
-        Ok(Safe(markdown::escape_cell(&value.to_string())))
+        Ok(Safe(markdown::escape(&value.to_string())))
     }
 
     /// Escape a value interpolated into a single-line context (a heading):
