@@ -208,6 +208,16 @@ where
     })
 }
 
+/// A projection with `events` applied in order, numbered from 1.
+#[cfg(test)]
+pub fn replay<D: StoreData>(events: impl IntoIterator<Item = D::Event>) -> D {
+    let mut data = D::default();
+    for (index, event) in events.into_iter().enumerate() {
+        data.apply(StoreEvent::new(index + 1, event));
+    }
+    data
+}
+
 #[cfg(all(test, feature = "database"))]
 mod tests {
     use serde::Serialize;

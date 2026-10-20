@@ -470,14 +470,11 @@ mod tests {
     }
 
     fn replay(events: &[CsbAction]) -> CsbStoreData {
-        let mut data = CsbStoreData::default();
-        for (index, action) in events.iter().enumerate() {
-            data.apply(StoreEvent::new(
-                index + 1,
-                action.clone().by(CsbUser::new_test()),
-            ));
-        }
-        data
+        crate::store::replay(
+            events
+                .iter()
+                .map(|action| action.clone().by(CsbUser::new_test())),
+        )
     }
 
     #[test]
