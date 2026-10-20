@@ -1477,7 +1477,10 @@ mod tests {
         let server = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
 
         let (person, _) = candidate();
-        let client = BrpClient::new_for_test(&format!("http://{addr}"));
+        let client = BrpClient::new_for_test(&format!(
+            "http://{addr}/{}",
+            constants::BRP_PERSONS_ENDPOINT
+        ));
         let batch = client.verify_batch(std::slice::from_ref(&person)).await;
 
         server.abort();
