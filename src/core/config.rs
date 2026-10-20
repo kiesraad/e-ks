@@ -337,13 +337,20 @@ fn check_account_credentials(credentials: &str, directory_url: &str) -> Result<(
 
 /// The CSB guards gate the dedicated listener only, so without one they are
 /// refused rather than silently gating nothing; the PROXY protocol header is
-/// read by the TLS server only.
+/// read by the TLS server only. Outside development the listener is refused
+/// without the allow list as well: it has no CDN or `x-eks-key` gate in front.
 fn check_csb_guards(env: &Env, has_tls: bool) -> Result<(), AppError> {
     let has_listener = env.csb_bind_address.is_some();
     if env.csb_ip_allow_list.is_some() && !has_listener {
         return Err(invalid(
             "CSB_IP_ALLOW_LIST requires CSB_BIND_ADDRESS: the allow list gates the dedicated \
              CSB listener only",
+        ));
+    }
+    if env.csb_ip_allow_list.is_none() && has_listener && !cfg!(feature = "dev-features") {
+        return Err(invalid(
+            "CSB_BIND_ADDRESS requires CSB_IP_ALLOW_LIST: the CSB listener has no CDN or \
+             x-eks-key gate in front",
         ));
     }
     if env.csb_proxy_protocol_from.is_some() && !has_listener {

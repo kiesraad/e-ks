@@ -8,7 +8,7 @@
 use crate::{
     form::{ValidationError, validate_length, validate_teletex_chars},
     transparent_string,
-    utils::locality_aliases::correct_locality_name,
+    utils::{bag::MAX_LOCALITY_CHARS, locality_aliases::correct_locality_name},
 };
 
 transparent_string! {
@@ -19,7 +19,7 @@ impl std::str::FromStr for Locality {
     type Err = ValidationError;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        let trimmed_value = validate_length(value, 1, 200)?;
+        let trimmed_value = validate_length(value, 1, MAX_LOCALITY_CHARS)?;
         validate_teletex_chars(&trimmed_value)?;
 
         let normalized =

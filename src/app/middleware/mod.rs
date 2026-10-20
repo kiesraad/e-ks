@@ -16,7 +16,7 @@ pub mod proxy;
 #[cfg(feature = "dev-features")]
 pub mod dev_login;
 
-pub use csb_access::csb_ip_allow_list_middleware;
+pub use csb_access::{PublicListener, csb_ip_allow_list_middleware};
 pub use eks_key::eks_key_middleware;
 pub use health::{health_router, lb_health_router};
 pub use maintenance::db_gate_middleware;

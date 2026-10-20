@@ -86,6 +86,24 @@ mod tests {
     use super::*;
     use crate::{CsbMainAction, CsbUser, structs::csb::sample_registered_political_group};
 
+    /// The counter check and the record are one step: a counter that does
+    /// not advance past the recorded one is refused, a higher one recorded.
+    #[tokio::test]
+    async fn record_security_key_login_refuses_a_counter_that_did_not_advance() {
+        let store = CsbMainStore::new_for_test();
+        let credential_id = crate::CredentialId::from(vec![0x11; 16]);
+        let record = |sign_count| {
+            store.record_security_key_login(CsbUser::new_test(), credential_id.clone(), sign_count)
+        };
+
+        assert!(record(5).await.unwrap());
+        assert!(!record(5).await.unwrap());
+        assert!(!record(3).await.unwrap());
+        assert!(record(6).await.unwrap());
+        assert_eq!(store.last_sign_count(&credential_id), 6);
+        assert_eq!(store.snapshot().events.len(), 2);
+    }
+
     async fn store_with(groups: &[RegisteredPoliticalGroup]) -> CsbMainStore {
         let store = CsbMainStore::new_for_test();
         for group in groups {

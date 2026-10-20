@@ -34,7 +34,8 @@ use std::fmt::Display;
 pub(crate) use challenge::{Challenge, consume_challenge};
 
 use crate::{CredentialId, CsbUsername, CsbWebauthnConfig, PendingRequestStore};
-use assertion::{Assertion, AssertionError, Expected};
+pub(crate) use assertion::AssertionError;
+use assertion::{Assertion, Expected};
 
 /// A login that passed every check: who logged in, with which key, and the
 /// signature counter that key reported. Step 24 (updating the credential
@@ -132,8 +133,7 @@ pub(crate) async fn verify_login(
     // advance since the key's last login signals a cloned key, which fails
     // the login here (the step leaves that to the relying party). Two zeroes
     // mean the key does not count.
-    let stored = last_sign_count(&user.credential_id);
-    if (sign_count != 0 || stored != 0) && sign_count <= stored {
+    if !sign_count_advanced(last_sign_count(&user.credential_id), sign_count) {
         return Err(rejected(AssertionError::SignCountNotAdvanced));
     }
     Ok(VerifiedLogin {
@@ -141,6 +141,12 @@ pub(crate) async fn verify_login(
         credential_id: user.credential_id.clone(),
         sign_count,
     })
+}
+
+/// Whether a key's `reported` counter advanced past the `stored` one of its
+/// last login (WebAuthn §7.2 step 22). Two zeroes mean the key does not count.
+pub(crate) fn sign_count_advanced(stored: u32, reported: u32) -> bool {
+    (reported == 0 && stored == 0) || reported > stored
 }
 
 #[cfg(test)]

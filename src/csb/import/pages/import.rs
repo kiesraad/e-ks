@@ -21,7 +21,7 @@ use crate::{
     filters,
     projection::WithCorrections,
     redirect_success,
-    store::{StoreData, StoreRegistry},
+    store::StoreRegistry,
     structs::{
         brp::{BRP_BSN_BATCH_SIZE, BrpClient, BrpFinding, BrpStatus},
         persons::Person,
@@ -404,32 +404,16 @@ async fn record_brp_result(
     checked: &Person,
     findings: Vec<BrpFinding>,
 ) -> Result<bool, AppError> {
-    const ATTEMPTS: usize = 3;
-
-    for _ in 0..ATTEMPTS {
-        // the event id first: a change landing after it is caught by the append
-        let expected = store.snapshot().last_event_id();
-        if store.get_person(checked.id, WithCorrections::All).as_ref() != Some(checked) {
-            return Ok(false);
-        }
-
-        let action = CsbAction::BrpPersonChecked {
-            person: checked.id,
-            findings: findings.clone(),
-        };
-        match store.update_if_unchanged(action, expected).await {
-            Ok(()) => return Ok(true),
-            Err(AppError::Conflict) => continue,
-            Err(err) => return Err(err),
-        }
-    }
-
-    tracing::warn!(
-        "BRP result for {} not recorded: stream {} kept changing",
-        checked.id,
-        store.stream_id
-    );
-    Ok(false)
+    store
+        .update_when(|data| {
+            (data.get_person(checked.id, WithCorrections::All).as_ref() == Some(checked)).then(
+                || CsbAction::BrpPersonChecked {
+                    person: checked.id,
+                    findings: findings.clone(),
+                },
+            )
+        })
+        .await
 }
 
 /// Check every candidate not covered by `CsbStoreData::brp_findings` yet,

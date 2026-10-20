@@ -33,6 +33,12 @@ use tracing::warn;
 
 use crate::{AppState, Session, SessionUser, constants::DEFAULT_TIMEZONE, utils::peer_ip_label};
 
+/// Request-extension marker for the public listener next to a dedicated CSB
+/// listener (`CSB_BIND_ADDRESS` set). The session middleware refuses
+/// committee sessions on it.
+#[derive(Debug, Clone, Copy)]
+pub struct PublicListener;
+
 /// The connection's peer address, recorded by the server through
 /// `into_make_service_with_connect_info`.
 fn peer_ip(request: &Request) -> Option<IpAddr> {

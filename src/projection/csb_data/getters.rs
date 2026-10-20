@@ -33,10 +33,7 @@ impl Deref for PgView {
     type Target = PgStoreData;
 
     fn deref(&self) -> &PgStoreData {
-        match self.corrections {
-            WithCorrections::None => &self.data.imported_data,
-            WithCorrections::Paper | WithCorrections::All => &self.data.paper_corrected_data,
-        }
+        self.data.political_group(self.corrections)
     }
 }
 
@@ -48,6 +45,34 @@ pub enum WithCorrections {
     Paper,
     /// Also include CSB ("ambtshalve") corrections
     All,
+}
+
+impl CsbStoreData {
+    /// The political group's projection at the requested correction level;
+    /// CSB corrections are applied on top by the getters that cover them.
+    fn political_group(&self, corrections: WithCorrections) -> &PgStoreData {
+        match corrections {
+            WithCorrections::None => &self.imported_data,
+            WithCorrections::Paper | WithCorrections::All => &self.paper_corrected_data,
+        }
+    }
+
+    /// The person (candidate) with this id, if any.
+    pub fn get_person(&self, person_id: PersonId, corrections: WithCorrections) -> Option<Person> {
+        let mut person = self
+            .political_group(corrections)
+            .persons
+            .get(&person_id)
+            .cloned()?;
+
+        if corrections == WithCorrections::All
+            && let Some(delta) = self.csb_corrected_persons.get(&person_id).cloned()
+        {
+            delta.apply(&mut person);
+        }
+
+        Some(person)
+    }
 }
 
 impl CsbStream {
@@ -411,19 +436,7 @@ impl CsbStream {
 
     /// The person (candidate) with this id, if any.
     pub fn get_person(&self, person_id: PersonId, corrections: WithCorrections) -> Option<Person> {
-        let mut person = self.read(corrections).persons.get(&person_id).cloned()?;
-
-        if corrections == WithCorrections::All
-            && let Some(delta) = self
-                .snapshot()
-                .csb_corrected_persons
-                .get(&person_id)
-                .cloned()
-        {
-            delta.apply(&mut person);
-        }
-
-        Some(person)
+        self.snapshot().get_person(person_id, corrections)
     }
 
     /// Retrieve the first [CandidateList] (ordered on creation date) the person appears on,

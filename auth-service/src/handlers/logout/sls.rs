@@ -61,7 +61,16 @@ async fn process_logout_response<S: AuthState>(
     };
     info!("[SLS] LogoutResponse received");
 
-    let Some(fields) = verified_logout_fields(auth_state, &saml_response) else {
+    // Signature verification is CPU-bound and runs before any authentication
+    // of the caller, so it is kept off the async workers.
+    let verify_state = auth_state.clone();
+    let verified =
+        tokio::task::spawn_blocking(move || verified_logout_fields(&verify_state, &saml_response))
+            .await;
+    let Ok(Some(fields)) = verified else {
+        if verified.is_err() {
+            warn!("[SLS] LogoutResponse verification task failed; ignoring");
+        }
         return;
     };
 

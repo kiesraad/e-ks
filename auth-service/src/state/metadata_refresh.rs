@@ -28,9 +28,9 @@ pub(super) fn spawn(inner: &Arc<Inner>) {
 
 /// Upper bound on how often the background task re-fetches the IdP metadata once
 /// a descriptor is loaded: the RD metadata is re-fetched at least every 24h, and
-/// sooner when its `cacheDuration` (eID §8.5) indicates a shorter window (see
-/// [`next_refresh_interval`]). The hard `validUntil` expiry is enforced
-/// separately at parse time (`saml::idp_metadata`).
+/// sooner when its `cacheDuration` (eID §8.5) or `validUntil` indicates a
+/// shorter window (see [`next_refresh_interval`]). Runtime access also enforces
+/// the hard `validUntil` expiry (`AuthServiceState::rd_metadata`).
 const MAX_METADATA_REFRESH_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
 
 /// Floor on the computed refresh interval, so a very small (or buggy)
@@ -45,12 +45,19 @@ const METADATA_RECOVERY_RETRY_INTERVAL: Duration = Duration::from_secs(60);
 
 /// The next refresh delay for a loaded descriptor: its `cacheDuration` clamped to
 /// `[MIN_METADATA_REFRESH_INTERVAL, MAX_METADATA_REFRESH_INTERVAL]`, defaulting to
-/// the 24h cap when the metadata carries no (parseable) `cacheDuration`.
+/// the 24h cap when the metadata carries no (parseable) `cacheDuration`, and
+/// halfway to a hard `validUntil` expiry when that is sooner.
 fn next_refresh_interval(metadata: &IdpMetadata) -> Duration {
-    metadata
+    let cache_delay = metadata
         .cache_duration
         .unwrap_or(MAX_METADATA_REFRESH_INTERVAL)
-        .clamp(MIN_METADATA_REFRESH_INTERVAL, MAX_METADATA_REFRESH_INTERVAL)
+        .clamp(MIN_METADATA_REFRESH_INTERVAL, MAX_METADATA_REFRESH_INTERVAL);
+    match metadata.valid_until {
+        Some(until) => cache_delay
+            .min((until - chrono::Utc::now()).to_std().unwrap_or_default() / 2)
+            .max(Duration::from_secs(1)),
+        None => cache_delay,
+    }
 }
 
 /// Number of times startup tries to fetch the RD metadata before falling back to
@@ -71,8 +78,10 @@ async fn metadata_refresh_loop(weak: Weak<Inner>) {
     loop {
         let delay = match weak.upgrade() {
             Some(inner) => match inner.rd_metadata.read().as_deref() {
-                Some(metadata) => next_refresh_interval(metadata),
-                None => METADATA_RECOVERY_RETRY_INTERVAL,
+                Some(metadata) if !metadata.is_expired_at(chrono::Utc::now()) => {
+                    next_refresh_interval(metadata)
+                }
+                _ => METADATA_RECOVERY_RETRY_INTERVAL,
             },
             None => {
                 debug!("[metadata] Auth state dropped, stopping refresh task");
@@ -163,5 +172,28 @@ async fn refresh_rd_metadata(inner: &Inner) {
         Err(e) => {
             warn!("[metadata] Scheduled RD metadata refresh failed: {e}; keeping previous metadata")
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn refresh_precedes_hard_expiry_even_when_the_cache_hint_is_longer() {
+        let mut metadata = IdpMetadata::for_tests();
+        assert_eq!(
+            next_refresh_interval(&metadata),
+            MAX_METADATA_REFRESH_INTERVAL
+        );
+        metadata.cache_duration = Some(Duration::from_secs(1));
+        assert_eq!(
+            next_refresh_interval(&metadata),
+            MIN_METADATA_REFRESH_INTERVAL
+        );
+        metadata.valid_until = Some(chrono::Utc::now() + chrono::Duration::minutes(4));
+        assert!(next_refresh_interval(&metadata) <= Duration::from_secs(120));
+        metadata.valid_until = Some(chrono::Utc::now());
+        assert_eq!(next_refresh_interval(&metadata), Duration::from_secs(1));
     }
 }

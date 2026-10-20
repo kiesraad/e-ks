@@ -101,8 +101,8 @@ The three participants are the **Browser**, the **DV** (this crate), and the
 7. **DV → RD:** `POST {ars_url}` with `SOAP(ArtifactResolve)` over the mTLS
    back-channel.
 8. **RD → DV:** `SOAP(ArtifactResponse)`.
-9. **DV:** validates the chain, decrypts the SubjectID, verifies the flow
-   cookie, and consumes the request-id.
+9. **DV:** verifies the flow cookie and consumes the request-id *before* step
+   7, then validates the chain and decrypts the SubjectID.
 10. **DV → Browser:** `302` to the app's post-login page; meanwhile
     `on_authenticated(subject_id)` fires and the app creates a session.
 

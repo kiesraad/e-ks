@@ -74,7 +74,10 @@ pub mod state;
 mod tvs_mock;
 pub mod types;
 
-use axum::{Router, extract::FromRef};
+use axum::{
+    Router,
+    extract::{DefaultBodyLimit, FromRef},
+};
 use axum_extra::routing::{RouterExt, TypedPath};
 
 use crate::handlers::{
@@ -144,4 +147,10 @@ where
         .typed_get(handle_acs::<S>)
         .typed_post(handle_sls::<S>)
         .typed_get(handle_autosubmit_js)
+        .layer(DefaultBodyLimit::max(SP_BODY_LIMIT_BYTES))
 }
+
+/// Body limit for the SP endpoints. Only the SLS reads a body, without a
+/// session, and verifies the signature of whatever it is sent; a
+/// LogoutResponse is a few kilobytes.
+pub const SP_BODY_LIMIT_BYTES: usize = 32 * 1024;

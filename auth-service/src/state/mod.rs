@@ -157,13 +157,19 @@ impl AuthServiceState {
         self.inner.metadata_tls_cert.as_ref()
     }
 
-    /// Snapshot of the current RD descriptor, or `None` when none has been
-    /// loaded yet (RD unreachable at startup, no disk cache, and no background
-    /// refresh has succeeded since). Cheap: clones an `Arc`. The background
-    /// refresh task may replace the descriptor between calls, so a caller should
-    /// take one handle and use it for a whole request.
+    /// Snapshot of the current, unexpired RD descriptor, or `None` when none
+    /// is available (RD unreachable at startup, no disk cache, and no background
+    /// refresh has succeeded since, or the loaded one passed its `validUntil`).
+    /// Cheap: clones an `Arc`. The background refresh task may replace the
+    /// descriptor between calls, so a caller should take one handle and use it
+    /// for a whole request.
     pub(crate) fn rd_metadata(&self) -> Option<Arc<IdpMetadata>> {
-        self.inner.rd_metadata.read().clone()
+        self.inner
+            .rd_metadata
+            .read()
+            .as_ref()
+            .filter(|metadata| !metadata.is_expired_at(chrono::Utc::now()))
+            .cloned()
     }
 
     pub(crate) fn cached_metadata(&self) -> Option<String> {
@@ -227,14 +233,17 @@ pub trait AuthState: Clone + Send + Sync + 'static {
         end_session: bool,
     ) -> impl std::future::Future<Output = Response> + Send;
 
-    /// Terminate the local session for SP-initiated logout. Always returns the
-    /// jar with the session cookie cleared, plus what was torn down (see
+    /// Terminate the local session for SP-initiated logout. On success returns
+    /// the jar with the session cookie cleared, plus what was torn down (see
     /// [`LoggedOutSession`]), which decides whether a `LogoutRequest` is sent to
-    /// the RD (eID §7.7.1).
+    /// the RD (eID §7.7.1). A failed invalidation returns the error response
+    /// to send instead: the logout must not look successful.
     fn logout_session(
         &self,
         jar: CookieJar,
-    ) -> impl std::future::Future<Output = (CookieJar, LoggedOutSession)> + Send;
+    ) -> impl std::future::Future<
+        Output = std::result::Result<(CookieJar, LoggedOutSession), Response>,
+    > + Send;
 
     /// Persist an outgoing AuthnRequest ID for the later `InResponseTo` replay
     /// check (eID §7.6.3.5 rule 4 / §9.7). Implementations should sweep entries
@@ -342,6 +351,34 @@ mod tests {
 
     fn empty_state() -> AuthServiceState {
         AuthServiceState::new_empty()
+    }
+
+    #[test]
+    fn cached_descriptor_stops_being_available_after_hard_expiry() {
+        let state_with = |valid_until| {
+            let descriptor = IdpMetadata {
+                valid_until: Some(valid_until),
+                ..IdpMetadata::for_tests()
+            };
+            AuthServiceState::new(
+                AuthConfig::default(),
+                KeySet::default(),
+                None,
+                Some(descriptor),
+            )
+        };
+        let now = chrono::Utc::now();
+
+        assert!(
+            state_with(now + chrono::Duration::minutes(5))
+                .rd_metadata()
+                .is_some()
+        );
+        assert!(
+            state_with(now - chrono::Duration::minutes(5))
+                .rd_metadata()
+                .is_none()
+        );
     }
 
     #[test]

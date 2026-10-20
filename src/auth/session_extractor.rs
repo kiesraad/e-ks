@@ -67,14 +67,14 @@ pub(crate) async fn establish_session(
     sessions: &SessionStore,
     jar: CookieJar,
     session: Session,
-) -> CookieJar {
+) -> Result<CookieJar, AppError> {
     if let Some(old_token) = jar.get(SESSION_COOKIE_NAME).map(|c| c.value().to_string()) {
-        sessions.remove(&old_token).await;
+        sessions.remove(&old_token).await?;
     }
     sessions.cleanup_expired().await;
     let cookie = build_session_cookie(&session);
     sessions.insert(session).await;
-    jar.add(cookie)
+    Ok(jar.add(cookie))
 }
 
 /// Truncated (64-bit) hex SHA-256 of the request `User-Agent` for session

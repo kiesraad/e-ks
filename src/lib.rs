@@ -136,7 +136,7 @@ pub(crate) use core::{
     AnyLocale, CredentialId, CsbUsername, CsbWebauthnConfig, ElectionConfig, ElectionType,
     ElectoralDistrict, HtmlTemplate, Locale, LocaleValues, Province, RateLimit, RateLimits, Scope,
     WaterCouncil,
-    constants::{self, MAX_CANDIDATES},
+    constants::{self, MAX_CANDIDATES, MAX_PERSONS},
     http_trace, translate,
 };
 pub(crate) use csb::CsbContext;

@@ -55,6 +55,12 @@ pub enum AppError {
     NoStorageConfigured,
     IntegrityViolation,
 
+    /// A person-creating write would take the stream past the maximum number
+    /// of persons it may hold. Carries the limit that was exceeded.
+    TooManyPersons {
+        max: usize,
+    },
+
     /// Attempted to add a candidate to a list that is already at the maximum
     /// allowed number of candidates. Carries the limit that was exceeded.
     TooManyCandidates {
@@ -115,6 +121,9 @@ impl Display for AppError {
             AppError::FormRejection(err) => write!(f, "Form error: {err}"),
             AppError::GenericNotFound => write!(f, "Page not found"),
             AppError::IntegrityViolation => write!(f, "Data integrity violation"),
+            AppError::TooManyPersons { max } => {
+                write!(f, "Cannot hold more than {max} persons in one account")
+            }
             AppError::TooManyCandidates { max } => write!(
                 f,
                 "Cannot add more than {max} candidates to a candidate list"

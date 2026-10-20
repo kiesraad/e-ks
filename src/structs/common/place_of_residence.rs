@@ -71,7 +71,7 @@ impl std::str::FromStr for PlaceOfResidence {
     type Err = ValidationError;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        let trimmed_value = validate_length(value, 1, 200)?;
+        let trimmed_value = validate_length(value, 1, bag::MAX_LOCALITY_CHARS)?;
         validate_teletex_chars(&trimmed_value)?;
 
         let normalized =

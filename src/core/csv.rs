@@ -307,13 +307,19 @@ fn detect_delimiter(data: &[u8]) -> u8 {
 }
 
 impl<T: DeserializeOwned> Csv<T> {
-    /// Deserialize every row, or report what went wrong. Reading stops at
-    /// [`MAX_ERRORS`] failures and says so.
-    pub fn from_bytes(data: &[u8]) -> Result<Vec<T>, Vec<CsvError>> {
+    /// Deserialize rows until `max_records` have parsed, or report what went
+    /// wrong. Rows past that are never read, so an upload of millions of
+    /// near-empty rows costs no more than the records the caller can use.
+    /// Reading also stops at [`MAX_ERRORS`] failures and says so.
+    pub fn from_bytes(data: &[u8], max_records: usize) -> Result<Vec<T>, Vec<CsvError>> {
         let mut records = vec![];
         let mut errors = vec![];
 
-        for (index, res) in reader_from_bytes(data).deserialize::<T>().enumerate() {
+        let mut reader = reader_from_bytes(data);
+        let mut rows = reader.deserialize::<T>().enumerate();
+        while records.len() < max_records
+            && let Some((index, res)) = rows.next()
+        {
             match res {
                 Ok(record) => records.push(record),
                 Err(error) => {
@@ -490,7 +496,7 @@ mod tests {
 
     #[test]
     fn from_bytes_reads_comma_delimited() {
-        let parsed = Csv::<Person>::from_bytes(b"voorletters,achternaam\nH.,Jansen\n")
+        let parsed = Csv::<Person>::from_bytes(b"voorletters,achternaam\nH.,Jansen\n", usize::MAX)
             .unwrap_or_else(|e| panic!("{}", e[0]));
         assert_eq!(
             parsed,
@@ -503,7 +509,7 @@ mod tests {
 
     #[test]
     fn from_bytes_reads_semicolon_delimited() {
-        let parsed = Csv::<Person>::from_bytes(b"voorletters;achternaam\nH.;Jansen\n")
+        let parsed = Csv::<Person>::from_bytes(b"voorletters;achternaam\nH.;Jansen\n", usize::MAX)
             .unwrap_or_else(|e| panic!("{}", e[0]));
         assert_eq!(
             parsed,
@@ -523,7 +529,8 @@ mod tests {
             data.extend_from_slice(b"abc\n");
         }
 
-        let errors = Csv::<TestRecord>::from_bytes(&data).expect_err("every row is invalid");
+        let errors =
+            Csv::<TestRecord>::from_bytes(&data, usize::MAX).expect_err("every row is invalid");
 
         assert_eq!(errors.len(), MAX_ERRORS + 1);
         assert!(matches!(
@@ -540,8 +547,8 @@ mod tests {
     /// A file with fewer failures than the cap gets no truncation marker.
     #[test]
     fn from_bytes_reports_every_error_below_the_cap() {
-        let errors =
-            Csv::<TestRecord>::from_bytes(b"value\nabc\n1\ndef\n").expect_err("two invalid rows");
+        let errors = Csv::<TestRecord>::from_bytes(b"value\nabc\n1\ndef\n", usize::MAX)
+            .expect_err("two invalid rows");
 
         assert_eq!(errors.len(), 2);
         assert!(
@@ -551,11 +558,26 @@ mod tests {
         );
     }
 
+    /// Rows past `max_records` are not read at all.
+    #[test]
+    fn from_bytes_stops_after_max_records() {
+        let mut data = b"value\n".to_vec();
+        data.extend_from_slice(&b"1\n".repeat(100_000));
+
+        let parsed = Csv::<TestRecord>::from_bytes(&data, 3).unwrap_or_else(|e| panic!("{}", e[0]));
+        assert_eq!(parsed.len(), 3);
+
+        // An error past the cap is never seen either.
+        data.extend_from_slice(b"abc\n");
+        assert!(Csv::<TestRecord>::from_bytes(&data, 3).is_ok());
+    }
+
     #[test]
     fn from_bytes_strips_leading_utf8_bom() {
         let mut data = UTF8_BOM.to_vec();
         data.extend_from_slice(b"voorletters;achternaam\nH.;Jansen\n");
-        let parsed = Csv::<Person>::from_bytes(&data).unwrap_or_else(|e| panic!("{}", e[0]));
+        let parsed =
+            Csv::<Person>::from_bytes(&data, usize::MAX).unwrap_or_else(|e| panic!("{}", e[0]));
         assert_eq!(parsed[0].voorletters, "H.");
     }
 
@@ -563,8 +585,9 @@ mod tests {
     /// spreadsheet artefacts, not data.
     #[test]
     fn from_bytes_normalises_headers_and_trims_cells() {
-        let parsed = Csv::<Person>::from_bytes(b" Achternaam ; VOORLETTERS \n Jansen ; H. \n")
-            .unwrap_or_else(|e| panic!("{}", e[0]));
+        let parsed =
+            Csv::<Person>::from_bytes(b" Achternaam ; VOORLETTERS \n Jansen ; H. \n", usize::MAX)
+                .unwrap_or_else(|e| panic!("{}", e[0]));
         assert_eq!(
             parsed,
             vec![Person {
@@ -623,7 +646,8 @@ mod tests {
             bytes.starts_with(UTF8_BOM),
             "export should begin with a BOM"
         );
-        let reparsed = Csv::<Person>::from_bytes(&bytes).unwrap_or_else(|e| panic!("{}", e[0]));
+        let reparsed =
+            Csv::<Person>::from_bytes(&bytes, usize::MAX).unwrap_or_else(|e| panic!("{}", e[0]));
         assert_eq!(reparsed, csv.records);
     }
 

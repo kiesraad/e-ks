@@ -9,7 +9,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use crate::{
-    CredentialId, Scope, StreamId,
+    AppError, CredentialId, CsbMainStore, CsbUser, Scope, StreamId,
+    auth::csb_webauthn::sign_count_advanced,
     store::{StoreData, StoreEvent},
     structs::csb::{HearingDetails, HearingModel, Objection, RegisteredPoliticalGroup},
 };
@@ -34,6 +35,32 @@ pub struct CsbMainStoreData {
     pub(crate) sign_counts: HashMap<CredentialId, u32>,
 }
 
+impl CsbMainStore {
+    /// Records a security-key login with its signature counter (WebAuthn
+    /// §7.2 step 24) as one step with the step 22 counter check: counter and
+    /// stream position come from one snapshot, and the append is refused when
+    /// the stream moved since. `false` means the counter did not advance past
+    /// what is recorded, or the stream kept moving: the login fails.
+    pub async fn record_security_key_login(
+        &self,
+        user: CsbUser,
+        credential_id: CredentialId,
+        sign_count: u32,
+    ) -> Result<bool, AppError> {
+        self.update_when(|data| {
+            let stored = data.sign_counts.get(&credential_id).copied().unwrap_or(0);
+            sign_count_advanced(stored, sign_count).then(|| {
+                CsbMainAction::SecurityKeyLogin {
+                    credential_id: credential_id.clone(),
+                    sign_count,
+                }
+                .by(user.clone())
+            })
+        })
+        .await
+    }
+}
+
 impl StoreData for CsbMainStoreData {
     type Event = CsbMainEvent;
 
@@ -45,7 +72,10 @@ impl StoreData for CsbMainStoreData {
                 credential_id,
                 sign_count,
             } => {
-                self.sign_counts.insert(credential_id, sign_count);
+                // Never backwards: two logins racing on two instances must
+                // not reopen the clone check.
+                let recorded = self.sign_counts.entry(credential_id).or_default();
+                *recorded = (*recorded).max(sign_count);
             }
             CsbMainAction::CreateRegisteredPoliticalGroup(group) => {
                 self.registered_political_groups.push(group);

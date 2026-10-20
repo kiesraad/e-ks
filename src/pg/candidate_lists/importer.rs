@@ -1,5 +1,7 @@
 use std::collections::BTreeSet;
 
+use axum::body::Bytes;
+
 use crate::{
     AppError, Locale, PgEvent, PgStore,
     candidate_lists::{CSV_HEADERS, CandidateRecord, CandidateRecordCsv},
@@ -31,19 +33,33 @@ struct PreparedPerson {
     exists: bool,
 }
 
+/// Most rows an import reads where the candidate limit is lifted (paper
+/// corrections), so a multi-megabyte upload of near-empty rows is never
+/// deserialised in full.
+const MAX_IMPORT_RECORDS: usize = 1_000;
+
 pub(crate) async fn import_candidate_list_csv(
     list: &mut CandidateList,
     store: &PgStore,
-    csv_data: &[u8],
+    csv_data: Bytes,
     locale: Locale,
     file_name: String,
     file_size: usize,
 ) -> Result<ImportOutcome, ImportCandidateListError> {
-    let ignored_columns = ensure_expected_headers(csv_data, locale)?;
-    let mut records = parse_records(csv_data, locale)?;
+    let limit = store.candidate_limit().min(MAX_IMPORT_RECORDS);
 
-    let capped = records.len() > store.candidate_limit();
-    records.truncate(store.candidate_limit());
+    // One row past the limit is enough to tell the list was cut off; parsing
+    // is CPU-bound, so it runs off the async workers.
+    let (ignored_columns, mut records) = tokio::task::spawn_blocking(move || {
+        let ignored_columns = ensure_expected_headers(&csv_data, locale)?;
+        let records = parse_records(&csv_data, limit + 1, locale)?;
+        Ok::<_, ImportCandidateListError>((ignored_columns, records))
+    })
+    .await
+    .map_err(|_| AppError::InternalServerError)??;
+
+    let capped = records.len() > limit;
+    records.truncate(limit);
 
     let persons = collect_persons(records, store.get_persons(), locale)?;
     emit_import_event(list, store, persons, file_name, file_size).await?;
@@ -168,9 +184,10 @@ fn quoted_list(names: &BTreeSet<&str>) -> String {
 
 fn parse_records(
     data: &[u8],
+    max_records: usize,
     locale: Locale,
 ) -> Result<Vec<CandidateRecord>, ImportCandidateListError> {
-    Csv::<CandidateRecordCsv>::from_bytes(data)
+    Csv::<CandidateRecordCsv>::from_bytes(data, max_records)
         .map(|records| records.into_iter().map(CandidateRecord::from).collect())
         .map_err(|errors| ImportCandidateListError::Messages(csv_error_messages(errors, locale)))
 }
@@ -382,7 +399,7 @@ mod tests {
         import_candidate_list_csv(
             &mut list,
             &store,
-            valid_csv().as_bytes(),
+            Bytes::from(valid_csv()),
             Locale::En,
             "test.csv".to_string(),
             0,
@@ -423,7 +440,7 @@ mod tests {
         import_candidate_list_csv(
             &mut list,
             &store,
-            no_bsn_csv_with_different_first_name().as_bytes(),
+            Bytes::from(no_bsn_csv_with_different_first_name()),
             Locale::En,
             "test.csv".to_string(),
             0,
@@ -456,7 +473,7 @@ mod tests {
         import_candidate_list_csv(
             &mut list,
             &store,
-            no_bsn_csv_with_different_first_name().as_bytes(),
+            Bytes::from(no_bsn_csv_with_different_first_name()),
             Locale::En,
             "test.csv".to_string(),
             0,
@@ -490,7 +507,7 @@ mod tests {
         import_candidate_list_csv(
             &mut list,
             &store,
-            mixed_bsn_duplicate_name_csv().as_bytes(),
+            Bytes::from(mixed_bsn_duplicate_name_csv()),
             Locale::En,
             "test.csv".to_string(),
             0,
@@ -515,7 +532,7 @@ mod tests {
         import_candidate_list_csv(
             &mut list,
             &store,
-            duplicate_no_bsn_csv().as_bytes(),
+            Bytes::from(duplicate_no_bsn_csv()),
             Locale::En,
             "test.csv".to_string(),
             0,
@@ -551,7 +568,7 @@ mod tests {
         import_candidate_list_csv(
             &mut list,
             &store,
-            duplicate_bsn_csv().as_bytes(),
+            Bytes::from(duplicate_bsn_csv()),
             Locale::En,
             "test.csv".to_string(),
             0,
@@ -588,7 +605,7 @@ mod tests {
         import_candidate_list_csv(
             &mut list,
             &store,
-            mixed_bsn_duplicate_name_csv().as_bytes(),
+            Bytes::from(mixed_bsn_duplicate_name_csv()),
             Locale::En,
             "test.csv".to_string(),
             0,
@@ -620,7 +637,7 @@ mod tests {
         let outcome = import_candidate_list_csv(
             &mut list,
             &store,
-            csv.as_bytes(),
+            Bytes::from(csv),
             Locale::En,
             "test.csv".to_string(),
             0,
@@ -658,7 +675,7 @@ mod tests {
         import_candidate_list_csv(
             &mut list,
             &store,
-            csv.as_bytes(),
+            Bytes::from(csv),
             Locale::En,
             "test.csv".to_string(),
             0,
@@ -693,7 +710,7 @@ mod tests {
         import_candidate_list_csv(
             &mut list,
             &store,
-            csv.as_bytes(),
+            Bytes::from(csv),
             Locale::En,
             "test.csv".to_string(),
             0,
@@ -722,7 +739,7 @@ mod tests {
         let result = import_candidate_list_csv(
             &mut list,
             &store,
-            multiple_invalid_rows_csv().as_bytes(),
+            Bytes::from(multiple_invalid_rows_csv()),
             Locale::En,
             "test.csv".to_string(),
             0,
@@ -756,7 +773,7 @@ mod tests {
         let outcome = import_candidate_list_csv(
             &mut list,
             &store,
-            csv.as_bytes(),
+            Bytes::from(csv),
             Locale::En,
             "test.csv".to_string(),
             0,
