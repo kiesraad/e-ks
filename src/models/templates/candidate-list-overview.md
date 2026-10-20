@@ -17,7 +17,7 @@ De voorzitter van het centraal stembureau voor de verkiezing van de leden van **
 {%- endfor %}
 | --- | --- | --- | {% for _ in electoral_districts %} --- | {% endfor %}
 {% for group in groups -%}
-  | **{{ group.number }}** | **{{ group.appellation }}** |
+  | **{{ group.number }}** | {% if !group.appellation.is_empty() %}**{{ group.appellation }}**{% endif %} |
   {%- match group.sets.affiliation_type() -%}
     {%- when AffiliationType::SetOfEqualLists -%}
       *G*
