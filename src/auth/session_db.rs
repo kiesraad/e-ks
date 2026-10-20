@@ -12,6 +12,7 @@ use tracing::warn;
 use crate::{
     AppError, ElectionConfig, Locale, Session, SessionUser, StreamId, TokenValue,
     auth::session::{session_absolute_timeout, session_idle_timeout},
+    utils::describe_json_error,
 };
 
 /// A `sessions` row, mapped by column name. `token` holds the token hash;
@@ -85,10 +86,14 @@ pub async fn load(pool: &sqlx::PgPool, token_hash: &str) -> Result<Option<Sessio
 
 /// Maps a row to a `Session`; `None` when the identity does not parse.
 fn session_from_row(row: SessionRow) -> Option<Session> {
-    let user = match serde_json::from_value::<SessionUser>(row.identity) {
+    let user = match serde_path_to_error::deserialize::<_, SessionUser>(row.identity) {
         Ok(user) => user,
         Err(err) => {
-            warn!("dropping session with unreadable identity: {err}");
+            // The identity holds the SAML NameID: name the field, not the value.
+            warn!(
+                "dropping session with unreadable identity: {}",
+                describe_json_error(&err)
+            );
             return None;
         }
     };

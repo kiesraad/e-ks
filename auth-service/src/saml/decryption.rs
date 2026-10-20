@@ -215,9 +215,6 @@ fn decrypt_ciphertext(enc_id_xml: &str, private_keys: &[DecryptionKey<'_>]) -> O
         }
         Err(e) => {
             warn!("[decrypt] EncryptedID decryption failed: {e}");
-            // The encrypted ciphertext is safe to log: by definition it does
-            // not reveal plaintext PII without the private key.
-            debug!("[decrypt] EncryptedID XML: {enc_id_xml}");
             None
         }
     }

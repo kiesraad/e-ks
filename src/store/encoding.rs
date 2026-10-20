@@ -53,14 +53,49 @@ impl std::io::Write for ByteCounter {
 /// decodes happily and the remaining fields vanish.
 pub(crate) fn decode<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, EncodingError> {
     let mut rest = bytes;
-    let value =
-        ciborium::from_reader(&mut rest).map_err(|e| EncodingError::Decode(e.to_string()))?;
+    let value = ciborium::from_reader(&mut rest)
+        .map_err(|err| EncodingError::Decode(describe_decode_error::<T>(bytes, &err)))?;
 
     if !rest.is_empty() {
         return Err(EncodingError::TrailingBytes(rest.len()));
     }
 
     Ok(value)
+}
+
+/// Why `bytes` did not decode as a `T`, without quoting the payload: serde's
+/// own messages echo the value they choked on, and a stored value may be
+/// personal data. A value that does not fit `T` is reported by its field path.
+fn describe_decode_error<T: DeserializeOwned>(
+    bytes: &[u8],
+    err: &ciborium::de::Error<std::io::Error>,
+) -> String {
+    use ciborium::de::Error;
+
+    match err {
+        Error::Io(err) => format!("read failed: {err}"),
+        Error::Syntax(offset) => format!("malformed CBOR at byte {offset}"),
+        Error::RecursionLimitExceeded => "nested too deeply".to_string(),
+        Error::Semantic(..) => match mismatched_field::<T>(bytes) {
+            Some(path) => format!("value at `{path}` does not fit the type"),
+            None => "value does not fit the type".to_string(),
+        },
+    }
+}
+
+/// The path of the first value in `bytes` that does not fit `T`, if one can
+/// be located: the streaming decoder does not track paths, so the bytes are
+/// decoded once more as a generic value, in its JSON form, with the path
+/// tracked.
+fn mismatched_field<T: DeserializeOwned>(bytes: &[u8]) -> Option<String> {
+    let value: ciborium::Value = ciborium::from_reader(bytes).ok()?;
+    let json = serde_json::to_value(value).ok()?;
+    let path = serde_path_to_error::deserialize::<_, T>(json)
+        .err()?
+        .path()
+        .to_string();
+    // The root, which serde_path_to_error writes as "."
+    (path != ".").then_some(path)
 }
 
 /// Why a value could not be encoded to, or recovered from, CBOR.
@@ -157,6 +192,41 @@ mod tests {
     fn unknown_variant_is_an_error_not_a_misread() {
         let bytes = encode(&Evolved::Inserted).unwrap();
         assert!(decode::<Original>(&bytes).is_err());
+    }
+
+    /// A stored value that no longer fits the type is reported by its field,
+    /// never by its value: it may be personal data.
+    #[test]
+    fn mismatch_names_the_field_but_not_the_value() {
+        #[derive(Serialize)]
+        struct Stored {
+            person: StoredPerson,
+        }
+        #[derive(Serialize)]
+        struct StoredPerson {
+            last_name: String,
+        }
+        #[derive(Debug, Deserialize)]
+        #[allow(dead_code)]
+        struct Current {
+            person: CurrentPerson,
+        }
+        #[derive(Debug, Deserialize)]
+        #[allow(dead_code)]
+        struct CurrentPerson {
+            last_name: u32,
+        }
+
+        let bytes = encode(&Stored {
+            person: StoredPerson {
+                last_name: "Jansen".to_string(),
+            },
+        })
+        .unwrap();
+
+        let error = decode::<Current>(&bytes).unwrap_err().to_string();
+        assert!(error.contains("`person.last_name`"), "{error}");
+        assert!(!error.contains("Jansen"), "{error}");
     }
 
     #[test]
