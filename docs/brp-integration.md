@@ -7,8 +7,8 @@ ontvangen, wat daarvan wordt vastgelegd, en welke fouten in welke situaties
 ontstaan.
 
 e-KS heeft geen directe verbinding met de BRP. Alle bevragingen lopen via een
-tussenpartij die de BRP-gegevens ontsluit en die e-KS met een API-sleutel
-aanspreekt. Waar dit document "de BRP" noemt, gaat het om de gegevens uit de
+tussenpartij die de BRP-gegevens ontsluit en die e-KS over een wederzijds
+geauthenticeerde TLS-verbinding (mTLS) aanspreekt. Waar dit document "de BRP" noemt, gaat het om de gegevens uit de
 BRP zoals de tussenpartij die teruggeeft; waar het om de verbinding, de
 beschikbaarheid of een foutmelding gaat, is de tussenpartij bedoeld.
 
@@ -25,7 +25,7 @@ zoals die in de code en het auditlog voorkomt.
   groepering kan dat vanuit e-KS niet.
 - e-KS bevraagt de BRP niet rechtstreeks, maar via een tussenpartij. Die
   biedt de landelijke API *BRP Personen bevragen* van Haal Centraal (versie 2)
-  aan en geeft e-KS daarvoor een API-sleutel.
+  aan; e-KS meldt zich daarbij met zijn PKIoverheid-certificaat.
 - Per kandidaat vraagt e-KS een vaste, beperkte set gegevens op: naam,
   geslacht, geboortedatum, woonplaats, overlijden, nationaliteit, uitsluiting
   van het kiesrecht en de achternamen van (ex-)partners. Niets anders. Deze
@@ -50,16 +50,16 @@ voorschrijft.
 | Onderdeel | Waarde |
 | --- | --- |
 | API | Haal Centraal BRP Personen bevragen, versie 2, aangeboden door de tussenpartij |
-| Aanroep | `POST {BRP_BASE_URL}/{BRP_PERSONS_ENDPOINT}`, waarbij `BRP_BASE_URL` het adres van de tussenpartij is |
-| Standaardpad | `haalcentraal/api/brp/personen` |
-| Authenticatie | HTTP-header `Authorization: Bearer {BRP_API_KEY}`, met de sleutel die de tussenpartij aan e-KS heeft uitgegeven |
+| Aanroep | `POST {BRP_URL}`, het volledige adres van de *personen*-bron bij de tussenpartij |
+| Authenticatie | mTLS: e-KS toont het clientcertificaat uit `BRP_CLIENT_CERT_PATH` en `BRP_CLIENT_KEY_PATH`; het servercertificaat van de tussenpartij moet onder de PKIoverheid Private Root CA - G1 vallen, die met de twee tussenliggende CA's in de applicatie is ingebouwd (`pkioverheid/`) |
+| API-sleutel | Optioneel: is `BRP_API_KEY` gezet, dan gaat die mee als HTTP-header `Authorization: Bearer {BRP_API_KEY}` |
 | Inhoud | JSON, één van de twee bevragingstypen uit hoofdstuk 4 |
 | Time-out | `BRP_TIMEOUT` seconden per bevraging, standaard 30 |
 | Herhaalpogingen | Geen |
 | Lokale ontwikkeling | De container `personen-mock` uit `compose.yml`, een door de beheerders van de Haal Centraal-API gepubliceerde nabootsing die dezelfde API aanbiedt als de tussenpartij |
 
-De instellingen komen uit omgevingsvariabelen. `BRP_BASE_URL` en `BRP_API_KEY`
-zijn verplicht; `BRP_PERSONS_ENDPOINT` en `BRP_TIMEOUT` zijn optioneel. De
+De instellingen komen uit omgevingsvariabelen. `BRP_URL` is verplicht; het
+clientcertificaat, `BRP_API_KEY` en `BRP_TIMEOUT` zijn optioneel. De
 API-sleutel wordt in het geheugen als geheim behandeld, zodat die niet in een
 logregel terecht kan komen.
 
@@ -455,7 +455,8 @@ controle:
 
 | Situatie | Fout |
 | --- | --- |
-| `BRP_BASE_URL` of `BRP_API_KEY` is niet ingesteld | Ontbrekende omgevingsvariabele (`ConfigLoadError`, ``missing field `brp_base_url` ``) |
+| `BRP_URL` is niet ingesteld | Ontbrekende omgevingsvariabele (`ConfigLoadError`, ``missing field `brp_url` ``) |
+| Een van `BRP_CLIENT_CERT_PATH` en `BRP_CLIENT_KEY_PATH` is ingesteld, of het certificaat is niet leesbaar | Configuratiefout (`ConfigLoadError`) |
 | `BRP_TIMEOUT` is geen getal | Configuratiefout: *Invalid BRP_TIMEOUT; please enter a number* |
 
 ## 8. Testen

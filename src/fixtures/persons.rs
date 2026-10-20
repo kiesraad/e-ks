@@ -203,7 +203,7 @@ mod tests {
                 .map(|person| person.data)
                 .collect();
 
-        let client = BrpClient::new_for_test("http://localhost:5010");
+        let client = BrpClient::new_for_test("http://localhost:5010/haalcentraal/api/brp/personen");
         let mut agreed = 0;
         let mut kinds = BTreeSet::new();
         for batch in persons.chunks(BRP_BSN_BATCH_SIZE) {

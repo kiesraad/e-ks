@@ -32,7 +32,7 @@ services:
       # Tests authenticate via the /dev/login bypass; skip the live auth-service
       # so the container boots without reaching the TVS for IdP metadata.
       DISABLE_AUTH_SERVICE: "true"
-      BRP_BASE_URL: http://personen-mock:5010
+      BRP_URL: http://personen-mock:5010/haalcentraal/api/brp/personen
       # The log is printed when a test fails; only keep failed requests (4xx
       # and 5xx are logged at warn and error), not every successful one.
       RUST_LOG: ${RUST_LOG:-eks=info,eks::core::http_trace=warn,tower_http=info,auth_service=info}
