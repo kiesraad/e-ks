@@ -1,7 +1,7 @@
 use std::{str::FromStr, sync::Arc, time::Duration};
 
 use chrono::NaiveDate;
-use reqwest::{Client, Identity};
+use reqwest::{Certificate, Client, Identity};
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
 use tokio::{sync::Mutex, time::Instant};
@@ -18,6 +18,7 @@ use crate::{
         common::{Bsn, BsnOrNoneConfirmed, DateOfBirth, Gender, LastNamePrefix},
         persons::{Person, PersonId},
     },
+    utils::describe_json_error,
 };
 
 /// The BRP accepts at most twenty burgerservicenummers per request.
@@ -54,6 +55,17 @@ fn brp_gender_code(gender: Gender) -> &'static str {
 /// The date format the BRP uses for a complete date.
 const BRP_DATE_FORMAT: &str = "%Y-%m-%d";
 
+/// The PKIoverheid private chain the tussenpartij's server certificate chains
+/// to: the Staat der Nederlanden Private Root CA - G1 and the two intermediates
+/// below it. The root is not in the system trust store, and the server sends
+/// only its own certificate, so all three are trusted explicitly. The same
+/// chain the auth-service pins for the TVS back-channel.
+const PKIOVERHEID_PRIVATE_CHAIN: &[&[u8]] = &[
+    include_bytes!("../../../pkioverheid/pkioverheid_private_root_g1.pem"),
+    include_bytes!("../../../pkioverheid/staat_private_services_ca_g1.pem"),
+    include_bytes!("../../../pkioverheid/pkioverheid_private_services_ca_2023.pem"),
+];
+
 #[derive(Clone)]
 pub struct BrpClient {
     inner: Arc<BrpClientInner>,
@@ -61,9 +73,8 @@ pub struct BrpClient {
 
 struct BrpClientInner {
     http_client: Client,
-    base_url: String,
-    api_key: SecretString,
-    persons_endpoint: String,
+    url: String,
+    api_key: Option<SecretString>,
     timeout: Duration,
     request_interval: Duration,
     last_request: Mutex<Instant>,
@@ -73,6 +84,10 @@ impl BrpClient {
     /// Fails when the configured client certificate cannot be read or parsed.
     pub fn new(config: &BrpConfig) -> Result<Self, AppError> {
         let mut builder = Client::builder();
+        for pem in PKIOVERHEID_PRIVATE_CHAIN {
+            let certificate = Certificate::from_pem(pem).map_err(brp_cert_error)?;
+            builder = builder.add_root_certificate(certificate);
+        }
         if let Some(cert) = &config.client_cert {
             // reqwest takes the chain and the key as one PEM buffer.
             let mut pem = std::fs::read(&cert.cert_path).map_err(brp_cert_error)?;
@@ -83,9 +98,8 @@ impl BrpClient {
         Ok(Self {
             inner: Arc::new(BrpClientInner {
                 http_client: builder.build().map_err(brp_cert_error)?,
-                base_url: config.base_url.clone(),
+                url: config.url.clone(),
                 api_key: config.api_key.clone(),
-                persons_endpoint: config.persons_endpoint.clone(),
                 timeout: config.timeout,
                 request_interval: config.request_interval,
                 last_request: Mutex::new(Instant::now()),
@@ -93,22 +107,19 @@ impl BrpClient {
         })
     }
 
-    /// A client pointed at `base_url`, for tests serving their own responses.
+    /// A client posting to `url`, for tests serving their own responses.
     /// Requests are not paced, so tests stay fast.
     #[cfg(test)]
-    pub fn new_for_test(base_url: &str) -> Self {
-        Self::new_for_test_with_interval(base_url, Duration::ZERO)
+    pub fn new_for_test(url: &str) -> Self {
+        Self::new_for_test_with_interval(url, Duration::ZERO)
     }
 
     /// Like [`Self::new_for_test`], pausing `request_interval` between requests.
     #[cfg(test)]
-    pub fn new_for_test_with_interval(base_url: &str, request_interval: Duration) -> Self {
-        use crate::constants;
-
+    pub fn new_for_test_with_interval(url: &str, request_interval: Duration) -> Self {
         BrpClient::new(&BrpConfig {
-            base_url: base_url.to_string(),
-            api_key: SecretString::from(""),
-            persons_endpoint: constants::BRP_PERSONS_ENDPOINT.to_string(),
+            url: url.to_string(),
+            api_key: None,
             timeout: Duration::from_secs(5),
             request_interval,
             client_cert: None,
@@ -125,28 +136,28 @@ impl BrpClient {
     }
 
     pub async fn get_persons(&self, query: &BrpQuery) -> Result<Vec<BrpPerson>, AppError> {
-        let url = format!("{}/{}", self.inner.base_url, self.inner.persons_endpoint);
-
         self.wait_for_turn().await;
 
-        let response = self
+        let mut request = self
             .inner
             .http_client
-            .post(&url)
-            .header(
-                "Authorization",
-                format!("Bearer {}", self.inner.api_key.expose_secret()),
-            )
+            .post(&self.inner.url)
             .json(query)
-            .timeout(self.inner.timeout)
-            .send()
-            .await?
-            .error_for_status()?;
-
-        match response.json::<BrpResponse>().await? {
-            BrpResponse::ConsultWithBsn { persons }
-            | BrpResponse::SearchByLastNameAndDateOfBirth { persons } => Ok(persons),
+            .timeout(self.inner.timeout);
+        if let Some(api_key) = &self.inner.api_key {
+            request = request.bearer_auth(api_key.expose_secret());
         }
+        let response = request.send().await?.error_for_status()?;
+
+        // Decoded with the path tracked, so a body this build cannot read is
+        // reported by field and never by value: it holds personal data.
+        let body = response.text().await?;
+        let mut json = serde_json::Deserializer::from_str(&body);
+        serde_path_to_error::deserialize::<_, BrpResponse>(&mut json)
+            .map(|response| response.persons)
+            .map_err(|err| {
+                AppError::BrpError(format!("unusable response: {}", describe_json_error(&err)))
+            })
     }
 
     /// Send `query` on behalf of `persons` and add it to `lookups` with what
@@ -671,19 +682,14 @@ fn parse_brp_date(raw: &str) -> Option<NaiveDate> {
     NaiveDate::parse_from_str(raw.trim(), BRP_DATE_FORMAT).ok()
 }
 
+/// The answer to either query type: both carry the persons found under
+/// `personen`. A plain struct rather than an enum tagged on `type`, which
+/// serde decodes through a buffer that loses the field path a decode error
+/// is reported by.
 #[derive(Debug, Deserialize)]
-#[serde(tag = "type")]
-pub enum BrpResponse {
-    #[serde(rename = "RaadpleegMetBurgerservicenummer")]
-    ConsultWithBsn {
-        #[serde(rename = "personen")]
-        persons: Vec<BrpPerson>,
-    },
-    #[serde(rename = "ZoekMetGeslachtsnaamEnGeboortedatum")]
-    SearchByLastNameAndDateOfBirth {
-        #[serde(rename = "personen")]
-        persons: Vec<BrpPerson>,
-    },
+struct BrpResponse {
+    #[serde(rename = "personen")]
+    persons: Vec<BrpPerson>,
 }
 
 #[cfg(test)]
@@ -1440,7 +1446,10 @@ mod tests {
         let server = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
 
         let (person, _) = candidate();
-        let client = BrpClient::new_for_test(&format!("http://{addr}"));
+        let client = BrpClient::new_for_test(&format!(
+            "http://{addr}/{}",
+            constants::BRP_PERSONS_ENDPOINT
+        ));
         let batch = client.verify_batch(std::slice::from_ref(&person)).await;
 
         server.abort();
@@ -1448,6 +1457,40 @@ mod tests {
             batch.outcome.is_err(),
             "a 503 from the BRP must not be ignored"
         );
+    }
+
+    /// A response this application cannot read is reported by field, never
+    /// by value: what the BRP sends back is personal data.
+    #[tokio::test]
+    async fn an_unreadable_brp_response_is_reported_without_its_contents() {
+        let router = Router::new().route(
+            &format!("/{}", constants::BRP_PERSONS_ENDPOINT),
+            post(|| async {
+                axum::Json(json!({
+                    "type": "RaadpleegMetBurgerservicenummer",
+                    "personen": "Jansen",
+                }))
+            }),
+        );
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
+
+        let (person, _) = candidate();
+        let client = BrpClient::new_for_test(&format!("http://{addr}"));
+        let batch = client.verify_batch(std::slice::from_ref(&person)).await;
+
+        server.abort();
+        let error = match batch.outcome {
+            Err(AppError::BrpError(error)) => error,
+            other => panic!("expected a BRP error, got {other:?}"),
+        };
+        assert!(error.contains("`personen`"), "{error}");
+        assert!(!error.contains("Jansen"), "{error}");
+        assert!(matches!(
+            &batch.lookups[0].outcome,
+            BrpLookupOutcome::Failed { error } if !error.contains("Jansen")
+        ));
     }
 
     /// Every request is on record: the lookup by burgerservicenummer, the
@@ -1525,9 +1568,8 @@ mod tests {
     #[test]
     fn a_client_certificate_that_cannot_be_read_is_a_config_error() {
         let config = BrpConfig {
-            base_url: "http://127.0.0.1:1".to_string(),
-            api_key: SecretString::from(""),
-            persons_endpoint: constants::BRP_PERSONS_ENDPOINT.to_string(),
+            url: "http://127.0.0.1:1".to_string(),
+            api_key: None,
             timeout: Duration::from_secs(5),
             request_interval: Duration::ZERO,
             client_cert: Some(crate::core::TlsConfig {
@@ -1546,9 +1588,8 @@ mod tests {
     async fn consecutive_requests_are_spaced_by_the_request_interval() {
         let interval = Duration::from_millis(250);
         let client = BrpClient::new(&BrpConfig {
-            base_url: "http://127.0.0.1:1".to_string(),
-            api_key: SecretString::from(""),
-            persons_endpoint: constants::BRP_PERSONS_ENDPOINT.to_string(),
+            url: "http://127.0.0.1:1".to_string(),
+            api_key: None,
             timeout: Duration::from_secs(5),
             request_interval: interval,
             client_cert: None,
@@ -1561,11 +1602,66 @@ mod tests {
         assert_eq!(start.elapsed(), 2 * interval);
     }
 
+    /// The `Authorization` header a stub receives from a client configured with
+    /// `api_key`, if the client sends one.
+    async fn authorization_header_sent(api_key: Option<&str>) -> Option<String> {
+        use axum::{Json, http::HeaderMap};
+        use parking_lot::Mutex;
+
+        let seen: Arc<Mutex<Option<String>>> = Arc::default();
+        let router = Router::new().route(
+            &format!("/{}", constants::BRP_PERSONS_ENDPOINT),
+            post({
+                let seen = Arc::clone(&seen);
+                move |headers: HeaderMap| async move {
+                    *seen.lock() = headers
+                        .get("authorization")
+                        .and_then(|value| value.to_str().ok())
+                        .map(str::to_string);
+                    Json(json!({ "type": "RaadpleegMetBurgerservicenummer", "personen": [] }))
+                }
+            }),
+        );
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
+
+        let client = BrpClient::new(&BrpConfig {
+            url: format!("http://{addr}/{}", constants::BRP_PERSONS_ENDPOINT),
+            api_key: api_key.map(SecretString::from),
+            timeout: Duration::from_secs(5),
+            request_interval: Duration::ZERO,
+            client_cert: None,
+        })
+        .expect("no certificate to fail on");
+        let query = BrpQuery::ConsultWithBsn {
+            bsn: vec!["999993653".parse().unwrap()],
+            fields: vec![BrpField::Bsn],
+        };
+        client.get_persons(&query).await.expect("the stub answers");
+        server.abort();
+
+        seen.lock().clone()
+    }
+
+    #[tokio::test]
+    async fn the_api_key_is_sent_as_a_bearer_token() {
+        assert_eq!(
+            authorization_header_sent(Some("key-123")).await.as_deref(),
+            Some("Bearer key-123")
+        );
+    }
+
+    #[tokio::test]
+    async fn no_authorization_header_is_sent_without_an_api_key() {
+        assert_eq!(authorization_header_sent(None).await, None);
+    }
+
     /// Smoke test against the real mock, which `cargo test` does not start.
     #[tokio::test]
     #[ignore = "requires the personen-mock container: docker compose up -d personen-mock"]
     async fn brp_mock_answers_a_query() {
-        let client = BrpClient::new_for_test("http://localhost:5010");
+        let client = BrpClient::new_for_test("http://localhost:5010/haalcentraal/api/brp/personen");
         let query = BrpQuery::ConsultWithBsn {
             bsn: vec!["999993653".parse().unwrap()],
             fields: CANDIDATE_FIELDS.to_vec(),

@@ -62,7 +62,10 @@ impl BrpStub {
         });
 
         Self {
-            client: BrpClient::new_for_test_with_interval(&format!("http://{addr}"), interval),
+            client: BrpClient::new_for_test_with_interval(
+                &format!("http://{addr}/{}", constants::BRP_PERSONS_ENDPOINT),
+                interval,
+            ),
             queries,
             server,
         }

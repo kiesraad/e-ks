@@ -1,5 +1,6 @@
 //! Utilities and small helpers shared across the application.
 mod abbreviate_str;
+mod describe_json_error;
 mod format_hash;
 mod option_string_ext;
 mod overlay;
@@ -21,6 +22,7 @@ pub mod transparent_string;
 pub mod livereload;
 
 pub use abbreviate_str::abbreviate_str;
+pub use describe_json_error::describe_json_error;
 pub use format_hash::{format_hash, parse_hash_prefix};
 pub use option_string_ext::{OptionAsStrExt, OptionStringExt};
 pub use overlay::Overlay;

@@ -22,14 +22,12 @@ use serde::{Deserialize, Deserializer, de::Error as _};
 use super::{CsbAlertHours, CsbIpAllowList, ProxyProtocolPeers, RateLimits, logging::LogFormat};
 use crate::{
     AppError, CsbWebauthnConfig, ElectionConfig,
-    constants::{
-        BRP_PERSONS_ENDPOINT, BRP_REQUEST_INTERVAL_MS, BRP_TIMEOUT, STORE_CACHE_IDLE_MINUTES,
-    },
+    constants::{BRP_REQUEST_INTERVAL_MS, BRP_TIMEOUT, STORE_CACHE_IDLE_MINUTES},
 };
 
 /// Development defaults for the variables that have none otherwise.
 #[cfg(feature = "dev-features")]
-const DEV_DEFAULTS: [(&str, &str); 6] = [
+const DEV_DEFAULTS: [(&str, &str); 5] = [
     (
         "storage_url",
         if cfg!(feature = "database") {
@@ -46,8 +44,10 @@ const DEV_DEFAULTS: [(&str, &str); 6] = [
         "master_encryption_key",
         "eks-dev-master-encryption-key-not-for-production",
     ),
-    ("brp_base_url", "http://localhost:5010"),
-    ("brp_api_key", ""),
+    (
+        "brp_url",
+        "http://localhost:5010/haalcentraal/api/brp/personen",
+    ),
     ("default_election", "EK27"),
 ];
 
@@ -66,10 +66,11 @@ pub struct TlsConfig {
 /// BRP client configuration.
 #[derive(Debug, Clone)]
 pub struct BrpConfig {
-    pub base_url: String,
-    /// Held as a secret so it cannot reach a log through `Debug`.
-    pub api_key: SecretString,
-    pub persons_endpoint: String,
+    /// The complete URL of the "personen" resource at the tussenpartij.
+    pub url: String,
+    /// Bearer token, when the tussenpartij issues one. Held as a secret so it
+    /// cannot reach a log through `Debug`.
+    pub api_key: Option<SecretString>,
     pub timeout: Duration,
     /// Minimum time between the starts of two requests, across all callers.
     pub request_interval: Duration,
@@ -193,9 +194,8 @@ struct Env {
     #[serde(default, deserialize_with = "parsed")]
     preselected_ad: Option<PreselectedAd>,
     base_url: Option<String>,
-    brp_base_url: String,
-    brp_api_key: SecretString,
-    brp_persons_endpoint: Option<String>,
+    brp_url: String,
+    brp_api_key: Option<SecretString>,
     brp_timeout: Option<u64>,
     brp_request_interval_ms: Option<u64>,
     brp_client_cert_path: Option<PathBuf>,
@@ -411,16 +411,11 @@ fn auth(env: &Env) -> Result<Option<AuthSettings>, AppError> {
     }))
 }
 
-/// The BRP client settings; only `BRP_BASE_URL` and `BRP_API_KEY` have no
-/// default.
+/// The BRP client settings; only `BRP_URL` has no default.
 fn brp(env: &Env) -> Result<BrpConfig, AppError> {
     Ok(BrpConfig {
-        base_url: env.brp_base_url.clone(),
+        url: env.brp_url.clone(),
         api_key: env.brp_api_key.clone(),
-        persons_endpoint: env
-            .brp_persons_endpoint
-            .clone()
-            .unwrap_or_else(|| BRP_PERSONS_ENDPOINT.to_string()),
         timeout: Duration::from_secs(env.brp_timeout.unwrap_or(BRP_TIMEOUT)),
         request_interval: Duration::from_millis(
             env.brp_request_interval_ms
@@ -559,9 +554,8 @@ impl Config {
             csb_alert_hours: None,
             auth: None,
             brp_client: BrpConfig {
-                base_url: "http://localhost:5010".to_string(),
-                api_key: SecretString::from(""),
-                persons_endpoint: BRP_PERSONS_ENDPOINT.to_string(),
+                url: "http://localhost:5010/haalcentraal/api/brp/personen".to_string(),
+                api_key: None,
                 timeout: Duration::from_secs(5),
                 request_interval: Duration::ZERO,
                 client_cert: None,
@@ -582,12 +576,14 @@ mod tests {
 
     /// The variables with no default outside `dev-features` and `tvs-mock`,
     /// so a test about any other setting passes with the features off.
-    const REQUIRED: [(&str, &str); 9] = [
+    const REQUIRED: [(&str, &str); 8] = [
         ("STORAGE_URL", "memory://test"),
         ("ID_DERIVATION_KEY", "id-derivation-key-123"),
         ("MASTER_ENCRYPTION_KEY", "master-encryption-key-123"),
-        ("BRP_BASE_URL", "http://localhost:5010"),
-        ("BRP_API_KEY", "brp-api-key-123"),
+        (
+            "BRP_URL",
+            "http://localhost:5010/haalcentraal/api/brp/personen",
+        ),
         ("DEFAULT_ELECTION", "EK27"),
         ("TVS_ENV", "test"),
         ("CERTS_DIR", "/tmp/certs"),
@@ -709,6 +705,21 @@ mod tests {
                 "BRP_CLIENT_CERT_PATH"
             ));
         }
+    }
+
+    #[test]
+    fn from_env_reads_the_brp_api_key_when_set() {
+        let config = config_from(&[("BRP_API_KEY", "brp-api-key-123")]).expect("config");
+
+        let api_key = config.brp_client.api_key.expect("api key present");
+        assert_eq!(api_key.expose_secret(), "brp-api-key-123");
+    }
+
+    #[test]
+    fn from_env_has_no_brp_api_key_by_default() {
+        let config = config_from(&[]).expect("config");
+
+        assert!(config.brp_client.api_key.is_none());
     }
 
     #[test]

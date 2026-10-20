@@ -42,6 +42,7 @@ ignore = [
     { id = "RUSTSEC-2026-0367", reason = "zip 8.6 pulled transitively by docx-rs (via textris-pdf); only affects ZipArchive::extract / ZipStreamReader::extract, which docx-rs does not call. Revisit when docx-rs moves to zip >= 9." },
     { id = "RUSTSEC-2026-0368", reason = "zip 8.6 pulled transitively by docx-rs (via textris-pdf); only affects ZipArchive::extract, which docx-rs does not call. Revisit when docx-rs moves to zip >= 9." },
     { id = "RUSTSEC-2026-0369", reason = "zip 8.6 pulled transitively by docx-rs (via textris-pdf); only affects ZipArchive::extract / ZipStreamReader::extract, which docx-rs does not call. Revisit when docx-rs moves to zip >= 9." },
+    { id = "RUSTSEC-2026-0374", reason = "basic-toml (unmaintained) pulled transitively by askama_derive via the `config` feature, which we need for askama.toml. Only used at compile time by the proc-macro to parse our own askama.toml, so it never runs in the binary. Revisit when askama-rs/askama#594 is resolved." },
 ]
 
 [sources]

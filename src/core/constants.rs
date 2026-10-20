@@ -29,8 +29,9 @@ pub const MAX_CANDIDATES: usize = 80;
 /// the CSB import, so the count is bounded independently of the event caps.
 pub const MAX_PERSONS: usize = 1_000;
 
-/// Default endpoint path for the BRP "personen" lookup, relative to
-/// `BrpConfig::base_url`.
+/// Path of the Haal Centraal "personen" resource as the test stub serves it,
+/// mirroring the `personen-mock` container; `BRP_URL` names it in full.
+#[cfg(test)]
 pub(crate) const BRP_PERSONS_ENDPOINT: &str = "haalcentraal/api/brp/personen";
 
 /// Default request timeout (in seconds) for BRP lookups.
