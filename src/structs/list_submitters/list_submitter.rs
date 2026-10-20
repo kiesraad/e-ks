@@ -1,8 +1,11 @@
 use crate::{
     Locale, id_newtype,
-    structs::common::{
-        Address, CountryCode, FullName, InternationalAddress, InternationalPostalCode, PostalCode,
-        Problematic, Problems, Severity,
+    structs::{
+        audit_log::audit_fields,
+        common::{
+            Address, CountryCode, FullName, InternationalAddress, InternationalPostalCode,
+            PostalCode, Problematic, Problems, Severity,
+        },
     },
     trans,
 };
@@ -76,6 +79,13 @@ pub struct ListSubmitter {
     #[serde(skip)]
     pub is_substitute: bool,
 }
+
+audit_fields!(ListSubmitter {
+    id: skip,
+    name: flatten,
+    address: group(Address),
+    is_substitute: skip,
+});
 
 impl Problematic<()> for ListSubmitter {
     fn get_problems(&self, _: ()) -> Problems {

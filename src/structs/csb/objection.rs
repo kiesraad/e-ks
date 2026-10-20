@@ -14,3 +14,8 @@ pub struct Objection {
     pub id: ObjectionId,
     pub objection_text: ObjectionText,
 }
+
+crate::structs::audit_log::audit_fields!(Objection {
+    id: skip,
+    objection_text: leaf(ObjectionText),
+});

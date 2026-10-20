@@ -2,7 +2,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     OptionAsStrExt,
-    structs::common::{InfoProblems, PotentialProblems, Problematic, Problems, Severity},
+    structs::{
+        audit_log::{AuditFields, Field, FieldPath, audit_fields},
+        common::{InfoProblems, PotentialProblems, Problematic, Problems, Severity},
+    },
     utils::bag,
 };
 
@@ -30,6 +33,15 @@ pub struct DutchAddress {
     /// Address found in the BAG.
     pub known_in_bag: Option<bool>,
 }
+
+audit_fields!(DutchAddress {
+    street_name: leaf(StreetName),
+    house_number: leaf(HouseNumber),
+    house_number_addition: leaf(HouseNumberAddition),
+    locality: leaf(Locality),
+    postal_code: leaf(PostalCode),
+    known_in_bag: leaf(KnownInBag),
+});
 
 impl DutchAddress {
     /// Returns `true` when all address parts are empty or `None`.
@@ -144,6 +156,16 @@ pub struct InternationalAddress {
     pub country: Option<CountryCode>,
 }
 
+audit_fields!(InternationalAddress {
+    street_name: leaf(StreetName),
+    house_number: leaf(HouseNumber),
+    house_number_addition: leaf(HouseNumberAddition),
+    locality: leaf(Locality),
+    state_or_province: leaf(StateOrProvince),
+    postal_code: leaf(PostalCode),
+    country: leaf(Country),
+});
+
 impl InternationalAddress {
     /// Returns `true` when all address parts are empty or `None`.
     pub fn is_empty(&self) -> bool {
@@ -200,6 +222,17 @@ pub enum Address {
 impl Default for Address {
     fn default() -> Self {
         Address::Dutch(DutchAddress::default())
+    }
+}
+
+/// The variant records how the address was classified, not a field of its
+/// own, so the audit log lists the fields of whichever address is present.
+impl AuditFields for Address {
+    fn audit_fields(&self, path: &FieldPath, out: &mut Vec<Field>) {
+        match self {
+            Address::Dutch(address) => address.audit_fields(path, out),
+            Address::International(address) => address.audit_fields(path, out),
+        }
     }
 }
 
