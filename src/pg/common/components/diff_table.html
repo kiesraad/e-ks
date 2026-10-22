@@ -1,4 +1,14 @@
 {% macro cell(c) %}
+  {% match c.highlight %}
+  {% when Some(crate::structs::audit_log::Highlight::Removed) %}
+  <del>{{ cell_content(c) }}</del>
+  {% when Some(crate::structs::audit_log::Highlight::Added) %}
+  <ins>{{ cell_content(c) }}</ins>
+  {% when None %}
+  {{ cell_content(c) }}
+{% endmatch %}
+{% endmacro %}
+{% macro cell_content(c) %}
   {% if let Some(marker) = c.marker %}<span class="position">{{ marker }}</span>{% endif %}
   {% if let Some(entity) = c.entity %}
     <span class="entity-ref">

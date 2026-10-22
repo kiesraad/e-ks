@@ -101,6 +101,16 @@ pub struct Cell {
     pub text: String,
     /// Present when the value is a reference to another entity.
     pub entity: Option<SubjectLink>,
+    /// Set when this item is what changed within a larger value, e.g. one
+    /// district in a set shown in full.
+    pub highlight: Option<Highlight>,
+}
+
+/// How a cell stands out from the rest of its column.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Highlight {
+    Added,
+    Removed,
 }
 
 impl Cell {
@@ -109,6 +119,7 @@ impl Cell {
             marker: None,
             text,
             entity: None,
+            highlight: None,
         }
     }
 }
@@ -170,6 +181,18 @@ fn render_row(change: &Change, ctx: &RenderContext) -> ChangeRow {
                 new: Vec::new(),
             },
         ),
+        // A set shows both sides in full, with the items that left or
+        // entered highlighted.
+        ChangeKind::Changed {
+            old: AuditValue::Set(old),
+            new: AuditValue::Set(new),
+        } => (
+            RowKind::Changed,
+            RowDetail::Scalar {
+                old: set_cells(old, new, Highlight::Removed, ctx),
+                new: set_cells(new, old, Highlight::Added, ctx),
+            },
+        ),
         ChangeKind::Changed { old, new } => (
             RowKind::Changed,
             RowDetail::Scalar {
@@ -195,6 +218,25 @@ fn render_row(change: &Change, ctx: &RenderContext) -> ChangeRow {
         kind,
         detail,
     }
+}
+
+/// The cells of `items`, highlighting those absent from `other`.
+fn set_cells(
+    items: &[AuditValue],
+    other: &[AuditValue],
+    highlight: Highlight,
+    ctx: &RenderContext,
+) -> Vec<Cell> {
+    items
+        .iter()
+        .flat_map(|item| {
+            let only_here = !other.iter().any(|candidate| candidate.same_item(item));
+            cells(item, ctx).into_iter().map(move |mut cell| {
+                cell.highlight = only_here.then_some(highlight);
+                cell
+            })
+        })
+        .collect()
 }
 
 fn move_cell(m: &Move, ctx: &RenderContext) -> MoveCell {
@@ -228,6 +270,7 @@ fn cells(value: &AuditValue, ctx: &RenderContext) -> Vec<Cell> {
                 marker: None,
                 text,
                 entity: Some(ctx.links.link(entity.id)),
+                highlight: None,
             }]
         }
         AuditValue::Set(items) => items.iter().flat_map(|item| cells(item, ctx)).collect(),
@@ -364,6 +407,45 @@ mod tests {
         assert_eq!(groups[0].rows[0].kind, RowKind::Added);
         assert_eq!(groups[1].label.as_deref(), Some("Gemachtigde"));
         assert_eq!(groups[1].rows.len(), 2);
+    }
+
+    #[test]
+    fn changed_set_shows_both_sides_and_highlights_the_difference() {
+        let change = Change {
+            path: FieldPath::from(FieldKey::ElectoralDistricts),
+            kind: ChangeKind::Changed {
+                old: AuditValue::Set(vec![text("Groningen"), text("Utrecht")]),
+                new: AuditValue::Set(vec![text("Fryslân"), text("Utrecht")]),
+            },
+        };
+
+        let groups = render_groups(&[change], &RenderContext::without_links(Locale::En));
+        let row = &groups[0].rows[0];
+        let summary = |cells: &[Cell]| {
+            cells
+                .iter()
+                .map(|c| (c.text.clone(), c.highlight))
+                .collect::<Vec<_>>()
+        };
+
+        assert_eq!(row.kind, RowKind::Changed);
+        let RowDetail::Scalar { old, new } = &row.detail else {
+            panic!("expected a scalar row");
+        };
+        assert_eq!(
+            summary(old),
+            vec![
+                ("Groningen".to_string(), Some(Highlight::Removed)),
+                ("Utrecht".to_string(), None),
+            ]
+        );
+        assert_eq!(
+            summary(new),
+            vec![
+                ("Fryslân".to_string(), Some(Highlight::Added)),
+                ("Utrecht".to_string(), None),
+            ]
+        );
     }
 
     #[test]

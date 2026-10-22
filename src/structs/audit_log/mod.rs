@@ -26,8 +26,10 @@ pub use field_key::{FieldKey, FieldPath};
 pub(crate) use fields::audit_fields;
 pub use fields::{AuditFields, Field};
 #[cfg(test)]
-pub use render::ChangeRow;
-pub use render::{ChangeGroup, RenderContext, RowDetail, RowKind, bool_label, render_groups};
+pub use render::{Cell, ChangeRow};
+pub use render::{
+    ChangeGroup, Highlight, RenderContext, RowDetail, RowKind, bool_label, render_groups,
+};
 #[cfg(test)]
 pub use subject::NoLinks;
 pub use subject::{Subject, SubjectLink, SubjectLinks};

@@ -1,10 +1,10 @@
 //! Diffing typed audit fields.
 //!
 //! [`diff`] compares two states of one entity by listing both sides' fields
-//! and zipping them by path. Sets and ordered collections get their own
-//! treatment ([`set_diff`], [`ordered_diff`]) so a district that was added or a
-//! candidate that moved shows up as exactly that, instead of as a wall of
-//! changed positions.
+//! and zipping them by path. Sets compare without regard to order and show
+//! both sides in full; ordered collections get their own treatment
+//! ([`ordered_diff`]) so a candidate that moved shows up as exactly that,
+//! instead of as a wall of changed positions.
 
 use super::{AuditFields, AuditValue, Change, ChangeKind, Field, FieldPath, Move};
 
@@ -91,23 +91,22 @@ fn between_values(old: AuditValue, new: AuditValue) -> Option<ChangeKind> {
         (old, AuditValue::Missing) if old.is_empty_collection() => None,
         (AuditValue::Missing, new) => Some(ChangeKind::Added(new)),
         (old, AuditValue::Missing) => Some(ChangeKind::Removed(old)),
-        (AuditValue::Set(old), AuditValue::Set(new)) => set_diff(&old, &new),
+        (AuditValue::Set(old), AuditValue::Set(new)) => set_change(old, new),
         (AuditValue::Ordered(old), AuditValue::Ordered(new)) => ordered_diff(&old, &new),
         (old, new) => Some(ChangeKind::Changed { old, new }),
     }
 }
 
-/// The items that entered or left a set; `None` when the sets hold the same
-/// items.
-fn set_diff(old: &[AuditValue], new: &[AuditValue]) -> Option<ChangeKind> {
-    let (added, removed) = added_and_removed(old, new);
+/// Both sides of a set in full, so the reader sees the whole selection before
+/// and after; `None` when the sets hold the same items.
+fn set_change(old: Vec<AuditValue>, new: Vec<AuditValue>) -> Option<ChangeKind> {
+    let (added, removed) = added_and_removed(&old, &new);
     if added.is_empty() && removed.is_empty() {
         return None;
     }
-    Some(ChangeKind::Collection {
-        added,
-        removed,
-        moved: Vec::new(),
+    Some(ChangeKind::Changed {
+        old: AuditValue::Set(old),
+        new: AuditValue::Set(new),
     })
 }
 
@@ -301,18 +300,17 @@ mod tests {
     }
 
     #[test]
-    fn set_diff_reports_only_what_entered_and_left() {
-        let kind = set_diff(
-            &texts(&["Groningen", "Utrecht"]),
-            &texts(&["Utrecht", "Fryslân"]),
+    fn set_change_keeps_both_sides_in_full() {
+        let kind = set_change(
+            texts(&["Groningen", "Utrecht"]),
+            texts(&["Utrecht", "Fryslân"]),
         );
 
         assert_eq!(
             kind,
-            Some(ChangeKind::Collection {
-                added: texts(&["Fryslân"]),
-                removed: texts(&["Groningen"]),
-                moved: Vec::new(),
+            Some(ChangeKind::Changed {
+                old: AuditValue::Set(texts(&["Groningen", "Utrecht"])),
+                new: AuditValue::Set(texts(&["Utrecht", "Fryslân"])),
             })
         );
     }

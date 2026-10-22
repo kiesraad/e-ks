@@ -470,15 +470,19 @@ mod tests {
     }
 
     #[test]
-    fn district_update_reports_what_entered_and_left() {
+    fn district_update_reports_both_selections_in_full() {
         let list_id = CandidateListId::new();
         let mut list = sample_candidate_list(list_id);
-        list.electoral_districts = BTreeSet::from([ElectoralDistrict::Groningen]);
+        list.electoral_districts =
+            BTreeSet::from([ElectoralDistrict::Groningen, ElectoralDistrict::Utrecht]);
         let before = state_with(vec![PgEvent::CreateCandidateList(Box::new(list))]);
 
         let changes = PgEvent::UpdateCandidateListDistricts {
             list_id,
-            electoral_districts: BTreeSet::from([ElectoralDistrict::Fryslan]),
+            electoral_districts: BTreeSet::from([
+                ElectoralDistrict::Fryslan,
+                ElectoralDistrict::Utrecht,
+            ]),
         }
         .audit_changes(&before);
 
@@ -486,10 +490,9 @@ mod tests {
             changes,
             vec![Change {
                 path: key(FieldKey::ElectoralDistricts),
-                kind: ChangeKind::Collection {
-                    added: vec![text("Fryslân")],
-                    removed: vec![text("Groningen")],
-                    moved: Vec::new(),
+                kind: ChangeKind::Changed {
+                    old: AuditValue::Set(vec![text("Groningen"), text("Utrecht")]),
+                    new: AuditValue::Set(vec![text("Fryslân"), text("Utrecht")]),
                 },
             }]
         );

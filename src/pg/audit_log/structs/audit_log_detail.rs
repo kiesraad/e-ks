@@ -59,7 +59,7 @@ mod tests {
     use crate::{
         ElectoralDistrict, Locale,
         structs::{
-            audit_log::{ChangeRow, RowDetail, RowKind},
+            audit_log::{Cell, ChangeRow, Highlight, RowDetail, RowKind},
             candidate_lists::CandidateListId,
             common::{DutchAddress, FullName, PlaceOfResidence, PreviousElectionResults},
             persons::{PersonId, Representative},
@@ -303,7 +303,7 @@ mod tests {
     }
 
     #[test]
-    fn compute_district_change_lists_what_entered_and_left() {
+    fn compute_district_change_shows_both_sides_and_marks_what_entered() {
         let list_id = CandidateListId::new();
         let mut list = sample_candidate_list(list_id);
         list.electoral_districts = BTreeSet::from([ElectoralDistrict::Groningen]);
@@ -325,22 +325,22 @@ mod tests {
         let detail = AuditLogDetail::compute(&events, 2, EN).unwrap();
         let districts = row(&detail, "Electoral districts");
 
-        assert_eq!(districts.kind, RowKind::Collection);
-        let RowDetail::Collection {
-            removed,
-            added,
-            moved,
-        } = &districts.detail
-        else {
-            panic!("expected a collection row");
+        assert_eq!(districts.kind, RowKind::Changed);
+        let RowDetail::Scalar { old, new } = &districts.detail else {
+            panic!("expected a scalar row");
         };
-        assert!(removed.is_empty());
+        fn summary(cells: &[Cell]) -> Vec<(&str, Option<Highlight>)> {
+            cells
+                .iter()
+                .map(|c| (c.text.as_str(), c.highlight))
+                .collect()
+        }
+        assert_eq!(summary(old), vec![("Groningen", None)]);
         // Fryslân's title carries a diacritic the serde tag ("Fryslan") does not.
         assert_eq!(
-            added.iter().map(|c| c.text.as_str()).collect::<Vec<_>>(),
-            vec!["Fryslân"]
+            summary(new),
+            vec![("Groningen", None), ("Fryslân", Some(Highlight::Added))]
         );
-        assert!(moved.is_empty());
     }
 
     #[test]
