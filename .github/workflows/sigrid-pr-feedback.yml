@@ -33,6 +33,7 @@ jobs:
           customer: kiesraad
           system: e-ks
           convert: rust
+          disablecapability: osh # covered by cargo deny
         env:
           SIGRID_CI_TOKEN: "${{ secrets.SIGRID_CI_TOKEN }}"
 
