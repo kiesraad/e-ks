@@ -34,12 +34,13 @@ pub struct DutchAddress {
     pub known_in_bag: Option<bool>,
 }
 
+// In the order of the address form.
 audit_fields!(DutchAddress {
-    street_name: leaf(StreetName),
+    postal_code: leaf(PostalCode),
     house_number: leaf(HouseNumber),
     house_number_addition: leaf(HouseNumberAddition),
+    street_name: leaf(StreetName),
     locality: leaf(Locality),
-    postal_code: leaf(PostalCode),
     known_in_bag: leaf(KnownInBag),
 });
 
@@ -156,13 +157,14 @@ pub struct InternationalAddress {
     pub country: Option<CountryCode>,
 }
 
+// In the order of the address form.
 audit_fields!(InternationalAddress {
-    street_name: leaf(StreetName),
+    postal_code: leaf(PostalCode),
     house_number: leaf(HouseNumber),
     house_number_addition: leaf(HouseNumberAddition),
+    street_name: leaf(StreetName),
     locality: leaf(Locality),
     state_or_province: leaf(StateOrProvince),
-    postal_code: leaf(PostalCode),
     country: leaf(Country),
 });
 

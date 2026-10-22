@@ -29,7 +29,7 @@
         </dd>
       {% endif %}
       {% if let Some(subject) = detail.entry.subject %}
-        {{ subject_id::subject_rows(subject, detail.subject_events_path) }}
+        {{ subject_id::subject_rows(subject) }}
       {% endif %}
       {% for fact in detail.facts %}
         <dt>{{ fact.label }}</dt>

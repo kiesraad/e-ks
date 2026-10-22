@@ -22,12 +22,13 @@ pub struct PersonalData {
     pub country: Option<CountryCode>,
 }
 
+// In the order of the person form.
 audit_fields!(PersonalData {
-    gender: leaf(Gender),
+    country: leaf(Country),
+    place_of_residence: leaf(PlaceOfResidence),
     bsn: leaf(Bsn),
     date_of_birth: leaf(DateOfBirth),
-    place_of_residence: leaf(PlaceOfResidence),
-    country: leaf(Country),
+    gender: leaf(Gender),
 });
 
 impl Problematic<ElectionConfig> for PersonalData {

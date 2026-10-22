@@ -303,6 +303,7 @@ mod tests {
                 SubjectLink {
                     id_full: subject.own_id(),
                     href: Some(format!("/persons/{}", subject.own_id().unwrap())),
+                    events_href: None,
                 }
             }
 

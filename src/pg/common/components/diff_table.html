@@ -2,7 +2,13 @@
   {% if let Some(marker) = c.marker %}<span class="position">{{ marker }}</span>{% endif %}
   {% if let Some(entity) = c.entity %}
     <span class="entity-ref">
-      {% if let Some(id_full) = entity.id_full %}<abbr title="{{ id_full }}">{{ id_full|abbreviate_str }}</abbr>{% endif %}
+      {% if let Some(id_full) = entity.id_full %}
+        {% if let Some(events_href) = entity.events_href %}
+          <a href="{{ events_href }}"><abbr title="{{ id_full }}">{{ id_full|abbreviate_str }}</abbr></a>
+        {% else %}
+          <abbr title="{{ id_full }}">{{ id_full|abbreviate_str }}</abbr>
+        {% endif %}
+      {% endif %}
       {% if !c.text.is_empty() %}
         {% if let Some(href) = entity.href %}
           <a href="{{ href }}">{{ c.text }}</a>

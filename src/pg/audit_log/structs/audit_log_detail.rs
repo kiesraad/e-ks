@@ -1,6 +1,6 @@
 use crate::{
     Locale, PgEvent, PgStoreData,
-    audit_log::{AuditLogEntry, AuditLogPath},
+    audit_log::AuditLogEntry,
     store::StoreEvent,
     structs::audit_log::{AuditEvent, ChangeGroup, RenderContext, SubjectLinks, render_groups},
 };
@@ -8,8 +8,6 @@ use crate::{
 /// Detailed view of an audit log event, including field-level changes.
 pub struct AuditLogDetail {
     pub entry: AuditLogEntry,
-    /// The audit log filtered on the subject.
-    pub subject_events_path: Option<String>,
     /// The changes, grouped by the part of the entity they belong to.
     pub changes: Vec<ChangeGroup>,
 }
@@ -25,13 +23,9 @@ impl AuditLogDetail {
     ) -> Self {
         let changes = event.payload.changes(before);
         let entry = AuditLogEntry::new(event, locale, links);
-        let subject_events_path = entry
-            .subject_id()
-            .map(|id| format!("{AuditLogPath}?search={id}"));
 
         AuditLogDetail {
             entry,
-            subject_events_path,
             changes: render_groups(&changes, &RenderContext { locale, links }),
         }
     }
@@ -390,6 +384,44 @@ mod tests {
         assert_eq!(
             link.href.as_deref(),
             Some(format!("/persons/{p1_id}/update").as_str())
+        );
+        assert_eq!(
+            link.events_href.as_deref(),
+            Some(format!("/audit-log?search={p1_id}").as_str())
+        );
+    }
+
+    /// The rows follow the forms, so a reader finds the name where they
+    /// expect it: before the address, and the address postal code first.
+    #[test]
+    fn compute_create_person_lists_fields_in_form_order() {
+        let person = sample_person(PersonId::new());
+        let events = vec![StoreEvent::new(1, PgEvent::CreatePerson(Box::new(person)))];
+
+        let detail = AuditLogDetail::compute(&events, 1, EN).unwrap();
+        let labels: Vec<&str> = rows(&detail)
+            .into_iter()
+            .map(|(_, row)| row.label.as_str())
+            .collect();
+
+        assert_eq!(
+            labels,
+            vec![
+                "Initials",
+                "First name",
+                "Last name",
+                "Country code",
+                "Place of residence",
+                "Citizen service number (BSN)",
+                "Date of birth",
+                "Gender",
+                "Postal code",
+                "House number",
+                "House number addition",
+                "Street name",
+                "Locality",
+                "Known in the BAG",
+            ]
         );
     }
 

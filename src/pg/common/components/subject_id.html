@@ -9,13 +9,13 @@
     <a href="{{ href }}">{{ "audit_log.detail.subject_link"|trans }}</a>
   {% endif %}
 {% endmacro %}
-{% macro subject_rows(subject, events_path) %}
+{% macro subject_rows(subject) %}
   {% if let Some(id_full) = subject.id_full %}
     <dt>{{ "audit_log.fields.subject_id"|trans }}</dt>
     <dd>
       <code>{{ id_full }}</code>
-      {% if let Some(events_path) = events_path %}
-        <a href="{{ events_path }}">{{ "audit_log.detail.subject_events"|trans }}</a>
+      {% if let Some(events_href) = subject.events_href %}
+        <a href="{{ events_href }}">{{ "audit_log.detail.subject_events"|trans }}</a>
       {% endif %}
     </dd>
   {% endif %}

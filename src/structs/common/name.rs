@@ -19,11 +19,12 @@ pub struct FullName {
     pub initials: Option<Initials>,
 }
 
+// In the order of the name form.
 audit_fields!(FullName {
-    first_name: leaf(FirstName),
-    last_name: leaf(LastName),
-    last_name_prefix: leaf(LastNamePrefix),
     initials: leaf(Initials),
+    first_name: leaf(FirstName),
+    last_name_prefix: leaf(LastNamePrefix),
+    last_name: leaf(LastName),
 });
 
 impl FullName {

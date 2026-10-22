@@ -7,6 +7,7 @@
 use crate::{
     AppError, CsbMainStore, CsbStream, Locale, StreamId,
     csb::{
+        audit_log::CsbAuditLogPath,
         examination::paths::{
             CsbAllRestorationsPath, CsbCandidateListPath, CsbCandidatePath,
             CsbGeneralInformationPath, CsbHearingDetailsPath, CsbPoliticalGroupPath,
@@ -96,10 +97,15 @@ impl<'a> CsbStreamLinks<'a> {
 
 impl SubjectLinks for CsbStreamLinks<'_> {
     fn link(&self, subject: Subject) -> SubjectLink {
-        let subject = subject.in_stream(self.store.stream_id);
+        let stream_id = self.store.stream_id;
+        let subject = subject.in_stream(stream_id);
+        let id_full = subject.own_id();
         SubjectLink {
-            id_full: subject.own_id(),
             href: self.href(subject),
+            events_href: id_full
+                .as_ref()
+                .map(|id| format!("{CsbAuditLogPath}?stream={stream_id}&search={id}")),
+            id_full,
         }
     }
 }
@@ -173,9 +179,20 @@ impl CsbMainLinks<'_> {
 
 impl SubjectLinks for CsbMainLinks<'_> {
     fn link(&self, subject: Subject) -> SubjectLink {
+        let id_full = subject.own_id();
+        // A political group's events are on its own stream.
+        let events_href = match subject {
+            Subject::PoliticalGroupStream(stream_id) => {
+                Some(format!("{CsbAuditLogPath}?stream={stream_id}"))
+            }
+            _ => id_full
+                .as_ref()
+                .map(|id| format!("{CsbAuditLogPath}?search={id}")),
+        };
         SubjectLink {
-            id_full: subject.own_id(),
             href: self.href(subject),
+            events_href,
+            id_full,
         }
     }
 
@@ -229,9 +246,38 @@ mod tests {
             ))
         );
 
+        assert_eq!(
+            link.events_href,
+            Some(format!(
+                "/csb/audit-log?stream={stream_id}&search={person_id}"
+            ))
+        );
+
         let group = links.link(Subject::PoliticalGroup);
         assert_eq!(group.id_full, Some(stream_id.to_string()));
         assert_eq!(group.href, Some(format!("/csb/examination/{stream_id}")));
+    }
+
+    /// The main stream refers to political groups by stream; their events
+    /// are on that stream, not among the main stream's.
+    #[test]
+    fn main_stream_links_a_political_group_to_its_own_events() {
+        let main_store = CsbMainStore::new_for_test();
+        let streams = [CsbStream::new_for_test()];
+        let stream_id = streams[0].stream_id;
+        let links = CsbMainLinks {
+            store: &main_store,
+            streams: &streams,
+            locale: Locale::En,
+        };
+
+        let link = links.link(Subject::PoliticalGroupStream(stream_id));
+        assert_eq!(
+            link.events_href,
+            Some(format!("/csb/audit-log?stream={stream_id}"))
+        );
+
+        assert_eq!(links.link(Subject::ListOrder).events_href, None);
     }
 
     #[test]

@@ -432,12 +432,12 @@ mod tests {
             changes,
             vec![
                 Change::added(
-                    key(FieldKey::Representative).with(FieldKey::LastName),
-                    text("Bos")
-                ),
-                Change::added(
                     key(FieldKey::Representative).with(FieldKey::Initials),
                     text("E.")
+                ),
+                Change::added(
+                    key(FieldKey::Representative).with(FieldKey::LastName),
+                    text("Bos")
                 ),
             ]
         );

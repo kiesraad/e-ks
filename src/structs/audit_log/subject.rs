@@ -72,6 +72,8 @@ pub struct SubjectLink {
     pub id_full: Option<String>,
     /// The item's page; `None` when it has none here or no longer exists.
     pub href: Option<String>,
+    /// The audit log filtered on the item.
+    pub events_href: Option<String>,
 }
 
 /// Resolves subjects for the audit log of one part of the app.
@@ -94,6 +96,7 @@ impl SubjectLinks for NoLinks {
         SubjectLink {
             id_full: subject.own_id(),
             href: None,
+            events_href: None,
         }
     }
 }

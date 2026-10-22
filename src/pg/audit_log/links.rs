@@ -2,6 +2,7 @@
 
 use crate::{
     PgStore,
+    audit_log::AuditLogPath,
     candidate_lists::ViewCandidateListPath,
     persons::UpdatePersonPath,
     structs::{
@@ -53,9 +54,13 @@ impl PgLinks<'_> {
 impl SubjectLinks for PgLinks<'_> {
     fn link(&self, subject: Subject) -> SubjectLink {
         let subject = subject.in_stream(self.store.stream_id);
+        let id_full = subject.own_id();
         SubjectLink {
-            id_full: subject.own_id(),
             href: self.href(subject),
+            events_href: id_full
+                .as_ref()
+                .map(|id| format!("{AuditLogPath}?search={id}")),
+            id_full,
         }
     }
 }
@@ -76,6 +81,10 @@ mod tests {
         let link = links.link(Subject::Person(person.id));
         assert_eq!(link.id_full, Some(person.id.to_string()));
         assert_eq!(link.href, Some(format!("/persons/{}/update", person.id)));
+        assert_eq!(
+            link.events_href,
+            Some(format!("/audit-log?search={}", person.id))
+        );
 
         let link = links.link(Subject::Person(deleted));
         assert_eq!(link.id_full, Some(deleted.to_string()));

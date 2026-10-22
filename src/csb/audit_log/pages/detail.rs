@@ -9,7 +9,7 @@ use crate::{
     ElectoralDistrict, Event, HasCsbUser, HtmlTemplate, Locale, Overlay, QueryParamState, StreamId,
     csb::audit_log::{
         links::{CsbMainLinks, CsbStreamLinks},
-        pages::{CsbAuditLogDetailPath, CsbAuditLogPath},
+        pages::CsbAuditLogDetailPath,
         structs::CsbAuditLogEntry,
     },
     filters,
@@ -32,8 +32,6 @@ use crate::{
 struct CsbEventDetail {
     entry: CsbAuditLogEntry,
     details: String,
-    /// The audit log of the stream filtered on the subject.
-    subject_events_path: Option<String>,
     changes: Vec<ChangeGroup>,
     /// Labelled values the event payload alone cannot give: the candidate a
     /// BRP event is about, or what a BRP request sent and got back.
@@ -96,20 +94,9 @@ impl CsbEventDetail {
         let EventContext { facts, comparison } = context(&event.payload, &before);
         let entry = CsbAuditLogEntry::from_event(event, stream_id, stream_label, locale, links);
 
-        // The list shows the main stream by default and takes no filter for it.
-        let stream_filter = if stream_id == CSB_MAIN_STREAM_ID {
-            String::new()
-        } else {
-            format!("stream={stream_id}&")
-        };
-        let subject_events_path = entry
-            .subject_id()
-            .map(|id| format!("{CsbAuditLogPath}?{stream_filter}search={id}"));
-
         Ok(Self {
             entry,
             details: event.payload.details(),
-            subject_events_path,
             changes: render_groups(&changes, &RenderContext { locale, links }),
             facts,
             comparison,
@@ -610,10 +597,6 @@ mod tests {
 
         let state = AppState::new_for_tests().await;
         let stream_id = StreamId::new();
-        let store = state
-            .csb_store_for_stream(stream_id, ElectionConfig::EK27)
-            .await?;
-
         let submission = crate::PgStore::new_for_test();
         let person = sample_person(PersonId::new());
         person.create(&submission).await?;
@@ -621,17 +604,7 @@ mod tests {
         let mut list = sample_candidate_list(list_id);
         list.candidates = vec![person.id];
         list.create(&submission).await?;
-        let snapshot = Box::new(crate::PgStoreData::clone(&submission.snapshot()));
-        store
-            .update(
-                CsbAction::Import {
-                    hash: [0; 32],
-                    source_stream_id: submission.stream_id,
-                    snapshot,
-                }
-                .by(CsbUser::new_test()),
-            )
-            .await?;
+        let store = import_submission(&state, stream_id, &submission).await?;
         store
             .update(
                 CsbAction::PaperCorrectedUpdate(Box::new(PgEvent::UpdateCandidateListOrder {
@@ -657,6 +630,14 @@ mod tests {
             body.contains(&format!("?stream={stream_id}&#38;search={list_id}")),
             "link to the subject's events missing: {body}"
         );
+        // The removed candidate's id links to their events on this stream.
+        assert!(
+            body.contains(&format!(
+                "<a href=\"/csb/audit-log?stream={stream_id}&#38;search={}\"><abbr",
+                person.id
+            )),
+            "link to the candidate's events missing: {body}"
+        );
         assert!(
             !body.contains("href=\"/candidate-lists/") && !body.contains("href=\"/persons/"),
             "links into the political group's part of the app: {body}"
@@ -672,12 +653,22 @@ mod tests {
     ) -> Result<(CsbStream, Person), AppError> {
         use crate::test_utils::sample_person;
 
-        let store = state
-            .csb_store_for_stream(stream_id, ElectionConfig::EK27)
-            .await?;
         let submission = crate::PgStore::new_for_test();
         let person = sample_person(PersonId::new());
         person.create(&submission).await?;
+        let store = import_submission(state, stream_id, &submission).await?;
+        Ok((store, person))
+    }
+
+    /// The stream `stream_id` with `submission` imported into it.
+    async fn import_submission(
+        state: &AppState,
+        stream_id: StreamId,
+        submission: &crate::PgStore,
+    ) -> Result<CsbStream, AppError> {
+        let store = state
+            .csb_store_for_stream(stream_id, ElectionConfig::EK27)
+            .await?;
         let snapshot = Box::new(crate::PgStoreData::clone(&submission.snapshot()));
         store
             .update(
@@ -689,7 +680,7 @@ mod tests {
                 .by(CsbUser::new_test()),
             )
             .await?;
-        Ok((store, person))
+        Ok(store)
     }
 
     async fn detail_body(
