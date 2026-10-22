@@ -43,6 +43,11 @@ impl CsbStore {
         Self { stream, user }
     }
 
+    /// The committee member acting on the stream.
+    pub fn user(&self) -> &CsbUser {
+        &self.user
+    }
+
     /// Persist an action on the stream, recorded as triggered by the acting
     /// committee member.
     pub async fn update(&self, action: CsbAction) -> Result<(), AppError> {

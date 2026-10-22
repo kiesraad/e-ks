@@ -696,6 +696,17 @@ Three markers guard the CSB section, all off until configured (see
 The peer address in all of these is the TCP peer, or the client a listed
 proxy announced.
 
+Two more mark BRP lookups that deserve a second look, always on. Each is
+raised per candidate right before the BRP is consulted, and carries the
+committee user, the stream and the candidate's id:
+
+- `event="csb.brp_lookup_corrected_candidate"`: the candidate's details were
+  corrected, so the BRP is consulted on details the committee wrote rather
+  than on the package as submitted. `corrected` says by whom: `paper`, `csb`
+  or `paper_and_csb`.
+- `event="csb.brp_lookup_without_bsn"`: the candidate has no
+  burgerservicenummer, so the BRP is searched on last name and date of birth.
+
 ### Cargo features
 
 The build is tailored through Cargo features (`Cargo.toml`). The `default` set
