@@ -12,7 +12,7 @@ use tracing::{error, info, warn};
 use crate::{
     AppError, AppState, CsbMainAction, Locale, PgEvent, PgStore, Session, SessionUser, StreamId,
     auth::session_extractor::{
-        SESSION_COOKIE_NAME, build_removal_cookie, establish_session, user_agent_hash,
+        LoginOrigin, SESSION_COOKIE_NAME, build_removal_cookie, establish_session, user_agent_hash,
     },
     common::{PgIndexPath, SelectElectionPath, auth_failure_response},
 };
@@ -127,10 +127,15 @@ impl AuthState for AppState {
         session.set_user_agent_hash(user_agent_hash(headers));
         let scope = session.scope();
 
-        let jar = match establish_session(&self.sessions, jar.clone(), session).await {
-            Ok(jar) => jar,
-            Err(err) => return self.session_storage_error(err, jar, "/login"),
-        };
+        // The RD returns the user through a cross-site redirect, so the
+        // first cookie is `Lax`; the middleware hardens it on the next request.
+        let jar =
+            match establish_session(&self.sessions, jar.clone(), session, LoginOrigin::CrossSite)
+                .await
+            {
+                Ok(jar) => jar,
+                Err(err) => return self.session_storage_error(err, jar, "/login"),
+            };
 
         info!(
             event = "auth.login",
