@@ -284,17 +284,14 @@ fn starts_with_formula_trigger(cell: &str) -> bool {
     )
 }
 
-/// UTF-8 byte-order mark. Prepended to exported CSVs so Excel reads them as
-/// UTF-8, and stripped on import so our own exports round-trip.
+/// UTF-8 byte-order mark, prepended to exported CSVs so Excel reads them as
+/// UTF-8. The `csv` crate strips it again on import.
 const UTF8_BOM: &[u8] = &[0xEF, 0xBB, 0xBF];
 
-/// Build a CSV reader that tolerates the variations spreadsheets emit across
-/// locales: a leading UTF-8 BOM (Excel writes one) and either `,` or `;` as the
-/// field separator (Dutch/European Excel uses `;`). A BOM, if present, is
-/// stripped first, then the delimiter is sniffed from the header line. Cells
-/// are trimmed and column names normalised so records deserialize by name.
+/// Build a CSV reader that tolerates either `,` or `;` as the field separator
+/// (Dutch/European Excel uses `;`), sniffed from the header line. Cells are
+/// trimmed and column names normalised so records deserialize by name.
 pub fn reader_from_bytes(data: &[u8]) -> Reader<&[u8]> {
-    let data = data.strip_prefix(UTF8_BOM).unwrap_or(data);
     let mut reader = ReaderBuilder::new()
         .delimiter(detect_delimiter(data))
         .trim(Trim::All)
