@@ -24,25 +24,10 @@ pub async fn create_candidate_list(
     context: Context,
     store: PgStore,
 ) -> Result<Response, AppError> {
+    // A single-district election has no districts to pick: its one list is
+    // created by the POST behind the add button, never by a GET.
     if context.election.has_only_one_district() {
-        if !store.get_candidate_lists().is_empty() {
-            return Err(AppError::UserError(
-                "Cannot create more than one candidate list for single district elections"
-                    .to_string(),
-            ));
-        }
-        let list = CandidateList {
-            id: CandidateListId::new(),
-            electoral_districts: context
-                .election
-                .electoral_districts()
-                .iter()
-                .copied()
-                .collect(),
-            ..Default::default()
-        };
-        list.create(&store).await?;
-        return Ok(Redirect::to(&list.after_create_path().to_string()).into_response());
+        return Ok(Redirect::to(&CandidateList::list_path().to_string()).into_response());
     }
 
     let available_districts = CandidateList::available_districts(&store, &context.election);
@@ -68,9 +53,7 @@ pub async fn create_candidate_list_submit(
     Form(mut form): Form<CandidateListCreateForm>,
 ) -> Result<Response, AppError> {
     if context.election.has_only_one_district() {
-        return Err(AppError::UserError(
-            "Not available for single district elections".to_string(),
-        ));
+        return create_only_candidate_list(&context, &store).await;
     }
     let available_districts = CandidateList::available_districts(&store, &context.election);
     let districts_on_other_lists = CandidateList::districts_on_other_lists(&store, None);
@@ -103,6 +86,30 @@ pub async fn create_candidate_list_submit(
             Ok(Redirect::to(&candidate_list.after_create_path().to_string()).into_response())
         }
     }
+}
+
+/// Creates the one list of a single-district election, covering that district.
+async fn create_only_candidate_list(
+    context: &Context,
+    store: &PgStore,
+) -> Result<Response, AppError> {
+    if !store.get_candidate_lists().is_empty() {
+        return Err(AppError::UserError(
+            "Cannot create more than one candidate list for single district elections".to_string(),
+        ));
+    }
+    let list = CandidateList {
+        id: CandidateListId::new(),
+        electoral_districts: context
+            .election
+            .electoral_districts()
+            .iter()
+            .copied()
+            .collect(),
+        ..Default::default()
+    };
+    list.create(store).await?;
+    Ok(Redirect::to(&list.after_create_path().to_string()).into_response())
 }
 
 #[cfg(test)]
@@ -324,8 +331,13 @@ mod test {
             PgStore::new_for_test_with_election(ElectionConfig::WS27(WaterCouncil::Fryslan));
         let context = Context::new(&store, Session::new_test_with_locale(Locale::En));
 
-        let response =
-            create_candidate_list(CandidateListCreatePath {}, context, store.clone()).await?;
+        let response = create_candidate_list_submit(
+            CandidateListCreatePath {},
+            context,
+            store.clone(),
+            Form(CandidateListCreateForm::default()),
+        )
+        .await?;
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
 
@@ -368,62 +380,87 @@ mod test {
         Ok(())
     }
 
+    fn single_district_context(store: &PgStore) -> Context {
+        let mut context = Context::new(store, Session::new_test_with_locale(Locale::En));
+        context.election = ElectionConfig::WS27(WaterCouncil::AaEnMaas);
+        context
+    }
+
+    /// Creating is a state change, so a GET only sends the user back to the
+    /// list page.
     #[tokio::test]
-    async fn single_district_election_blocks_2nd_create_on_get() -> Result<(), AppError> {
+    async fn single_district_election_get_redirects_to_the_list_page() -> Result<(), AppError> {
         let store =
             PgStore::new_for_test_with_election(ElectionConfig::WS27(WaterCouncil::AaEnMaas));
+        let context = single_district_context(&store);
 
-        let mut context = Context::new(&store, Session::new_test_with_locale(Locale::En));
-        context.election = ElectionConfig::WS27(WaterCouncil::AaEnMaas); // select election with only one district
-        sample_candidate_list(CandidateListId::new())
-            .create(&store)
-            .await?;
+        let response =
+            create_candidate_list(CandidateListCreatePath {}, context, store.clone()).await?;
 
-        // test
-        let error = create_candidate_list(CandidateListCreatePath {}, context, store.clone())
-            .await
-            .err()
-            .unwrap();
-
-        // verify
-        match error {
-            AppError::UserError(msg) => assert_eq!(
-                msg,
-                "Cannot create more than one candidate list for single district elections"
-                    .to_string()
-            ),
-            _ => panic!("should be user error"),
-        }
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        assert_eq!(
+            response.headers().get(header::LOCATION).unwrap(),
+            &CandidateList::list_path().to_string()
+        );
+        assert!(store.get_candidate_lists().is_empty());
 
         Ok(())
     }
 
     #[tokio::test]
-    async fn single_district_election_blocks_create_on_post() -> Result<(), AppError> {
+    async fn single_district_election_post_creates_the_only_list() -> Result<(), AppError> {
         let store =
             PgStore::new_for_test_with_election(ElectionConfig::WS27(WaterCouncil::AaEnMaas));
+        let context = single_district_context(&store);
+        let district = context.election.electoral_districts()[0];
 
-        let mut context = Context::new(&store, Session::new_test_with_locale(Locale::En));
-        context.election = ElectionConfig::WS27(WaterCouncil::AaEnMaas); // select election with only one district
+        let response = create_candidate_list_submit(
+            CandidateListCreatePath {},
+            context,
+            store.clone(),
+            Form(CandidateListCreateForm::default()),
+        )
+        .await?;
 
-        // test
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        let lists = CandidateListSummary::list(&store);
+        assert_eq!(lists.len(), 1);
+        assert_eq!(
+            lists[0].list.electoral_districts,
+            BTreeSet::from([district])
+        );
+        assert_eq!(
+            response.headers().get(header::LOCATION).unwrap(),
+            &lists[0].list.after_create_path().to_string()
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn single_district_election_blocks_2nd_create_on_post() -> Result<(), AppError> {
+        let store =
+            PgStore::new_for_test_with_election(ElectionConfig::WS27(WaterCouncil::AaEnMaas));
+        let context = single_district_context(&store);
+        sample_candidate_list(CandidateListId::new())
+            .create(&store)
+            .await?;
+
         let error = create_candidate_list_submit(
             CandidateListCreatePath {},
             context,
             store,
-            Form(CandidateListCreateForm {
-                ..Default::default()
-            }),
+            Form(CandidateListCreateForm::default()),
         )
         .await
         .err()
         .unwrap();
 
-        // verify
         match error {
             AppError::UserError(msg) => assert_eq!(
                 msg,
-                "Not available for single district elections".to_string()
+                "Cannot create more than one candidate list for single district elections"
+                    .to_string()
             ),
             _ => panic!("should be user error"),
         }

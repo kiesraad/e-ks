@@ -15,6 +15,14 @@ use crate::{AppError, Locale, OptionStringExt, trans, utils::no_cache_headers};
 /// would amplify a few megabytes into hundreds.
 const MAX_ERRORS: usize = 50;
 
+/// Longest header line accepted, in bytes. The header is a handful of short
+/// known names, so this is generous; without a bound, a line of millions of
+/// separators is materialised field by field before any name is checked.
+pub const MAX_HEADER_LINE_BYTES: usize = 4 * 1024;
+
+/// Most fields accepted on the header line, counted as separators.
+pub const MAX_HEADER_FIELDS: usize = 64;
+
 pub enum CsvError {
     FormatError {
         line_number: usize,
@@ -27,6 +35,8 @@ pub enum CsvError {
     },
     /// Parsing stopped after [`MAX_ERRORS`]; more rows may be wrong.
     TooManyErrors { reported: usize },
+    /// The header line exceeds [`MAX_HEADER_LINE_BYTES`] or [`MAX_HEADER_FIELDS`].
+    HeaderTooLarge,
 }
 
 impl Display for CsvError {
@@ -63,6 +73,9 @@ impl CsvError {
                 locale,
                 reported
             ),
+            CsvError::HeaderTooLarge => {
+                trans!("candidate_list.import_errors.invalid_headers", locale)
+            }
         }
     }
 }
@@ -275,17 +288,38 @@ const UTF8_BOM: &[u8] = &[0xEF, 0xBB, 0xBF];
 /// field separator (Dutch/European Excel uses `;`). A BOM, if present, is
 /// stripped first, then the delimiter is sniffed from the header line. Cells
 /// are trimmed and column names normalised so records deserialize by name.
-pub fn reader_from_bytes(data: &[u8]) -> Reader<&[u8]> {
+///
+/// The header line is bounded before any of its fields is materialised, see
+/// [`MAX_HEADER_LINE_BYTES`] and [`MAX_HEADER_FIELDS`].
+pub fn reader_from_bytes(data: &[u8]) -> Result<Reader<&[u8]>, CsvError> {
     let data = data.strip_prefix(UTF8_BOM).unwrap_or(data);
+    let delimiter = detect_delimiter(data);
+    if !header_line_within_bounds(data, delimiter) {
+        return Err(CsvError::HeaderTooLarge);
+    }
     let mut reader = ReaderBuilder::new()
-        .delimiter(detect_delimiter(data))
+        .delimiter(delimiter)
         .trim(Trim::All)
         .from_reader(data);
     if let Ok(headers) = reader.headers() {
         let normalized: StringRecord = headers.iter().map(normalize_column_name).collect();
         reader.set_headers(normalized);
     }
-    reader
+    Ok(reader)
+}
+
+/// The first line of the data, up to a line feed.
+fn first_line(data: &[u8]) -> &[u8] {
+    data.split(|&byte| byte == b'\n').next().unwrap_or(data)
+}
+
+/// Whether the header line is short enough to parse: at most
+/// [`MAX_HEADER_LINE_BYTES`] long with at most [`MAX_HEADER_FIELDS`] fields,
+/// counted as raw `delimiter` bytes since header names are never quoted.
+fn header_line_within_bounds(data: &[u8], delimiter: u8) -> bool {
+    let line = first_line(data);
+    line.len() <= MAX_HEADER_LINE_BYTES
+        && line.iter().filter(|&&byte| byte == delimiter).count() < MAX_HEADER_FIELDS
 }
 
 /// Tolerates padding, capitals, and spaces or hyphens for underscores.
@@ -297,7 +331,7 @@ pub fn normalize_column_name(name: &str) -> String {
 /// header row is a fixed set of unquoted identifiers, so a raw byte count is
 /// unambiguous; ties fall back to `,` (the RFC-4180 default).
 fn detect_delimiter(data: &[u8]) -> u8 {
-    let first_line = data.split(|&byte| byte == b'\n').next().unwrap_or(data);
+    let first_line = first_line(data);
     let count = |needle: u8| first_line.iter().filter(|&&byte| byte == needle).count();
     if count(b';') > count(b',') {
         b';'
@@ -315,7 +349,7 @@ impl<T: DeserializeOwned> Csv<T> {
         let mut records = vec![];
         let mut errors = vec![];
 
-        let mut reader = reader_from_bytes(data);
+        let mut reader = reader_from_bytes(data).map_err(|err| vec![err])?;
         let mut rows = reader.deserialize::<T>().enumerate();
         while records.len() < max_records
             && let Some((index, res)) = rows.next()
@@ -608,6 +642,29 @@ mod tests {
             normalize_column_name("Gemachtigde plaats"),
             "gemachtigde_plaats"
         );
+    }
+
+    /// A header line of millions of separators used to be materialised field
+    /// by field before any name was checked.
+    #[test]
+    fn reader_from_bytes_rejects_an_oversized_header_line() {
+        let wide = ",".repeat(MAX_HEADER_FIELDS) + "\n1\n";
+        assert!(matches!(
+            reader_from_bytes(wide.as_bytes()),
+            Err(CsvError::HeaderTooLarge)
+        ));
+
+        let long = "x".repeat(MAX_HEADER_LINE_BYTES + 1) + "\n1\n";
+        assert!(matches!(
+            reader_from_bytes(long.as_bytes()),
+            Err(CsvError::HeaderTooLarge)
+        ));
+
+        let widest_accepted = "value".to_string() + &",".repeat(MAX_HEADER_FIELDS - 1) + "\n1\n";
+        assert!(reader_from_bytes(widest_accepted.as_bytes()).is_ok());
+
+        let errors = Csv::<TestRecord>::from_bytes(wide.as_bytes(), 10).unwrap_err();
+        assert!(matches!(errors.as_slice(), [CsvError::HeaderTooLarge]));
     }
 
     #[test]

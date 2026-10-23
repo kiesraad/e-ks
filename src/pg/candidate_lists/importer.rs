@@ -112,7 +112,9 @@ struct HeaderCheck {
 
 /// Column names of the first line, already normalised by the reader.
 fn read_headers(data: &[u8]) -> Vec<String> {
-    let mut reader = crate::core::reader_from_bytes(data);
+    let Ok(mut reader) = crate::core::reader_from_bytes(data) else {
+        return Vec::new();
+    };
     match reader.headers() {
         Ok(headers) => headers.iter().map(str::to_string).collect(),
         Err(_) => Vec::new(),
@@ -842,6 +844,19 @@ mod tests {
             }
         );
         assert_eq!(check_headers(&[], Locale::Nl).errors.len(), 1);
+    }
+
+    /// A header line past the parser's bounds is reported like any other
+    /// unusable header, before any of its fields is materialised.
+    #[test]
+    fn oversized_header_line_is_an_invalid_header() {
+        let data = ",".repeat(1_000);
+        let Err(ImportCandidateListError::Messages(errors)) =
+            ensure_expected_headers(data.as_bytes(), Locale::En)
+        else {
+            panic!("should be rejected");
+        };
+        assert_eq!(errors, check_headers(&[], Locale::En).errors);
     }
 
     const CSV_HEADER: &str = include_str!("testdata/csv_header.csv");

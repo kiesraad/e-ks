@@ -10,7 +10,7 @@ use serde::Deserialize;
 use crate::{
     AppError, AppState, CsbMainAction, CsbUser, ElectionConfig, Locale, PgEvent, PgStoreData,
     Session, SessionUser, StreamId,
-    auth::session_extractor::{establish_session, user_agent_hash},
+    auth::session_extractor::{LoginOrigin, establish_session, user_agent_hash},
     common::{PgIndexPath, SelectElectionPath},
     csb::index::CsbIndexPath,
     store::Store,
@@ -54,7 +54,7 @@ pub async fn dev_login(
     let session = login.session;
 
     let mut response = (
-        establish_session(&state.sessions, jar, session).await?,
+        establish_session(&state.sessions, jar, session, LoginOrigin::SameSite).await?,
         Redirect::to(&redirect_to),
     )
         .into_response();

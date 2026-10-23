@@ -2,7 +2,10 @@
 //!
 //! When the database is unavailable (see [`crate::DbHealth`]), every
 //! DB-dependent route is short-circuited to a static 503 maintenance page
-use crate::{AppError, AppState, Context, DbHealth, HtmlTemplate, Locale, LocaleValues, filters};
+use crate::{
+    AppError, AppState, Context, DbHealth, HtmlTemplate, Locale, LocaleValues, filters,
+    utils::is_local_path,
+};
 use askama::Template;
 use axum::{
     extract::{Request, State},
@@ -81,8 +84,15 @@ pub(crate) fn handle_db_error_at_path(
 }
 
 /// Render the static 503 maintenance page in the default locale, with a
-/// `Retry-After` header and a "try again" link back to `retry_path`.
+/// `Retry-After` header and a "try again" link back to `retry_path`. The path
+/// comes from the request line, so anything but a local path (a `//host`
+/// protocol-relative URL, say) falls back to the home page.
 fn maintenance_response(retry_path: String) -> Response {
+    let retry_path = if is_local_path(&retry_path) {
+        retry_path
+    } else {
+        "/".to_string()
+    };
     let mut response = HtmlTemplate(
         MaintenanceTemplate { retry_path },
         LocaleValues {
@@ -129,6 +139,17 @@ mod tests {
         let body = response_body_string(response).await;
         // The retry link points back at the originating page.
         assert!(body.contains("href=\"/persons?success=true\""));
+    }
+
+    /// A `//host` request line would otherwise become a protocol-relative
+    /// retry link to another host.
+    #[tokio::test]
+    async fn maintenance_response_retry_link_stays_local() {
+        for uri in ["//attacker.example", "//attacker.example/x?y=1"] {
+            let body = response_body_string(maintenance_response_for(&request_for(uri))).await;
+            assert!(body.contains("href=\"/\""), "{uri}: {body}");
+            assert!(!body.contains("attacker.example"), "{uri}");
+        }
     }
 
     #[tokio::test]
