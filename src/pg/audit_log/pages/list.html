@@ -1,4 +1,5 @@
 {% extends "pg/common/components/layout.html" %}
+{% import "pg/common/components/subject_id.html" as subject_id %}
 {% block page_title %}{{ "audit_log.title"|trans }}{% endblock %}
 {% block content %}
   {% set audit_log_path = AuditLogPath.to_string() %}
@@ -45,13 +46,7 @@
               <td>{{ entry.created_at|datetime_seconds }}</td>
               <td>{{ entry.description }}</td>
               <td>{{ entry.details }}</td>
-              <td class="subject-id">
-                {% if !entry.subject_id_full.is_empty() %}
-                  <a href="{{ audit_log_path }}?search={{ entry.subject_id_full }}">
-                    <abbr title="{{ entry.subject_id_full }}">{{ entry.subject_id_full|abbreviate_str }}</abbr>
-                  </a>
-                {% endif %}
-              </td>
+              <td class="subject-id">{% if let Some(subject) = entry.subject %}{{ subject_id::subject_id(subject) }}{% endif %}</td>
               <td>
                 <a href="{{ entry.detail_path_with_return(return_url.as_str() ) }}">
                   <span>{{ "audit_log.fields.details"|trans }}</span>

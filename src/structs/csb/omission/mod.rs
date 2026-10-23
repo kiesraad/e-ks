@@ -11,6 +11,7 @@ use crate::{
     form::{ValidationError, validate_length, validate_multi_line_teletex_chars},
     id_newtype,
     structs::{
+        audit_log::audit_fields,
         candidate_lists::CandidateListId,
         common::{UtcDateTime, constrained_strings},
         persons::PersonId,
@@ -405,6 +406,19 @@ pub struct Omission {
     pub status: OmissionStatus,
     pub updated_at: UtcDateTime,
 }
+
+// The category names what the omission is about (a candidate, a list, a
+// district); the audit log shows it through the event's details instead.
+audit_fields!(Omission {
+    id: skip,
+    category: skip,
+    title: leaf(OmissionTitle),
+    description: leaf(OmissionDescription),
+    help_text: leaf(OmissionHelpText),
+    recoverable: leaf(Recoverable),
+    status: leaf(OmissionStatus),
+    updated_at: skip,
+});
 
 fn recoverable_by_default() -> bool {
     true

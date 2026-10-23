@@ -3,7 +3,7 @@ use axum::{extract::Query, response::IntoResponse};
 
 use crate::{
     AppError, Context, Event, HtmlTemplate, PgStore,
-    audit_log::{AuditLogEntry, paths::AuditLogPath},
+    audit_log::{AuditLogEntry, PgLinks, paths::AuditLogPath},
     filters,
     pagination::Pagination,
     structs::audit_log::EventTypeCategory,
@@ -23,6 +23,7 @@ const PER_PAGE: usize = 20;
 /// trans!("audit_log.filter.category.list_submitter", _)
 /// trans!("audit_log.filter.category.substitute_submitter", _)
 /// trans!("audit_log.filter.category.system", _)
+/// trans!("audit_log.filter.category.import", _)
 pub const EVENT_TYPES_BY_CATEGORY: &[EventTypeCategory] = &[
     EventTypeCategory {
         key: "political_group",
@@ -72,12 +73,18 @@ pub const EVENT_TYPES_BY_CATEGORY: &[EventTypeCategory] = &[
     EventTypeCategory {
         key: "system",
         event_types: &[
+            "login",
+            "logout",
             "developer_login",
             "download_file",
             "hide_download_warning",
             "export_csv",
             "import_csv",
         ],
+    },
+    EventTypeCategory {
+        key: "import",
+        event_types: &["import"],
     },
 ];
 
@@ -125,17 +132,20 @@ pub async fn audit_log(
     let active_event_type = filter.event_type.as_deref().filter(|s| !s.is_empty());
     let active_search = filter.search.as_deref().filter(|s| !s.is_empty());
 
+    let data = store.snapshot();
+    let links = PgLinks { store: &store };
+
     // Convert all events to entries, applying event_type filter early
-    let all_entries: Vec<AuditLogEntry> = store
-        .get_events()
-        .into_iter()
+    let all_entries: Vec<AuditLogEntry> = data
+        .events
+        .iter()
         .rev()
         .filter(|event| {
             active_event_type
                 .map(|et| event.payload.category() == et || event.payload.key() == et)
                 .unwrap_or(true)
         })
-        .map(|event| AuditLogEntry::new(event, locale))
+        .map(|event| AuditLogEntry::new(event, locale, &links))
         .filter(|entry| {
             active_search
                 .map(|q| entry.matches_search(q))
@@ -479,43 +489,7 @@ mod tests {
         let body = response_body_string(response).await;
         assert!(body.contains("<td>Updated political group</td>"));
         assert!(!body.contains("<td>Created person</td>"));
-        // The import that seeds the corrections shows up as event #1.
-        assert!(body.contains("<td>Imported political group</td>"));
-
-        Ok(())
-    }
-
-    /// In paper-corrections mode the import (CSB event #1) is listed as a
-    /// synthetic entry, so the numbering starts at 1 rather than 2.
-    #[tokio::test]
-    async fn paper_corrections_mode_lists_the_import_as_event_one() -> Result<(), AppError> {
-        use crate::{CsbAction, CsbStore, StreamId, test_utils::sample_political_group};
-
-        let csb_store = CsbStore::new_for_test();
-        csb_store
-            .update(CsbAction::Import {
-                hash: [1; 32],
-                source_stream_id: StreamId::new(),
-                snapshot: Box::new(crate::PgStoreData::default()),
-            })
-            .await?;
-
-        let store = csb_store.paper_corrections();
-        sample_political_group().update(&store).await?;
-
-        let response = audit_log(
-            AuditLogPath {},
-            Context::new_test_without_db(),
-            store,
-            Pagination::default(),
-            no_filter(),
-        )
-        .await
-        .unwrap()
-        .into_response();
-
-        let body = response_body_string(response).await;
-        // Event #1 is the import; the first correction is event #2.
+        // The import that seeds the corrections is event #1, the correction #2.
         assert!(body.contains("<td>1</td>"));
         assert!(body.contains("<td>Imported political group</td>"));
         assert!(body.contains("<td>2</td>"));
@@ -523,8 +497,8 @@ mod tests {
         Ok(())
     }
 
-    /// The synthetic import entry honours the event-type filter: it appears
-    /// under the "import" type and is excluded from unrelated types.
+    /// The import event honours the event-type filter: it appears under the
+    /// "import" type and is excluded from unrelated types.
     #[tokio::test]
     async fn paper_corrections_import_entry_respects_event_type_filter() -> Result<(), AppError> {
         use crate::{CsbAction, CsbStore, StreamId, test_utils::sample_political_group};

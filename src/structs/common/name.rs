@@ -2,7 +2,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     OptionAsStrExt,
-    structs::common::{InfoProblems, PotentialProblems, Problematic, Problems, Severity},
+    structs::{
+        audit_log::audit_fields,
+        common::{InfoProblems, PotentialProblems, Problematic, Problems, Severity},
+    },
 };
 
 use super::{FirstName, Initials, LastName, LastNamePrefix};
@@ -15,6 +18,14 @@ pub struct FullName {
     /// Absent for a person without first names, as the BRP allows.
     pub initials: Option<Initials>,
 }
+
+// In the order of the name form.
+audit_fields!(FullName {
+    initials: leaf(Initials),
+    first_name: leaf(FirstName),
+    last_name_prefix: leaf(LastNamePrefix),
+    last_name: leaf(LastName),
+});
 
 impl FullName {
     /// Returns e.g. "van Dijk, A.B. (Anne)"; without initials "van Dijk (Anne)"

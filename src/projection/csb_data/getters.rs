@@ -394,15 +394,11 @@ impl CsbStream {
     }
 
     pub fn get_political_group(&self, corrections: WithCorrections) -> PoliticalGroup {
-        let mut pg = self.read(corrections).political_group.clone();
-
-        if corrections == WithCorrections::All
-            && let Some(correction) = self.snapshot().csb_corrected_appellation.clone()
-        {
-            pg.appellation = Some(correction);
+        if corrections == WithCorrections::All {
+            return self.snapshot().corrected_political_group();
         }
 
-        pg
+        self.read(corrections).political_group.clone()
     }
 
     pub fn get_candidate_lists(&self, corrections: WithCorrections) -> Vec<CandidateList> {

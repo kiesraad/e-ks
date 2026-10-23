@@ -7,11 +7,16 @@ use axum::{
 use crate::{
     AppError, AppRequestState, Context, CsbContext, CsbMainStore, Event, HtmlTemplate, Locale,
     StreamId,
-    csb::audit_log::{pages::CsbAuditLogPath, structs::CsbAuditLogEntry},
+    csb::audit_log::{
+        links::{CsbMainLinks, CsbStreamLinks, stream_label, streams},
+        pages::CsbAuditLogPath,
+        structs::CsbAuditLogEntry,
+    },
     filters,
     pagination::Pagination,
+    projection::CsbStream,
     store::StoreEvent,
-    structs::audit_log::EventTypeCategory,
+    structs::audit_log::{AuditEvent, EventTypeCategory, SubjectLinks},
     trans,
     utils::filter_query_suffix,
 };
@@ -31,6 +36,7 @@ const PER_PAGE: usize = 20;
 /// trans!("audit_log.filter.category.omission", _)
 /// trans!("audit_log.filter.category.system", _)
 /// trans!("audit_log.filter.category.registered_political_group", _)
+/// trans!("audit_log.filter.category.hearing_details", _)
 /// trans!("audit_log.filter.category.numbering", _)
 /// trans!("audit_log.filter.category.objection", _)
 ///
@@ -69,7 +75,13 @@ pub const EVENT_TYPES_BY_CATEGORY: &[EventTypeCategory] = &[
     },
     EventTypeCategory {
         key: "omission",
-        event_types: &["create_omission", "update_omission", "delete_omission"],
+        event_types: &[
+            "create_omission",
+            "update_omission",
+            "delete_omission",
+            "set_omission_status",
+            "set_omission_part_status",
+        ],
     },
     EventTypeCategory {
         key: "registered_political_group",
@@ -78,6 +90,10 @@ pub const EVENT_TYPES_BY_CATEGORY: &[EventTypeCategory] = &[
             "update_registered_political_group",
             "delete_registered_political_group",
         ],
+    },
+    EventTypeCategory {
+        key: "hearing_details",
+        event_types: &["update_hearing_details"],
     },
     EventTypeCategory {
         key: "numbering",
@@ -89,7 +105,7 @@ pub const EVENT_TYPES_BY_CATEGORY: &[EventTypeCategory] = &[
     },
     EventTypeCategory {
         key: "system",
-        event_types: &["login"],
+        event_types: &["login", "logout"],
     },
 ];
 
@@ -136,11 +152,12 @@ struct CsbAuditLogTemplate {
     return_url: String,
 }
 
-fn filter_events<'a, E: Event + crate::HasCsbUser + 'a>(
+fn filter_events<'a, E: Event + AuditEvent + crate::HasCsbUser + 'a>(
     iter: impl DoubleEndedIterator<Item = &'a StoreEvent<E>> + 'a,
     stream_id: StreamId,
     label: String,
     locale: Locale,
+    links: &'a dyn SubjectLinks,
     event_type: Option<&'a str>,
     search: Option<&'a str>,
 ) -> impl Iterator<Item = CsbAuditLogEntry> + 'a {
@@ -148,14 +165,18 @@ fn filter_events<'a, E: Event + crate::HasCsbUser + 'a>(
         .filter(move |event| {
             event_type.is_none_or(|et| event.payload.category() == et || event.payload.key() == et)
         })
-        .map(move |event| CsbAuditLogEntry::from_event(event, stream_id, label.clone(), locale))
+        .map(move |event| {
+            CsbAuditLogEntry::from_event(event, stream_id, label.clone(), locale, links)
+        })
         .filter(move |e| search.is_none_or(|q| e.matches_search(q)))
 }
 
-/// Collects the filtered audit log entries of the selected stream: the import
-/// stream the `stream` filter points at, or the committee main stream.
+/// Collects the filtered audit log entries of the selected stream: the
+/// political group's stream the `stream` filter points at, or the committee
+/// main stream.
 fn collect_entries(
-    import_stores: &[crate::projection::CsbStream],
+    import_stores: &[CsbStream],
+    pre_submission_stores: &[CsbStream],
     main_store: &CsbMainStore,
     filter: &CsbAuditLogFilter,
     locale: Locale,
@@ -165,29 +186,32 @@ fn collect_entries(
     let active_search = filter.search.as_deref().filter(|s| !s.is_empty());
 
     let entries = if let Some(stream_id) = active_stream {
-        let store = import_stores
-            .iter()
-            .find(|s| s.stream_id.to_string() == stream_id)
-            .ok_or(AppError::GenericNotFound)?;
-
+        let stream_id = stream_id.parse().map_err(|_| AppError::GenericNotFound)?;
+        let links = CsbStreamLinks::find(import_stores, pre_submission_stores, stream_id)?;
+        let data = links.store.snapshot();
         filter_events(
-            store.snapshot().events.iter(),
-            store.stream_id,
-            store.get_appellation_with_deleted_label(
-                crate::projection::WithCorrections::All,
-                locale,
-            ),
+            data.events.iter(),
+            stream_id,
+            links.stream_label(locale),
             locale,
+            &links,
             active_event_type,
             active_search,
         )
         .collect()
     } else {
+        let links = CsbMainLinks {
+            store: main_store,
+            streams: import_stores,
+            locale,
+        };
+        let data = main_store.snapshot();
         filter_events(
-            main_store.snapshot().events.iter(),
+            data.events.iter(),
             main_store.stream_id,
             trans!("audit_log.filter.csb_main_stream", locale),
             locale,
+            &links,
             active_event_type,
             active_search,
         )
@@ -195,6 +219,19 @@ fn collect_entries(
     };
 
     Ok(entries)
+}
+
+/// A short label for each political group's stream, for the stream filter.
+fn stream_labels(
+    import_stores: &[CsbStream],
+    pre_submission_stores: &[CsbStream],
+    locale: Locale,
+) -> Vec<(StreamId, String)> {
+    streams(import_stores, pre_submission_stores)
+        .map(|(store, pre_submission)| {
+            (store.stream_id, stream_label(store, pre_submission, locale))
+        })
+        .collect()
 }
 
 pub async fn csb_audit_log<S: AppRequestState>(
@@ -206,7 +243,7 @@ pub async fn csb_audit_log<S: AppRequestState>(
     Query(filter): Query<CsbAuditLogFilter>,
 ) -> Result<impl IntoResponse, AppError> {
     let locale = context.session.locale;
-    let mut import_stores = state
+    let import_stores = state
         .csb_store_registry()
         .stores_for_election(context.election)
         .await?;
@@ -215,25 +252,14 @@ pub async fn csb_audit_log<S: AppRequestState>(
         .stores_for_election(context.election)
         .await?;
 
-    // Build a short label for each stream from its import event
-    let label = |store: &crate::projection::CsbStream| {
-        store.get_appellation_with_deleted_label(crate::projection::WithCorrections::All, locale)
-    };
-    let import_stream_labels: Vec<(StreamId, String)> = import_stores
-        .iter()
-        .map(|store| (store.stream_id, label(store)))
-        .chain(pre_submission_stores.iter().map(|store| {
-            let label = trans!(
-                "audit_log.filter.pre_submission_stream",
-                locale,
-                label(store)
-            );
-            (store.stream_id, label)
-        }))
-        .collect();
-    import_stores.extend(pre_submission_stores);
-
-    let all_entries = collect_entries(&import_stores, &main_store, &filter, locale)?;
+    let import_stream_labels = stream_labels(&import_stores, &pre_submission_stores, locale);
+    let all_entries = collect_entries(
+        &import_stores,
+        &pre_submission_stores,
+        &main_store,
+        &filter,
+        locale,
+    )?;
 
     let total = all_entries.len();
     let pagination = Pagination {
@@ -324,51 +350,6 @@ mod tests {
         assert!(body.contains("Audit log"));
         // Should show empty message, not a table
         assert!(!body.contains("<table"));
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn renders_main_stream_events() -> Result<(), AppError> {
-        let main_store = CsbMainStore::new_for_test();
-        main_store
-            .update(CsbMainAction::Login.by(CsbUser::Developer))
-            .await?;
-
-        let response = call(main_store, AppState::new_for_tests().await, no_filter()).await?;
-
-        assert_eq!(response.status(), StatusCode::OK);
-        let body = response_body_string(response).await;
-        assert!(body.contains("<table"));
-        assert!(body.contains("<td>Signed in</td>"));
-        assert!(body.contains("<td>Main CSB stream</td>"));
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn renders_import_stream_events() -> Result<(), AppError> {
-        let state = AppState::new_for_tests().await;
-        let import_stream_id = StreamId::new();
-        let csb_store = state
-            .csb_store_for_stream(import_stream_id, ElectionConfig::EK27)
-            .await?;
-        csb_store
-            .update(CsbAction::SetFinished(true).by(CsbUser::new_test()))
-            .await?;
-
-        let response = call(
-            CsbMainStore::new_for_test(),
-            state,
-            Query(CsbAuditLogFilter {
-                stream: Some(import_stream_id.to_string()),
-                ..Default::default()
-            }),
-        )
-        .await?;
-
-        let body = response_body_string(response).await;
-        assert!(body.contains("<td>Set finished state</td>"));
 
         Ok(())
     }
@@ -569,8 +550,11 @@ mod tests {
 
         let response = call(main_store, state, no_filter()).await?;
 
+        assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
+        assert!(body.contains("<table"));
         assert!(body.contains("<td>Signed in</td>"));
+        assert!(body.contains("<td>Main CSB stream</td>"));
         assert!(!body.contains("<td>Set finished state</td>"));
 
         Ok(())

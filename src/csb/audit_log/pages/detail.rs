@@ -3,40 +3,42 @@ use axum::{
     extract::{Query, State},
     response::IntoResponse,
 };
-use chrono::{DateTime, Utc};
 
 use crate::{
-    AppError, AppRequestState, Context, CsbAction, CsbContext, CsbEvent, CsbMainStore, CsbStream,
-    ElectionConfig, Event, HasCsbUser, HtmlTemplate, Locale, Overlay, QueryParamState,
-    csb::audit_log::pages::CsbAuditLogDetailPath,
+    AppError, AppRequestState, Context, CsbContext, CsbMainStore, CsbMainStoreData, CsbStoreData,
+    ElectoralDistrict, Event, HasCsbUser, HtmlTemplate, Locale, Overlay, QueryParamState, StreamId,
+    csb::audit_log::{
+        links::{CsbMainLinks, CsbStreamLinks},
+        pages::CsbAuditLogDetailPath,
+        structs::CsbAuditLogEntry,
+    },
     filters,
-    projection::{CSB_MAIN_STREAM_ID, WithCorrections},
-    store::StoreEvent,
+    projection::{CSB_MAIN_STREAM_ID, CsbAction, CsbStream, WithCorrections},
+    store::{StoreData, StoreEvent},
     structs::{
-        audit_log::FieldChange,
+        audit_log::{
+            AuditEvent, ChangeGroup, FieldKey, RenderContext, SubjectLinks, bool_label,
+            render_groups,
+        },
         brp::{BrpFinding, BrpLookup, BrpLookupOutcome, BrpQuery},
+        candidate_lists::{CandidateList, CandidateListId},
         common::Bsn,
-        csb::Correction,
+        csb::{OmissionCategory, OmissionPart},
         persons::{Person, PersonId},
     },
     trans,
 };
 
 struct CsbEventDetail {
-    event_id: usize,
-    stream_label: String,
-    description: String,
-    /// Human-readable label for the committee member that triggered the event
-    user: String,
+    entry: CsbAuditLogEntry,
     details: String,
-    created_at: DateTime<Utc>,
-    changes: Vec<FieldChange>,
+    changes: Vec<ChangeGroup>,
     /// Labelled values the event payload alone cannot give: the candidate a
     /// BRP event is about, or what a BRP request sent and got back.
     facts: Vec<Fact>,
-    /// Whether `changes` sets the list against the BRP rather than an old
-    /// value against a new one, which changes the column headers.
-    brp_comparison: bool,
+    /// The candidate's values set against the BRP's, for a BRP check. A
+    /// comparison, not a diff: nothing changed, so it is not rendered as one.
+    comparison: Vec<ComparisonRow>,
 }
 
 /// One labelled value in the detail view.
@@ -45,95 +47,102 @@ struct Fact {
     value: String,
 }
 
+/// One checked field: the value on the list, and the value or message from
+/// the BRP.
+struct ComparisonRow {
+    field: String,
+    list_value: String,
+    brp_value: String,
+}
+
+/// What an event's detail view shows besides its field changes, read from the
+/// stream as it stood before the event.
+#[derive(Default)]
+struct EventContext {
+    facts: Vec<Fact>,
+    comparison: Vec<ComparisonRow>,
+}
+
 impl CsbEventDetail {
-    /// Look up `event_id` in a stream's events and build its detail view.
-    fn find<E: Event + HasCsbUser>(
-        events: &[StoreEvent<E>],
+    /// Look up `event_id` in a stream's events and build its detail view. The
+    /// event's changes and `context` are read against the stream replayed up
+    /// to the event before it.
+    fn find<D>(
+        events: &[StoreEvent<D::Event>],
+        stream_id: StreamId,
         event_id: usize,
         stream_label: String,
         locale: Locale,
-    ) -> Result<Self, AppError> {
-        let event = events
+        links: &dyn SubjectLinks,
+        context: impl FnOnce(&D::Event, &D) -> EventContext,
+    ) -> Result<Self, AppError>
+    where
+        D: StoreData,
+        D::Event: Event + AuditEvent<State = D> + HasCsbUser + Clone,
+    {
+        let index = events
             .iter()
-            .find(|e| e.event_id == event_id)
+            .position(|e| e.event_id == event_id)
             .ok_or(AppError::GenericNotFound)?;
+        let event = &events[index];
+
+        let mut before = D::default();
+        for earlier in &events[..index] {
+            before.apply(earlier.clone());
+        }
+        let changes = event.payload.changes(&before);
+        let EventContext { facts, comparison } = context(&event.payload, &before);
+        let entry = CsbAuditLogEntry::from_event(event, stream_id, stream_label, locale, links);
+
         Ok(Self {
-            event_id: event.event_id,
-            stream_label,
-            description: event.payload.description(locale),
-            user: event.payload.csb_user().describe(locale),
+            entry,
             details: event.payload.details(),
-            changes: event.payload.changes(locale),
-            created_at: event.created_at,
-            facts: Vec::new(),
-            brp_comparison: false,
+            changes: render_groups(&changes, &RenderContext { locale, links }),
+            facts,
+            comparison,
         })
     }
 
-    /// The diff colouring of a row; a comparison with the BRP has none.
-    fn row_class(&self, change: &FieldChange) -> &'static str {
-        if self.brp_comparison {
-            ""
-        } else {
-            change.change_kind()
-        }
+    /// Nothing to show below the event's metadata.
+    fn is_empty(&self) -> bool {
+        self.changes.is_empty() && self.facts.is_empty() && self.comparison.is_empty()
     }
+}
 
-    /// Fill in what the event payload alone cannot say: the value a correction
-    /// replaced, or the candidate and data a BRP event is about. Both come
-    /// from the stream replayed up to the event before this one.
-    fn add_stream_context(
-        &mut self,
-        events: &[StoreEvent<CsbEvent>],
-        election: ElectionConfig,
-        locale: Locale,
-    ) {
-        let Some(index) = events.iter().position(|e| e.event_id == self.event_id) else {
-            return;
-        };
-        let action = &events[index].payload.action;
-        if !matches!(
-            action,
-            CsbAction::UpdateCorrection(_)
-                | CsbAction::BrpLookup(_)
-                | CsbAction::BrpPersonChecked { .. }
-                | CsbAction::SetBrpFindingHandled { .. }
-        ) {
-            return;
-        }
-
-        let before = CsbStream::new_for_temp_stream(election);
-        for event in &events[..index] {
-            before.apply_event(event.clone());
-        }
-
-        match action {
-            CsbAction::UpdateCorrection(correction) => {
-                self.changes = vec![correction_change(&before, correction, locale)];
+/// What a BRP or omission event is about, which its payload alone cannot
+/// say: the candidate by name, what a request sent and got back, the values a
+/// check set against each other, and what an omission concerns.
+fn stream_context(action: &CsbAction, before: &CsbStoreData, locale: Locale) -> EventContext {
+    match action {
+        CsbAction::BrpLookup(lookup) => EventContext {
+            facts: lookup_facts(before, lookup, locale),
+            ..Default::default()
+        },
+        CsbAction::BrpPersonChecked { person, findings } => {
+            let candidate = before.get_person(*person, WithCorrections::All);
+            let mut facts = vec![candidate_fact(candidate.as_ref(), *person, locale)];
+            if findings.is_empty() {
+                facts.push(Fact {
+                    label: trans!("audit_log.detail.brp.result", locale),
+                    value: trans!("audit_log.detail.brp.agrees", locale),
+                });
             }
-            CsbAction::BrpLookup(lookup) => self.facts = lookup_facts(&before, lookup, locale),
-            CsbAction::BrpPersonChecked { person, findings } => {
-                let candidate = before.get_person(*person, WithCorrections::All);
-                self.facts = vec![candidate_fact(candidate.as_ref(), *person, locale)];
-                if findings.is_empty() {
-                    self.facts.push(Fact {
-                        label: trans!("audit_log.detail.brp.result", locale),
-                        value: trans!("audit_log.detail.brp.agrees", locale),
-                    });
-                }
-                self.brp_comparison = true;
-                self.changes = findings
+            EventContext {
+                facts,
+                comparison: findings
                     .iter()
-                    .map(|finding| finding_row(candidate.as_ref(), finding, locale))
-                    .collect();
+                    .map(|finding| comparison_row(candidate.as_ref(), finding, locale))
+                    .collect(),
             }
-            CsbAction::SetBrpFindingHandled {
-                person,
-                finding,
-                handled,
-            } => {
-                let candidate = before.get_person(*person, WithCorrections::All);
-                self.facts = vec![
+        }
+        CsbAction::SetBrpFindingHandled {
+            person,
+            finding,
+            handled,
+        } => {
+            let candidate = before.get_person(*person, WithCorrections::All);
+            EventContext {
+                facts: vec![
                     candidate_fact(candidate.as_ref(), *person, locale),
                     Fact {
                         label: trans!("audit_log.detail.brp.finding", locale),
@@ -141,33 +150,125 @@ impl CsbEventDetail {
                     },
                     Fact {
                         label: trans!("audit_log.detail.brp.handled", locale),
-                        value: yes_or_no(*handled, locale),
+                        value: bool_label(*handled, locale),
                     },
-                ];
+                ],
+                comparison: Vec::new(),
             }
-            _ => {}
         }
+        CsbAction::CreateOmission(_)
+        | CsbAction::UpdateOmission(_)
+        | CsbAction::DeleteOmission { .. }
+        | CsbAction::SetOmissionStatus { .. }
+        | CsbAction::SetOmissionPartStatus { .. } => EventContext {
+            facts: omission_facts(action, before, locale),
+            ..Default::default()
+        },
+        _ => EventContext::default(),
     }
 }
 
-/// The field change of a correction: the value it replaced, as the stream
-/// state was before it, against the corrected one.
-fn correction_change(before: &CsbStream, correction: &Correction, locale: Locale) -> FieldChange {
-    match correction {
-        Correction::Appellation(appellation) => FieldChange::Regular {
-            field: trans!("audit_log.detail.fields.appellation", locale),
-            old_value: before
-                .get_political_group(WithCorrections::All)
-                .appellation
-                .map(|a| a.to_string())
-                .unwrap_or_default(),
-            new_value: appellation.to_string(),
-        },
-        Correction::Person(person_id, person_correction) => person_correction.change(
-            before.get_person(*person_id, WithCorrections::All).as_ref(),
-            locale,
-        ),
+/// What an omission is about, which its fields leave out, and the part a
+/// decision on one part of it is for.
+fn omission_facts(action: &CsbAction, before: &CsbStoreData, locale: Locale) -> Vec<Fact> {
+    let (omission, part) = match action {
+        CsbAction::CreateOmission(o) | CsbAction::UpdateOmission(o) => (Some(o), None),
+        CsbAction::DeleteOmission { omission_id }
+        | CsbAction::SetOmissionStatus { omission_id, .. } => {
+            (before.omissions.get(omission_id), None)
+        }
+        CsbAction::SetOmissionPartStatus {
+            omission_id, part, ..
+        } => (before.omissions.get(omission_id), Some(part)),
+        _ => (None, None),
+    };
+
+    let mut facts = omission
+        .map(|o| scope_facts(&o.category, before, locale))
+        .unwrap_or_default();
+    if let Some(part) = part {
+        facts.push(Fact {
+            label: trans!("audit_log.detail.omission.part", locale),
+            value: match part {
+                OmissionPart::ElectoralDistrict(district) => district.title().to_string(),
+                OmissionPart::CandidateList(list_id) => list_name(before, *list_id),
+            },
+        });
     }
+    facts
+}
+
+fn scope_facts(category: &OmissionCategory, before: &CsbStoreData, locale: Locale) -> Vec<Fact> {
+    let lists = |lists: &[CandidateListId]| Fact {
+        label: FieldKey::CandidateLists.label(locale),
+        value: lists
+            .iter()
+            .map(|list_id| list_name(before, *list_id))
+            .collect::<Vec<_>>()
+            .join("; "),
+    };
+    let (kind, scope) = match category {
+        OmissionCategory::PoliticalGroup => (
+            trans!("audit_log.detail.omission.kind_political_group", locale),
+            None,
+        ),
+        OmissionCategory::Appellation => (
+            trans!("audit_log.detail.omission.kind_appellation", locale),
+            None,
+        ),
+        // No districts means all of them.
+        OmissionCategory::DeclarationsOfSupport(districts) => (
+            trans!(
+                "audit_log.detail.omission.kind_declarations_of_support",
+                locale
+            ),
+            Some(Fact {
+                label: FieldKey::ElectoralDistricts.label(locale),
+                value: if districts.is_empty() {
+                    trans!("audit_log.detail.omission.all_districts", locale)
+                } else {
+                    districts
+                        .iter()
+                        .map(ElectoralDistrict::title)
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                },
+            }),
+        ),
+        OmissionCategory::CandidateList(list_ids) => (
+            trans!("audit_log.detail.omission.kind_candidate_list", locale),
+            Some(lists(list_ids)),
+        ),
+        OmissionCategory::Candidate {
+            person,
+            lists: list_ids,
+        } => (
+            format!(
+                "{}: {}",
+                trans!("audit_log.detail.omission.kind_candidate", locale),
+                candidate_name(
+                    before.get_person(*person, WithCorrections::All).as_ref(),
+                    *person
+                )
+            ),
+            Some(lists(list_ids)),
+        ),
+    };
+    let about = Fact {
+        label: trans!("audit_log.detail.omission.about", locale),
+        value: kind,
+    };
+    std::iter::once(about).chain(scope).collect()
+}
+
+/// A candidate list by its districts, or by id when the stream no longer
+/// holds it.
+fn list_name(before: &CsbStoreData, list_id: CandidateListId) -> String {
+    before
+        .paper_corrected_data
+        .candidate_lists
+        .get(&list_id)
+        .map_or_else(|| list_id.to_string(), CandidateList::districts_name)
 }
 
 /// The candidate by name, or by id when the stream no longer holds them.
@@ -184,27 +285,23 @@ fn candidate_name(candidate: Option<&Person>, person_id: PersonId) -> String {
         .unwrap_or_else(|| person_id.to_string())
 }
 
-fn yes_or_no(value: bool, locale: Locale) -> String {
-    if value {
-        trans!("audit_log.detail.values.bool_true", locale)
-    } else {
-        trans!("audit_log.detail.values.bool_false", locale)
-    }
-}
-
 /// One finding as a row setting the list against the BRP: the candidate's
 /// value of the field it is about, and the value or message from the BRP.
-fn finding_row(candidate: Option<&Person>, finding: &BrpFinding, locale: Locale) -> FieldChange {
+fn comparison_row(
+    candidate: Option<&Person>,
+    finding: &BrpFinding,
+    locale: Locale,
+) -> ComparisonRow {
     let field = finding.field();
-    FieldChange::Regular {
+    ComparisonRow {
         field: field
             .map(|field| field.label(locale))
             .unwrap_or_else(|| trans!("audit_log.detail.brp.finding", locale)),
-        old_value: match (field, candidate) {
+        list_value: match (field, candidate) {
             (Some(field), Some(candidate)) => field.value_of(candidate, locale),
             _ => String::new(),
         },
-        new_value: finding
+        brp_value: finding
             .brp_value()
             .map(|value| value.display(locale))
             .unwrap_or_else(|| finding.message(locale)),
@@ -212,7 +309,7 @@ fn finding_row(candidate: Option<&Person>, finding: &BrpFinding, locale: Locale)
 }
 
 /// What one request to the BRP was for, sent, and got back.
-fn lookup_facts(before: &CsbStream, lookup: &BrpLookup, locale: Locale) -> Vec<Fact> {
+fn lookup_facts(before: &CsbStoreData, lookup: &BrpLookup, locale: Locale) -> Vec<Fact> {
     let candidates = lookup
         .persons
         .iter()
@@ -293,28 +390,28 @@ fn search_criteria_facts(
     locale: Locale,
 ) -> Vec<Fact> {
     let mut facts = vec![Fact {
-        label: trans!("audit_log.detail.fields.last_name", locale),
+        label: FieldKey::LastName.label(locale),
         value: last_name.to_string(),
     }];
     if let Some(prefix) = last_name_prefix {
         facts.push(Fact {
-            label: trans!("audit_log.detail.fields.last_name_prefix", locale),
+            label: FieldKey::LastNamePrefix.label(locale),
             value: prefix.to_string(),
         });
     }
     facts.push(Fact {
-        label: trans!("audit_log.detail.fields.date_of_birth", locale),
+        label: FieldKey::DateOfBirth.label(locale),
         value: date_of_birth.to_string(),
     });
     if let Some(gender) = gender {
         facts.push(Fact {
-            label: trans!("audit_log.detail.fields.gender", locale),
+            label: FieldKey::Gender.label(locale),
             value: gender.to_string(),
         });
     }
     facts.push(Fact {
         label: trans!("audit_log.detail.brp.include_deceased", locale),
-        value: yes_or_no(include_deceased, locale),
+        value: bool_label(include_deceased, locale),
     });
     facts
 }
@@ -344,6 +441,26 @@ struct CsbAuditLogDetailTemplate {
     overlay: Overlay,
 }
 
+/// The detail view of an event on a political group's stream.
+fn stream_event_detail(
+    import_stores: &[CsbStream],
+    pre_submission_stores: &[CsbStream],
+    stream_id: StreamId,
+    event_id: usize,
+    locale: Locale,
+) -> Result<CsbEventDetail, AppError> {
+    let links = CsbStreamLinks::find(import_stores, pre_submission_stores, stream_id)?;
+    CsbEventDetail::find::<CsbStoreData>(
+        &links.store.snapshot().events,
+        stream_id,
+        event_id,
+        links.stream_label(locale),
+        locale,
+        &links,
+        |event, before| stream_context(&event.action, before, locale),
+    )
+}
+
 pub async fn csb_audit_log_detail<S: AppRequestState>(
     CsbAuditLogDetailPath {
         stream_id,
@@ -355,41 +472,37 @@ pub async fn csb_audit_log_detail<S: AppRequestState>(
     Query(query): Query<QueryParamState>,
 ) -> Result<impl IntoResponse, AppError> {
     let locale = context.session.locale;
+    let import_stores = state
+        .csb_store_registry()
+        .stores_for_election(context.election)
+        .await?;
     let detail = if stream_id == CSB_MAIN_STREAM_ID {
-        let data = main_store.snapshot();
-        CsbEventDetail::find(
-            &data.events,
+        let links = CsbMainLinks {
+            store: &main_store,
+            streams: &import_stores,
+            locale,
+        };
+        CsbEventDetail::find::<CsbMainStoreData>(
+            &main_store.snapshot().events,
+            stream_id,
             event_id,
             trans!("audit_log.filter.csb_main_stream", locale),
             locale,
+            &links,
+            |_, _| EventContext::default(),
         )?
     } else {
-        let mut stores = state
-            .csb_store_registry()
+        let pre_submission_stores = state
+            .pre_submission_store_registry()
             .stores_for_election(context.election)
             .await?;
-        let import_count = stores.len();
-        stores.extend(
-            state
-                .pre_submission_store_registry()
-                .stores_for_election(context.election)
-                .await?,
-        );
-        let position = stores
-            .iter()
-            .position(|s| s.stream_id == stream_id)
-            .ok_or(AppError::GenericNotFound)?;
-        let store = &stores[position];
-        let label = store.get_appellation_with_deleted_label(WithCorrections::All, locale);
-        let label = if position < import_count {
-            label
-        } else {
-            trans!("audit_log.filter.pre_submission_stream", locale, label)
-        };
-        let data = store.snapshot();
-        let mut detail = CsbEventDetail::find(&data.events, event_id, label, locale)?;
-        detail.add_stream_context(&data.events, context.election, locale);
-        detail
+        stream_event_detail(
+            &import_stores,
+            &pre_submission_stores,
+            stream_id,
+            event_id,
+            locale,
+        )?
     };
 
     Ok(HtmlTemplate(
@@ -411,7 +524,7 @@ mod tests {
     };
 
     use crate::{
-        AppError, AppState, CsbAction, CsbContext, CsbMainAction, CsbMainStore, CsbUser,
+        AppError, AppState, CsbAction, CsbContext, CsbMainAction, CsbMainStore, CsbStream, CsbUser,
         ElectionConfig, QueryParamState, StreamId, csb::audit_log::pages::CsbAuditLogDetailPath,
         test_utils::response_body_string,
     };
@@ -450,35 +563,11 @@ mod tests {
     /// change and not as an addition.
     #[tokio::test]
     async fn correction_detail_shows_the_previous_value() -> Result<(), AppError> {
-        use crate::{
-            structs::{
-                csb::{Correction, PersonCorrection},
-                persons::PersonId,
-            },
-            test_utils::sample_person,
-        };
+        use crate::structs::csb::{Correction, PersonCorrection};
 
         let state = AppState::new_for_tests().await;
         let stream_id = StreamId::new();
-        let store = state
-            .csb_store_for_stream(stream_id, ElectionConfig::EK27)
-            .await?;
-
-        // the stream starts with the imported submission, like a real one
-        let submission = crate::PgStore::new_for_test();
-        let person = sample_person(PersonId::new());
-        person.create(&submission).await?;
-        let snapshot = Box::new(crate::PgStoreData::clone(&submission.snapshot()));
-        store
-            .update(
-                CsbAction::Import {
-                    hash: [0; 32],
-                    source_stream_id: submission.stream_id,
-                    snapshot,
-                }
-                .by(CsbUser::new_test()),
-            )
-            .await?;
+        let (store, person) = store_with_imported_candidate(&state, stream_id).await?;
         store
             .update(
                 CsbAction::UpdateCorrection(Correction::Person(
@@ -489,23 +578,70 @@ mod tests {
             )
             .await?;
 
-        let response = csb_audit_log_detail(
-            CsbAuditLogDetailPath {
-                stream_id,
-                event_id: 2,
-            },
-            CsbContext::new_test(),
-            CsbMainStore::new_for_test(),
-            State(state),
-            Query(QueryParamState::default()),
-        )
-        .await?
-        .into_response();
-
-        assert_eq!(response.status(), StatusCode::OK);
-        let body = response_body_string(response).await;
+        let body = detail_body(state, stream_id, 2).await?;
         assert!(body.contains("Jansen"), "old value missing: {body}");
         assert!(body.contains("Nieuwenhuis"), "new value missing: {body}");
+
+        Ok(())
+    }
+
+    /// A paper correction wraps a political group's event, but its subject
+    /// and the candidates in its diff link to the CSB's pages.
+    #[tokio::test]
+    async fn paper_correction_links_to_the_csb_pages() -> Result<(), AppError> {
+        use crate::{
+            PgEvent,
+            structs::{candidate_lists::CandidateListId, persons::PersonId},
+            test_utils::{sample_candidate_list, sample_person},
+        };
+
+        let state = AppState::new_for_tests().await;
+        let stream_id = StreamId::new();
+        let submission = crate::PgStore::new_for_test();
+        let person = sample_person(PersonId::new());
+        person.create(&submission).await?;
+        let list_id = CandidateListId::new();
+        let mut list = sample_candidate_list(list_id);
+        list.candidates = vec![person.id];
+        list.create(&submission).await?;
+        let store = import_submission(&state, stream_id, &submission).await?;
+        store
+            .update(
+                CsbAction::PaperCorrectedUpdate(Box::new(PgEvent::UpdateCandidateListOrder {
+                    list_id,
+                    candidates: Vec::new(),
+                }))
+                .by(CsbUser::new_test()),
+            )
+            .await?;
+
+        let body = detail_body(state, stream_id, 2).await?;
+        assert!(
+            body.contains(&format!(
+                "href=\"/csb/examination/{stream_id}/list/{list_id}\""
+            )),
+            "subject link to the CSB list page missing: {body}"
+        );
+        assert!(
+            body.contains(&format!("<code>{list_id}</code>")),
+            "subject id missing: {body}"
+        );
+        assert!(
+            body.contains(&format!("?stream={stream_id}&#38;search={list_id}")),
+            "link to the subject's events missing: {body}"
+        );
+        // The removed candidate's id links to their events on this stream.
+        assert!(
+            body.contains(&format!(
+                "<a href=\"/csb/audit-log?stream={stream_id}&#38;search={}\"><abbr",
+                person.id
+            )),
+            "link to the candidate's events missing: {body}"
+        );
+        assert!(
+            !body.contains("href=\"/candidate-lists/") && !body.contains("href=\"/persons/"),
+            "links into the political group's part of the app: {body}"
+        );
 
         Ok(())
     }
@@ -517,12 +653,22 @@ mod tests {
     ) -> Result<(CsbStream, Person), AppError> {
         use crate::test_utils::sample_person;
 
-        let store = state
-            .csb_store_for_stream(stream_id, ElectionConfig::EK27)
-            .await?;
         let submission = crate::PgStore::new_for_test();
         let person = sample_person(PersonId::new());
         person.create(&submission).await?;
+        let store = import_submission(state, stream_id, &submission).await?;
+        Ok((store, person))
+    }
+
+    /// The stream `stream_id` with `submission` imported into it.
+    async fn import_submission(
+        state: &AppState,
+        stream_id: StreamId,
+        submission: &crate::PgStore,
+    ) -> Result<CsbStream, AppError> {
+        let store = state
+            .csb_store_for_stream(stream_id, ElectionConfig::EK27)
+            .await?;
         let snapshot = Box::new(crate::PgStoreData::clone(&submission.snapshot()));
         store
             .update(
@@ -534,7 +680,7 @@ mod tests {
                 .by(CsbUser::new_test()),
             )
             .await?;
-        Ok((store, person))
+        Ok(store)
     }
 
     async fn detail_body(

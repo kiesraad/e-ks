@@ -17,20 +17,28 @@ detail:
     result: Resultaat
     returned: "Teruggegeven personen, op burgerservicenummer"
     returned_none: Geen
+  collections:
+    to: naar
   field: Veld
   fields:
+    address: Correspondentie\u00ADadres
     appellation: Geregistreerde aanduiding
+    brp_status: Status BRP-controle
     bsn: Burgerservicenummer (BSN)
+    candidate_lists: Kandidatenlijsten
     candidates: Kandidaten
+    chair: Voorzitter
     country: Landcode
     created_persons: Aangemaakte kandidaten
     date_of_birth: Geboortedatum
     download_path: Downloadpad
     electoral_districts: Kieskringen
+    examination_finished: Onderzoek afgerond
     file_name: Bestandsnaam
     file_size: Bestandsgrootte
     first_name: Roepnaam
     gender: Geslacht
+    hearing_date_time: Datum en tijd zitting
     house_number: Huisnummer
     house_number_addition: Huisnummer toevoeging
     initials: Voorletters
@@ -40,26 +48,58 @@ detail:
     legal_name: Volledige statutaire naam
     list_designation: Type lijstaanduiding
     list_id: Lijst-ID
+    list_order: Lijstvolgorde
     locality: Woonplaats
-    long_list_allowed: Lange lijst toegestaan
-    person_id: Persoon-ID
+    members: Ondertekenende leden
+    name_authorisations: Statutaire namen en gemachtigden
+    objection_text: Bezwaar
+    omission_description: Omschrijving
+    omission_help_text: Hersteltekst
+    omission_status: Status
+    omission_title: Titel
+    persons: Personen
     place_of_residence: Woonplaats
-    political_group_id: Politieke groepering-ID
     postal_code: Postcode
     previous_election_results: Uitslag vorige verkiezing
-    representative: Gemachtigde van kandidaat
+    previous_seats: Zetels vorige verkiezing
+    previous_votes: Stemmen vorige verkiezing
+    recoverable: Herstelbaar
+    representative: Gemachtigde
     state_or_province: Staat / provincie
     stream_id: Stream-ID
     street_name: Straatnaam
+    substitute_submitters: Vervangers herstel verzuim
     updated_persons: Bijgewerkte kandidaten
+  kind:
+    added: Toegevoegd
+    changed: Gewijzigd
+    collection: Samenstelling gewijzigd
+    column: Soort wijziging
+    removed: Verwijderd
   new_value: Nieuwe waarde
   no_changes: Geen veldwijzigingen vastgelegd voor deze gebeurtenis.
   old_value: Oude waarde
+  omission:
+    about: Betreft
+    all_districts: Alle kieskringen
+    kind_appellation: Aanduiding
+    kind_candidate: Kandidaat
+    kind_candidate_list: Kandidatenlijst
+    kind_declarations_of_support: Ondersteunings\u00ADverklaringen
+    kind_political_group: Politieke groepering
+    part: Onderdeel
+  subject_events: Alle gebeurtenissen van dit subject
   subject_link: Subjectpagina
   values:
     bool_false: Nee
     bool_true: Ja
+    brp_status_aborted: "Voortijdig gestopt: {}"
+    brp_status_finished: Afgerond
+    brp_status_in_progress: Bezig
+    brp_status_not_started: Niet gestart
     bsn_none_confirmed: "Bevestigd: geen burgerservicenummer"
+    empty: (leeg)
+    omission_pending: In afwachting
 documents:
   download: Documenten downloaden
   no_download: In deze versie was het downloaden van documenten niet mogelijk.
@@ -131,6 +171,7 @@ filter:
     candidate_list: Kandidatenlijst
     correction: Ambtshalve correcties
     delete: Verwijderd
+    hearing_details: Zitting
     import: Import
     list_submitter: Lijstinleveraar
     name_authorisation: Statutaire naam en gemachtigde

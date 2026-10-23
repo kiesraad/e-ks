@@ -1,30 +1,35 @@
 {% extends "csb/components/overlay.html" %}
+{% import "pg/common/components/diff_table.html" as diff %}
+{% import "pg/common/components/subject_id.html" as subject_id %}
 {% set close_action = crate::csb::audit_log::CsbAuditLogPath{}.to_string() %}
-{% block overlay_title %}{{ detail.description }}{% endblock %}
+{% block overlay_title %}{{ detail.entry.description }}{% endblock %}
 {% block overlay_content %}
   <div class="overlay-content">
     <dl class="event-meta">
       <dt>{{ "audit_log.fields.event_id"|trans }}</dt>
       <dd>
-        {{ detail.event_id }}
+        {{ detail.entry.event_id }}
       </dd>
       <dt>{{ "audit_log.fields.timestamp"|trans }}</dt>
       <dd>
-        {{ detail.created_at|datetime_seconds }}
+        {{ detail.entry.created_at|datetime_seconds }}
       </dd>
       <dt>{{ "audit_log.fields.stream"|trans }}</dt>
       <dd>
-        {{ detail.stream_label }}
+        {{ detail.entry.stream_label }}
       </dd>
       <dt>{{ "audit_log.fields.user"|trans }}</dt>
       <dd>
-        {{ detail.user }}
+        {{ detail.entry.user }}
       </dd>
       {% if !detail.details.is_empty() %}
         <dt>{{ "audit_log.fields.details"|trans }}</dt>
         <dd>
           <pre>{{ detail.details }}</pre>
         </dd>
+      {% endif %}
+      {% if let Some(subject) = detail.entry.subject %}
+        {{ subject_id::subject_rows(subject) }}
       {% endif %}
       {% for fact in detail.facts %}
         <dt>{{ fact.label }}</dt>
@@ -33,51 +38,31 @@
         </dd>
       {% endfor %}
     </dl>
+    {% if detail.is_empty() %}
+      <p class="mb-md">{{ "audit_log.detail.no_changes"|trans }}</p>
+    {% endif %}
     {% if !detail.changes.is_empty() %}
+      {{ diff::table(detail.changes) }}
+    {% endif %}
+    {% if !detail.comparison.is_empty() %}
       <table class="diff-table mb-md">
         <thead>
           <tr>
             <th scope="col">{{ "audit_log.detail.field"|trans }}</th>
-            {% if detail.brp_comparison %}
-              <th scope="col">{{ "audit_log.detail.brp.list_value"|trans }}</th>
-              <th scope="col">{{ "audit_log.detail.brp.brp_value"|trans }}</th>
-            {% else %}
-              <th scope="col">{{ "audit_log.detail.old_value"|trans }}</th>
-              <th scope="col">{{ "audit_log.detail.new_value"|trans }}</th>
-            {% endif %}
+            <th scope="col">{{ "audit_log.detail.brp.list_value"|trans }}</th>
+            <th scope="col">{{ "audit_log.detail.brp.brp_value"|trans }}</th>
           </tr>
         </thead>
         <tbody>
-          {% for change in detail.changes %}
-            <tr class="{{ detail.row_class(change) }}">
-              {% match change %}
-              {% when FieldChange::Regular with { field, old_value, new_value } %}
-              <td>{{ field }}</td>
-              <td>{{ old_value }}</td>
-              <td>{{ new_value }}</td>
-              {% when FieldChange::Entities with { field, old_refs, new_refs } %}
-              <td>{{ field }}</td>
-              <td>
-                {% for entity_ref in old_refs %}
-                  <div class="entity-ref">
-                    <abbr title="{{ entity_ref.id_full }}">{{ entity_ref.id_full|abbreviate_str }}</abbr>
-                    {% if !entity_ref.description.is_empty() %}<span>{{ entity_ref.description }}</span>{% endif %}
-                  </div>
-                {% endfor %}
-              </td>
-              <td>
-                {% for entity_ref in new_refs %}
-                  <div class="entity-ref">
-                    <abbr title="{{ entity_ref.id_full }}">{{ entity_ref.id_full|abbreviate_str }}</abbr>
-                    {% if !entity_ref.description.is_empty() %}<span>{{ entity_ref.description }}</span>{% endif %}
-                  </div>
-                {% endfor %}
-              </td>
-            {% endmatch %}
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  {% endif %}
-</div>
+          {% for row in detail.comparison %}
+            <tr>
+              <th scope="row">{{ row.field }}</th>
+              <td>{{ row.list_value }}</td>
+              <td>{{ row.brp_value }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </div>
 {% endblock %}

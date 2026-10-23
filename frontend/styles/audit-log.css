@@ -8,13 +8,6 @@ table.audit-log {
     white-space: nowrap;
   }
 
-  td.subject-id abbr {
-    font-family: "Courier New", Courier, monospace;
-    text-decoration: none;
-    cursor: pointer;
-    color: var(--blue-600);
-  }
-
   tr:nth-child(even) {
     background-color: var(--gray-100);
   }
@@ -32,57 +25,88 @@ dl.event-meta {
     font-weight: 600;
   }
 
-  abbr {
-    font-family: "Courier New", Courier, monospace;
-  }
-
   a {
     color: var(--blue-600);
   }
 }
 
+table.audit-log td.subject-id abbr,
+table.diff-table .entity-ref abbr {
+  font-family: "Courier New", Courier, monospace;
+  text-decoration: none;
+  cursor: pointer;
+  color: var(--blue-600);
+}
+
 table.diff-table {
   width: 100%;
 
-  th:first-child,
-  td:first-child {
-    width: 40%;
+  th,
+  td {
+    padding-block: var(--space-2);
     overflow-wrap: break-word;
   }
 
-  th:nth-child(2),
-  th:nth-child(3) {
+  td.kind-col {
+    width: 2.5rem;
+    text-align: center;
+  }
+
+  .kind-added {
+    color: var(--green-700);
+  }
+
+  .kind-removed {
+    color: var(--red-700);
+  }
+
+  th[scope="row"] {
+    width: 30%;
+    font-weight: 600;
+  }
+
+  thead th:nth-child(3),
+  thead th:nth-child(4) {
     /* Ensure that 'Oude waarde' and 'Nieuwe waarde' go on one line */
     white-space: nowrap;
   }
 
-  tr:nth-child(even) {
+  tbody tr:nth-child(even):not(.group-heading) {
     background-color: var(--gray-100);
   }
 
-  tr.added td:last-child {
-    color: var(--green-700, #15803d);
+  tr.group-heading th {
+    padding-top: var(--space-4);
+    font-weight: 600;
   }
 
-  tr.removed td:nth-child(2) {
-    color: var(--red-700, #b91c1c);
+  ins {
+    text-decoration: none;
+    color: var(--green-700);
   }
 
-  .entity-ref {
-    display: flex;
-    gap: 0.5rem;
-    align-items: baseline;
+  del {
+    color: var(--red-700);
   }
 
-  .entity-ref + .entity-ref {
+  .empty-value {
+    color: var(--gray-500);
+  }
+
+  .cell + .cell,
+  li + li {
     margin-top: 0.25rem;
   }
 
-  .entity-ref abbr {
-    font-family: "Courier New", Courier, monospace;
-    text-decoration: none;
-    cursor: pointer;
-    color: var(--blue-600);
+  .position {
+    color: var(--gray-600);
+    white-space: nowrap;
+  }
+
+  ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
   }
 }
 
@@ -101,17 +125,5 @@ table.diff-table {
       padding: 0 1rem;
       min-height: 3rem;
     }
-  }
-
-  .visually-hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
   }
 }
