@@ -11,6 +11,7 @@ use axum::{
     response::{IntoResponse, Redirect, Response},
 };
 use serde::{Deserialize, Serialize};
+use tracing::warn;
 
 use crate::{
     AppError, AppRequestState, Context, CsbAction, CsbContext, CsbStore, CsbStoreData, CsbUser,
@@ -24,6 +25,7 @@ use crate::{
     store::StoreRegistry,
     structs::{
         brp::{BRP_BSN_BATCH_SIZE, BrpClient, BrpFinding, BrpStatus},
+        common::BsnOrNoneConfirmed,
         persons::Person,
     },
     trans,
@@ -416,6 +418,41 @@ async fn record_brp_result(
         .await
 }
 
+/// Warn, before the lookups in `batch` are sent, on candidates whose details
+/// were corrected and on candidates without a burgerservicenummer.
+fn report_sensitive_lookups(store: &CsbStore, batch: &[Person]) {
+    for person in batch {
+        let paper = store.is_person_paper_corrected(person.id);
+        let csb = store.has_candidate_csb_corrections(person.id);
+        let corrected = match (paper, csb) {
+            (true, true) => Some("paper_and_csb"),
+            (true, false) => Some("paper"),
+            (false, true) => Some("csb"),
+            (false, false) => None,
+        };
+        if let Some(corrected) = corrected {
+            warn!(
+                event = "csb.brp_lookup_corrected_candidate",
+                user = ?store.user(),
+                stream_id = %store.stream_id,
+                person_id = %person.id,
+                corrected,
+                "BRP lookup requested for a corrected candidate"
+            );
+        }
+
+        if !matches!(person.personal_data.bsn, Some(BsnOrNoneConfirmed::Bsn(_))) {
+            warn!(
+                event = "csb.brp_lookup_without_bsn",
+                user = ?store.user(),
+                stream_id = %store.stream_id,
+                person_id = %person.id,
+                "BRP lookup requested for a candidate without a burgerservicenummer"
+            );
+        }
+    }
+}
+
 /// Check every candidate not covered by `CsbStoreData::brp_findings` yet,
 /// [`BRP_BSN_BATCH_SIZE`] per request; the client paces the requests.
 ///
@@ -431,6 +468,7 @@ async fn verify_candidates(store: CsbStore, brp_client: BrpClient) -> Result<(),
         .collect();
 
     for batch in unchecked.chunks(BRP_BSN_BATCH_SIZE) {
+        report_sensitive_lookups(&store, batch);
         let checked = brp_client.verify_batch(batch).await;
         // Every request goes on record first, answered or failed.
         for lookup in checked.lookups {
@@ -463,16 +501,106 @@ mod tests {
 
     use super::*;
     use axum::http::StatusCode;
+    use tracing_test::traced_test;
 
     use crate::{
         AppState,
         CsbAction::Delete,
-        CsbContext, ElectionConfig, PgEvent, Province,
+        CsbContext, CsbStream, CsbUser, ElectionConfig, PgEvent, Province,
         brp_stub::{BrpStub, matching_record},
-        structs::brp::{BrpFindingKind, BrpLookup, BrpLookupOutcome, BrpQuery, BrpValue},
-        test_utils::{response_body_string, sample_person_from_brp},
+        structs::{
+            brp::{BrpFindingKind, BrpLookup, BrpLookupOutcome, BrpQuery, BrpValue},
+            csb::{Correction, PersonCorrection},
+            persons::PersonId,
+        },
+        test_utils::{response_body_string, sample_person, sample_person_from_brp},
         utils::format_hash,
     };
+
+    fn store_acting_as_alice() -> CsbStore {
+        let alice = CsbUser::SecurityKey {
+            username: "alice".parse().expect("valid username"),
+        };
+        CsbStore::acting_as(CsbStream::new_for_test(), alice)
+    }
+
+    #[traced_test]
+    #[tokio::test]
+    async fn an_unchanged_candidate_with_a_bsn_is_looked_up_without_a_warning() {
+        let store = store_acting_as_alice();
+        let person = sample_person_from_brp();
+        store.add_person(person.clone());
+
+        report_sensitive_lookups(&store, &[person]);
+
+        assert!(!logs_contain("csb.brp_lookup"));
+    }
+
+    #[traced_test]
+    #[tokio::test]
+    async fn a_lookup_of_a_candidate_without_bsn_is_reported() {
+        let store = store_acting_as_alice();
+        let confirmed_none = sample_person(PersonId::new());
+        let mut unknown = sample_person(PersonId::new());
+        unknown.personal_data.bsn = None;
+        store.add_person(confirmed_none.clone());
+        store.add_person(unknown.clone());
+
+        report_sensitive_lookups(&store, &[confirmed_none.clone(), unknown.clone()]);
+
+        assert!(logs_contain("csb.brp_lookup_without_bsn"));
+        assert!(logs_contain("alice"));
+        assert!(logs_contain(&confirmed_none.id.to_string()));
+        assert!(logs_contain(&unknown.id.to_string()));
+        assert!(!logs_contain("csb.brp_lookup_corrected_candidate"));
+    }
+
+    #[traced_test]
+    #[tokio::test]
+    async fn a_lookup_of_a_csb_corrected_candidate_is_reported() -> Result<(), AppError> {
+        let store = store_acting_as_alice();
+        let person = sample_person_from_brp();
+        store.add_person(person.clone());
+        store
+            .update(CsbAction::UpdateCorrection(Correction::Person(
+                person.id,
+                PersonCorrection::LastName("Gecorrigeerd".parse().unwrap()),
+            )))
+            .await?;
+        let corrected = store
+            .get_person(person.id, WithCorrections::All)
+            .expect("person");
+
+        report_sensitive_lookups(&store, &[corrected]);
+
+        assert!(logs_contain("csb.brp_lookup_corrected_candidate"));
+        assert!(logs_contain("alice"));
+        assert!(logs_contain(&person.id.to_string()));
+        assert!(logs_contain(r#"corrected="csb""#));
+        assert!(!logs_contain("csb.brp_lookup_without_bsn"));
+
+        Ok(())
+    }
+
+    #[traced_test]
+    #[tokio::test]
+    async fn a_lookup_of_a_paper_corrected_candidate_is_reported() {
+        let store = store_acting_as_alice();
+        let person = sample_person_from_brp();
+        // added during paper corrections
+        store
+            .write()
+            .paper_corrected_data
+            .persons
+            .insert(person.id, person.clone());
+
+        report_sensitive_lookups(&store, std::slice::from_ref(&person));
+
+        assert!(logs_contain("csb.brp_lookup_corrected_candidate"));
+        assert!(logs_contain("alice"));
+        assert!(logs_contain(&person.id.to_string()));
+        assert!(logs_contain(r#"corrected="paper""#));
+    }
 
     /// The middleware recognises the status polls by their suffix, so both
     /// status routes have to end with it.

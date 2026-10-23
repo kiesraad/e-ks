@@ -6,7 +6,7 @@
 //! carry no omissions or corrections.
 pub(in crate::csb) mod extractors;
 pub(in crate::csb) mod pages;
-mod paths;
+pub(in crate::csb) mod paths;
 
 pub use pages::router;
 pub use paths::{CsbPreSubmissionImportPath, CsbPreSubmissionOverviewPath};

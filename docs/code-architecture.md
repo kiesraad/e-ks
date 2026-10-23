@@ -696,6 +696,17 @@ Three markers guard the CSB section, all off until configured (see
 The peer address in all of these is the TCP peer, or the client a listed
 proxy announced.
 
+Two more mark BRP lookups that deserve a second look, always on. Each is
+raised per candidate right before the BRP is consulted, and carries the
+committee user, the stream and the candidate's id:
+
+- `event="csb.brp_lookup_corrected_candidate"`: the candidate's details were
+  corrected, so the BRP is consulted on details the committee wrote rather
+  than on the package as submitted. `corrected` says by whom: `paper`, `csb`
+  or `paper_and_csb`.
+- `event="csb.brp_lookup_without_bsn"`: the candidate has no
+  burgerservicenummer, so the BRP is searched on last name and date of birth.
+
 ### Cargo features
 
 The build is tailored through Cargo features (`Cargo.toml`). The `default` set
@@ -795,7 +806,11 @@ This fits the application well for a few reasons:
   transparent, and verifiable. An append-only event log *is* the audit trail:
   every change to a candidate list, person, or submitter is recorded with who
   made it and when, and nothing is ever silently overwritten. The `audit_log`
-  domain is simply a read view over this same stream.
+  domain is simply a read view over this same stream. What an event changed is
+  computed by the event itself (`AuditEvent::changes`) against the projection as it
+  stood before it, using typed field listings of the domain structs
+  (`audit_fields!`), so the detail page needs one replay and never goes
+  through a serialised form of the data.
 - **Bounded, short-lived data.** The data set is small and tied to a single
   election: it covers one nomination procedure and is cleared once that
   election is over. There is no long-lived, ever-growing dataset to replay, so

@@ -1,19 +1,18 @@
 use crate::{
-    core::ModelLocale,
-    models::documents::DocumentData,
-    structs::{audit_log::FieldChange, problems::AllProblems},
+    core::ModelLocale, models::documents::DocumentData, structs::problems::AllProblems,
     utils::format_hash,
 };
 use askama::Template;
 use axum::{extract::Query, response::IntoResponse};
 
 use crate::{
-    AppError, Context, EventHashPrefix, HtmlTemplate, Overlay, PgStore, QueryParamState,
+    AppError, Context, EventHashPrefix, HtmlTemplate, Overlay, PgEvent, PgStore, QueryParamState,
     audit_log::{
-        AuditLogDetail, AuditLogPath,
+        AuditLogDetail, AuditLogPath, PgLinks,
         paths::{AuditLogDetailPath, AuditLogDownloadDocumentsPath},
     },
     filters,
+    store::StoreEvent,
 };
 
 #[derive(Template)]
@@ -34,22 +33,26 @@ pub async fn audit_log_detail(
     store: PgStore,
     Query(query): Query<QueryParamState>,
 ) -> Result<impl IntoResponse, AppError> {
-    let events = store.get_events();
     let locale = context.session.locale;
 
-    let base = store.imported_snapshot().unwrap_or_default();
-    let detail = AuditLogDetail::compute(&base, &events, event_id, locale)
-        .ok_or(AppError::GenericNotFound)?;
-
-    let temp_store = create_temp_store(&store, event_id);
-    let is_downloadable_state = AllProblems::find_all(&temp_store)?.models_downloadable();
-
-    let hash = store
-        .get_events()
+    let data = store.snapshot();
+    let target = data
+        .events
         .iter()
         .find(|e| e.event_id == event_id)
-        .ok_or(AppError::GenericNotFound)?
-        .hash;
+        .cloned()
+        .ok_or(AppError::GenericNotFound)?;
+
+    // The stream as it stood before the event: what its changes are read against.
+    let temp_store = create_temp_store(&store, &data.events, event_id - 1);
+    let links = PgLinks { store: &store };
+    let detail = AuditLogDetail::from_event(&temp_store.snapshot(), &target, locale, &links);
+
+    // Applying the event gives the state after it, which decides whether the
+    // documents could be downloaded at that point.
+    let hash = target.hash;
+    temp_store.apply_event(target);
+    let is_downloadable_state = AllProblems::find_all(&temp_store)?.models_downloadable();
 
     let event_hash = EventHashPrefix::of(&hash);
 
@@ -96,7 +99,7 @@ pub async fn audit_log_gen_documents(
         return Err(AppError::GenericNotFound);
     }
 
-    let temp_store = create_temp_store(&store, event_id);
+    let temp_store = create_temp_store(&store, &store.snapshot().events, event_id);
 
     if !AllProblems::find_all(&temp_store)?.models_downloadable() {
         return Err(AppError::IncompleteData(
@@ -114,14 +117,13 @@ pub async fn audit_log_gen_documents(
 /// in-memory store, so document state can be inspected as it was back then.
 /// In paper-corrections mode the replay starts from the imported snapshot the
 /// corrections were applied on top of.
-fn create_temp_store(store: &PgStore, event_id: usize) -> PgStore {
+fn create_temp_store(store: &PgStore, events: &[StoreEvent<PgEvent>], event_id: usize) -> PgStore {
     let temp_store = PgStore::new_for_temp_stream(store.election);
     if let Some(imported) = store.imported_snapshot() {
         temp_store.replace(std::sync::Arc::new(imported));
     }
 
-    store
-        .get_events()
+    events
         .iter()
         .take_while(|e| e.event_id <= event_id)
         .for_each(|e| temp_store.apply_event(e.clone()));
@@ -146,7 +148,8 @@ mod tests {
         locale: ModelLocale,
     ) -> AuditLogDownloadDocumentsPath {
         let hash = store
-            .get_events()
+            .snapshot()
+            .events
             .iter()
             .find(|e| e.event_id == event_id)
             .expect("event in stream")
@@ -178,6 +181,45 @@ mod tests {
         let body = response_body_string(response).await;
         assert!(body.contains("Created person"));
         assert!(body.contains("diff-table"));
+        // Additions are marked with text as well as a glyph, and inserted values
+        // are marked up as insertions.
+        assert!(body.contains(r#"<span class="visually-hidden">Added</span>"#));
+        assert!(body.contains("<ins>"));
+        // The address fields sit under their own heading.
+        assert!(body.contains(r#"<th scope="colgroup" colspan="4">Correspondence address</th>"#));
+
+        Ok(())
+    }
+
+    /// An update shows the field's old and new value; a field that was
+    /// cleared shows a placeholder instead of an empty cell.
+    #[tokio::test]
+    async fn renders_changed_and_cleared_fields() -> Result<(), AppError> {
+        let store = PgStore::new_for_test();
+        let person = sample_person(PersonId::new());
+        person.create(&store).await?;
+        let mut address = person.address.clone();
+        address.locality = Some("Nieuwegein".parse().expect("locality"));
+        address.house_number_addition = None;
+        person.update_address(&store, address).await?;
+
+        let response = audit_log_detail(
+            AuditLogDetailPath { event_id: 2 },
+            Context::new_test_without_db(),
+            store,
+            Query(QueryParamState::default()),
+        )
+        .await
+        .unwrap()
+        .into_response();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response_body_string(response).await;
+        assert!(body.contains(r#"<th scope="row">Locality</th>"#), "{body}");
+        assert!(body.contains("Juinen") && body.contains("Nieuwegein"));
+        assert!(body.contains(r#"<span class="visually-hidden">Removed</span>"#));
+        assert!(body.contains(r#"<em class="empty-value">(empty)</em>"#));
+        assert!(body.contains("<del>"));
 
         Ok(())
     }
@@ -249,8 +291,7 @@ mod tests {
         let mut list = store.get_candidate_list(list_id)?;
         list.append_candidate(&store, person_id).await?;
 
-        let events = store.get_events();
-        let target_event_id = events.last().unwrap().event_id;
+        let target_event_id = store.snapshot().events.last().unwrap().event_id;
 
         let response = audit_log_detail(
             AuditLogDetailPath {
@@ -272,8 +313,8 @@ mod tests {
             "expected abbreviated link with full id in title; body: {body}"
         );
         assert!(
-            body.contains(&format!("/audit-log?search={full_id}")),
-            "expected link href to filter audit log by person id"
+            body.contains(&format!("href=\"/persons/{full_id}/update\"")),
+            "expected a link to the person's page"
         );
         assert!(
             body.contains(&person_name),
@@ -309,7 +350,7 @@ mod tests {
 
         // Paper-corrections mode hides it.
         let store = paper_corrections_store().await?;
-        let event_id = store.get_events().last().unwrap().event_id;
+        let event_id = store.snapshot().events.last().unwrap().event_id;
         let response = audit_log_detail(
             AuditLogDetailPath { event_id },
             Context::new_test_from_store(&store),
@@ -363,9 +404,10 @@ mod tests {
 
         assert!(
             !store
-                .get_events()
+                .snapshot()
+                .events
                 .iter()
-                .any(|e| matches!(e.payload, crate::PgEvent::DownloadFile { .. })),
+                .any(|e| matches!(e.payload, PgEvent::DownloadFile { .. })),
             "a refused download is not recorded"
         );
 
@@ -375,7 +417,7 @@ mod tests {
     #[tokio::test]
     async fn paper_corrections_mode_rejects_document_download() -> Result<(), AppError> {
         let store = paper_corrections_store().await?;
-        let event_id = store.get_events().last().unwrap().event_id;
+        let event_id = store.snapshot().events.last().unwrap().event_id;
 
         let result = audit_log_gen_documents(
             audit_download_path(&store, event_id, ModelLocale::Nl),
@@ -421,7 +463,7 @@ mod tests {
             .update(PgEvent::UpdatePerson(Box::new(corrected)))
             .await?;
 
-        let event_id = store.get_events().last().unwrap().event_id;
+        let event_id = store.snapshot().events.last().unwrap().event_id;
         let response = audit_log_detail(
             AuditLogDetailPath { event_id },
             Context::new_test_from_store(&store),
@@ -509,9 +551,10 @@ mod tests {
 
         // check if two download events are present
         let download_event_count = store
-            .get_events()
+            .snapshot()
+            .events
             .iter()
-            .filter(|e| matches!(e.payload, crate::PgEvent::DownloadFile { .. }))
+            .filter(|e| matches!(e.payload, PgEvent::DownloadFile { .. }))
             .count();
         assert_eq!(2, download_event_count);
 

@@ -1,19 +1,14 @@
 //! Event-level helpers shared by `AuditLogEntry` and `AuditLogDetail`.
 //!
 //! Each function maps an `PgEvent` to a single piece of information needed
-//! by the audit log UI (translated description, human-readable details,
-//! subject entity URL, and the primary subject ID).
+//! by the audit log UI (translated description, human-readable details and
+//! the item the event is about).
 
 use std::collections::BTreeSet;
 
 use crate::{
-    ElectoralDistrict, Event, Locale, PgEvent,
-    candidate_lists::ViewCandidateListPath,
-    persons::UpdatePersonPath,
-    political_groups::PoliticalGroupUpdatePath,
-    structs::{
-        candidate_lists::CandidateListId, list_submitters::ListSubmitter, persons::PersonId,
-    },
+    ElectoralDistrict, Event, Locale, PgEvent, PgStoreData,
+    structs::audit_log::{AuditEvent, Change, Subject},
     trans,
     utils::format_hash,
 };
@@ -139,81 +134,43 @@ fn event_details(event: &PgEvent) -> String {
 
 impl PgEvent {
     pub const DEFAULT_DETAILS: &str = "-";
+}
 
-    /// Primary subject ID (full UUID string); empty for events without one.
-    pub fn subject_id_full(&self) -> String {
-        match self {
-            PgEvent::UpdatePoliticalGroup(_) => String::new(),
-            PgEvent::CreatePerson(p) | PgEvent::UpdatePerson(p) => p.id.to_string(),
-            PgEvent::CreatePersonPersonalData { person_id, .. }
-            | PgEvent::UpdatePersonPersonalData { person_id, .. }
-            | PgEvent::UpdatePersonAddress { person_id, .. }
-            | PgEvent::UpdatePersonRepresentative { person_id, .. }
-            | PgEvent::DeletePerson { person_id } => person_id.to_string(),
-            PgEvent::CreateCandidateList(cl) => cl.id.to_string(),
-            PgEvent::UpdateCandidateListDistricts { list_id, .. }
-            | PgEvent::UpdateCandidateListOrder { list_id, .. }
-            | PgEvent::AddCandidateToCandidateList { list_id, .. }
-            | PgEvent::RemoveCandidateFromCandidateList { list_id, .. } => list_id.to_string(),
-            PgEvent::DeleteCandidateList(cl_id) => cl_id.to_string(),
-            PgEvent::CreateNameAuthorisation(aa) | PgEvent::UpdateNameAuthorisation(aa) => {
-                aa.id.to_string()
-            }
-            PgEvent::DeleteNameAuthorisation(aa_id) => aa_id.to_string(),
-            PgEvent::UpdateListSubmitter(_) => String::new(),
-            PgEvent::CreateSubstituteSubmitter(ss) | PgEvent::UpdateSubstituteSubmitter(ss) => {
-                ss.id.to_string()
-            }
-            PgEvent::DeleteSubstituteSubmitter {
-                substitute_submitter_id,
-                ..
-            } => substitute_submitter_id.to_string(),
-            PgEvent::DeveloperLogin { stream_id, .. } => stream_id.to_string(),
-            PgEvent::ExportCsv { list_id, .. } => list_id.to_string(),
-            PgEvent::ImportCandidates(import) => import.list_id.to_string(),
-            PgEvent::DownloadFile { .. }
-            | PgEvent::HideDownloadWarning
-            | PgEvent::Login
-            | PgEvent::Logout
-            | PgEvent::Import { .. } => String::new(),
+/// The item an event is about.
+fn event_subject(event: &PgEvent) -> Option<Subject> {
+    match event {
+        PgEvent::UpdatePoliticalGroup(_) | PgEvent::Import { .. } => Some(Subject::PoliticalGroup),
+        PgEvent::CreatePerson(p) | PgEvent::UpdatePerson(p) => Some(Subject::Person(p.id)),
+        PgEvent::CreatePersonPersonalData { person_id, .. }
+        | PgEvent::UpdatePersonPersonalData { person_id, .. }
+        | PgEvent::UpdatePersonAddress { person_id, .. }
+        | PgEvent::UpdatePersonRepresentative { person_id, .. }
+        | PgEvent::DeletePerson { person_id } => Some(Subject::Person(*person_id)),
+        PgEvent::CreateCandidateList(cl) => Some(Subject::CandidateList(cl.id)),
+        PgEvent::UpdateCandidateListDistricts { list_id, .. }
+        | PgEvent::UpdateCandidateListOrder { list_id, .. }
+        | PgEvent::AddCandidateToCandidateList { list_id, .. }
+        | PgEvent::RemoveCandidateFromCandidateList { list_id, .. }
+        | PgEvent::DeleteCandidateList(list_id)
+        | PgEvent::ExportCsv { list_id, .. } => Some(Subject::CandidateList(*list_id)),
+        PgEvent::ImportCandidates(import) => Some(Subject::CandidateList(import.list_id)),
+        PgEvent::CreateNameAuthorisation(na) | PgEvent::UpdateNameAuthorisation(na) => {
+            Some(Subject::NameAuthorisation(na.id))
         }
-    }
-
-    /// URL to the subject entity's page, or empty when none applies (deleted
-    /// entities, system events).
-    pub fn subject_path(&self) -> String {
-        fn person_path(person_id: PersonId) -> String {
-            UpdatePersonPath { person_id }.to_string()
+        PgEvent::DeleteNameAuthorisation(id) => Some(Subject::NameAuthorisation(*id)),
+        PgEvent::UpdateListSubmitter(ls) => Some(Subject::ListSubmitter(ls.id)),
+        PgEvent::CreateSubstituteSubmitter(ss) | PgEvent::UpdateSubstituteSubmitter(ss) => {
+            Some(Subject::SubstituteSubmitter(ss.id))
         }
-        fn candidate_list_path(list_id: CandidateListId) -> String {
-            ViewCandidateListPath { list_id }.to_string()
-        }
-
-        match self {
-            PgEvent::UpdatePoliticalGroup(_) => PoliticalGroupUpdatePath {}.to_string(),
-            PgEvent::CreatePerson(p) | PgEvent::UpdatePerson(p) => person_path(p.id),
-            PgEvent::CreatePersonPersonalData { person_id, .. }
-            | PgEvent::UpdatePersonPersonalData { person_id, .. }
-            | PgEvent::UpdatePersonAddress { person_id, .. }
-            | PgEvent::UpdatePersonRepresentative { person_id, .. } => person_path(*person_id),
-            PgEvent::CreateCandidateList(cl) => cl.view_path().to_string(),
-            PgEvent::UpdateCandidateListDistricts { list_id, .. }
-            | PgEvent::UpdateCandidateListOrder { list_id, .. }
-            | PgEvent::AddCandidateToCandidateList { list_id, .. }
-            | PgEvent::RemoveCandidateFromCandidateList { list_id, .. } => {
-                candidate_list_path(*list_id)
-            }
-            PgEvent::CreateNameAuthorisation(aa) | PgEvent::UpdateNameAuthorisation(aa) => {
-                aa.update_path().to_string()
-            }
-            PgEvent::UpdateListSubmitter(_) => ListSubmitter::update_path().to_string(),
-            PgEvent::CreateSubstituteSubmitter(ss) | PgEvent::UpdateSubstituteSubmitter(ss) => {
-                ss.substitute_update_path().to_string()
-            }
-            PgEvent::ExportCsv { list_id, .. } => candidate_list_path(*list_id),
-            PgEvent::ImportCandidates(import) => candidate_list_path(import.list_id),
-            _ => String::new(),
-        }
+        PgEvent::DeleteSubstituteSubmitter {
+            substitute_submitter_id,
+        } => Some(Subject::SubstituteSubmitter(*substitute_submitter_id)),
+        // The stream id is one of the event's changes.
+        PgEvent::DeveloperLogin { .. }
+        | PgEvent::Login
+        | PgEvent::Logout
+        | PgEvent::DownloadFile { .. }
+        | PgEvent::HideDownloadWarning => None,
     }
 }
 
@@ -294,5 +251,17 @@ impl Event for PgEvent {
 
     fn details(&self) -> String {
         event_details(self)
+    }
+}
+
+impl AuditEvent for PgEvent {
+    type State = PgStoreData;
+
+    fn changes(&self, before: &PgStoreData) -> Vec<Change> {
+        self.audit_changes(before)
+    }
+
+    fn subject(&self) -> Option<Subject> {
+        event_subject(self)
     }
 }

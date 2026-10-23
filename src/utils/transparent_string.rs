@@ -37,5 +37,11 @@ macro_rules! transparent_string {
                 self.0.fmt(f)
             }
         }
+
+        impl $crate::structs::audit_log::AuditLeaf for $name {
+            fn audit_value(&self) -> $crate::structs::audit_log::AuditValue {
+                $crate::structs::audit_log::AuditLeaf::audit_value(&self.0)
+            }
+        }
     };
 }

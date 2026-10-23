@@ -78,6 +78,12 @@ pub struct HearingDetails {
     pub members: Vec<String>,
 }
 
+crate::structs::audit_log::audit_fields!(HearingDetails {
+    date_time: leaf(HearingDateTime),
+    chair: leaf(Chair),
+    members: leaf(Members),
+});
+
 impl Default for HearingDetails {
     fn default() -> Self {
         Self {

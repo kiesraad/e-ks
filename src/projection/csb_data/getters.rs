@@ -282,6 +282,14 @@ impl CsbStream {
         self.get_all_csb_corrected_persons().contains(&person_id)
     }
 
+    /// Whether the paper corrections changed or added the candidate.
+    pub fn is_person_paper_corrected(&self, person_id: PersonId) -> bool {
+        let data = self.snapshot();
+
+        data.get_person(person_id, WithCorrections::None)
+            != data.get_person(person_id, WithCorrections::Paper)
+    }
+
     /// Return all candidate-list omissions that reference the given list.
     pub fn get_candidate_list_omissions(
         &self,
@@ -386,15 +394,11 @@ impl CsbStream {
     }
 
     pub fn get_political_group(&self, corrections: WithCorrections) -> PoliticalGroup {
-        let mut pg = self.read(corrections).political_group.clone();
-
-        if corrections == WithCorrections::All
-            && let Some(correction) = self.snapshot().csb_corrected_appellation.clone()
-        {
-            pg.appellation = Some(correction);
+        if corrections == WithCorrections::All {
+            return self.snapshot().corrected_political_group();
         }
 
-        pg
+        self.read(corrections).political_group.clone()
     }
 
     pub fn get_candidate_lists(&self, corrections: WithCorrections) -> Vec<CandidateList> {
@@ -661,14 +665,14 @@ mod tests {
 
     use super::*;
     use crate::{
-        CsbStore, CsbStream, ElectoralDistrict,
+        CsbAction, CsbStore, CsbStream, ElectoralDistrict,
         projection::csb_data::scrapped::ScrappedList,
         structs::{
             candidate_lists::CandidateList,
             common::UtcDateTime,
             csb::{
-                OmissionCategory, OmissionStatus, PersonCorrection, PersonCorrectionDelta,
-                sample_omission,
+                Correction, OmissionCategory, OmissionStatus, PersonCorrection,
+                PersonCorrectionDelta, sample_omission,
             },
             list_designation::ListDesignation,
         },
@@ -680,6 +684,64 @@ mod tests {
         let mut data = store.write();
         data.omissions.insert(omission.id, omission);
         data.refresh_scrapped();
+    }
+
+    #[test]
+    fn a_candidate_as_imported_is_not_paper_corrected() {
+        let store = CsbStream::new_for_test();
+        let person = sample_person(PersonId::new());
+        store.add_person(person.clone());
+
+        assert!(!store.is_person_paper_corrected(person.id));
+        assert!(!store.is_person_paper_corrected(PersonId::new()));
+    }
+
+    #[test]
+    fn a_candidate_changed_on_paper_is_paper_corrected() {
+        let store = CsbStream::new_for_test();
+        let person = sample_person(PersonId::new());
+        store.add_person(person.clone());
+        store
+            .write()
+            .paper_corrected_data
+            .persons
+            .get_mut(&person.id)
+            .expect("person")
+            .name
+            .last_name = "Gewijzigd".parse().unwrap();
+
+        assert!(store.is_person_paper_corrected(person.id));
+    }
+
+    #[test]
+    fn a_candidate_added_on_paper_is_paper_corrected() {
+        let store = CsbStream::new_for_test();
+        let person = sample_person(PersonId::new());
+        store
+            .write()
+            .paper_corrected_data
+            .persons
+            .insert(person.id, person.clone());
+
+        assert!(store.is_person_paper_corrected(person.id));
+    }
+
+    #[tokio::test]
+    async fn a_csb_corrected_candidate_is_not_paper_corrected() -> Result<(), AppError> {
+        let store = CsbStore::new_for_test();
+        let person = sample_person(PersonId::new());
+        store.add_person(person.clone());
+        store
+            .update(CsbAction::UpdateCorrection(Correction::Person(
+                person.id,
+                PersonCorrection::LastName("Gecorrigeerd".parse().unwrap()),
+            )))
+            .await?;
+
+        assert!(store.has_candidate_csb_corrections(person.id));
+        assert!(!store.is_person_paper_corrected(person.id));
+
+        Ok(())
     }
 
     fn insert_with_status(

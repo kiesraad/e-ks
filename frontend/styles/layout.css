@@ -74,6 +74,10 @@ footer {
     min-width: 3rem;
     text-align: center;
   }
+
+  .button {
+    padding-inline: var(--space-4);
+  }
 }
 
 .columns {

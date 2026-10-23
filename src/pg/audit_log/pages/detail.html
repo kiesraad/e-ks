@@ -1,37 +1,29 @@
 {% extends "pg/common/components/overlay.html" %}
 {% import "pg/common/components/macros.html" as macros %}
-{% set audit_log_path = AuditLogPath.to_string() %}
-{% set close_action = audit_log_path.clone() %}
-{% block overlay_title %}{{ detail.description }}{% endblock %}
+{% import "pg/common/components/diff_table.html" as diff %}
+{% import "pg/common/components/subject_id.html" as subject_id %}
+{% set close_action = AuditLogPath.to_string() %}
+{% block overlay_title %}{{ detail.entry.description }}{% endblock %}
 {% block overlay_steps %}<div class="steps-nav"></div>{% endblock %}
 {% block overlay_content %}
   <div class="overlay-content">
     <dl class="event-meta">
       <dt>{{ "audit_log.fields.event_id"|trans }}</dt>
       <dd>
-        {{ detail.event_id }}
+        {{ detail.entry.event_id }}
       </dd>
       <dt>{{ "audit_log.fields.timestamp"|trans }}</dt>
       <dd>
-        {{ detail.created_at|datetime_seconds }}
+        {{ detail.entry.created_at|datetime_seconds }}
       </dd>
-      {% if !detail.details.is_empty() %}
+      {% if !detail.entry.details.is_empty() %}
         <dt>{{ "audit_log.fields.details"|trans }}</dt>
         <dd>
-          {{ detail.details }}
+          {{ detail.entry.details }}
         </dd>
       {% endif %}
-      {% if !detail.subject_id_full.is_empty() %}
-        <dt>{{ "audit_log.fields.subject_id"|trans }}</dt>
-        <dd>
-          <code>{{ detail.subject_id_full }}</code>
-        </dd>
-      {% endif %}
-      {% if !detail.subject_path.is_empty() %}
-        <dt>{{ "audit_log.detail.subject_link"|trans }}</dt>
-        <dd>
-          <a href="{{ detail.subject_path }}">{{ detail.subject_path }}</a>
-        </dd>
+      {% if let Some(subject) = detail.entry.subject %}
+        {{ subject_id::subject_rows(subject) }}
       {% endif %}
       <dt>{{ "audit_log.event.hash"|trans }}</dt>
       <dd>
@@ -41,61 +33,22 @@
     {% if detail.changes.is_empty() %}
       <p class="mb-md">{{ "audit_log.detail.no_changes"|trans }}</p>
     {% else %}
-      <table class="diff-table mb-md">
-        <thead>
-          <tr>
-            <th scope="col">{{ "audit_log.detail.field"|trans }}</th>
-            <th scope="col">{{ "audit_log.detail.old_value"|trans }}</th>
-            <th scope="col">{{ "audit_log.detail.new_value"|trans }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for change in detail.changes %}
-            <tr class="{{ change.change_kind() }}">
-              {% match change %}
-              {% when FieldChange::Regular with { field, old_value, new_value } %}
-              <td>{{ field }}</td>
-              <td>{{ old_value }}</td>
-              <td>{{ new_value }}</td>
-              {% when FieldChange::Entities with { field, old_refs, new_refs } %}
-              <td>{{ field }}</td>
-              <td>
-                {% for entity_ref in old_refs %}
-                  <div class="entity-ref">
-                    <a href="{{ audit_log_path }}?search={{ entity_ref.id_full }}">
-                      <abbr title="{{ entity_ref.id_full }}">{{ entity_ref.id_full|abbreviate_str }}</abbr>
-                    </a>
-                    {% if !entity_ref.description.is_empty() %}<span>{{ entity_ref.description }}</span>{% endif %}
-                  </div>
-                {% endfor %}
-              </td>
-              <td>
-                {% for entity_ref in new_refs %}
-                  <div class="entity-ref">
-                    <a href="{{ audit_log_path }}?search={{ entity_ref.id_full }}">
-                      <abbr title="{{ entity_ref.id_full }}">{{ entity_ref.id_full|abbreviate_str }}</abbr>
-                    </a>
-                    {% if !entity_ref.description.is_empty() %}<span>{{ entity_ref.description }}</span>{% endif %}
-                  </div>
-                {% endfor %}
-              </td>
-            {% endmatch %}
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  {% endif %}
-  {% if !("paper_correction_mode"|value_true) %}
-    {% if !is_downloadable_state %}
-      <p class="font-italic mb-md">{{ "audit_log.documents.no_download"|trans }}</p>
+      {{ diff::table(detail.changes) }}
     {% endif %}
-    {% if frisian_export_allowed %}<div>{{ "common.languages.dutch"|trans }}:</div>{% endif %}
-    {{ macros::download_button("audit_log.documents.download"|trans, download_path_nl, is_downloadable_state, detail.event_id) }}
-    {% if frisian_export_allowed %}
-      <div class="mt-md">{{ "common.languages.frisian"|trans }}:</div>
-      {{ macros::download_button("Dokuminten downloade", download_path_fry, is_downloadable_state, detail.event_id) }}
+    {% if !("paper_correction_mode"|value_true) %}
+      {% if !is_downloadable_state %}
+        <p class="font-italic mb-md">{{ "audit_log.documents.no_download"|trans }}</p>
+      {% endif %}
+      {% if frisian_export_allowed %}
+        <div>{{ "common.languages.dutch"|trans }}:</div>
+      {% endif %}
+      {{ macros::download_button("audit_log.documents.download"|trans, download_path_nl, is_downloadable_state, detail.entry.event_id) }}
+      {% if frisian_export_allowed %}
+        <div class="mt-md">{{ "common.languages.frisian"|trans }}:</div>
+        {{ macros::download_button("Dokuminten downloade", download_path_fry, is_downloadable_state, detail.entry.event_id) }}
+      {% endif %}
     {% endif %}
-  {% endif %}
-</div>
+  </div>
 {% endblock %}
-{% block overlay_actions %}{% endblock %}
+{% block overlay_actions %}
+{% endblock %}

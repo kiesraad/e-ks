@@ -3,7 +3,9 @@ use chrono::{DateTime, Utc};
 
 use crate::{
     Event, HasCsbUser, Locale, QueryParamState, StreamId,
-    csb::audit_log::paths::CsbAuditLogDetailPath, store::StoreEvent,
+    csb::audit_log::paths::CsbAuditLogDetailPath,
+    store::StoreEvent,
+    structs::audit_log::{AuditEvent, SubjectLink, SubjectLinks},
 };
 
 /// A single row in the CSB audit log, covering events from both the global
@@ -16,16 +18,19 @@ pub struct CsbAuditLogEntry {
     pub description: String,
     /// Human-readable label for the committee member that triggered the event
     pub user: String,
+    /// The item the event is about.
+    pub subject: Option<SubjectLink>,
     pub created_at: DateTime<Utc>,
 }
 
 impl CsbAuditLogEntry {
     /// Build a row from any stored CSB event and a pre-computed stream label.
-    pub fn from_event<E: Event + HasCsbUser>(
+    pub fn from_event<E: Event + AuditEvent + HasCsbUser>(
         event: &StoreEvent<E>,
         stream_id: StreamId,
         stream_label: String,
         locale: Locale,
+        links: &dyn SubjectLinks,
     ) -> Self {
         Self {
             event_id: event.event_id,
@@ -33,8 +38,13 @@ impl CsbAuditLogEntry {
             stream_label,
             description: event.payload.description(locale),
             user: event.payload.csb_user().describe(locale),
+            subject: event.payload.subject().map(|subject| links.link(subject)),
             created_at: event.created_at,
         }
+    }
+
+    pub fn subject_id(&self) -> Option<&str> {
+        self.subject.as_ref()?.id_full.as_deref()
     }
 
     pub fn matches_search(&self, query: &str) -> bool {
@@ -42,6 +52,9 @@ impl CsbAuditLogEntry {
         self.description.to_lowercase().contains(&query)
             || self.stream_label.to_lowercase().contains(&query)
             || self.user.to_lowercase().contains(&query)
+            || self
+                .subject_id()
+                .is_some_and(|id| id.to_lowercase().contains(&query))
     }
 
     /// Detail path carrying `return_to` as a `redirect_to` query param, so
@@ -60,7 +73,9 @@ impl CsbAuditLogEntry {
 mod tests {
     use super::*;
     use crate::{
-        CsbAction, CsbMainAction, CsbUser, Locale, PgStoreData, StreamId, store::StoreEvent,
+        CsbAction, CsbMainAction, CsbUser, Locale, PgStoreData, StreamId,
+        store::StoreEvent,
+        structs::{audit_log::NoLinks, csb::ObjectionId},
     };
 
     const EN: Locale = Locale::En;
@@ -74,7 +89,8 @@ mod tests {
         let sid = stream_id();
         let event = StoreEvent::new(1, CsbMainAction::Login.by(CsbUser::Developer));
 
-        let entry = CsbAuditLogEntry::from_event(&event, sid, "Main CSB stream".to_string(), EN);
+        let entry =
+            CsbAuditLogEntry::from_event(&event, sid, "Main CSB stream".to_string(), EN, &NoLinks);
 
         assert_eq!(entry.event_id, 1);
         assert_eq!(entry.stream_id, sid);
@@ -88,7 +104,8 @@ mod tests {
         let timestamp = chrono::DateTime::from_timestamp(1_700_000_000, 0).unwrap();
         let event = StoreEvent::new_at(2, CsbMainAction::Login.by(CsbUser::Developer), timestamp);
 
-        let entry = CsbAuditLogEntry::from_event(&event, sid, "Main CSB stream".to_string(), EN);
+        let entry =
+            CsbAuditLogEntry::from_event(&event, sid, "Main CSB stream".to_string(), EN, &NoLinks);
 
         assert_eq!(entry.created_at, timestamp);
     }
@@ -107,7 +124,7 @@ mod tests {
             .by(CsbUser::new_test()),
         );
 
-        let entry = CsbAuditLogEntry::from_event(&event, sid, label.clone(), EN);
+        let entry = CsbAuditLogEntry::from_event(&event, sid, label.clone(), EN, &NoLinks);
 
         assert_eq!(entry.event_id, 3);
         assert_eq!(entry.stream_id, sid);
@@ -125,7 +142,7 @@ mod tests {
             timestamp,
         );
 
-        let entry = CsbAuditLogEntry::from_event(&event, sid, "Stream".to_string(), EN);
+        let entry = CsbAuditLogEntry::from_event(&event, sid, "Stream".to_string(), EN, &NoLinks);
 
         assert_eq!(entry.created_at, timestamp);
     }
@@ -143,7 +160,8 @@ mod tests {
             .by(CsbUser::new_test()),
         );
 
-        let entry = CsbAuditLogEntry::from_event(&event, sid, "Stream".to_string(), Locale::Nl);
+        let entry =
+            CsbAuditLogEntry::from_event(&event, sid, "Stream".to_string(), Locale::Nl, &NoLinks);
 
         assert_eq!(entry.description, "Politieke groepering geïmporteerd");
     }
@@ -152,7 +170,7 @@ mod tests {
     fn matches_search_by_description() {
         let sid = stream_id();
         let event = StoreEvent::new(1, CsbAction::SetFinished(true).by(CsbUser::new_test()));
-        let entry = CsbAuditLogEntry::from_event(&event, sid, "Stream".to_string(), EN);
+        let entry = CsbAuditLogEntry::from_event(&event, sid, "Stream".to_string(), EN, &NoLinks);
 
         assert!(entry.matches_search("finished"));
         assert!(entry.matches_search("FINISHED"));
@@ -163,7 +181,8 @@ mod tests {
     fn matches_search_by_stream_label() {
         let sid = stream_id();
         let event = StoreEvent::new(1, CsbAction::SetFinished(true).by(CsbUser::new_test()));
-        let entry = CsbAuditLogEntry::from_event(&event, sid, "PG Kiesraad".to_string(), EN);
+        let entry =
+            CsbAuditLogEntry::from_event(&event, sid, "PG Kiesraad".to_string(), EN, &NoLinks);
 
         assert!(entry.matches_search("Kiesraad"));
         assert!(entry.matches_search("kiesraad"));
@@ -195,10 +214,24 @@ mod tests {
         };
         let event = StoreEvent::new(1, CsbMainAction::Login.by(user));
 
-        let entry = CsbAuditLogEntry::from_event(&event, sid, "Stream".to_string(), EN);
+        let entry = CsbAuditLogEntry::from_event(&event, sid, "Stream".to_string(), EN, &NoLinks);
 
         assert_eq!(entry.user, "Committee member alice");
         assert!(entry.matches_search("alice"));
         assert!(entry.matches_search("committee"));
+    }
+
+    #[test]
+    fn matches_search_by_subject_id() {
+        let id = ObjectionId::new();
+        let event = StoreEvent::new(
+            1,
+            CsbMainAction::DeleteObjection(id).by(CsbUser::new_test()),
+        );
+        let entry =
+            CsbAuditLogEntry::from_event(&event, stream_id(), "Stream".to_string(), EN, &NoLinks);
+
+        assert_eq!(entry.subject_id(), Some(id.to_string().as_str()));
+        assert!(entry.matches_search(&crate::abbreviate_str(&id.to_string())));
     }
 }
