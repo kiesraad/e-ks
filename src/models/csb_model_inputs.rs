@@ -39,7 +39,7 @@ async fn examined_stores(
         .stores_for_election(*election)
         .await?
         .into_iter()
-        .filter(|store| !store.is_deleted())
+        .filter(|store| !store.snapshot().is_deleted())
         .collect())
 }
 
@@ -51,7 +51,7 @@ pub async fn submitted_lists(
 ) -> Result<Vec<DistrictLists<i1::SubmittedList>>, AppError> {
     let mut by_district: BTreeMap<ElectoralDistrict, Vec<i1::SubmittedList>> = BTreeMap::new();
     for store in examined_stores(registry, election).await? {
-        for (district, list) in store_submitted_lists(&store) {
+        for (district, list) in store_submitted_lists(&store.snapshot()) {
             by_district.entry(district).or_default().push(list);
         }
     }
@@ -65,14 +65,14 @@ pub async fn submitted_lists(
         .collect())
 }
 
-fn store_submitted_lists(store: &CsbStream) -> Vec<(ElectoralDistrict, i1::SubmittedList)> {
-    let appellation = store.get_appellation(WithCorrections::All);
+fn store_submitted_lists(data: &CsbStoreData) -> Vec<(ElectoralDistrict, i1::SubmittedList)> {
+    let appellation = data.pg(WithCorrections::All).get_appellation();
     let mut rows = Vec::new();
-    for list in lists_by_creation(store) {
+    for list in lists_by_creation(data) {
         let first_candidate_name = list
             .candidates
             .first()
-            .and_then(|id| store.get_person(*id, WithCorrections::All))
+            .and_then(|id| data.pg(WithCorrections::All).get_person(*id).ok())
             .map(|person| person.name.display())
             .unwrap_or_default();
 
@@ -98,9 +98,10 @@ pub async fn found_omissions(
 ) -> Result<Vec<OmissionGroup>, AppError> {
     let mut found = Vec::new();
     for store in examined_stores(registry, election).await? {
-        let omissions = sorted_omissions(&store);
+        let data = store.snapshot();
+        let omissions = sorted_omissions(&data);
         found.extend(omission_groups(
-            &store,
+            &data,
             election,
             omissions.iter().filter(|omission| omission.recoverable),
         )?);
@@ -117,10 +118,10 @@ pub async fn found_omissions(
 /// omissions grouped under their name. Irreparable omissions are left out;
 /// the letter has nothing to ask for.
 pub fn omission_letter_sections(
-    store: &CsbStream,
+    data: &CsbStoreData,
     election: &ElectionConfig,
 ) -> Result<Vec<omission_letter::DistrictOmissions>, AppError> {
-    let mut omissions: Vec<Omission> = sorted_omissions(store)
+    let mut omissions: Vec<Omission> = sorted_omissions(data)
         .into_iter()
         .filter(|omission| omission.recoverable)
         .collect();
@@ -136,7 +137,7 @@ pub fn omission_letter_sections(
 
     let mut by_district: BTreeMap<String, SectionOmissions> = BTreeMap::new();
     for omission in &omissions {
-        let district = omission.category.electoral_district(store, election)?;
+        let district = omission.category.electoral_district(data, election)?;
         let section = by_district.entry(district).or_default();
         let letter_omission = omission_letter::LetterOmission {
             description: omission.description.to_string(),
@@ -144,7 +145,7 @@ pub fn omission_letter_sections(
         };
         match &omission.category {
             OmissionCategory::Candidate { person, lists } => {
-                section.push_candidate_omission(store, *person, lists, letter_omission)?;
+                section.push_candidate_omission(data, *person, lists, letter_omission)?;
             }
             _ => section.omissions.push(letter_omission),
         }
@@ -176,7 +177,7 @@ struct SectionOmissions {
 impl SectionOmissions {
     fn push_candidate_omission(
         &mut self,
-        store: &CsbStream,
+        data: &CsbStoreData,
         person: PersonId,
         lists: &[CandidateListId],
         omission: omission_letter::LetterOmission,
@@ -184,15 +185,15 @@ impl SectionOmissions {
         if let Some((_, candidate)) = self.candidates.iter_mut().find(|(id, _)| *id == person) {
             candidate.omissions.push(omission);
         } else {
-            let name = store
-                .get_person(person, WithCorrections::All)
-                .ok_or(AppError::GenericNotFound)?
+            let name = data
+                .pg(WithCorrections::All)
+                .get_person(person)?
                 .name
                 .display();
             self.candidates.push((
                 person,
                 omission_letter::CandidateOmissions {
-                    position: candidate_position(store, person, lists),
+                    position: candidate_position(data, person, lists),
                     name,
                     omissions: vec![omission],
                 },
@@ -245,18 +246,19 @@ pub async fn i4_inputs(
         BTreeMap::new();
 
     for store in examined_stores(registry, election).await? {
-        let omissions = sorted_omissions(&store);
-        let scrapped = store.get_scrapped();
+        let data = store.snapshot();
+        let omissions = sorted_omissions(&data);
+        let scrapped = data.get_scrapped();
 
         inputs.recovered_omissions.extend(omission_groups(
-            &store,
+            &data,
             election,
             omissions
                 .iter()
                 .filter(|omission| omission.recoverable && omission.status.is_recovered()),
         )?);
         inputs.invalid_lists.extend(omission_groups(
-            &store,
+            &data,
             election,
             omissions.iter().filter(|omission| {
                 scrapped.is_caused_by(omission.id) && invalidates_list(omission)
@@ -264,19 +266,19 @@ pub async fn i4_inputs(
         )?);
         inputs
             .removed_candidates
-            .extend(removed_candidates(&store, election, &omissions, &scrapped)?);
+            .extend(removed_candidates(&data, election, &omissions, scrapped)?);
         inputs
             .removed_appellations
-            .extend(removed_appellation(&store, election, &omissions, &scrapped));
+            .extend(removed_appellation(&data, election, &omissions, scrapped));
         inputs
             .corrected_appellations
-            .extend(corrected_appellation(&store, election, &scrapped));
+            .extend(corrected_appellation(&data, election, scrapped));
 
         let group_position = stream_order
             .iter()
             .position(|stream_id| *stream_id == store.stream_id)
             .unwrap_or(usize::MAX);
-        for (district, list) in valid_lists(&store, &scrapped, ValidListCandidate::new)? {
+        for (district, list) in valid_lists(&data, scrapped, ValidListCandidate::new)? {
             valid_by_district
                 .entry(district)
                 .or_default()
@@ -330,13 +332,14 @@ pub async fn lists_overview(
             .find(|store| store.stream_id == *stream_id)
             .ok_or(AppError::Conflict)?;
 
-        let scrapped = store.get_scrapped();
-        let Some(established) = EstablishedLists::new(store, &scrapped)? else {
+        let data = store.snapshot();
+        let scrapped = data.get_scrapped();
+        let Some(established) = EstablishedLists::new(&data, scrapped)? else {
             continue;
         };
         groups.push(OverviewGroup {
             number,
-            appellation: store.get_appellation_with_scrapped(WithCorrections::All, &scrapped),
+            appellation: data.get_appellation_with_scrapped(WithCorrections::All, scrapped),
             sets: established.sets().clone(),
         });
     }
@@ -383,8 +386,8 @@ pub async fn published_lists_by_district(
             .find(|store| store.stream_id == *stream_id)
             .ok_or(AppError::Conflict)?;
 
-        for (district, list) in valid_lists(store, &store.get_scrapped(), PublishedCandidate::new)?
-        {
+        let data = store.snapshot();
+        for (district, list) in valid_lists(&data, data.get_scrapped(), PublishedCandidate::new)? {
             match by_district.get_mut(&district) {
                 Some(lists) => lists.push(NumberedList { number, list }),
                 None => {
@@ -412,20 +415,23 @@ fn invalidates_list(omission: &Omission) -> bool {
 }
 
 /// Reading order: group, declarations of support, lists, candidates by position.
-fn sorted_omissions(store: &CsbStream) -> Vec<Omission> {
-    let mut omissions = store.get_omissions();
-    omissions.sort_by_cached_key(|omission| omission_order(store, omission));
+fn sorted_omissions(data: &CsbStoreData) -> Vec<Omission> {
+    let mut omissions = data.get_omissions();
+    omissions.sort_by_cached_key(|omission| omission_order(data, omission));
     omissions
 }
 
-fn omission_order(store: &CsbStream, omission: &Omission) -> (u8, usize, UtcDateTime, OmissionId) {
+fn omission_order(
+    data: &CsbStoreData,
+    omission: &Omission,
+) -> (u8, usize, UtcDateTime, OmissionId) {
     let (rank, position) = match &omission.category {
         OmissionCategory::PoliticalGroup | OmissionCategory::Appellation => (0, 0),
         OmissionCategory::DeclarationsOfSupport(_) => (1, 0),
         OmissionCategory::CandidateList(_) => (2, 0),
         OmissionCategory::Candidate { person, lists } => (
             3,
-            candidate_position(store, *person, lists).unwrap_or(usize::MAX),
+            candidate_position(data, *person, lists).unwrap_or(usize::MAX),
         ),
     };
     (rank, position, omission.updated_at, omission.id)
@@ -433,31 +439,32 @@ fn omission_order(store: &CsbStream, omission: &Omission) -> (u8, usize, UtcDate
 
 /// A candidate's position on the first of `lists`; `None` when not on it.
 fn candidate_position(
-    store: &CsbStream,
+    data: &CsbStoreData,
     person: PersonId,
     lists: &[CandidateListId],
 ) -> Option<usize> {
-    lists
-        .first()
-        .and_then(|list| store.get_candidate_position(*list, person, WithCorrections::All))
+    lists.first().and_then(|list| {
+        data.pg(WithCorrections::All)
+            .get_candidate_position(*list, person)
+    })
 }
 
 /// One group per district label.
 fn omission_groups<'a>(
-    store: &CsbStream,
+    data: &CsbStoreData,
     election: &ElectionConfig,
     omissions: impl IntoIterator<Item = &'a Omission>,
 ) -> Result<Vec<OmissionGroup>, AppError> {
     let mut by_district: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for omission in omissions {
-        let district = omission.category.electoral_district(store, election)?;
+        let district = omission.category.electoral_district(data, election)?;
         by_district
             .entry(district)
             .or_default()
             .push(omission.description.to_string());
     }
 
-    let appellation = store.get_appellation(WithCorrections::All);
+    let appellation = data.pg(WithCorrections::All).get_appellation();
     Ok(by_district
         .into_iter()
         .map(
@@ -472,7 +479,7 @@ fn omission_groups<'a>(
 
 /// Candidates scrapped from lists that stay valid, one row per candidate.
 fn removed_candidates(
-    store: &CsbStream,
+    data: &CsbStoreData,
     election: &ElectionConfig,
     omissions: &[Omission],
     scrapped: &Scrapped,
@@ -485,7 +492,7 @@ fn removed_candidates(
         let OmissionCategory::Candidate { person, lists } = &omission.category else {
             continue;
         };
-        let districts = valid_districts_with_candidate(store, scrapped, *person, lists)?;
+        let districts = valid_districts_with_candidate(data, scrapped, *person, lists)?;
         if districts.is_empty() {
             continue;
         }
@@ -495,9 +502,7 @@ fn removed_candidates(
         if let Some((_, row)) = rows.iter_mut().find(|(id, _)| id == person) {
             row.reasons.push(omission.description.to_string());
         } else {
-            let candidate = store
-                .get_person(*person, WithCorrections::All)
-                .ok_or(AppError::GenericNotFound)?;
+            let candidate = data.pg(WithCorrections::All).get_person(*person)?;
             rows.push((
                 *person,
                 i4::RemovedCandidate {
@@ -508,7 +513,7 @@ fn removed_candidates(
         }
     }
 
-    let appellation = store.get_appellation(WithCorrections::All);
+    let appellation = data.pg(WithCorrections::All).get_appellation();
     Ok(by_district
         .into_iter()
         .map(|(electoral_district, rows)| i4::RemovedCandidates {
@@ -521,20 +526,18 @@ fn removed_candidates(
 
 /// The districts in which the lists still carrying `person` stay valid.
 fn valid_districts_with_candidate(
-    store: &CsbStream,
+    data: &CsbStoreData,
     scrapped: &Scrapped,
     person: PersonId,
     lists: &[CandidateListId],
 ) -> Result<Vec<ElectoralDistrict>, AppError> {
     let mut valid = Vec::new();
     for id in lists {
-        let list = store
-            .get_candidate_list(*id, WithCorrections::All)
-            .ok_or(AppError::GenericNotFound)?;
+        let list = data.pg(WithCorrections::All).get_candidate_list(*id)?;
         if !list.candidates.contains(&person) || scrapped.is_list_scrapped(*id) {
             continue;
         }
-        for district in list.electoral_districts {
+        for &district in &list.electoral_districts {
             if !scrapped.is_district_scrapped(district) && !valid.contains(&district) {
                 valid.push(district);
             }
@@ -544,7 +547,7 @@ fn valid_districts_with_candidate(
 }
 
 fn removed_appellation(
-    store: &CsbStream,
+    data: &CsbStoreData,
     election: &ElectionConfig,
     omissions: &[Omission],
     scrapped: &Scrapped,
@@ -554,9 +557,9 @@ fn removed_appellation(
     }
 
     Some(i4::RemovedAppellation {
-        appellation: store.get_appellation(WithCorrections::All),
-        electoral_district: format_districts(&group_districts(store), election),
-        first_candidate_name: first_candidate_name(store, scrapped),
+        appellation: data.pg(WithCorrections::All).get_appellation(),
+        electoral_district: format_districts(&group_districts(data), election),
+        first_candidate_name: first_candidate_name(data, scrapped),
         reasons: omissions
             .iter()
             .filter(|omission| scrapped.appellation_omissions().contains(&omission.id))
@@ -566,31 +569,31 @@ fn removed_appellation(
 }
 
 fn corrected_appellation(
-    store: &CsbStream,
+    data: &CsbStoreData,
     election: &ElectionConfig,
     scrapped: &Scrapped,
 ) -> Option<i4::CorrectedAppellation> {
-    (store.get_political_group_csb_corrections_count() > 0).then(|| i4::CorrectedAppellation {
-        first_candidate_name: first_candidate_name(store, scrapped),
-        electoral_district: format_districts(&group_districts(store), election),
-        submitted_appellation: store.get_appellation(WithCorrections::Paper),
-        edited_appellation: store.get_appellation(WithCorrections::All),
+    (data.get_political_group_csb_corrections_count() > 0).then(|| i4::CorrectedAppellation {
+        first_candidate_name: first_candidate_name(data, scrapped),
+        electoral_district: format_districts(&group_districts(data), election),
+        submitted_appellation: data.pg(WithCorrections::Paper).get_appellation(),
+        edited_appellation: data.pg(WithCorrections::All).get_appellation(),
     })
 }
 
 /// The lists that are not scrapped, per district that is not scrapped, with
 /// each remaining candidate made into a row by `candidate`.
 fn valid_lists<C>(
-    store: &CsbStream,
+    data: &CsbStoreData,
     scrapped: &Scrapped,
     candidate: impl Fn(usize, &Person) -> C,
 ) -> Result<Vec<(ElectoralDistrict, ValidList<C>)>, AppError> {
-    let appellation = store.get_appellation_with_scrapped(WithCorrections::All, scrapped);
+    let appellation = data.get_appellation_with_scrapped(WithCorrections::All, scrapped);
 
-    valid_lists_by_district(store, scrapped)
+    valid_lists_by_district(data, scrapped)
         .into_iter()
         .map(|(district, list)| {
-            let candidates = valid_candidates(store, scrapped, &list)?
+            let candidates = valid_candidates(data, scrapped, &list)?
                 .into_iter()
                 .map(|(position, person)| candidate(position, &person))
                 .collect();
@@ -607,11 +610,11 @@ fn valid_lists<C>(
 
 /// The lists that are not scrapped, per district that is not scrapped for I 4 / EML 230b
 pub fn valid_lists_by_district(
-    store: &CsbStream,
+    data: &CsbStoreData,
     scrapped: &Scrapped,
 ) -> Vec<(ElectoralDistrict, CandidateList)> {
     let mut valid = Vec::new();
-    for list in lists_by_creation(store) {
+    for list in lists_by_creation(data) {
         if scrapped.is_list_scrapped(list.id) {
             continue;
         }
@@ -627,7 +630,7 @@ pub fn valid_lists_by_district(
 
 /// The candidates that are not scrapped, renumbered for I 4 / EML 230b
 pub fn valid_candidates(
-    store: &CsbStream,
+    data: &CsbStoreData,
     scrapped: &Scrapped,
     list: &CandidateList,
 ) -> Result<Vec<(usize, Person)>, AppError> {
@@ -636,25 +639,24 @@ pub fn valid_candidates(
         .filter(|person| !scrapped.is_candidate_scrapped(list.id, **person))
         .enumerate()
         .map(|(index, person)| {
-            let person = store
-                .get_person(*person, WithCorrections::All)
-                .ok_or(AppError::GenericNotFound)?;
-            Ok((index + 1, person))
+            let person = data.pg(WithCorrections::All).get_person(*person)?;
+            Ok((index + 1, person.clone()))
         })
         .collect()
 }
 
-fn lists_by_creation(store: &CsbStream) -> Vec<CandidateList> {
-    let mut lists = store.get_candidate_lists(WithCorrections::All);
-    lists.sort_unstable_by_key(|list| list.created_at);
-    lists
+fn lists_by_creation(data: &CsbStoreData) -> Vec<CandidateList> {
+    data.pg(WithCorrections::All)
+        .get_candidate_lists()
+        .into_iter()
+        .cloned()
+        .collect()
 }
 
 /// E.g. `van Dijk, A.B. (Anne)`; empty without candidates.
-fn first_candidate_name(store: &CsbStream, scrapped: &Scrapped) -> String {
-    store
-        .get_first_candidate_name(WithCorrections::All, Some(scrapped))
-        .map(|name| name.display())
+fn first_candidate_name(data: &CsbStoreData, scrapped: &Scrapped) -> String {
+    data.get_first_candidate_name(WithCorrections::All, Some(scrapped))
+        .map(crate::structs::common::FullName::display)
         .unwrap_or_default()
 }
 
@@ -662,15 +664,15 @@ impl OmissionCategory {
     /// The "kieskring(en)" column of models I 1 and I 4.
     pub fn electoral_district(
         &self,
-        store: &CsbStream,
+        data: &CsbStoreData,
         election: &ElectionConfig,
     ) -> Result<String, AppError> {
         let districts = match self {
             OmissionCategory::PoliticalGroup | OmissionCategory::Appellation => {
-                group_districts(store)
+                group_districts(data)
             }
             OmissionCategory::CandidateList(lists) | OmissionCategory::Candidate { lists, .. } => {
-                list_districts(store, lists)?
+                list_districts(data, lists)?
             }
             OmissionCategory::DeclarationsOfSupport(districts) => districts.clone(),
         };
@@ -679,15 +681,13 @@ impl OmissionCategory {
 }
 
 fn list_districts(
-    store: &CsbStream,
+    data: &CsbStoreData,
     lists: &[CandidateListId],
 ) -> Result<Vec<ElectoralDistrict>, AppError> {
     let mut districts = Vec::new();
     for id in lists {
-        let list = store
-            .get_candidate_list(*id, WithCorrections::All)
-            .ok_or(AppError::GenericNotFound)?;
-        for district in list.electoral_districts {
+        let list = data.pg(WithCorrections::All).get_candidate_list(*id)?;
+        for &district in &list.electoral_districts {
             if !districts.contains(&district) {
                 districts.push(district);
             }
@@ -696,10 +696,10 @@ fn list_districts(
     Ok(districts)
 }
 
-fn group_districts(store: &CsbStream) -> Vec<ElectoralDistrict> {
+fn group_districts(data: &CsbStoreData) -> Vec<ElectoralDistrict> {
     let mut districts = Vec::new();
-    for list in store.get_candidate_lists(WithCorrections::All) {
-        for district in list.electoral_districts {
+    for list in data.pg(WithCorrections::All).get_candidate_lists() {
+        for &district in &list.electoral_districts {
             if !districts.contains(&district) {
                 districts.push(district);
             }
@@ -855,7 +855,7 @@ mod tests {
         let store = CsbStore::new_for_test();
         assert_eq!(
             OmissionCategory::PoliticalGroup
-                .electoral_district(&store, &EK)
+                .electoral_district(&store.snapshot(), &EK)
                 .unwrap(),
             "alle kieskringen"
         );
@@ -874,7 +874,7 @@ mod tests {
 
         assert_eq!(
             OmissionCategory::PoliticalGroup
-                .electoral_district(&store, &EK)
+                .electoral_district(&store.snapshot(), &EK)
                 .unwrap(),
             "kieskring 1 (Groningen), 13 (Bonaire)"
         );
@@ -888,7 +888,7 @@ mod tests {
             lists: vec![id],
         };
         assert_eq!(
-            category.electoral_district(&store, &EK).unwrap(),
+            category.electoral_district(&store.snapshot(), &EK).unwrap(),
             "alle kieskringen"
         );
     }
@@ -898,7 +898,7 @@ mod tests {
         let store = CsbStore::new_for_test();
         assert_eq!(
             OmissionCategory::DeclarationsOfSupport(EK.electoral_districts().to_vec())
-                .electoral_district(&store, &EK)
+                .electoral_district(&store.snapshot(), &EK)
                 .unwrap(),
             "alle kieskringen"
         );
@@ -909,7 +909,7 @@ mod tests {
         let store = CsbStore::new_for_test();
         assert_eq!(
             OmissionCategory::DeclarationsOfSupport(vec![ElectoralDistrict::Bonaire])
-                .electoral_district(&store, &EK)
+                .electoral_district(&store.snapshot(), &EK)
                 .unwrap(),
             "kieskring 13 (Bonaire)"
         );
@@ -924,7 +924,7 @@ mod tests {
                 ElectoralDistrict::Drenthe,
                 ElectoralDistrict::Groningen
             ])
-            .electoral_district(&store, &EK)
+            .electoral_district(&store.snapshot(), &EK)
             .unwrap(),
             "kieskring 1 (Groningen), 3 (Drenthe)"
         );
@@ -936,7 +936,7 @@ mod tests {
         // An empty district list is treated as "all districts" in format_districts.
         assert_eq!(
             OmissionCategory::DeclarationsOfSupport(vec![])
-                .electoral_district(&store, &EK)
+                .electoral_district(&store.snapshot(), &EK)
                 .unwrap(),
             "alle kieskringen"
         );
@@ -950,7 +950,7 @@ mod tests {
             lists: vec![id],
         };
         assert_eq!(
-            category.electoral_district(&store, &EK).unwrap(),
+            category.electoral_district(&store.snapshot(), &EK).unwrap(),
             "kieskring 1 (Groningen)"
         );
     }
@@ -970,7 +970,7 @@ mod tests {
         };
 
         assert_eq!(
-            category.electoral_district(&store, &EK).unwrap(),
+            category.electoral_district(&store.snapshot(), &EK).unwrap(),
             "kieskring 1 (Groningen)"
         );
     }
@@ -989,7 +989,7 @@ mod tests {
         };
 
         assert_eq!(
-            category.electoral_district(&store, &EK).unwrap(),
+            category.electoral_district(&store.snapshot(), &EK).unwrap(),
             "kieskring 1 (Groningen)"
         );
     }
@@ -1001,7 +1001,7 @@ mod tests {
             person: PersonId::new(),
             lists: vec![CandidateListId::new()],
         };
-        assert!(category.electoral_district(&store, &EK).is_err());
+        assert!(category.electoral_district(&store.snapshot(), &EK).is_err());
     }
 
     #[test]
@@ -1020,7 +1020,7 @@ mod tests {
             ..Default::default()
         });
 
-        let rows = store_submitted_lists(&store);
+        let rows = store_submitted_lists(&store.snapshot());
 
         // The list covers two districts, so it contributes a row to each.
         assert_eq!(rows.len(), 2);
@@ -1036,7 +1036,7 @@ mod tests {
     fn submitted_list_without_candidates_has_an_empty_first_candidate() {
         let (store, _) = store_with_list(vec![ElectoralDistrict::Bonaire]);
 
-        let rows = store_submitted_lists(&store);
+        let rows = store_submitted_lists(&store.snapshot());
 
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].1.first_candidate_name, "");
@@ -1064,7 +1064,7 @@ mod tests {
             ..Default::default()
         });
 
-        let rows = store_submitted_lists(&store);
+        let rows = store_submitted_lists(&store.snapshot());
 
         let names: Vec<String> = rows
             .into_iter()
@@ -1088,7 +1088,7 @@ mod tests {
             ..Default::default()
         });
 
-        let rows = store_submitted_lists(&store);
+        let rows = store_submitted_lists(&store.snapshot());
 
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].1.appellation, "Blanco (Jansen, A.B.)");
@@ -1141,7 +1141,7 @@ mod tests {
         .await;
         create_omission(&store, OmissionCategory::PoliticalGroup, "Groepering").await;
 
-        let descriptions: Vec<String> = sorted_omissions(&store)
+        let descriptions: Vec<String> = sorted_omissions(&store.snapshot())
             .iter()
             .map(|omission| omission.description.to_string())
             .collect();
@@ -1576,7 +1576,8 @@ mod tests {
         )
         .await;
 
-        let lists = valid_lists(&store, &store.get_scrapped(), PublishedCandidate::new).unwrap();
+        let data = store.snapshot();
+        let lists = valid_lists(&data, data.get_scrapped(), PublishedCandidate::new).unwrap();
 
         // Aarts is scrapped, so de Boer moves up to the first position.
         let candidate = &lists[0].1.candidates[0];
@@ -1784,7 +1785,7 @@ mod tests {
         create_omission(&store, OmissionCategory::PoliticalGroup, "Eerste verzuim").await;
         create_omission(&store, OmissionCategory::PoliticalGroup, "Tweede verzuim").await;
 
-        let sections = omission_letter_sections(&store, &EK).unwrap();
+        let sections = omission_letter_sections(&store.snapshot(), &EK).unwrap();
 
         assert_eq!(sections.len(), 2);
         // The all-districts section heads the letter.
@@ -1838,7 +1839,7 @@ mod tests {
         )
         .await;
 
-        let sections = omission_letter_sections(&store, &EK).unwrap();
+        let sections = omission_letter_sections(&store.snapshot(), &EK).unwrap();
 
         assert_eq!(sections.len(), 1);
         assert!(sections[0].covers_all_districts);
@@ -1909,7 +1910,7 @@ mod tests {
         let (store, list, persons) = seed_group_with_list(&state, "Gegroepeerd").await;
         create_interleaved_omissions(&store, &list, &persons).await;
 
-        let sections = omission_letter_sections(&store, &EK).unwrap();
+        let sections = omission_letter_sections(&store.snapshot(), &EK).unwrap();
 
         assert_eq!(sections.len(), 1);
         let section = &sections[0];
@@ -1959,7 +1960,11 @@ mod tests {
         irreparable.recoverable = false;
         irreparable.create(&store).await.unwrap();
 
-        assert!(omission_letter_sections(&store, &EK).unwrap().is_empty());
+        assert!(
+            omission_letter_sections(&store.snapshot(), &EK)
+                .unwrap()
+                .is_empty()
+        );
     }
 
     /// A group with three candidates and one list per entry:

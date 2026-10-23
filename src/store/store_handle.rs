@@ -9,7 +9,9 @@ use chrono::{DateTime, Utc};
 use crate::crypto::EventCipher;
 use crate::{ElectionConfig, StreamId};
 
-use super::{EventHash, EventHashPrefix, StoreData, StoreEvent, memory::MemoryStore};
+#[cfg(any(feature = "database", test))]
+use super::StoreEvent;
+use super::{EventHash, EventHashPrefix, StoreData, memory::MemoryStore};
 
 /// Event-sourced store handle for a single (stream, election) pair.
 pub struct Store<D> {
@@ -103,19 +105,21 @@ where
     /// stores seeded from another projection (paper corrections, audit
     /// replays). Persisted stores only change through their events.
     pub(crate) fn replace(&self, data: Arc<D>) {
-        debug_assert!(
+        assert!(
             matches!(self.backend, StoreBackend::Memory { .. }),
             "replace is for in-memory projections only"
         );
         *self.data.write() = data;
     }
 
-    /// Apply a single event to the in-memory projection.
+    /// Apply a single event to the in-memory projection. Store-private: the
+    /// projection only changes through persisted events ([`Self::update`]).
     ///
     /// No-op if the projection is already at or past this event: another
     /// instance of the application may have processed and applied it before
     /// this caller acquired the write lock.
-    pub fn apply_event(&self, store_event: StoreEvent<D::Event>) {
+    #[cfg(any(feature = "database", test))]
+    pub(super) fn apply_event(&self, store_event: StoreEvent<D::Event>) {
         let mut data = self.data.write();
 
         if data.last_event_id() >= store_event.event_id {

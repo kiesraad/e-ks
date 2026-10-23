@@ -1,3 +1,4 @@
+use crate::store::StoreData;
 use axum::{extract::FromRequestParts, http::request::Parts};
 
 use crate::{AppError, AppRequestState, store::StreamMeta};
@@ -39,21 +40,21 @@ impl<S: AppRequestState> FromRequestParts<S> for StreamMonitor {
                     Some(store) => {
                         let data = store.snapshot();
                         meta.created_at = data
-                            .events
+                            .events()
                             .first()
                             .map(|e| e.created_at)
                             .or(meta.created_at);
                         meta.last_event_at = data
-                            .events
+                            .events()
                             .last()
                             .map(|e| e.created_at)
                             .or(meta.last_event_at);
                         let name = data
-                            .political_group
+                            .get_political_group()
                             .appellation
                             .as_ref()
                             .map(ToString::to_string);
-                        let until = data.events.last().map(|e| e.event_id).unwrap_or(0);
+                        let until = data.events().last().map(|e| e.event_id).unwrap_or(0);
                         (name, Some(until))
                     }
                     None => (None, None),

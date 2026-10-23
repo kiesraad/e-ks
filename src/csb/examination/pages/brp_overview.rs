@@ -21,7 +21,9 @@ pub async fn gen_brp_overview(
     _: CsbBrpOverviewDownloadPath,
     store: CsbStore,
 ) -> Result<Response, AppError> {
-    brp_overview_model(&store).pdf_response().await
+    brp_overview_model(&store.snapshot(), store.election)
+        .pdf_response()
+        .await
 }
 
 /// The same overview as [`gen_brp_overview`], exported as a Word document.
@@ -29,7 +31,9 @@ pub async fn gen_brp_overview_docx(
     _: CsbBrpOverviewDocxDownloadPath,
     store: CsbStore,
 ) -> Result<Response, AppError> {
-    brp_overview_model(&store).docx_response().await
+    brp_overview_model(&store.snapshot(), store.election)
+        .docx_response()
+        .await
 }
 
 /// The same overview as [`gen_brp_overview`], exported as Markdown.
@@ -37,7 +41,7 @@ pub async fn gen_brp_overview_markdown(
     _: CsbBrpOverviewMarkdownDownloadPath,
     store: CsbStore,
 ) -> Result<Response, AppError> {
-    brp_overview_model(&store).markdown_response()
+    brp_overview_model(&store.snapshot(), store.election).markdown_response()
 }
 
 #[cfg(test)]

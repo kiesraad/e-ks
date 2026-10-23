@@ -48,14 +48,21 @@ pub(in crate::csb) async fn render(
     store: CsbStore,
     mode: CsbPhase,
 ) -> Result<Response, AppError> {
+    let data = store.snapshot();
     let political_group = CsbPoliticalGroup::new_from_csb_store(&store).with_mode(mode);
-    let corrected_list = store.get_candidate_list(list_id, WithCorrections::All);
+    let corrected_list = data
+        .pg(WithCorrections::All)
+        .get_candidate_list(list_id)
+        .ok();
     // For paper-added lists there is no imported side; use an empty-candidate
     // placeholder so all candidates render as paper-corrected additions.
-    let imported_list = store
-        .get_candidate_list(list_id, WithCorrections::None)
+    let imported_list = data
+        .pg(WithCorrections::None)
+        .get_candidate_list(list_id)
+        .ok()
+        .cloned()
         .or_else(|| {
-            corrected_list.as_ref().map(|corrected| CandidateList {
+            corrected_list.map(|corrected| CandidateList {
                 candidates: Vec::new(),
                 ..corrected.clone()
             })
@@ -63,16 +70,16 @@ pub(in crate::csb) async fn render(
         .ok_or(AppError::GenericNotFound)?;
 
     let candidates = CsbCandidate::rows_for_list(
-        &store,
+        &data,
         &imported_list,
         AnyLocale::from(context.session.locale),
     );
 
-    let omissions = store.get_candidate_list_omissions(list_id)?;
+    let omissions = data.get_candidate_list_omissions(list_id, context.election)?;
 
     // The corrected electoral districts take precedence over the imported ones.
     let electoral_districts = corrected_list
-        .map(|corrected| corrected.electoral_districts)
+        .map(|corrected| corrected.electoral_districts.clone())
         .unwrap_or(imported_list.electoral_districts);
 
     let scrapped = &political_group.scrapped;
@@ -80,7 +87,7 @@ pub(in crate::csb) async fn render(
     let scrapped_districts = scrapped.list_districts(list_id).to_vec();
     let all_districts_scrapped = scrapped.all_list_districts_scrapped(list_id);
 
-    let all_problems = store.get_all_problems(context.election)?;
+    let all_problems = data.get_all_problems(context.election)?;
     let list_problems = all_problems
         .get_problems_for_list(list_id)
         .into_iter()

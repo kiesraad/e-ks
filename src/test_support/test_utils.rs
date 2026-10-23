@@ -284,15 +284,12 @@ pub async fn seed_csb_group(
         .expect("csb store")
         .acting_as_test_user();
 
-    let mut snapshot = PgStoreData {
-        political_group,
-        ..PgStoreData::default()
-    };
+    let mut snapshot = PgStoreData::default().with_political_group(political_group);
     for person in persons {
-        snapshot.persons.insert(person.id, person);
+        snapshot = snapshot.with_person(person);
     }
     for list in lists {
-        snapshot.candidate_lists.insert(list.id, list);
+        snapshot = snapshot.with_candidate_list(list);
     }
 
     store
@@ -315,10 +312,9 @@ pub async fn paper_corrections_store() -> Result<PgStore, AppError> {
         .update(crate::CsbAction::Import {
             hash: [1; 32],
             source_stream_id: crate::StreamId::new(),
-            snapshot: Box::new(crate::PgStoreData {
-                political_group: sample_political_group(),
-                ..Default::default()
-            }),
+            snapshot: Box::new(
+                crate::PgStoreData::default().with_political_group(sample_political_group()),
+            ),
         })
         .await?;
 

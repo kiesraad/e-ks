@@ -112,7 +112,7 @@ mod tests {
                 .to_string()
         );
 
-        let found = store.get_person(person_id);
+        let found = store.snapshot().get_person(person_id).cloned();
         assert!(found.is_err());
 
         Ok(())

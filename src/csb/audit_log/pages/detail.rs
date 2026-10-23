@@ -13,7 +13,7 @@ use crate::{
         structs::CsbAuditLogEntry,
     },
     filters,
-    projection::{CSB_MAIN_STREAM_ID, CsbAction, CsbStream, WithCorrections},
+    projection::{CSB_MAIN_STREAM_ID, CsbAction, WithCorrections},
     store::{StoreData, StoreEvent},
     structs::{
         audit_log::{
@@ -119,8 +119,8 @@ fn stream_context(action: &CsbAction, before: &CsbStoreData, locale: Locale) -> 
             ..Default::default()
         },
         CsbAction::BrpPersonChecked { person, findings } => {
-            let candidate = before.get_person(*person, WithCorrections::All);
-            let mut facts = vec![candidate_fact(candidate.as_ref(), *person, locale)];
+            let candidate = before.pg(WithCorrections::All).get_person(*person).ok();
+            let mut facts = vec![candidate_fact(candidate, *person, locale)];
             if findings.is_empty() {
                 facts.push(Fact {
                     label: trans!("audit_log.detail.brp.result", locale),
@@ -131,7 +131,7 @@ fn stream_context(action: &CsbAction, before: &CsbStoreData, locale: Locale) -> 
                 facts,
                 comparison: findings
                     .iter()
-                    .map(|finding| comparison_row(candidate.as_ref(), finding, locale))
+                    .map(|finding| comparison_row(candidate, finding, locale))
                     .collect(),
             }
         }
@@ -140,10 +140,10 @@ fn stream_context(action: &CsbAction, before: &CsbStoreData, locale: Locale) -> 
             finding,
             handled,
         } => {
-            let candidate = before.get_person(*person, WithCorrections::All);
+            let candidate = before.pg(WithCorrections::All).get_person(*person).ok();
             EventContext {
                 facts: vec![
-                    candidate_fact(candidate.as_ref(), *person, locale),
+                    candidate_fact(candidate, *person, locale),
                     Fact {
                         label: trans!("audit_log.detail.brp.finding", locale),
                         value: finding.message(locale),
@@ -175,11 +175,11 @@ fn omission_facts(action: &CsbAction, before: &CsbStoreData, locale: Locale) -> 
         CsbAction::CreateOmission(o) | CsbAction::UpdateOmission(o) => (Some(o), None),
         CsbAction::DeleteOmission { omission_id }
         | CsbAction::SetOmissionStatus { omission_id, .. } => {
-            (before.omissions.get(omission_id), None)
+            (before.get_omission(*omission_id).ok(), None)
         }
         CsbAction::SetOmissionPartStatus {
             omission_id, part, ..
-        } => (before.omissions.get(omission_id), Some(part)),
+        } => (before.get_omission(*omission_id).ok(), Some(part)),
         _ => (None, None),
     };
 
@@ -247,7 +247,7 @@ fn scope_facts(category: &OmissionCategory, before: &CsbStoreData, locale: Local
                 "{}: {}",
                 trans!("audit_log.detail.omission.kind_candidate", locale),
                 candidate_name(
-                    before.get_person(*person, WithCorrections::All).as_ref(),
+                    before.pg(WithCorrections::All).get_person(*person).ok(),
                     *person
                 )
             ),
@@ -265,10 +265,9 @@ fn scope_facts(category: &OmissionCategory, before: &CsbStoreData, locale: Local
 /// holds it.
 fn list_name(before: &CsbStoreData, list_id: CandidateListId) -> String {
     before
-        .paper_corrected_data
-        .candidate_lists
-        .get(&list_id)
-        .map_or_else(|| list_id.to_string(), CandidateList::districts_name)
+        .pg(WithCorrections::Paper)
+        .get_candidate_list(list_id)
+        .map_or_else(|_| list_id.to_string(), CandidateList::districts_name)
 }
 
 /// The candidate by name, or by id when the stream no longer holds them.
@@ -315,7 +314,7 @@ fn lookup_facts(before: &CsbStoreData, lookup: &BrpLookup, locale: Locale) -> Ve
         .iter()
         .map(|person_id| {
             candidate_name(
-                before.get_person(*person_id, WithCorrections::All).as_ref(),
+                before.pg(WithCorrections::All).get_person(*person_id).ok(),
                 *person_id,
             )
         })
@@ -443,16 +442,13 @@ struct CsbAuditLogDetailTemplate {
 
 /// The detail view of an event on a political group's stream.
 fn stream_event_detail(
-    import_stores: &[CsbStream],
-    pre_submission_stores: &[CsbStream],
-    stream_id: StreamId,
+    links: CsbStreamLinks,
     event_id: usize,
     locale: Locale,
 ) -> Result<CsbEventDetail, AppError> {
-    let links = CsbStreamLinks::find(import_stores, pre_submission_stores, stream_id)?;
     CsbEventDetail::find::<CsbStoreData>(
-        &links.store.snapshot().events,
-        stream_id,
+        links.data.events(),
+        links.stream_id,
         event_id,
         links.stream_label(locale),
         locale,
@@ -472,18 +468,18 @@ pub async fn csb_audit_log_detail<S: AppRequestState>(
     Query(query): Query<QueryParamState>,
 ) -> Result<impl IntoResponse, AppError> {
     let locale = context.session.locale;
-    let import_stores = state
-        .csb_store_registry()
-        .stores_for_election(context.election)
-        .await?;
     let detail = if stream_id == CSB_MAIN_STREAM_ID {
+        let import_stores = state
+            .csb_store_registry()
+            .stores_for_election(context.election)
+            .await?;
         let links = CsbMainLinks {
             store: &main_store,
             streams: &import_stores,
             locale,
         };
         CsbEventDetail::find::<CsbMainStoreData>(
-            &main_store.snapshot().events,
+            main_store.snapshot().events(),
             stream_id,
             event_id,
             trans!("audit_log.filter.csb_main_stream", locale),
@@ -492,17 +488,24 @@ pub async fn csb_audit_log_detail<S: AppRequestState>(
             |_, _| EventContext::default(),
         )?
     } else {
-        let pre_submission_stores = state
-            .pre_submission_store_registry()
-            .stores_for_election(context.election)
-            .await?;
-        stream_event_detail(
-            &import_stores,
-            &pre_submission_stores,
-            stream_id,
-            event_id,
-            locale,
-        )?
+        // Load only the stream asked for: an examined import, or else a
+        // pre-submission import. `get_store` never creates one.
+        let links = match state
+            .csb_store_registry()
+            .get_store(stream_id, context.election)
+            .await
+        {
+            Ok(store) => CsbStreamLinks::new(&store, false),
+            Err(AppError::NotFound(_)) => {
+                let store = state
+                    .pre_submission_store_registry()
+                    .get_store(stream_id, context.election)
+                    .await?;
+                CsbStreamLinks::new(&store, true)
+            }
+            Err(err) => return Err(err),
+        };
+        stream_event_detail(links, event_id, locale)?
     };
 
     Ok(HtmlTemplate(

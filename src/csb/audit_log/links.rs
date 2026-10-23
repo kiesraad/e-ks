@@ -4,8 +4,10 @@
 //! political group's: a person changed by a paper correction links to the
 //! candidate in the examination, not to `/persons/...`.
 
+use std::sync::Arc;
+
 use crate::{
-    AppError, CsbMainStore, CsbStream, Locale, StreamId,
+    AppError, CsbMainStore, CsbStoreData, CsbStream, Locale, StreamId,
     csb::{
         audit_log::CsbAuditLogPath,
         examination::paths::{
@@ -20,40 +22,46 @@ use crate::{
     trans,
 };
 
-/// Links from the audit log of one political group's stream. `store` is the
+/// Links from the audit log of one political group's stream. `data` is the
 /// stream as it stands now: an item that has since been deleted gets no link.
-pub struct CsbStreamLinks<'a> {
-    pub store: &'a CsbStream,
+pub struct CsbStreamLinks {
+    pub stream_id: StreamId,
+    pub data: Arc<CsbStoreData>,
     /// A package checked before submission; only its overview has a page.
     pub pre_submission: bool,
 }
 
-impl<'a> CsbStreamLinks<'a> {
+impl CsbStreamLinks {
+    pub fn new(store: &CsbStream, pre_submission: bool) -> Self {
+        Self {
+            stream_id: store.stream_id,
+            data: store.snapshot(),
+            pre_submission,
+        }
+    }
+
     /// The stream `stream_id` among the imported and the pre-submission
     /// streams of the election.
     pub fn find(
-        import_stores: &'a [CsbStream],
-        pre_submission_stores: &'a [CsbStream],
+        import_stores: &[CsbStream],
+        pre_submission_stores: &[CsbStream],
         stream_id: StreamId,
     ) -> Result<Self, AppError> {
         streams(import_stores, pre_submission_stores)
             .find(|(store, _)| store.stream_id == stream_id)
-            .map(|(store, pre_submission)| Self {
-                store,
-                pre_submission,
-            })
+            .map(|(store, pre_submission)| Self::new(store, pre_submission))
             .ok_or(AppError::GenericNotFound)
     }
 
     /// How the stream filter and the detail page name the stream.
     pub fn stream_label(&self, locale: Locale) -> String {
-        stream_label(self.store, self.pre_submission, locale)
+        stream_label(&self.data, self.pre_submission, locale)
     }
 
     fn href(&self, subject: Subject) -> Option<String> {
-        let store = self.store;
-        let stream_id = store.stream_id;
-        if store.is_deleted() {
+        let data = &self.data;
+        let stream_id = self.stream_id;
+        if data.is_deleted() {
             return None;
         }
         if self.pre_submission {
@@ -70,19 +78,23 @@ impl<'a> CsbStreamLinks<'a> {
                 Some(CsbGeneralInformationPath { stream_id }.to_string())
             }
             // A candidate's page is scoped to a list: the first they are on.
-            Subject::Person(person_id) => store.get_first_list(person_id).map(|list| {
-                CsbCandidatePath {
-                    stream_id,
-                    list_id: list.id,
-                    person_id,
-                }
-                .to_string()
-            }),
-            Subject::CandidateList(list_id) => store
-                .get_candidate_list(list_id, WithCorrections::All)
-                .is_some()
+            Subject::Person(person_id) => data
+                .pg(WithCorrections::All)
+                .get_first_list(person_id)
+                .map(|list| {
+                    CsbCandidatePath {
+                        stream_id,
+                        list_id: list.id,
+                        person_id,
+                    }
+                    .to_string()
+                }),
+            Subject::CandidateList(list_id) => data
+                .pg(WithCorrections::All)
+                .get_candidate_list(list_id)
+                .is_ok()
                 .then(|| CsbCandidateListPath { stream_id, list_id }.to_string()),
-            Subject::Omission(id) => store
+            Subject::Omission(id) => data
                 .get_omission(id)
                 .is_ok()
                 .then(|| CsbAllRestorationsPath { stream_id }.to_string()),
@@ -95,9 +107,9 @@ impl<'a> CsbStreamLinks<'a> {
     }
 }
 
-impl SubjectLinks for CsbStreamLinks<'_> {
+impl SubjectLinks for CsbStreamLinks {
     fn link(&self, subject: Subject) -> SubjectLink {
-        let stream_id = self.store.stream_id;
+        let stream_id = self.stream_id;
         let subject = subject.in_stream(stream_id);
         let id_full = subject.own_id();
         SubjectLink {
@@ -124,8 +136,8 @@ pub fn streams<'a>(
 
 /// A political group's stream by its appellation, marked when it was deleted
 /// or is a pre-submission package.
-pub fn stream_label(store: &CsbStream, pre_submission: bool, locale: Locale) -> String {
-    let label = store.get_appellation_with_deleted_label(WithCorrections::All, locale);
+pub fn stream_label(data: &CsbStoreData, pre_submission: bool, locale: Locale) -> String {
+    let label = data.get_appellation_with_deleted_label(WithCorrections::All, locale);
     if pre_submission {
         trans!("audit_log.filter.pre_submission_stream", locale, label)
     } else {
@@ -158,7 +170,7 @@ impl CsbMainLinks<'_> {
             Subject::ListOrder => Some(CsbFinalisePath.to_string()),
             Subject::PoliticalGroupStream(stream_id) => self
                 .stream(stream_id)
-                .filter(|stream| !stream.is_deleted())
+                .filter(|stream| !stream.snapshot().is_deleted())
                 .map(|_| CsbPoliticalGroupPath { stream_id }.to_string()),
             Subject::PoliticalGroup
             | Subject::ListSubmitter(_)
@@ -200,7 +212,7 @@ impl SubjectLinks for CsbMainLinks<'_> {
         match subject {
             Subject::PoliticalGroupStream(stream_id) => self
                 .stream(stream_id)
-                .map(|stream| stream_label(stream, false, self.locale)),
+                .map(|stream| stream_label(&stream.snapshot(), false, self.locale)),
             _ => None,
         }
     }
@@ -211,7 +223,7 @@ mod tests {
     use super::*;
     use crate::{
         CsbAction, CsbUser,
-        store::StoreEvent,
+        store::{StoreData, StoreEvent},
         structs::{candidate_lists::CandidateListId, persons::PersonId},
         test_utils::{sample_candidate_list, sample_person},
     };
@@ -232,10 +244,7 @@ mod tests {
         let (person_id, list_id) = (PersonId::new(), CandidateListId::new());
         let store = stream_with_candidate(person_id, list_id);
         let stream_id = store.stream_id;
-        let links = CsbStreamLinks {
-            store: &store,
-            pre_submission: false,
-        };
+        let links = CsbStreamLinks::new(&store, false);
 
         let link = links.link(Subject::Person(person_id));
         assert_eq!(link.id_full, Some(person_id.to_string()));
@@ -284,10 +293,7 @@ mod tests {
     fn pre_submission_only_links_the_package() {
         let (person_id, list_id) = (PersonId::new(), CandidateListId::new());
         let store = stream_with_candidate(person_id, list_id);
-        let links = CsbStreamLinks {
-            store: &store,
-            pre_submission: true,
-        };
+        let links = CsbStreamLinks::new(&store, true);
 
         assert_eq!(links.link(Subject::Person(person_id)).href, None);
         assert_eq!(
@@ -299,14 +305,11 @@ mod tests {
     #[test]
     fn a_deleted_stream_links_nowhere() {
         let store = CsbStream::new_for_test();
-        store.apply_event(StoreEvent::new(
+        store.write().apply(StoreEvent::new(
             1,
             CsbAction::Delete.by(CsbUser::new_test()),
         ));
-        let links = CsbStreamLinks {
-            store: &store,
-            pre_submission: false,
-        };
+        let links = CsbStreamLinks::new(&store, false);
 
         assert_eq!(links.link(Subject::PoliticalGroup).href, None);
     }

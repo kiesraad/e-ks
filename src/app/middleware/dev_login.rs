@@ -13,7 +13,7 @@ use crate::{
     auth::session_extractor::{establish_session, user_agent_hash},
     common::{PgIndexPath, SelectElectionPath},
     csb::index::CsbIndexPath,
-    store::Store,
+    store::{Store, StoreData},
     structs::{common::Appellation, political_groups::PoliticalGroup},
     utils::format_hash,
 };
@@ -165,11 +165,8 @@ impl<'a> DevLogin<'a> {
         if was_new {
             store.update(PgEvent::DeveloperLogin { stream_id }).await?;
         }
-        let last_event_hash = store
-            .snapshot()
-            .events
-            .last()
-            .map(|e| format_hash(&e.hash, false));
+        let data = store.snapshot();
+        let last_event_hash = data.events().last().map(|e| format_hash(&e.hash, false));
 
         if let SessionUser::PoliticalGroup {
             election: current, ..
@@ -193,7 +190,7 @@ impl<'a> DevLogin<'a> {
             .store_registry
             .get_or_create(stream_id, election)
             .await?;
-        let store_is_empty = store.snapshot().events.is_empty();
+        let store_is_empty = store.snapshot().events().is_empty();
 
         if store_is_empty {
             PoliticalGroup::default()
@@ -227,6 +224,7 @@ fn derive_dev_stream_id(state: &AppState, bsn: Option<&str>) -> StreamId {
 
 #[cfg(all(feature = "dev-features", test))]
 mod tests {
+    use crate::store::StoreData;
     use axum::{
         body::Body,
         http::{Request, StatusCode, header},
@@ -361,8 +359,8 @@ mod tests {
         login_without_fixtures_then_home(app).await;
 
         let store = open_store(&state).await;
-        assert_eq!(store.get_person_count(), 0);
-        assert_eq!(store.get_candidate_list_count(), 0);
+        assert_eq!(store.snapshot().get_person_count(), 0);
+        assert_eq!(store.snapshot().get_candidate_list_count(), 0);
     }
 
     #[tokio::test]
@@ -372,7 +370,7 @@ mod tests {
 
         let store = open_store(&state).await;
         assert!(matches!(
-            store.get_events().as_slice(),
+            store.snapshot().events(),
             &[
                 StoreEvent {
                     payload: PgEvent::UpdatePoliticalGroup(..),
@@ -400,7 +398,7 @@ mod tests {
             .expect("main store");
 
         assert!(matches!(
-            store.snapshot().events.as_slice(),
+            store.snapshot().events(),
             &[StoreEvent {
                 payload: CsbMainEvent {
                     user: CsbUser::Developer,
@@ -447,8 +445,8 @@ mod tests {
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
 
         let store = open_store(&state).await;
-        assert!(store.get_person_count() > 0);
-        assert!(store.get_candidate_list_count() > 0);
+        assert!(store.snapshot().get_person_count() > 0);
+        assert!(store.snapshot().get_candidate_list_count() > 0);
     }
 
     /// The `name` query sets the fixture group's appellation and the redirect
@@ -468,14 +466,16 @@ mod tests {
         let store = open_store(&state).await;
         assert_eq!(
             store
+                .snapshot()
                 .get_political_group()
                 .appellation
+                .as_ref()
                 .expect("appellation")
                 .to_string(),
             "Unieke Groep"
         );
 
-        let last_hash = store.get_events().last().expect("events").hash;
+        let last_hash = store.snapshot().events().last().expect("events").hash;
         let header = response
             .headers()
             .get(crate::app::middleware::dev_login::LAST_EVENT_HASH_HEADER)
@@ -554,12 +554,15 @@ mod tests {
         let csb_store = csb_stores
             .iter()
             .find(|store| {
-                store.get_appellation(crate::projection::WithCorrections::None)
+                store
+                    .snapshot()
+                    .pg(crate::projection::WithCorrections::None)
+                    .get_appellation()
                     == "Beweging Losse Eindjes"
             })
             .expect("the fixture group with omissions");
 
-        let events = csb_store.snapshot().events.clone();
+        let events = csb_store.snapshot().events().to_vec();
         // The import comes first, followed by the fixture omissions.
         let (event, omissions) = events.split_first().expect("the import event");
         assert!(!omissions.is_empty());
@@ -583,8 +586,8 @@ mod tests {
         };
 
         assert_eq!(hash, crate::csb::import::fixture::FIXTURE_IMPORT_HASH);
-        assert!(!snapshot.persons.is_empty());
-        assert!(!snapshot.candidate_lists.is_empty());
+        assert!(snapshot.get_person_count() > 0);
+        assert!(snapshot.get_candidate_list_count() > 0);
     }
 
     #[tokio::test]

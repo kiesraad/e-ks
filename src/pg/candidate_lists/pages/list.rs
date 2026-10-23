@@ -27,15 +27,16 @@ pub async fn list_candidate_lists(
     context: Context,
     store: PgStore,
 ) -> Result<impl IntoResponse, AppError> {
+    let data = store.snapshot();
     let mut candidate_lists = Vec::new();
-    for summary in CandidateListSummary::list(&store) {
+    for summary in CandidateListSummary::list(&data, store.election) {
         let problems = summary.get_problems(());
         candidate_lists.push(CandidateListWithProblems {
             data: summary,
             problems,
         });
     }
-    let persons = store.get_persons();
+    let persons = data.get_persons();
     let problem_severities = persons
         .iter()
         .filter_map(|p| p.get_problems(context.election).highest_severity())

@@ -6,6 +6,7 @@ use crate::{
     audit_log::{AuditLogEntry, PgLinks, paths::AuditLogPath},
     filters,
     pagination::Pagination,
+    store::StoreData,
     structs::audit_log::EventTypeCategory,
     utils::filter_query_suffix,
 };
@@ -133,11 +134,14 @@ pub async fn audit_log(
     let active_search = filter.search.as_deref().filter(|s| !s.is_empty());
 
     let data = store.snapshot();
-    let links = PgLinks { store: &store };
+    let links = PgLinks {
+        stream_id: store.stream_id,
+        data: &data,
+    };
 
     // Convert all events to entries, applying event_type filter early
     let all_entries: Vec<AuditLogEntry> = data
-        .events
+        .events()
         .iter()
         .rev()
         .filter(|event| {
@@ -461,7 +465,7 @@ mod tests {
 
         // Import the source stream the way `do_import` does: the snapshot
         // excludes the source event log.
-        let events = source.snapshot().events.clone();
+        let events = source.snapshot().events().to_vec();
         let snapshot = crate::PgStoreData::snapshot_until(&events, usize::MAX);
         let csb_store = CsbStore::new_for_test();
         csb_store

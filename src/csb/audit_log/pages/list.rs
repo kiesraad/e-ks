@@ -15,7 +15,7 @@ use crate::{
     filters,
     pagination::Pagination,
     projection::CsbStream,
-    store::StoreEvent,
+    store::{StoreData, StoreEvent},
     structs::audit_log::{AuditEvent, EventTypeCategory, SubjectLinks},
     trans,
     utils::filter_query_suffix,
@@ -188,9 +188,8 @@ fn collect_entries(
     let entries = if let Some(stream_id) = active_stream {
         let stream_id = stream_id.parse().map_err(|_| AppError::GenericNotFound)?;
         let links = CsbStreamLinks::find(import_stores, pre_submission_stores, stream_id)?;
-        let data = links.store.snapshot();
         filter_events(
-            data.events.iter(),
+            links.data.events().iter(),
             stream_id,
             links.stream_label(locale),
             locale,
@@ -207,7 +206,7 @@ fn collect_entries(
         };
         let data = main_store.snapshot();
         filter_events(
-            data.events.iter(),
+            data.events().iter(),
             main_store.stream_id,
             trans!("audit_log.filter.csb_main_stream", locale),
             locale,
@@ -229,7 +228,10 @@ fn stream_labels(
 ) -> Vec<(StreamId, String)> {
     streams(import_stores, pre_submission_stores)
         .map(|(store, pre_submission)| {
-            (store.stream_id, stream_label(store, pre_submission, locale))
+            (
+                store.stream_id,
+                stream_label(&store.snapshot(), pre_submission, locale),
+            )
         })
         .collect()
 }
@@ -439,7 +441,11 @@ mod tests {
         let csb_store = state
             .csb_store_for_stream(import_stream_id, ElectionConfig::EK27)
             .await?;
-        let mut pg = csb_store.get_political_group(WithCorrections::All);
+        let mut pg = csb_store
+            .snapshot()
+            .pg(WithCorrections::All)
+            .get_political_group()
+            .clone();
         pg.appellation = Appellation::from_str("Test Partij").ok();
         csb_store.set_political_group(pg);
         csb_store

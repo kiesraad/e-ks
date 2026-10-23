@@ -15,20 +15,22 @@ pub async fn gen_documents(
         return Err(AppError::GenericNotFound);
     }
 
+    let data = store.snapshot();
     // same gate as the finalise page, before generating anything
-    if !AllProblems::find_all(&store)?.models_downloadable() {
+    if !AllProblems::find_all(&data, store.election)?.models_downloadable() {
         return Err(AppError::NotDownloadable);
     }
     // refused before the documents are rendered, not after
     store.check_download_limit()?;
 
-    let (bundles, filename) = DocumentData::from_store_and_context(&store, &context, locale)?;
+    let (bundles, filename) = DocumentData::from_store_and_context(&data, &context, locale)?;
 
-    DocumentData::serve_download(bundles, filename, path.to_string(), &store, &store).await
+    DocumentData::serve_download(bundles, filename, path.to_string(), &store, &data).await
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::store::StoreData;
     use chrono::TimeDelta;
 
     use super::*;
@@ -85,7 +87,7 @@ mod tests {
 
         // the gate refuses before document generation can
         assert!(matches!(result, Err(AppError::NotDownloadable)));
-        match DocumentData::from_store_and_context(&store, &context, ModelLocale::Nl) {
+        match DocumentData::from_store_and_context(&store.snapshot(), &context, ModelLocale::Nl) {
             Err(AppError::IncompleteData(message)) => {
                 assert_eq!(message, "Expected no more than 1 name authorisation")
             }
@@ -102,7 +104,7 @@ mod tests {
         let (store, _, context) =
             setup_documents_test_state(1, 1, true, true, ElectionConfig::EK27).await?;
 
-        let mut political_group = store.get_political_group();
+        let mut political_group = store.snapshot().get_political_group().clone();
         political_group.list_designation =
             Some(crate::structs::list_designation::ListDesignation::Combined);
         political_group.update(&store).await?;
@@ -128,7 +130,7 @@ mod tests {
         let (store, _, context) =
             setup_documents_test_state(1, 1, true, true, ElectionConfig::EK27).await?;
 
-        let mut political_group = store.get_political_group();
+        let mut political_group = store.snapshot().get_political_group().clone();
         political_group.list_designation =
             Some(crate::structs::list_designation::ListDesignation::Blank);
         political_group.update(&store).await?;
@@ -152,7 +154,7 @@ mod tests {
         let (store, _, context) =
             setup_documents_test_state(1, 1, true, true, ElectionConfig::EK27).await?;
 
-        let mut political_group = store.get_political_group();
+        let mut political_group = store.snapshot().get_political_group().clone();
         political_group.appellation = None;
         political_group.update(&store).await?;
 
@@ -200,13 +202,14 @@ mod tests {
             setup_documents_test_state(2, 2, true, true, ElectionConfig::EK27).await?;
 
         // duplicate districts: an error document generation itself does not catch
-        let first = store.get_candidate_list(list_ids[0])?;
+        let data = store.snapshot();
+        let first = data.get_candidate_list(list_ids[0])?;
         let second = CandidateList {
             electoral_districts: first.electoral_districts.clone(),
-            ..store.get_candidate_list(list_ids[1])?
+            ..store.snapshot().get_candidate_list(list_ids[1]).cloned()?
         };
         second.update_districts(&store).await?;
-        assert!(!AllProblems::find_all(&store)?.models_downloadable());
+        assert!(!AllProblems::find_all(&store.snapshot(), store.election)?.models_downloadable());
 
         match gen_documents(
             download_path(&store, ModelLocale::Nl),
@@ -221,7 +224,8 @@ mod tests {
         }
         assert!(
             !store
-                .get_events()
+                .snapshot()
+                .events()
                 .iter()
                 .any(|e| matches!(e.payload, crate::PgEvent::DownloadFile { .. })),
             "a refused download is not recorded"
@@ -259,7 +263,7 @@ mod tests {
         assert!(
             !store
                 .snapshot()
-                .events
+                .events()
                 .iter()
                 .any(|e| matches!(e.payload, crate::PgEvent::DownloadFile { .. })),
             "a refused download is not recorded"
@@ -332,7 +336,7 @@ mod tests {
         let expected_folders = list_ids
             .iter()
             .map(|&list_id| {
-                DocumentData::new(&store, &context, list_id, ModelLocale::Nl)
+                DocumentData::new(&store.snapshot(), &context, list_id, ModelLocale::Nl)
                     .map(|bundle| bundle.folder_name.expect("folder name"))
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -423,16 +427,18 @@ mod tests {
 
         let (store, list_ids, context) =
             setup_documents_test_state(1, 2, true, true, ElectionConfig::EK27).await?;
-        let list = store.get_candidate_list(list_ids[0])?;
+        let data = store.snapshot();
+        let list = data.get_candidate_list(list_ids[0])?;
 
-        let mut dutch_candidate = store.get_person(list.candidates[0])?;
+        let mut dutch_candidate = data.get_person(list.candidates[0]).cloned()?;
         dutch_candidate.address.street_name = None;
         dutch_candidate.address.postal_code = None;
         dutch_candidate.address.locality = None;
         dutch_candidate.personal_data.bsn = None;
         dutch_candidate.update(&store).await?;
 
-        let mut international_candidate = store.get_person(list.candidates[1])?;
+        let data = store.snapshot();
+        let mut international_candidate = data.get_person(list.candidates[1]).cloned()?;
         international_candidate.personal_data.country = Some("BE".parse::<CountryCode>().unwrap());
         international_candidate.personal_data.bsn = Some(BsnOrNoneConfirmed::NoneConfirmed);
         international_candidate.representative = Some(Box::new(Representative::default()));
@@ -470,7 +476,9 @@ mod tests {
         let (store, _, context) =
             setup_documents_test_state(1, 1, true, true, ElectionConfig::EK27).await?;
 
-        let mut name_auth = store.get_name_authorisations().remove(0);
+        let data = store.snapshot();
+
+        let mut name_auth = data.get_name_authorisations()[0].clone();
         name_auth.name = FullName::default();
         name_auth.legal_name = Default::default();
         name_auth.update(&store).await?;

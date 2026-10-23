@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
-    AppError, ElectionConfig, ElectoralDistrict, PgEvent, PgStore,
+    AppError, ElectionConfig, ElectoralDistrict, PgEvent, PgStore, PgStoreData,
     structs::{
         candidate_lists::{
             CandidateList, CandidateListId, CandidateListSummary, FullCandidateList,
@@ -16,10 +16,11 @@ use crate::{
 
 impl CandidateList {
     pub fn used_districts(store: &PgStore) -> Result<Vec<ElectoralDistrict>, AppError> {
-        let used: BTreeSet<ElectoralDistrict> = store
+        let data = store.snapshot();
+        let used: BTreeSet<ElectoralDistrict> = data
             .get_candidate_lists()
             .into_iter()
-            .flat_map(|list| list.electoral_districts.into_iter())
+            .flat_map(|list| list.electoral_districts.clone().into_iter())
             .collect();
 
         Ok(used.into_iter().collect())
@@ -39,7 +40,8 @@ impl CandidateList {
         store: &PgStore,
         person_ids: &[PersonId],
     ) -> Result<(), AppError> {
-        let existing_person_ids = store
+        let data = store.snapshot();
+        let existing_person_ids = data
             .get_persons()
             .iter()
             .map(|p| p.id)
@@ -63,7 +65,7 @@ impl CandidateList {
             return Err(AppError::GenericNotFound);
         }
 
-        store.get_candidate_list(self.id)?;
+        store.snapshot().get_candidate_list(self.id)?;
 
         store
             .update(PgEvent::UpdateCandidateListOrder {
@@ -72,7 +74,7 @@ impl CandidateList {
             })
             .await?;
 
-        *self = store.get_candidate_list(self.id)?;
+        *self = store.snapshot().get_candidate_list(self.id).cloned()?;
 
         Ok(())
     }
@@ -104,7 +106,8 @@ impl CandidateList {
         store: &PgStore,
         person_id: PersonId,
     ) -> Result<(), AppError> {
-        let person = store.get_person(person_id)?;
+        let data = store.snapshot();
+        let person = data.get_person(person_id)?;
 
         if !self.candidates.contains(&person.id) {
             // never allow a list to grow beyond the store's hard maximum
@@ -121,7 +124,7 @@ impl CandidateList {
                 })
                 .await?;
 
-            *self = store.get_candidate_list(self.id)?;
+            *self = store.snapshot().get_candidate_list(self.id).cloned()?;
         }
 
         Ok(())
@@ -140,7 +143,7 @@ impl CandidateList {
                 })
                 .await?;
 
-            *self = store.get_candidate_list(self.id)?;
+            *self = store.snapshot().get_candidate_list(self.id).cloned()?;
         }
 
         Ok(())
@@ -151,34 +154,35 @@ impl CandidateList {
         store: &PgStore,
         person_id: PersonId,
     ) -> Result<Candidate, AppError> {
-        let list = store.get_candidate_list(self.id)?;
+        let data = store.snapshot();
+        let list = data.get_candidate_list(self.id)?;
 
         let position = list
             .position_of(person_id)
             .ok_or(AppError::GenericNotFound)?;
 
-        let person = store.get_person(person_id)?;
+        let person = data.get_person(person_id)?;
 
         Ok(Candidate {
             list_id: self.id,
             position,
-            person,
+            person: person.clone(),
         })
     }
 
     pub fn persons_not_on_list(
         &self,
-        store: &PgStore,
+        data: &PgStoreData,
         include: &[PersonId],
     ) -> Result<Vec<Person>, AppError> {
-        let list = store.get_candidate_list(self.id)?;
-        let existing: BTreeMap<PersonId, ()> =
-            list.candidates.into_iter().map(|id| (id, ())).collect();
+        let list = data.get_candidate_list(self.id)?;
+        let existing: BTreeMap<PersonId, ()> = list.candidates.iter().map(|&id| (id, ())).collect();
 
-        Ok(store
+        Ok(data
             .get_sorted_persons()
             .into_iter()
             .filter(|person| !existing.contains_key(&person.id) || include.contains(&person.id))
+            .cloned()
             .collect())
     }
 
@@ -202,7 +206,8 @@ impl CandidateList {
     }
 
     pub(crate) fn build_full_candidate_list(
-        store: &PgStore,
+        data: &PgStoreData,
+        election: ElectionConfig,
         list: CandidateList,
     ) -> Result<FullCandidateList, AppError> {
         let candidates = list
@@ -210,9 +215,9 @@ impl CandidateList {
             .iter()
             .enumerate()
             .map(|(index, person_id)| {
-                let person = store.get_person(*person_id)?;
+                let person = data.get_person(*person_id)?.clone();
                 Ok(CandidateWithProblems {
-                    problems: person.get_problems(store.election),
+                    problems: person.get_problems(election),
                     data: Candidate {
                         list_id: list.id,
                         position: index + 1,
@@ -227,25 +232,29 @@ impl CandidateList {
 }
 
 impl FullCandidateList {
-    pub fn get(store: &PgStore, list_id: CandidateListId) -> Result<FullCandidateList, AppError> {
-        let list = store.get_candidate_list(list_id)?;
+    pub fn get(
+        data: &PgStoreData,
+        election: ElectionConfig,
+        list_id: CandidateListId,
+    ) -> Result<FullCandidateList, AppError> {
+        let list = data.get_candidate_list(list_id)?.clone();
 
-        CandidateList::build_full_candidate_list(store, list)
+        CandidateList::build_full_candidate_list(data, election, list)
     }
 }
 
 impl CandidateListSummary {
     /// A list is usable once it holds at least one candidate and neither the
     /// list nor any of its candidates have errors
-    pub fn is_usable(&self, store: &PgStore) -> bool {
+    pub fn is_usable(&self, data: &PgStoreData, election: ElectionConfig) -> bool {
         self.candidate_count() > 0
             && !self
                 .get_problems(())
                 .has_severity_or_higher(Severity::Error)
             && !self.list.candidates.iter().any(|id| {
-                store.get_person(*id).is_ok_and(|person| {
+                data.get_person(*id).is_ok_and(|person| {
                     person
-                        .get_problems(store.election)
+                        .get_problems(election)
                         .has_severity_or_higher(Severity::Error)
                 })
             })

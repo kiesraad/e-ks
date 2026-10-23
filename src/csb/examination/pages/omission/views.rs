@@ -2,7 +2,7 @@ use askama::Template;
 use axum_extra::routing::TypedPath;
 
 use crate::{
-    AppError, Context, CsbStream, ElectoralDistrict, Overlay,
+    AppError, Context, CsbStoreData, ElectionConfig, ElectoralDistrict, Overlay,
     csb::examination::OmissionForm,
     filters,
     form::FormData,
@@ -88,20 +88,23 @@ pub(super) struct PresetGroupView {
 }
 
 /// Resolve the placeholder values that can be derived from the referenced item.
-fn placeholders_for(target: &OmissionTarget, store: &CsbStream) -> OmissionPlaceholders {
+fn placeholders_for(target: &OmissionTarget, data: &CsbStoreData) -> OmissionPlaceholders {
     match target.omission_type {
         OmissionType::Candidate => {
             let person = PersonId::from(target.reference);
             OmissionPlaceholders {
-                candidate_name: store
-                    .get_person(person, WithCorrections::All)
+                candidate_name: data
+                    .pg(WithCorrections::All)
+                    .get_person(person)
+                    .ok()
                     .map(|person| person.name.display()),
                 // A candidate's position differs per list, so it can only be
                 // resolved when the dialog was opened for a specific list.
                 candidate_number: target
                     .list
                     .and_then(|list| {
-                        store.get_candidate_position(list, person, WithCorrections::All)
+                        data.pg(WithCorrections::All)
+                            .get_candidate_position(list, person)
                     })
                     .map(|nr| nr.to_string()),
                 districts: None,
@@ -111,7 +114,7 @@ fn placeholders_for(target: &OmissionTarget, store: &CsbStream) -> OmissionPlace
         // district tokens are filled here; otherwise the dialog fills them from
         // the selected checkboxes.
         OmissionType::DeclarationsOfSupport => OmissionPlaceholders {
-            districts: match available_electoral_districts(store).as_slice() {
+            districts: match available_electoral_districts(data).as_slice() {
                 [district] => Some(district.title().to_string()),
                 _ => None,
             },
@@ -127,11 +130,11 @@ fn placeholders_for(target: &OmissionTarget, store: &CsbStream) -> OmissionPlace
 /// containing a specific candidate. When `person_id` is `None`, returns all
 /// lists; when `Some`, returns only lists this candidate appears on.
 pub(super) fn candidate_list_options(
-    store: &CsbStream,
+    data: &CsbStoreData,
     person_filter: Option<PersonId>,
 ) -> Vec<CandidateListOption> {
-    store
-        .get_candidate_lists(WithCorrections::All)
+    data.pg(WithCorrections::All)
+        .get_candidate_lists()
         .into_iter()
         .filter(|l| person_filter.is_none_or(|id| l.candidates.contains(&id)))
         .map(|l| CandidateListOption {
@@ -143,19 +146,20 @@ pub(super) fn candidate_list_options(
 
 /// All paper-corrected candidate list districts of the political group
 /// for the candidate list omission form (mainly declarations of support)
-pub(super) fn available_electoral_districts(store: &CsbStream) -> Vec<ElectoralDistrict> {
-    let mut districts: Vec<_> = store
-        .get_candidate_lists(WithCorrections::All)
+pub(super) fn available_electoral_districts(data: &CsbStoreData) -> Vec<ElectoralDistrict> {
+    let mut districts: Vec<_> = data
+        .pg(WithCorrections::All)
+        .get_candidate_lists()
         .into_iter()
-        .flat_map(|l| l.electoral_districts)
+        .flat_map(|l| l.electoral_districts.clone())
         .collect();
     districts.sort();
     districts.dedup();
     districts
 }
 
-pub(super) fn preset_views(target: &OmissionTarget, store: &CsbStream) -> Vec<PresetGroupView> {
-    let placeholders = placeholders_for(target, store);
+pub(super) fn preset_views(target: &OmissionTarget, data: &CsbStoreData) -> Vec<PresetGroupView> {
+    let placeholders = placeholders_for(target, data);
 
     let mut groups: Vec<PresetGroupView> = Vec::new();
     for preset in target.omission_type.presets() {
@@ -184,23 +188,26 @@ pub(super) fn preset_views(target: &OmissionTarget, store: &CsbStream) -> Vec<Pr
 /// list-scoped and general.
 pub(super) fn omission_views(
     target: &OmissionTarget,
-    store: &CsbStream,
+    data: &CsbStoreData,
+    election: ElectionConfig,
 ) -> Result<Vec<OmissionView>, AppError> {
     let omissions = match target.omission_type {
-        OmissionType::PoliticalGroup => store.get_political_group_omissions(),
+        OmissionType::PoliticalGroup => data.get_political_group_omissions(),
         OmissionType::CandidateList => {
-            store.get_candidate_list_omissions(CandidateListId::from(target.reference))?
+            data.get_candidate_list_omissions(CandidateListId::from(target.reference), election)?
         }
-        OmissionType::DeclarationsOfSupport => store.get_all_declarations_of_support_omissions(),
-        OmissionType::Candidate => store.get_candidate_omissions(PersonId::from(target.reference)),
-        OmissionType::Appellation => store.get_appellation_omissions(),
+        OmissionType::DeclarationsOfSupport => {
+            data.get_all_declarations_of_support_omissions(election)
+        }
+        OmissionType::Candidate => {
+            data.get_candidate_omissions(PersonId::from(target.reference), election)
+        }
+        OmissionType::Appellation => data.get_appellation_omissions(),
     };
 
     let mut views = Vec::with_capacity(omissions.len());
     for omission in omissions {
-        let districts = omission
-            .category
-            .electoral_district(store, &store.election)?;
+        let districts = omission.category.electoral_district(data, &election)?;
         views.push(OmissionView {
             omission,
             districts,

@@ -1,7 +1,7 @@
 use crate::{
-    CsbStream,
+    CsbStoreData,
     csb::examination::structs::CandidateCorrectionField,
-    projection::WithCorrections,
+    projection::{PersonVersions, WithCorrections},
     structs::{brp::BrpFinding, persons::PersonId},
 };
 
@@ -49,11 +49,11 @@ pub(crate) struct FieldValues {
 }
 
 impl FieldValues {
-    pub(crate) fn for_appellation(store: &CsbStream) -> Self {
-        let imported = store.get_appellation(WithCorrections::None);
+    pub(crate) fn for_appellation(data: &CsbStoreData) -> Self {
+        let imported = data.pg(WithCorrections::None).get_appellation();
         let paper_corrected =
-            Some(store.get_appellation(WithCorrections::Paper)).filter(|d| d != &imported);
-        let current_correction = Some(store.get_appellation(WithCorrections::All))
+            Some(data.pg(WithCorrections::Paper).get_appellation()).filter(|d| d != &imported);
+        let current_correction = Some(data.pg(WithCorrections::All).get_appellation())
             .filter(|d| d != paper_corrected.as_ref().unwrap_or(&imported));
 
         Self {
@@ -65,15 +65,17 @@ impl FieldValues {
     }
 
     pub(crate) fn for_person(
-        store: &CsbStream,
+        data: &CsbStoreData,
         person_id: PersonId,
         field: CandidateCorrectionField,
         locale: crate::Locale,
     ) -> Self {
         let field_of_interest = field.brp_field();
-        let imported = store.get_person(person_id, WithCorrections::None);
-        let paper_corrected = store.get_person(person_id, WithCorrections::Paper);
-        let csb_corrected = store.get_person(person_id, WithCorrections::All);
+        let PersonVersions {
+            imported,
+            paper: paper_corrected,
+            csb: csb_corrected,
+        } = data.get_person_versions(person_id);
 
         let imported = imported
             .as_ref()
@@ -90,7 +92,7 @@ impl FieldValues {
 
         // Only a difference the BRP actually holds is worth offering; a value
         // it could not be read from is shown as a finding instead.
-        let brp = store
+        let brp = data
             .get_brp_findings_for_person(person_id)
             .iter()
             .filter_map(BrpFinding::brp_value)
