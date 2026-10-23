@@ -65,6 +65,14 @@ impl OmissionTarget {
         if self.omission_type == OmissionType::Appellation && is_blank {
             return Err(AppError::GenericNotFound);
         }
+        if self.omission_type == OmissionType::Candidate {
+            let person = PersonId::from(self.reference);
+            if store.get_person(person, WithCorrections::All).is_none()
+                && store.get_person(person, WithCorrections::None).is_none()
+            {
+                return Err(AppError::GenericNotFound);
+            }
+        }
         Ok(())
     }
 
