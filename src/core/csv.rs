@@ -252,18 +252,36 @@ where
 }
 
 /// Prefix a single quote to any cell whose first byte is one of the
-/// spreadsheet-formula trigger characters. ASCII-only matching is sufficient
-/// since none of the trigger characters are multi-byte UTF-8.
+/// spreadsheet-formula trigger characters.
 fn escape_csv_formula(cell: &str) -> Cow<'_, str> {
-    match cell.as_bytes().first() {
-        Some(b'=' | b'+' | b'-' | b'@' | b'\'' | b'\t' | b'\r') => {
-            let mut out = String::with_capacity(cell.len() + 1);
-            out.push('\'');
-            out.push_str(cell);
-            Cow::Owned(out)
-        }
-        _ => Cow::Borrowed(cell),
+    if starts_with_formula_trigger(cell) {
+        let mut out = String::with_capacity(cell.len() + 1);
+        out.push('\'');
+        out.push_str(cell);
+        Cow::Owned(out)
+    } else {
+        Cow::Borrowed(cell)
     }
+}
+
+/// Undo [`escape_csv_formula`] on import. Only a quote that precedes a trigger
+/// character is stripped, so a hand-written cell such as `'s-Gravenhage` keeps
+/// its apostrophe while our own exports round-trip exactly.
+fn unescape_csv_formula(cell: &str) -> &str {
+    match cell.strip_prefix('\'') {
+        Some(rest) if starts_with_formula_trigger(rest) => rest,
+        _ => cell,
+    }
+}
+
+/// ASCII-only matching is sufficient since none of the trigger characters are
+/// multi-byte UTF-8. A leading `'` is included so an exported cell that already
+/// starts with one survives the quote-stripping on import.
+fn starts_with_formula_trigger(cell: &str) -> bool {
+    matches!(
+        cell.as_bytes().first(),
+        Some(b'=' | b'+' | b'-' | b'@' | b'\'' | b'\t' | b'\r')
+    )
 }
 
 /// UTF-8 byte-order mark. Prepended to exported CSVs so Excel reads them as
@@ -322,10 +340,7 @@ impl<T: DeserializeOwned> Csv<T> {
             && let Some((index, res)) = rows.next()
         {
             let res = res.and_then(|row| {
-                let row: StringRecord = row
-                    .iter()
-                    .map(|cell| cell.strip_prefix('\'').unwrap_or(cell))
-                    .collect();
+                let row: StringRecord = row.iter().map(unescape_csv_formula).collect();
                 row.deserialize::<T>(headers.as_ref().ok())
             });
             match res {
@@ -670,6 +685,24 @@ mod tests {
             );
             assert!(escaped.ends_with(&cell));
         }
+    }
+
+    #[test]
+    fn unescape_csv_formula_only_strips_a_quote_before_a_trigger() {
+        for escaped in ["'=H.", "'-Jansen", "''s-Gravenhage", "'@SUM(1)"] {
+            assert_eq!(unescape_csv_formula(escaped), &escaped[1..]);
+        }
+        for untouched in ["'s-Gravenhage", "'t Harde", "'", "Henk", "=H."] {
+            assert_eq!(unescape_csv_formula(untouched), untouched);
+        }
+    }
+
+    #[test]
+    fn from_bytes_keeps_apostrophe_in_place_names() {
+        let data = b"voorletters,achternaam\nO.,'s-Gravenhage\n";
+        let rows =
+            Csv::<Person>::from_bytes(data, usize::MAX).unwrap_or_else(|e| panic!("{}", e[0]));
+        assert_eq!(rows[0].achternaam, "'s-Gravenhage");
     }
 
     #[test]
