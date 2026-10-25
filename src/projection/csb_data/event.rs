@@ -303,13 +303,12 @@ impl CsbAction {
 /// corrections included).
 fn correction_changes(before: &CsbStoreData, correction: &Correction) -> Vec<Change> {
     match correction {
-        Correction::Appellation(appellation) => {
-            diff_updated(Some(&before.corrected_political_group()), |group| {
-                group.appellation = Some(appellation.clone())
-            })
-        }
+        Correction::Appellation(appellation) => diff_updated(
+            Some(&before.pg(WithCorrections::All).political_group),
+            |group| group.appellation = Some(appellation.clone()),
+        ),
         Correction::Person(person_id, correction) => diff_updated(
-            before.get_person(*person_id, WithCorrections::All).as_ref(),
+            before.pg(WithCorrections::All).persons.get(person_id),
             |person| correction.clone().apply(person),
         ),
     }

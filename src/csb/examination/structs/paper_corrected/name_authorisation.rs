@@ -60,18 +60,8 @@ mod tests {
         let store = CsbStore::new_for_test();
         let kept = sample_name_authorisation(NameAuthorisationId::new());
         let deleted = sample_name_authorisation(NameAuthorisationId::new());
-        {
-            let mut data = store.write();
-            data.imported_data
-                .name_authorisations
-                .insert(kept.id, kept.clone());
-            data.imported_data
-                .name_authorisations
-                .insert(deleted.id, deleted);
-            data.paper_corrected_data
-                .name_authorisations
-                .insert(kept.id, kept.clone());
-        }
+        store.set_name_authorisations(WithCorrections::None, vec![kept.clone(), deleted]);
+        store.set_name_authorisations(WithCorrections::Paper, vec![kept.clone()]);
 
         let rows = paper_corrected_name_authorisations(&store);
         assert_eq!(rows.len(), 1);

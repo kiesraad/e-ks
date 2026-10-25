@@ -4,7 +4,7 @@ use std::{
     sync::Arc,
 };
 
-use super::{CsbStoreData, Scrapped};
+use super::{CsbStoreData, Scrapped, WithCorrections};
 use crate::{
     AppError, CsbStream, ElectionConfig, ElectoralDistrict, Locale, PgEvent, PgStore, PgStoreData,
     structs::{
@@ -22,8 +22,7 @@ use crate::{
 };
 
 /// One of the political group's projections, picked from a CSB snapshot by
-/// [`WithCorrections`]. CSB corrections are applied on top of the paper
-/// corrected data by the appropriate getters.
+/// [`WithCorrections`].
 pub struct PgView {
     data: Arc<CsbStoreData>,
     corrections: WithCorrections,
@@ -33,45 +32,14 @@ impl Deref for PgView {
     type Target = PgStoreData;
 
     fn deref(&self) -> &PgStoreData {
-        self.data.political_group(self.corrections)
+        self.data.pg(self.corrections)
     }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum WithCorrections {
-    /// Only the original imported data
-    None,
-    /// Include corrections made in paper correction mode
-    Paper,
-    /// Also include CSB ("ambtshalve") corrections
-    All,
 }
 
 impl CsbStoreData {
-    /// The political group's projection at the requested correction level;
-    /// CSB corrections are applied on top by the getters that cover them.
-    fn political_group(&self, corrections: WithCorrections) -> &PgStoreData {
-        match corrections {
-            WithCorrections::None => &self.imported_data,
-            WithCorrections::Paper | WithCorrections::All => &self.paper_corrected_data,
-        }
-    }
-
     /// The person (candidate) with this id, if any.
     pub fn get_person(&self, person_id: PersonId, corrections: WithCorrections) -> Option<Person> {
-        let mut person = self
-            .political_group(corrections)
-            .persons
-            .get(&person_id)
-            .cloned()?;
-
-        if corrections == WithCorrections::All
-            && let Some(delta) = self.csb_corrected_persons.get(&person_id).cloned()
-        {
-            delta.apply(&mut person);
-        }
-
-        Some(person)
+        self.pg(corrections).persons.get(&person_id).cloned()
     }
 }
 
@@ -394,10 +362,6 @@ impl CsbStream {
     }
 
     pub fn get_political_group(&self, corrections: WithCorrections) -> PoliticalGroup {
-        if corrections == WithCorrections::All {
-            return self.snapshot().corrected_political_group();
-        }
-
         self.read(corrections).political_group.clone()
     }
 
@@ -568,16 +532,9 @@ impl CsbStream {
             .collect()
     }
 
-    /// Every candidate, with the corrections `corrections` asks for. Routed
-    /// through [`Self::get_person`], which applies the ambtshalve corrections
-    /// that live beside the projection.
+    /// Every candidate, with the corrections `corrections` asks for.
     pub fn get_persons(&self, corrections: WithCorrections) -> Vec<Person> {
-        // The read guard is dropped before `get_person` takes it again.
-        let ids: Vec<PersonId> = self.read(corrections).persons.keys().copied().collect();
-
-        ids.into_iter()
-            .filter_map(|id| self.get_person(id, corrections))
-            .collect()
+        self.read(corrections).persons.values().cloned().collect()
     }
 
     /// Per checked candidate; candidates absent from the map were not checked.
@@ -617,24 +574,12 @@ impl CsbStream {
             .expect("expected exactly one stored omission")
     }
 
-    /// Collect all problems, excluding info problems
+    /// Collect all problems of the fully corrected data, excluding info
+    /// problems.
     pub fn get_all_problems(&self, election: ElectionConfig) -> Result<AllProblems, AppError> {
-        let data = self.snapshot();
-        // apply all corrections to the paper corrected projection
-        let mut pg_data = data.paper_corrected_data.clone();
-        if data.csb_corrected_appellation.is_some() {
-            pg_data.political_group.appellation = data.csb_corrected_appellation.clone();
-        }
-        for (person, correction) in &data.csb_corrected_persons {
-            pg_data
-                .persons
-                .entry(*person)
-                .and_modify(|p| correction.clone().apply(p));
-        }
-
-        // wrap paper corrected projection in a PgStore
+        // wrap the fully corrected projection in a PgStore
         let store = PgStore::new_for_temp_stream(election);
-        store.replace(std::sync::Arc::new(pg_data));
+        store.replace(Arc::clone(&self.snapshot().csb_corrected_data));
 
         AllProblems::find_all(&store).map(|mut problems| {
             problems.info_problems = Vec::new();
@@ -683,7 +628,7 @@ mod tests {
         let omission = sample_omission(category);
         let mut data = store.write();
         data.omissions.insert(omission.id, omission);
-        data.refresh_scrapped();
+        data.refresh_derived();
     }
 
     #[test]
@@ -701,14 +646,9 @@ mod tests {
         let store = CsbStream::new_for_test();
         let person = sample_person(PersonId::new());
         store.add_person(person.clone());
-        store
-            .write()
-            .paper_corrected_data
-            .persons
-            .get_mut(&person.id)
-            .expect("person")
-            .name
-            .last_name = "Gewijzigd".parse().unwrap();
+        let mut on_paper = person.clone();
+        on_paper.name.last_name = "Gewijzigd".parse().unwrap();
+        store.set_paper_corrected_person(on_paper);
 
         assert!(store.is_person_paper_corrected(person.id));
     }
@@ -717,11 +657,7 @@ mod tests {
     fn a_candidate_added_on_paper_is_paper_corrected() {
         let store = CsbStream::new_for_test();
         let person = sample_person(PersonId::new());
-        store
-            .write()
-            .paper_corrected_data
-            .persons
-            .insert(person.id, person.clone());
+        store.set_paper_corrected_person(person.clone());
 
         assert!(store.is_person_paper_corrected(person.id));
     }
@@ -755,7 +691,7 @@ mod tests {
         omission.status = status;
         let mut data = store.write();
         data.omissions.insert(omission.id, omission);
-        data.refresh_scrapped();
+        data.refresh_derived();
     }
 
     #[test]
@@ -956,11 +892,12 @@ mod tests {
         let store = CsbStore::new_for_test();
         let person_id = PersonId::new();
         let person = sample_person_with(person_id, None, "Jansen", None, "A.B.");
-        store
-            .write()
-            .paper_corrected_data
+        let mut data = store.write();
+        std::sync::Arc::make_mut(&mut data.paper_corrected_data)
             .persons
             .insert(person_id, person);
+        data.refresh_derived();
+        drop(data);
 
         assert!(store.get_person(person_id, WithCorrections::None).is_none());
         assert!(
@@ -1102,7 +1039,10 @@ mod tests {
         // BRP check examines the corrected data.
         let mut delta = PersonCorrectionDelta::default();
         delta.add_correction(PersonCorrection::LastName("Gecorrigeerd".parse().unwrap()));
-        store.write().csb_corrected_persons.insert(person_id, delta);
+        let mut data = store.write();
+        data.csb_corrected_persons.insert(person_id, delta);
+        data.refresh_derived();
+        drop(data);
 
         let corrected = store.get_persons(WithCorrections::All);
         assert_eq!(corrected.len(), 1);

@@ -68,6 +68,7 @@ pub(in crate::csb) async fn render(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::projection::WithCorrections;
 
     use axum::http::StatusCode;
 
@@ -160,11 +161,8 @@ mod tests {
         let stream_id = store.stream_id;
 
         let submitter = sample_list_submitter(ListSubmitterId::new());
-        {
-            let mut data = store.write();
-            data.imported_data.substitute_submitters = vec![submitter.clone()];
-            data.paper_corrected_data.substitute_submitters = vec![submitter.clone()];
-        }
+        store.set_substitute_submitters(WithCorrections::None, vec![submitter.clone()]);
+        store.set_substitute_submitters(WithCorrections::Paper, vec![submitter.clone()]);
 
         store
             .update(CsbAction::PaperCorrectedUpdate(Box::new(

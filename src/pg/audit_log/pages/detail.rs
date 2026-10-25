@@ -120,7 +120,7 @@ pub async fn audit_log_gen_documents(
 fn create_temp_store(store: &PgStore, events: &[StoreEvent<PgEvent>], event_id: usize) -> PgStore {
     let temp_store = PgStore::new_for_temp_stream(store.election);
     if let Some(imported) = store.imported_snapshot() {
-        temp_store.replace(std::sync::Arc::new(imported));
+        temp_store.replace(imported);
     }
 
     events

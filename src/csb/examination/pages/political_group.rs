@@ -553,11 +553,7 @@ mod tests {
         let stream_id = store.stream_id;
         let list_id = CandidateListId::new();
         // An imported list without a corrected counterpart was deleted on paper.
-        store
-            .write()
-            .imported_data
-            .candidate_lists
-            .insert(list_id, sample_candidate_list(list_id));
+        store.set_imported_candidate_list(sample_candidate_list(list_id));
 
         let response = overview(
             CsbPoliticalGroupPath { stream_id },

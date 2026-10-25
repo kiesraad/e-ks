@@ -588,11 +588,7 @@ mod tests {
         let store = store_acting_as_alice();
         let person = sample_person_from_brp();
         // added during paper corrections
-        store
-            .write()
-            .paper_corrected_data
-            .persons
-            .insert(person.id, person.clone());
+        store.set_paper_corrected_person(person.clone());
 
         report_sensitive_lookups(&store, std::slice::from_ref(&person));
 

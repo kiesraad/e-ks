@@ -293,11 +293,7 @@ mod tests {
         let deleted_id = CandidateListId::new();
         let mut deleted = sample_candidate_list(deleted_id);
         deleted.electoral_districts = BTreeSet::from([ElectoralDistrict::Groningen]);
-        store
-            .write()
-            .imported_data
-            .candidate_lists
-            .insert(deleted_id, deleted);
+        store.set_imported_candidate_list(deleted);
         // Added on paper: corrected only.
         let added_id = CandidateListId::new();
         let mut added = sample_candidate_list(added_id);
@@ -366,7 +362,7 @@ mod tests {
         corrected.candidates = vec![stays, added];
         store.set_paper_corrected_candidate_list(corrected);
         // The removed candidate was deleted as a person too.
-        store.write().paper_corrected_data.persons.remove(&removed);
+        store.remove_paper_corrected_person(removed);
 
         let overview = overview(&store);
 

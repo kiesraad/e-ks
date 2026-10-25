@@ -626,11 +626,7 @@ mod tests {
         corrected.address.house_number_addition = Some("C".parse().unwrap());
         corrected.representative.as_mut().unwrap().name =
             sample_full_name(None, "Opvolger", None, "G.G.");
-        store
-            .write()
-            .paper_corrected_data
-            .persons
-            .insert(person_id, corrected);
+        store.set_paper_corrected_person(corrected);
 
         let response = overview(
             CsbCandidatePath {

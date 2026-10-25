@@ -151,11 +151,7 @@ mod tests {
         // projection: they were added during paper corrections.
         let person = sample_person(PersonId::new());
         let person_id = person.id;
-        store
-            .write()
-            .paper_corrected_data
-            .persons
-            .insert(person_id, person);
+        store.set_paper_corrected_person(person);
         let list_id = CandidateListId::new();
         store.set_paper_corrected_candidate_list(CandidateList {
             id: list_id,
@@ -205,11 +201,7 @@ mod tests {
         // The candidate only exists in the corrected projection: it was added
         // during paper corrections.
         let person_id = PersonId::new();
-        store
-            .write()
-            .paper_corrected_data
-            .persons
-            .insert(person_id, sample_person(person_id));
+        store.set_paper_corrected_person(sample_person(person_id));
 
         store
             .update(CsbAction::UpdateCorrection(Correction::Person(

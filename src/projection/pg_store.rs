@@ -84,7 +84,7 @@ impl PgStore {
         let projection = Store::new_temp(
             csb_store.stream_id,
             csb_store.election,
-            Arc::new(csb_store.snapshot().paper_corrected_data.clone()),
+            Arc::clone(&csb_store.snapshot().paper_corrected_data),
         );
 
         Self {
@@ -123,7 +123,7 @@ impl PgStore {
                 // Refresh the snapshot so reads later in this request observe
                 // the correction.
                 self.projection
-                    .replace(Arc::new(csb_store.snapshot().paper_corrected_data.clone()));
+                    .replace(Arc::clone(&csb_store.snapshot().paper_corrected_data));
 
                 Ok(())
             }
@@ -252,12 +252,12 @@ impl PgStore {
     /// when this handle is in paper-corrections mode. Serves as the base
     /// state for audit-log replays, since the correction events alone do not
     /// reconstruct the imported entities.
-    pub fn imported_snapshot(&self) -> Option<PgStoreData> {
+    pub fn imported_snapshot(&self) -> Option<Arc<PgStoreData>> {
         match &self.target {
             WriteTarget::Own => None,
             WriteTarget::PaperCorrections {
                 store: csb_store, ..
-            } => Some(csb_store.snapshot().imported_data.clone()),
+            } => Some(Arc::clone(&csb_store.snapshot().imported_data)),
         }
     }
 }

@@ -327,8 +327,9 @@ mod tests {
     async fn get_all_corrections_appellation() -> Result<(), AppError> {
         let store = CsbStore::new_for_test();
 
-        store.write().csb_corrected_appellation =
-            Some(Appellation::from_str("Gecorrigeerde Partij").unwrap());
+        store.set_csb_corrected_appellation(Some(
+            Appellation::from_str("Gecorrigeerde Partij").unwrap(),
+        ));
 
         let corrections = all_corrections(&store);
 
@@ -362,11 +363,7 @@ mod tests {
         let store = CsbStore::new_for_test();
 
         let person_id = PersonId::new();
-        store
-            .write()
-            .paper_corrected_data
-            .persons
-            .insert(person_id, sample_person(person_id));
+        store.set_paper_corrected_person(sample_person(person_id));
 
         correct(
             &store,
@@ -401,11 +398,7 @@ mod tests {
             PersonCorrection::Initials(Some(Initials::from_str("A.B.").unwrap())),
         )
         .await?;
-        store
-            .write()
-            .paper_corrected_data
-            .persons
-            .remove(&person_id);
+        store.remove_paper_corrected_person(person_id);
 
         assert!(all_corrections(&store).candidates.is_empty());
 

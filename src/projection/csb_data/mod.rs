@@ -3,14 +3,18 @@ mod getters;
 mod scrapped;
 
 pub use event::{CsbAction, CsbEvent};
-pub use getters::WithCorrections;
 pub use scrapped::Scrapped;
 
-use std::collections::{HashMap, hash_map::Entry};
+use std::{
+    collections::{HashMap, hash_map::Entry},
+    sync::Arc,
+};
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+#[cfg(test)]
+use crate::structs::political_groups::PoliticalGroup;
 use crate::{
     ElectoralDistrict, PgEvent, PgStoreData, Scope,
     store::{StoreData, StoreEvent},
@@ -22,7 +26,6 @@ use crate::{
             OmissionStatus, PersonCorrection, PersonCorrectionDelta,
         },
         persons::PersonId,
-        political_groups::PoliticalGroup,
     },
 };
 
@@ -30,8 +33,13 @@ use crate::{
 /// CSB side.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct CsbStoreData {
-    pub(crate) imported_data: PgStoreData,
-    pub(crate) paper_corrected_data: PgStoreData,
+    /// The three projections are shared (`Arc`) so a paper-corrections handle
+    /// and a copy-on-write clone of this struct never copy them.
+    pub(crate) imported_data: Arc<PgStoreData>,
+    pub(crate) paper_corrected_data: Arc<PgStoreData>,
+    /// The paper corrected data with the committee's own ("ambtshalve")
+    /// corrections applied; derived again whenever either input changes.
+    pub(crate) csb_corrected_data: Arc<PgStoreData>,
     pub(crate) events: Vec<StoreEvent<CsbEvent>>,
     pub(crate) is_examination_finished: bool,
     pub(crate) is_deleted: bool,
@@ -123,19 +131,53 @@ impl StoreData for CsbStoreData {
     }
 }
 
+/// Which of the political group's projections to read.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum WithCorrections {
+    /// Only the original imported data
+    None,
+    /// Include corrections made in paper correction mode
+    Paper,
+    /// Also include CSB ("ambtshalve") corrections
+    All,
+}
+
 impl CsbStoreData {
+    /// The political group's projection at the requested correction level.
+    pub fn pg(&self, corrections: WithCorrections) -> &PgStoreData {
+        match corrections {
+            WithCorrections::None => &self.imported_data,
+            WithCorrections::Paper => &self.paper_corrected_data,
+            WithCorrections::All => &self.csb_corrected_data,
+        }
+    }
+
     /// Derive what is scrapped from the current omissions and corrected data.
-    pub(crate) fn refresh_scrapped(&mut self) {
+    fn refresh_scrapped(&mut self) {
         self.scrapped = Scrapped::derive(&self.paper_corrected_data, &self.omissions);
     }
 
-    /// The political group with the committee's appellation correction applied.
-    pub(crate) fn corrected_political_group(&self) -> PoliticalGroup {
-        let mut group = self.paper_corrected_data.political_group.clone();
-        if let Some(appellation) = self.csb_corrected_appellation.clone() {
-            group.appellation = Some(appellation);
+    /// Derive the fully corrected projection from the paper corrected one.
+    /// A delta for a candidate deleted on paper has nothing to apply to.
+    fn refresh_corrected(&mut self) {
+        let mut data = PgStoreData::clone(&self.paper_corrected_data);
+        if let Some(appellation) = &self.csb_corrected_appellation {
+            data.political_group.appellation = Some(appellation.clone());
         }
-        group
+        for (person_id, delta) in &self.csb_corrected_persons {
+            data.persons
+                .entry(*person_id)
+                .and_modify(|person| delta.apply(person));
+        }
+        self.csb_corrected_data = Arc::new(data);
+    }
+
+    /// Recompute everything derived from the projections, for test setup that
+    /// writes the fields directly instead of applying events.
+    #[cfg(test)]
+    pub(crate) fn refresh_derived(&mut self) {
+        self.refresh_scrapped();
+        self.refresh_corrected();
     }
 
     /// Take over an imported package as both projections. `import` becomes
@@ -145,9 +187,10 @@ impl CsbStoreData {
         for submitter in &mut snapshot.substitute_submitters {
             submitter.is_substitute = true;
         }
-        self.imported_data = snapshot;
-        self.paper_corrected_data = self.imported_data.clone();
-        self.paper_corrected_data.apply(import);
+        self.imported_data = Arc::new(snapshot);
+        self.paper_corrected_data = Arc::clone(&self.imported_data);
+        Arc::make_mut(&mut self.paper_corrected_data).apply(import);
+        self.refresh_corrected();
     }
 
     /// Flag every finding of this candidate that is `finding`; a finding that
@@ -307,7 +350,8 @@ impl CsbStoreData {
             self.forget_brp_check(person_id);
         }
 
-        self.paper_corrected_data.apply(event);
+        Arc::make_mut(&mut self.paper_corrected_data).apply(event);
+        self.refresh_corrected();
     }
 
     /// Record a CSB correction. Correcting a value back to the one already in
@@ -330,6 +374,7 @@ impl CsbStoreData {
                 self.apply_person_correction(person_id, correction)
             }
         }
+        self.refresh_corrected();
     }
 
     fn apply_person_correction(&mut self, person_id: PersonId, correction: PersonCorrection) {
@@ -396,20 +441,20 @@ impl crate::CsbStream {
     /// import (which seeds `paper_corrected_data` from the imported snapshot).
     pub fn set_political_group(&self, political_group: PoliticalGroup) {
         let mut data = self.write();
-        data.imported_data.political_group = political_group.clone();
-        data.paper_corrected_data.political_group = political_group;
-        data.refresh_scrapped();
+        Arc::make_mut(&mut data.imported_data).political_group = political_group.clone();
+        Arc::make_mut(&mut data.paper_corrected_data).political_group = political_group;
+        data.refresh_derived();
     }
 
     pub fn add_candidate_list(&self, list: crate::structs::candidate_lists::CandidateList) {
         let mut data = self.write();
-        data.imported_data
+        Arc::make_mut(&mut data.imported_data)
             .candidate_lists
             .insert(list.id, list.clone());
-        data.paper_corrected_data
+        Arc::make_mut(&mut data.paper_corrected_data)
             .candidate_lists
             .insert(list.id, list);
-        data.refresh_scrapped();
+        data.refresh_derived();
     }
 
     /// Test setter writing only the corrected projection, mirroring a list
@@ -419,16 +464,103 @@ impl crate::CsbStream {
         list: crate::structs::candidate_lists::CandidateList,
     ) {
         let mut data = self.write();
-        data.paper_corrected_data
+        Arc::make_mut(&mut data.paper_corrected_data)
             .candidate_lists
             .insert(list.id, list);
-        data.refresh_scrapped();
+        data.refresh_derived();
     }
 
     pub fn add_person(&self, person: crate::structs::persons::Person) {
         let mut data = self.write();
-        data.imported_data.persons.insert(person.id, person.clone());
-        data.paper_corrected_data.persons.insert(person.id, person);
+        Arc::make_mut(&mut data.imported_data)
+            .persons
+            .insert(person.id, person.clone());
+        Arc::make_mut(&mut data.paper_corrected_data)
+            .persons
+            .insert(person.id, person);
+        data.refresh_derived();
+    }
+
+    /// Test setter writing only the corrected projection, mirroring a person
+    /// added during paper corrections.
+    pub fn set_paper_corrected_person(&self, person: crate::structs::persons::Person) {
+        let mut data = self.write();
+        Arc::make_mut(&mut data.paper_corrected_data)
+            .persons
+            .insert(person.id, person);
+        data.refresh_derived();
+    }
+
+    /// Test setter mirroring a person deleted during paper corrections.
+    pub fn remove_paper_corrected_person(&self, person_id: PersonId) {
+        let mut data = self.write();
+        Arc::make_mut(&mut data.paper_corrected_data)
+            .persons
+            .remove(&person_id);
+        data.refresh_derived();
+    }
+
+    /// Test setter writing only the imported projection, mirroring a list
+    /// deleted during paper corrections.
+    pub fn set_imported_candidate_list(
+        &self,
+        list: crate::structs::candidate_lists::CandidateList,
+    ) {
+        let mut data = self.write();
+        Arc::make_mut(&mut data.imported_data)
+            .candidate_lists
+            .insert(list.id, list);
+        data.refresh_derived();
+    }
+
+    fn layer(data: &mut CsbStoreData, layer: WithCorrections) -> &mut PgStoreData {
+        Arc::make_mut(match layer {
+            WithCorrections::None => &mut data.imported_data,
+            WithCorrections::Paper | WithCorrections::All => &mut data.paper_corrected_data,
+        })
+    }
+
+    pub fn set_list_submitter(
+        &self,
+        layer: WithCorrections,
+        submitter: crate::structs::list_submitters::ListSubmitter,
+    ) {
+        let mut data = self.write();
+        Self::layer(&mut data, layer).list_submitter = submitter;
+        data.refresh_derived();
+    }
+
+    pub fn set_substitute_submitters(
+        &self,
+        layer: WithCorrections,
+        submitters: Vec<crate::structs::list_submitters::ListSubmitter>,
+    ) {
+        let mut data = self.write();
+        Self::layer(&mut data, layer).substitute_submitters = submitters;
+        data.refresh_derived();
+    }
+
+    pub fn set_name_authorisations(
+        &self,
+        layer: WithCorrections,
+        authorisations: Vec<crate::structs::name_authorisations::NameAuthorisation>,
+    ) {
+        let mut data = self.write();
+        Self::layer(&mut data, layer).name_authorisations =
+            authorisations.into_iter().map(|a| (a.id, a)).collect();
+        data.refresh_derived();
+    }
+
+    pub fn set_csb_corrected_appellation(&self, appellation: Option<Appellation>) {
+        let mut data = self.write();
+        data.csb_corrected_appellation = appellation;
+        data.refresh_derived();
+    }
+
+    pub fn insert_omission(&self, omission: Omission) {
+        let mut data = self.write();
+        data.omissions.insert(omission.id, omission);
+        data.refresh_derived();
     }
 }
 
@@ -497,6 +629,36 @@ mod tests {
 
         assert!(data.imported_data.substitute_submitters[0].is_substitute);
         assert!(data.paper_corrected_data.substitute_submitters[0].is_substitute);
+    }
+
+    /// The corrected projection is the paper corrected one plus the
+    /// committee's deltas, so a later paper correction keeps the delta.
+    #[test]
+    fn a_paper_correction_keeps_the_committees_delta_on_top() {
+        let person = sample_person(PersonId::new());
+        let mut on_paper = person.clone();
+        on_paper.name.initials = Some(Initials::from_str("Z.Z.").unwrap());
+        let data = replay(&[
+            import_event_with_person(person.clone()).action,
+            CsbAction::UpdateCorrection(Correction::Person(
+                person.id,
+                PersonCorrection::LastName(LastName::from_str("Gecorrigeerd").unwrap()),
+            )),
+            CsbAction::PaperCorrectedUpdate(Box::new(PgEvent::UpdatePerson(Box::new(on_paper)))),
+        ]);
+
+        let corrected = &data.csb_corrected_data.persons[&person.id];
+        assert_eq!(
+            corrected.name.initials.as_ref().unwrap().to_string(),
+            "Z.Z."
+        );
+        assert_eq!(corrected.name.last_name.to_string(), "Gecorrigeerd");
+        // The paper layer carries no committee correction.
+        assert_eq!(
+            data.paper_corrected_data.persons[&person.id].name.last_name,
+            person.name.last_name
+        );
+        assert!(data.csb_corrected_persons.contains_key(&person.id));
     }
 
     fn replay(events: &[CsbAction]) -> CsbStoreData {
@@ -637,7 +799,7 @@ mod tests {
         let mut data = CsbStoreData::default();
         let person = sample_person(PersonId::new());
 
-        data.paper_corrected_data
+        Arc::make_mut(&mut data.paper_corrected_data)
             .persons
             .insert(person.id, person.clone());
         data.apply(StoreEvent::new(
@@ -744,8 +906,9 @@ mod tests {
     #[test]
     fn undoing_csb_correction_on_appellation_removes_csb_correction() {
         let mut data = CsbStoreData::default();
-        data.paper_corrected_data.political_group.appellation =
-            Some(Appellation::from_str("Partij").unwrap());
+        Arc::make_mut(&mut data.paper_corrected_data)
+            .political_group
+            .appellation = Some(Appellation::from_str("Partij").unwrap());
         data.csb_corrected_appellation =
             Some(Appellation::from_str("Gecorrigeerde Partij").unwrap());
 

@@ -299,8 +299,11 @@ The CSB section has two projections of its own on the shared store machinery
 - **`CsbStoreData`** (`src/csb/store_csb/`), one stream per imported package
   (scope `ImportedByCsb`), driven by `CsbEvent`. The projection holds the
   imported snapshot (`imported_data`), a second projection with the paper
-  corrections replayed on top (`paper_corrected_data`), the recorded
-  omissions and person corrections, and the examination-finished flag. A
+  corrections replayed on top (`paper_corrected_data`), a third with the
+  committee's own corrections applied on top of that (`csb_corrected_data`,
+  re-derived whenever either input changes), the recorded omissions and
+  person corrections, and the examination-finished flag. `WithCorrections`
+  selects one of the three through `CsbStoreData::pg`. A
   second registry over the same projection, under scope `PreSubmittedToCsb`,
   holds the packages imported for the pre-submission check; a registry only
   lists streams of its own scope, so the two never see each other's imports.
@@ -861,10 +864,10 @@ parameterized over a projection type `D`:
   actually work with: it pairs a `Store<PgStoreData>` projection (reads) with
   a *write target*. For a political group session the target is its own
   stream, and `update(event)` appends `PgEvent`s there. For a committee
-  session in paper-corrections mode the projection is a request-local
-  snapshot of the imported stream's `paper_corrected_data`, and every
-  `PgEvent` is wrapped in `CsbAction::PaperCorrectedUpdate` and appended to
-  the CSB stream instead. Handlers are agnostic to which target they write
+  session in paper-corrections mode the projection shares the imported
+  stream's `paper_corrected_data` (an `Arc`, refreshed after each write), and
+  every `PgEvent` is wrapped in `CsbAction::PaperCorrectedUpdate` and appended
+  to the CSB stream instead. Handlers are agnostic to which target they write
   to.
 
 Two operations drive a `Store`:

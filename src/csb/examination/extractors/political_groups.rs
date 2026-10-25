@@ -337,8 +337,7 @@ mod tests {
         });
         let mut omission = sample_omission(OmissionCategory::Appellation);
         omission.recoverable = false;
-        store.write().omissions.insert(omission.id, omission);
-        store.write().refresh_scrapped();
+        store.insert_omission(omission);
 
         let group = CsbPoliticalGroup::new_from_csb_store(&store);
         assert_eq!(group.csb_appellation(), "Kiesraad Demo");
