@@ -38,15 +38,15 @@ impl AuditLogDetail {
         target_event_id: usize,
         locale: Locale,
     ) -> Option<Self> {
-        use crate::{ElectionConfig, PgStore, audit_log::PgLinks};
+        use crate::{StreamId, audit_log::PgLinks};
 
         let target = events.iter().find(|e| e.event_id == target_event_id)?;
         let before = PgStoreData::snapshot_until(events, target_event_id - 1);
-        let now = PgStore::new_for_temp_stream(ElectionConfig::EK27);
-        for event in events {
-            now.apply_event(event.clone());
-        }
-        let links = PgLinks { store: &now };
+        let now = PgStoreData::snapshot_until(events, usize::MAX);
+        let links = PgLinks {
+            stream_id: StreamId::new(),
+            data: &now,
+        };
         Some(Self::from_event(&before, target, locale, &links))
     }
 }

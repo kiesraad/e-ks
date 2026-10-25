@@ -147,7 +147,8 @@ mod tests {
                 .to_string()
         );
 
-        let updated = store.get_substitute_submitter(sub_submitter_id)?;
+        let data = store.snapshot();
+        let updated = data.get_substitute_submitter(sub_submitter_id)?;
         assert_eq!(updated.name.last_name.to_string(), "Updated");
 
         Ok(())

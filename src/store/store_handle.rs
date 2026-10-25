@@ -64,16 +64,9 @@ impl<D> Store<D>
 where
     D: StoreData,
 {
-    /// Create a temporary, in-memory store with no persistence.
-    ///
-    /// An in-memory store never writes events out, so it has no cipher
-    /// (see [`StoreBackend::Memory`]).
-    pub fn new_for_temp_stream(election: ElectionConfig) -> Self {
-        Self::new_temp(StreamId::new(), election, Arc::default())
-    }
-
     /// An in-memory store over `data`: temp streams, request-local
-    /// projections and tests.
+    /// projections and tests. It never writes events out, so it has no
+    /// cipher (see [`StoreBackend::Memory`]).
     pub(crate) fn new_temp(stream_id: StreamId, election: ElectionConfig, data: Arc<D>) -> Self {
         Store {
             stream_id,

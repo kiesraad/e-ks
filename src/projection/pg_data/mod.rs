@@ -632,7 +632,8 @@ mod tests {
 
         name_authorisation.create(&store).await?;
 
-        let loaded = store.get_name_authorisation(id)?;
+        let data = store.snapshot();
+        let loaded = data.get_name_authorisation(id)?;
         assert_eq!(loaded.id, name_authorisation.id);
 
         Ok(())
@@ -695,7 +696,7 @@ mod tests {
 
         // Reads serve a snapshot of the corrected projection.
         assert_eq!(
-            store.get_political_group().appellation,
+            store.snapshot().get_political_group().appellation,
             sample_political_group().appellation
         );
 
@@ -726,7 +727,7 @@ mod tests {
 
         // The request-local snapshot observes the correction right away.
         assert_eq!(
-            store.get_political_group().appellation,
+            store.snapshot().get_political_group().appellation,
             corrected_group.appellation
         );
 
@@ -792,7 +793,8 @@ mod tests {
 
             person.create(&store).await?;
 
-            let loaded = store.get_person(person_id)?;
+            let data = store.snapshot();
+            let loaded = data.get_person(person_id)?;
             assert_eq!(loaded.id, person_id);
 
             let fresh_store =
@@ -801,7 +803,8 @@ mod tests {
                     .unwrap();
             fresh_store.load().await?;
 
-            let reloaded = fresh_store.get_person(person_id)?;
+            let data = fresh_store.snapshot();
+            let reloaded = data.get_person(person_id)?;
             assert_eq!(reloaded.id, person_id);
 
             Ok(())
@@ -950,11 +953,8 @@ mod tests {
             .unwrap();
             sample_person(PersonId::new()).create(&store).await?;
 
-            let target = store
-                .get_events()
-                .last()
-                .cloned()
-                .expect("at least one event");
+            let data = store.snapshot();
+            let target = data.events.last().expect("at least one event");
             let expected = Some((group, ElectionConfig::EK27, target.event_id));
 
             assert_eq!(

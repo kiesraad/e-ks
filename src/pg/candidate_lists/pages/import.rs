@@ -1,4 +1,4 @@
-use crate::structs::candidate_lists::CandidateList;
+use crate::structs::candidate_lists::{CandidateList, CandidateListId};
 use askama::Template;
 use axum::{
     http::StatusCode,
@@ -59,11 +59,16 @@ pub async fn import_export(
     store: PgStore,
 ) -> Result<Response, AppError> {
     Ok(render_import_export(
-        store.get_candidate_list(list_id)?,
+        load_list(&store, list_id)?,
         vec![],
         context,
         &store,
     ))
+}
+
+/// The list as it is now; absent lists are a not-found.
+fn load_list(store: &PgStore, list_id: CandidateListId) -> Result<CandidateList, AppError> {
+    store.snapshot().get_candidate_list(list_id).cloned()
 }
 
 pub async fn import_candidate_list(
@@ -72,7 +77,7 @@ pub async fn import_candidate_list(
     store: PgStore,
     import_data: Result<FileForm, AppError>,
 ) -> Result<Response, AppError> {
-    let mut list = store.get_candidate_list(list_id)?;
+    let mut list = load_list(&store, list_id)?;
 
     let import_data = match import_data {
         Ok(form) => form,
@@ -417,13 +422,16 @@ mod tests {
         );
         assert!(!location.contains("import_capped"), "{location}");
 
-        let candidate_id = store.get_candidate_list(list.id)?.candidates[0];
+        let data = store.snapshot();
+        let candidate_id = data.get_candidate_list(list.id)?.candidates[0];
         assert_eq!(
             store
+                .snapshot()
                 .get_person(candidate_id)?
                 .personal_data
                 .date_of_birth
-                .map(|d| d.to_string()),
+                .as_ref()
+                .map(ToString::to_string),
             Some("1984-06-23".to_string())
         );
 

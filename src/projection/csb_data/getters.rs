@@ -6,7 +6,7 @@ use std::{
 
 use super::{CsbStoreData, Scrapped, WithCorrections};
 use crate::{
-    AppError, CsbStream, ElectionConfig, ElectoralDistrict, Locale, PgEvent, PgStore, PgStoreData,
+    AppError, CsbStream, ElectionConfig, ElectoralDistrict, Locale, PgEvent, PgStoreData,
     structs::{
         brp::{BrpFinding, BrpStatus},
         candidate_lists::{CandidateList, CandidateListId},
@@ -577,11 +577,7 @@ impl CsbStream {
     /// Collect all problems of the fully corrected data, excluding info
     /// problems.
     pub fn get_all_problems(&self, election: ElectionConfig) -> Result<AllProblems, AppError> {
-        // wrap the fully corrected projection in a PgStore
-        let store = PgStore::new_for_temp_stream(election);
-        store.replace(Arc::clone(&self.snapshot().csb_corrected_data));
-
-        AllProblems::find_all(&store).map(|mut problems| {
+        AllProblems::find_all(&self.snapshot().csb_corrected_data, election).map(|mut problems| {
             problems.info_problems = Vec::new();
             problems
         })

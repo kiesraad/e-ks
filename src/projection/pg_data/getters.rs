@@ -1,7 +1,12 @@
+//! Reads on a political group's projection. The methods on [`PgStoreData`]
+//! work on any value of it: a live snapshot, a CSB view at a correction level,
+//! an audit-log replay or a test fixture.
+
 use crate::{
-    AppError, ElectionConfig, PgStoreData,
+    AppError, ElectoralDistrict, PgStoreData,
     structs::{
         candidate_lists::{CandidateList, CandidateListId},
+        common::FullName,
         list_submitters::{ListSubmitter, ListSubmitterId},
         name_authorisations::{NameAuthorisation, NameAuthorisationId},
         persons::{Person, PersonId},
@@ -9,85 +14,98 @@ use crate::{
     },
 };
 
-use crate::store::{Store, StoreEvent};
-
-impl Store<PgStoreData> {
-    pub fn get_election(&self) -> ElectionConfig {
-        self.election
+impl PgStoreData {
+    pub fn get_political_group(&self) -> &PoliticalGroup {
+        &self.political_group
     }
 
-    pub fn get_political_group(&self) -> PoliticalGroup {
-        let data = self.snapshot();
-
-        data.political_group.clone()
+    pub fn get_persons(&self) -> Vec<&Person> {
+        self.persons.values().collect()
     }
 
-    pub fn get_persons(&self) -> Vec<Person> {
-        let data = self.snapshot();
-
-        data.persons.values().cloned().collect()
-    }
-
-    pub fn get_sorted_persons(&self) -> Vec<Person> {
-        let data = self.snapshot();
-
-        let mut persons: Vec<Person> = data.persons.values().cloned().collect();
-
+    pub fn get_sorted_persons(&self) -> Vec<&Person> {
+        let mut persons = self.get_persons();
         persons.sort();
-
         persons
     }
 
-    pub fn get_name_authorisations(&self) -> Vec<NameAuthorisation> {
-        let data = self.snapshot();
-
-        data.name_authorisations.values().cloned().collect()
-    }
-
-    pub fn get_substitute_submitters(&self) -> Vec<ListSubmitter> {
-        let data = self.snapshot();
-
-        data.substitute_submitters.clone()
+    pub fn get_person(&self, person_id: PersonId) -> Result<&Person, AppError> {
+        self.persons
+            .get(&person_id)
+            .ok_or(AppError::GenericNotFound)
     }
 
     pub fn get_person_count(&self) -> usize {
-        let data = self.snapshot();
-
-        data.persons.len()
+        self.persons.len()
     }
 
-    pub fn get_candidate_list_count(&self) -> usize {
-        let data = self.snapshot();
-
-        data.candidate_lists.len()
+    pub fn get_name_authorisations(&self) -> Vec<&NameAuthorisation> {
+        self.name_authorisations.values().collect()
     }
 
-    pub fn get_candidate_list(&self, list_id: CandidateListId) -> Result<CandidateList, AppError> {
-        let data = self.snapshot();
-
-        data.candidate_lists
-            .get(&list_id)
-            .cloned()
+    pub fn get_name_authorisation(
+        &self,
+        authorisation_id: NameAuthorisationId,
+    ) -> Result<&NameAuthorisation, AppError> {
+        self.name_authorisations
+            .get(&authorisation_id)
             .ok_or(AppError::GenericNotFound)
     }
 
-    pub fn get_candidate_lists(&self) -> Vec<CandidateList> {
-        let data = self.snapshot();
+    pub fn get_list_submitter(&self) -> &ListSubmitter {
+        &self.list_submitter
+    }
 
-        let mut lists: Vec<CandidateList> = data.candidate_lists.values().cloned().collect();
+    pub fn get_substitute_submitters(&self) -> &[ListSubmitter] {
+        &self.substitute_submitters
+    }
 
-        lists.sort_unstable_by_key(|l| l.created_at);
+    pub fn get_substitute_submitter(
+        &self,
+        substitute_submitter_id: ListSubmitterId,
+    ) -> Result<&ListSubmitter, AppError> {
+        self.substitute_submitters
+            .iter()
+            .find(|submitter| submitter.id == substitute_submitter_id)
+            .ok_or(AppError::GenericNotFound)
+    }
 
+    pub fn get_candidate_list(&self, list_id: CandidateListId) -> Result<&CandidateList, AppError> {
+        self.candidate_lists
+            .get(&list_id)
+            .ok_or(AppError::GenericNotFound)
+    }
+
+    /// The candidate lists in creation order.
+    pub fn get_candidate_lists(&self) -> Vec<&CandidateList> {
+        let mut lists: Vec<&CandidateList> = self.candidate_lists.values().collect();
+        lists.sort_unstable_by_key(|list| list.created_at);
         lists
     }
 
-    pub fn get_person(&self, person_id: PersonId) -> Result<Person, AppError> {
-        let data = self.snapshot();
+    pub fn get_candidate_list_count(&self) -> usize {
+        self.candidate_lists.len()
+    }
 
-        data.persons
-            .get(&person_id)
-            .cloned()
-            .ok_or(AppError::GenericNotFound)
+    /// The candidate lists in the order the pages show them: by their lowest
+    /// district number.
+    pub fn get_candidate_lists_in_page_order(&self) -> Vec<&CandidateList> {
+        let mut lists = self.get_candidate_lists();
+        lists.sort_by_key(|list| {
+            list.electoral_districts
+                .iter()
+                .map(ElectoralDistrict::region_number)
+                .min()
+                .unwrap_or_default()
+        });
+        lists
+    }
+
+    /// The first list (in creation order) the person appears on.
+    pub fn get_first_list(&self, person_id: PersonId) -> Option<&CandidateList> {
+        self.get_candidate_lists()
+            .into_iter()
+            .find(|list| list.candidates.contains(&person_id))
     }
 
     /// One-based position of the candidate on the given list.
@@ -96,73 +114,48 @@ impl Store<PgStoreData> {
         list_id: CandidateListId,
         person_id: PersonId,
     ) -> Option<usize> {
-        let data = self.snapshot();
-
-        data.candidate_lists.get(&list_id)?.position_of(person_id)
+        self.candidate_lists.get(&list_id)?.position_of(person_id)
     }
 
-    /// The name of the first candidate across all candidate lists (already
-    /// sorted by creation date), or `None` when there are no candidates.
-    pub fn get_first_candidate_name(&self) -> Option<crate::structs::common::FullName> {
-        self.get_candidate_lists()
-            .into_iter()
-            .flat_map(|list| list.candidates.into_iter())
-            .next()
-            .and_then(|id| self.get_person(id).ok())
-            .map(|p| p.name)
-    }
-
-    pub fn get_name_authorisation(
-        &self,
-        authorisation_id: NameAuthorisationId,
-    ) -> Result<NameAuthorisation, AppError> {
-        let data = self.snapshot();
-
-        data.name_authorisations
-            .get(&authorisation_id)
-            .cloned()
-            .ok_or(AppError::GenericNotFound)
-    }
-
-    pub fn get_list_submitter(&self) -> ListSubmitter {
-        let data = self.snapshot();
-
-        data.list_submitter.clone()
-    }
-
-    pub fn get_substitute_submitter(
-        &self,
-        substitute_submitter_id: ListSubmitterId,
-    ) -> Result<ListSubmitter, AppError> {
-        let data = self.snapshot();
-
-        data.substitute_submitters
-            .iter()
-            .find(|submitter| submitter.id == substitute_submitter_id)
-            .cloned()
-            .ok_or(AppError::GenericNotFound)
-    }
-
+    /// How many lists the person is a candidate on.
     pub fn count_candidate_lists(&self, person_id: PersonId) -> usize {
-        let data = self.snapshot();
-
-        data.candidate_lists
+        self.candidate_lists
             .values()
             .filter(|list| list.candidates.contains(&person_id))
             .count()
     }
 
-    pub fn get_events(&self) -> Vec<StoreEvent<crate::PgEvent>> {
-        let data = self.snapshot();
-        data.events.clone()
+    /// Every candidate with the list it is on, lists in creation order and
+    /// candidates in list order.
+    pub fn candidates_in_list_order(
+        &self,
+    ) -> impl Iterator<Item = (CandidateListId, PersonId)> + '_ {
+        self.get_candidate_lists()
+            .into_iter()
+            .flat_map(|list| list.candidates.iter().map(move |&person| (list.id, person)))
+    }
+
+    /// The name of the first candidate on the first list, or `None` when
+    /// there are no candidates.
+    pub fn get_first_candidate_name(&self) -> Option<&FullName> {
+        self.candidates_in_list_order()
+            .find_map(|(_, person_id)| self.get_person(person_id).ok())
+            .map(|person| &person.name)
+    }
+
+    /// The appellation of the political group, including the special names
+    /// for blank lists.
+    pub fn get_appellation(&self) -> String {
+        self.political_group
+            .csb_appellation(self.get_first_candidate_name())
     }
 
     /// We show a warning after the user has downloaded the documents.
     ///
-    /// If the user closes this warning, an `HideDownloadWarning` event is stored and we should no longer show the warning.
+    /// If the user closes this warning, an `HideDownloadWarning` event is
+    /// stored and we should no longer show the warning.
     pub fn should_show_download_warning(&self) -> bool {
-        let data = self.snapshot();
-        data.events
+        self.events
             .iter()
             .rev()
             .find(|e| {
@@ -192,7 +185,12 @@ mod tests {
             sub_submitter.create_substitute(&store).await.unwrap();
         }
 
-        for (i, s) in store.get_substitute_submitters().iter().enumerate() {
+        for (i, s) in store
+            .snapshot()
+            .get_substitute_submitters()
+            .iter()
+            .enumerate()
+        {
             assert_eq!(s.name.last_name.to_string(), i.to_string());
         }
     }
@@ -210,10 +208,11 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(!store.get_list_submitter().is_substitute);
-        assert!(store.get_substitute_submitters()[0].is_substitute);
+        assert!(!store.snapshot().get_list_submitter().is_substitute);
+        assert!(store.snapshot().get_substitute_submitters()[0].is_substitute);
         assert!(
             store
+                .snapshot()
                 .get_substitute_submitter(substitute_submitter.id)
                 .unwrap()
                 .is_substitute
@@ -225,7 +224,7 @@ mod tests {
         let store = PgStore::new_for_test();
 
         // start without warning
-        assert!(!store.should_show_download_warning());
+        assert!(!store.snapshot().should_show_download_warning());
 
         // after download, the warning should show
         store
@@ -235,11 +234,11 @@ mod tests {
             })
             .await
             .unwrap();
-        assert!(store.should_show_download_warning());
+        assert!(store.snapshot().should_show_download_warning());
 
         // after hiding, the warning should no longer show
         store.update(PgEvent::HideDownloadWarning).await.unwrap();
-        assert!(!store.should_show_download_warning());
+        assert!(!store.snapshot().should_show_download_warning());
 
         // after downloading again, the warning should show again
         store
@@ -249,6 +248,6 @@ mod tests {
             })
             .await
             .unwrap();
-        assert!(store.should_show_download_warning());
+        assert!(store.snapshot().should_show_download_warning());
     }
 }

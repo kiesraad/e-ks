@@ -92,7 +92,7 @@ mod tests {
     #[tokio::test]
     async fn update_political_group_renders_existing_data() -> Result<(), AppError> {
         let store = PgStore::new_for_test();
-        let political_group = store.get_political_group();
+        let political_group = store.snapshot().get_political_group().clone();
 
         let response = update_political_group(
             PoliticalGroupUpdatePath {},
@@ -125,7 +125,7 @@ mod tests {
             &store,
             crate::Session::new_test_with_locale(crate::Locale::En),
         );
-        let political_group = store.get_political_group();
+        let political_group = store.snapshot().get_political_group().clone();
 
         let response = update_political_group(
             PoliticalGroupUpdatePath {},
@@ -159,7 +159,7 @@ mod tests {
     #[tokio::test]
     async fn update_political_group_persists_and_redirects() -> Result<(), AppError> {
         let store = PgStore::new_for_test();
-        let political_group = store.get_political_group();
+        let political_group = store.snapshot().get_political_group().clone();
 
         sample_name_authorisation(NameAuthorisationId::new())
             .create(&store)
@@ -194,7 +194,7 @@ mod tests {
                 .to_string()
         );
 
-        let updated = store.get_political_group();
+        let updated = store.snapshot().get_political_group().clone();
         assert_eq!(
             updated.previous_election_results,
             Some(PreviousElectionResults::OneToFifteenSeats)
@@ -223,7 +223,7 @@ mod tests {
         let response = update_political_group_submit(
             PoliticalGroupUpdatePath {},
             context,
-            store.get_political_group(),
+            store.snapshot().get_political_group().clone(),
             store,
             Query(QueryParamState::default()),
             Form(form),

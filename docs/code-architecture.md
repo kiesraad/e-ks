@@ -184,8 +184,11 @@ domains together:
 - `store/event.rs`: `PgEvent`, the single enum of all PG domain events.
 - `store/mod.rs`: `PgStoreData`, the in-memory projection built by replaying
   `PgEvent`s, including `snapshot_until`, which rebuilds the state as of an
-  earlier event (used by the CSB import); `store/getters.rs` adds read
-  accessors over it.
+  earlier event (used by the CSB import); `store/getters.rs` adds the read
+  accessors, implemented on `PgStoreData` itself so they work on any value of
+  it: a live snapshot, a CSB view at a correction level, or an audit-log
+  replay. Handlers take one `store.snapshot()` per request and read from
+  that.
 - `store_handle.rs`: `PgStore`, the store handle the feature handlers work
   with (see [The store at runtime](#the-store-at-runtime)).
 - `context.rs`: the request-scoped `Context` passed into templates.

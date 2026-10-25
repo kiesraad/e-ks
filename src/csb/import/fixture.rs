@@ -5,7 +5,7 @@ use crate::{
     AppError, AppRequestState, CsbAction, CsbMainAction, CsbMainStore, CsbStore, CsbStoreData,
     CsbStream, CsbUser, ElectionConfig, ElectoralDistrict, PgStore, PgStoreData, StreamId,
     projection::WithCorrections,
-    store::StoreRegistry,
+    store::{StoreData, StoreRegistry},
     structs::{
         brp::{BrpFinding, BrpFindingKind, BrpStatus, BrpValue},
         candidate_lists::{CandidateList, CandidateListId},
@@ -257,7 +257,7 @@ async fn import_fixture_group<S: AppRequestState>(
     let pg_store = PgStore::own(app_store.clone());
     crate::fixtures::load_for_group(&pg_store, group.political_group()).await?;
     fit_lists_to_maximum(&pg_store, group).await?;
-    let events = app_store.snapshot().events.clone();
+    let events = app_store.snapshot().events().to_vec();
     let snapshot = PgStoreData::snapshot_until(&events, usize::MAX);
 
     let store = CsbStore::acting_as(
@@ -281,7 +281,15 @@ async fn import_fixture_group<S: AppRequestState>(
 async fn fit_lists_to_maximum(store: &PgStore, group: &FixtureGroup) -> Result<(), AppError> {
     let max = group.political_group().get_max_candidates();
     let findings = crate::fixtures::brp_findings();
-    let lists = in_district_order(store.get_candidate_lists(), &store.election);
+    let lists = in_district_order(
+        store
+            .snapshot()
+            .get_candidate_lists()
+            .into_iter()
+            .cloned()
+            .collect(),
+        &store.election,
+    );
 
     for (index, mut list) in lists.into_iter().enumerate() {
         if index == 0 && group.appellation == TOO_MANY_CANDIDATES_GROUP {
@@ -392,7 +400,7 @@ async fn record_brp_check(
 async fn fixture_paper_corrections(store: &CsbStore) -> Result<(), AppError> {
     let corrections = store.paper_corrections();
 
-    let mut submitter = corrections.get_list_submitter();
+    let mut submitter = corrections.snapshot().get_list_submitter().clone();
     if let Address::Dutch(address) = &mut submitter.address {
         address.house_number = Some("7".parse().expect("house number"));
         address.house_number_addition = None;
@@ -405,12 +413,14 @@ async fn fixture_paper_corrections(store: &CsbStore) -> Result<(), AppError> {
     let mut candidates = first_list.candidates.iter().skip(1);
 
     if let Some(person_id) = candidates.next() {
-        let mut person = corrections.get_person(*person_id)?;
+        let data = corrections.snapshot();
+        let mut person = data.get_person(*person_id).cloned()?;
         person.personal_data.place_of_residence = Some("Utrecht".parse().expect("locality"));
         person.update(&corrections).await?;
     }
     if let Some(person_id) = candidates.next() {
-        let mut person = corrections.get_person(*person_id)?;
+        let data = corrections.snapshot();
+        let mut person = data.get_person(*person_id).cloned()?;
         person.name.initials = Some("A.B.C.".parse().expect("initials"));
         person.update(&corrections).await?;
     }

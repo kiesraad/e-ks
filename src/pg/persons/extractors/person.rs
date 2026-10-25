@@ -20,7 +20,9 @@ request_extractor!(Person, |store, parts, state| {
         Path::<PersonPathParams>::from_request_parts(parts, state).await?;
 
     store
+        .snapshot()
         .get_person(person_id)
+        .cloned()
         .map_err(|_| AppError::NotFound(trans!("person.not_found", locale, person_id)))
 });
 

@@ -117,7 +117,9 @@ mod tests {
                 .to_string()
         );
 
-        let submitters = store.get_substitute_submitters();
+        let data = store.snapshot();
+
+        let submitters = data.get_substitute_submitters();
         assert!(submitters.is_empty());
 
         Ok(())

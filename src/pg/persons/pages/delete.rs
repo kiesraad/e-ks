@@ -112,8 +112,7 @@ mod tests {
                 .to_string()
         );
 
-        let found = store.get_person(person_id);
-        assert!(found.is_err());
+        assert!(store.snapshot().get_person(person_id).is_err());
 
         Ok(())
     }

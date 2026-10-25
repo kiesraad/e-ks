@@ -115,7 +115,9 @@ mod tests {
                 .to_string()
         );
 
-        let name_authorisations = store.get_name_authorisations();
+        let data = store.snapshot();
+
+        let name_authorisations = data.get_name_authorisations();
         assert!(name_authorisations.is_empty());
 
         Ok(())
