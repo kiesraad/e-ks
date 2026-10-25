@@ -13,7 +13,7 @@ use crate::{
         structs::CsbAuditLogEntry,
     },
     filters,
-    projection::{CSB_MAIN_STREAM_ID, CsbAction, CsbStream, WithCorrections},
+    projection::{CSB_MAIN_STREAM_ID, CsbAction, WithCorrections},
     store::{StoreData, StoreEvent},
     structs::{
         audit_log::{
@@ -442,16 +442,13 @@ struct CsbAuditLogDetailTemplate {
 
 /// The detail view of an event on a political group's stream.
 fn stream_event_detail(
-    import_stores: &[CsbStream],
-    pre_submission_stores: &[CsbStream],
-    stream_id: StreamId,
+    links: CsbStreamLinks,
     event_id: usize,
     locale: Locale,
 ) -> Result<CsbEventDetail, AppError> {
-    let links = CsbStreamLinks::find(import_stores, pre_submission_stores, stream_id)?;
     CsbEventDetail::find::<CsbStoreData>(
         links.data.events(),
-        stream_id,
+        links.stream_id,
         event_id,
         links.stream_label(locale),
         locale,
@@ -471,11 +468,11 @@ pub async fn csb_audit_log_detail<S: AppRequestState>(
     Query(query): Query<QueryParamState>,
 ) -> Result<impl IntoResponse, AppError> {
     let locale = context.session.locale;
-    let import_stores = state
-        .csb_store_registry()
-        .stores_for_election(context.election)
-        .await?;
     let detail = if stream_id == CSB_MAIN_STREAM_ID {
+        let import_stores = state
+            .csb_store_registry()
+            .stores_for_election(context.election)
+            .await?;
         let links = CsbMainLinks {
             store: &main_store,
             streams: &import_stores,
@@ -491,17 +488,24 @@ pub async fn csb_audit_log_detail<S: AppRequestState>(
             |_, _| EventContext::default(),
         )?
     } else {
-        let pre_submission_stores = state
-            .pre_submission_store_registry()
-            .stores_for_election(context.election)
-            .await?;
-        stream_event_detail(
-            &import_stores,
-            &pre_submission_stores,
-            stream_id,
-            event_id,
-            locale,
-        )?
+        // Load only the stream asked for: an examined import, or else a
+        // pre-submission import. `get_store` never creates one.
+        let links = match state
+            .csb_store_registry()
+            .get_store(stream_id, context.election)
+            .await
+        {
+            Ok(store) => CsbStreamLinks::new(&store, false),
+            Err(AppError::NotFound(_)) => {
+                let store = state
+                    .pre_submission_store_registry()
+                    .get_store(stream_id, context.election)
+                    .await?;
+                CsbStreamLinks::new(&store, true)
+            }
+            Err(err) => return Err(err),
+        };
+        stream_event_detail(links, event_id, locale)?
     };
 
     Ok(HtmlTemplate(
