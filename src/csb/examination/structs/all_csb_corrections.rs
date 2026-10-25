@@ -1,9 +1,7 @@
-use std::collections::HashSet;
-
 use axum_extra::routing::TypedPath;
 
 use crate::{
-    CsbStream, Locale, QueryParamState,
+    CsbStoreData, Locale, QueryParamState,
     constants::DEFAULT_DATE_FORMAT,
     csb::examination::{
         extractors::CsbPoliticalGroup,
@@ -11,7 +9,7 @@ use crate::{
     },
     projection::WithCorrections,
     structs::{
-        csb::{PersonCorrection, PersonCorrectionDelta},
+        csb::PersonCorrection,
         persons::{Person, PersonId},
     },
     trans,
@@ -34,7 +32,7 @@ pub struct CandidateCorrections {
     pub corrections: Vec<PaperCorrectedField>,
 }
 
-impl CsbStream {
+impl CsbStoreData {
     pub fn get_all_corrections(
         &self,
         political_group: &CsbPoliticalGroup,
@@ -75,13 +73,13 @@ impl CsbStream {
         political_group: &CsbPoliticalGroup,
         locale: Locale,
     ) -> Option<CandidateCorrections> {
-        let fully_corrected = self.get_person(*person, WithCorrections::All)?;
+        let fully_corrected = self.pg(WithCorrections::All).get_person(*person).ok()?;
         // Absent for candidates that were added during paper corrections.
-        let imported = self.get_person(*person, WithCorrections::None);
-        let paper_corrected = self.get_person(*person, WithCorrections::Paper);
+        let imported = self.pg(WithCorrections::None).get_person(*person).ok();
+        let paper_corrected = self.pg(WithCorrections::Paper).get_person(*person).ok();
 
         let mut corrections: Vec<_> = self
-            .get_person_corrections(person)
+            .get_person_corrections(*person)
             .iter()
             .map(|correction| {
                 let (field, corrected_value) = match correction {
@@ -109,12 +107,11 @@ impl CsbStream {
                     ),
                 };
 
-                let corrected = PaperCorrected::from_field(
-                    imported.as_ref(),
-                    paper_corrected.as_ref(),
-                    |p: &Person| field.extract(p),
-                )
-                .with_csb_correction(Some(corrected_value));
+                let corrected =
+                    PaperCorrected::from_field(imported, paper_corrected, |p: &Person| {
+                        field.extract(p)
+                    })
+                    .with_csb_correction(Some(corrected_value));
 
                 (
                     field,
@@ -136,17 +133,9 @@ impl CsbStream {
         corrections.sort_unstable_by_key(|(field, _)| *field);
 
         Some(CandidateCorrections {
-            person: fully_corrected,
+            person: fully_corrected.clone(),
             corrections: corrections.into_iter().map(|(_, field)| field).collect(),
         })
-    }
-
-    fn get_person_corrections(&self, person: &PersonId) -> HashSet<PersonCorrection> {
-        self.snapshot()
-            .csb_corrected_persons
-            .get(person)
-            .map(PersonCorrectionDelta::get_corrections)
-            .unwrap_or_default()
     }
 
     fn get_appellation_correction(
@@ -154,24 +143,21 @@ impl CsbStream {
         political_group: &CsbPoliticalGroup,
         locale: Locale,
     ) -> Option<PaperCorrectedField> {
-        // Bound to a local so the read guard is released before
-        // `get_appellation` takes the lock again.
-        let corrected_appellation = self.snapshot().csb_corrected_appellation.clone();
-
-        corrected_appellation.map(|name| PaperCorrectedField {
-            label: trans!("political_group.appellation", locale),
-            corrected: PaperCorrected::new(
-                self.get_appellation(WithCorrections::None),
-                self.get_appellation(WithCorrections::Paper),
-            )
-            .with_csb_correction(Some(name.to_string())),
-            edit_path: political_group
-                .correction_appellation_path()
-                .with_query_params(QueryParamState::redirect_to(
-                    political_group.all_restorations_path().to_string(),
-                ))
-                .to_string(),
-        })
+        self.get_csb_corrected_appellation()
+            .map(|name| PaperCorrectedField {
+                label: trans!("political_group.appellation", locale),
+                corrected: PaperCorrected::new(
+                    self.pg(WithCorrections::None).get_appellation(),
+                    self.pg(WithCorrections::Paper).get_appellation(),
+                )
+                .with_csb_correction(Some(name.to_string())),
+                edit_path: political_group
+                    .correction_appellation_path()
+                    .with_query_params(QueryParamState::redirect_to(
+                        political_group.all_restorations_path().to_string(),
+                    ))
+                    .to_string(),
+            })
     }
 }
 
@@ -191,10 +177,12 @@ mod tests {
     };
 
     use super::*;
-    use crate::CsbUser;
+    use crate::{CsbStream, CsbUser};
 
     fn all_corrections(store: &CsbStream) -> AllCsbCorrections {
-        store.get_all_corrections(&CsbPoliticalGroup::new_from_csb_store(store), Locale::Nl)
+        store
+            .snapshot()
+            .get_all_corrections(&CsbPoliticalGroup::new_from_csb_store(store), Locale::Nl)
     }
 
     /// Record a CSB correction on a person.

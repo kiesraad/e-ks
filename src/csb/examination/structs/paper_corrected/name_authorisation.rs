@@ -1,5 +1,5 @@
 use super::PaperCorrected;
-use crate::{CsbStream, projection::WithCorrections};
+use crate::{CsbStoreData, projection::WithCorrections};
 
 /// A name authorisation with its rows diffed against the corrections.
 pub struct PaperCorrectedNameAuthorisation {
@@ -12,10 +12,10 @@ pub struct PaperCorrectedNameAuthorisation {
 /// by id; entities added by the corrections are appended, entities deleted by
 /// the corrections are hidden.
 pub fn paper_corrected_name_authorisations(
-    store: &CsbStream,
+    data: &CsbStoreData,
 ) -> Vec<PaperCorrectedNameAuthorisation> {
-    let imported = store.get_name_authorisations(WithCorrections::None);
-    let corrected = store.get_name_authorisations(WithCorrections::Paper);
+    let imported = data.pg(WithCorrections::None).get_name_authorisations();
+    let corrected = data.pg(WithCorrections::Paper).get_name_authorisations();
 
     let mut rows: Vec<PaperCorrectedNameAuthorisation> = imported
         .iter()
@@ -63,7 +63,7 @@ mod tests {
         store.set_name_authorisations(WithCorrections::None, vec![kept.clone(), deleted]);
         store.set_name_authorisations(WithCorrections::Paper, vec![kept.clone()]);
 
-        let rows = paper_corrected_name_authorisations(&store);
+        let rows = paper_corrected_name_authorisations(&store.snapshot());
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].heading, kept.legal_name.to_string());
     }

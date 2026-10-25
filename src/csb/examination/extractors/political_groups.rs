@@ -3,7 +3,8 @@ use axum::{extract::FromRequestParts, http::request::Parts};
 use std::collections::{BTreeSet, HashMap};
 
 use crate::{
-    AppError, AppRequestState, CsbStream, ElectoralDistrict, Session, StreamId,
+    AppError, AppRequestState, CsbStoreData, CsbStream, ElectionConfig, ElectoralDistrict, Session,
+    StreamId,
     csb::examination::structs::BrpCheckState,
     projection::{Scrapped, WithCorrections},
     structs::{
@@ -18,6 +19,7 @@ use crate::{
 pub struct CsbPoliticalGroup {
     pub political_group: PoliticalGroup,
     pub stream_id: StreamId,
+    pub election: ElectionConfig,
     pub brp: BrpCheckState,
     /// The phase the group is rendered for; drives which links and actions the
     /// shared examination templates render (see the path helpers in `paths.rs`).
@@ -45,26 +47,36 @@ pub struct CsbPoliticalGroup {
 
 impl CsbPoliticalGroup {
     pub fn new_from_csb_store(store: &CsbStream) -> Self {
-        let scrapped = store.get_scrapped();
+        Self::new(&store.snapshot(), store.stream_id, store.election)
+    }
+
+    pub fn new(data: &CsbStoreData, stream_id: StreamId, election: ElectionConfig) -> Self {
+        let scrapped = data.get_scrapped().clone();
+        let corrected = data.pg(WithCorrections::All);
         Self {
-            political_group: store.get_political_group(WithCorrections::All),
-            stream_id: store.stream_id,
-            brp: BrpCheckState::for_political_group(store),
+            political_group: corrected.get_political_group().clone(),
+            stream_id,
+            election,
+            brp: BrpCheckState::for_political_group(data),
             mode: CsbPhase::Examination,
-            is_examination_finished: store.is_examination_finished(),
-            is_deleted: store.is_deleted(),
-            restoration_count: store.get_restoration_count(),
-            omission_count: store.get_omission_count(),
-            recovery: store.get_recovery_progress(),
-            first_candidate_name: store.get_first_candidate_name(WithCorrections::All, None),
-            first_non_scrapped_candidate_name: store
-                .get_first_candidate_name(WithCorrections::All, Some(&scrapped)),
+            is_examination_finished: data.is_examination_finished(),
+            is_deleted: data.is_deleted(),
+            restoration_count: data.get_restoration_count(),
+            omission_count: data.get_omission_count(),
+            recovery: data.get_recovery_progress(election),
+            first_candidate_name: data
+                .pg(WithCorrections::All)
+                .get_first_candidate_name()
+                .cloned(),
+            first_non_scrapped_candidate_name: data
+                .get_first_candidate_name(WithCorrections::All, Some(&scrapped))
+                .cloned(),
             previously_seated: false,
             scrapped,
-            candidate_list_districts: store
-                .get_candidate_lists(WithCorrections::All)
+            candidate_list_districts: corrected
+                .get_candidate_lists()
                 .into_iter()
-                .map(|list| (list.id, list.electoral_districts))
+                .map(|list| (list.id, list.electoral_districts.clone()))
                 .collect(),
         }
     }
@@ -184,6 +196,7 @@ impl CsbPoliticalGroup {
                 ..crate::test_utils::sample_political_group()
             },
             stream_id: StreamId::new(),
+            election: ElectionConfig::EK27,
             brp: BrpCheckState::NotChecked,
             mode: CsbPhase::Examination,
             is_examination_finished: false,

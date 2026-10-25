@@ -1,5 +1,5 @@
 use crate::{
-    AppError, CsbStream,
+    AppError, CsbStoreData,
     structs::{candidate_lists::CandidateListId, persons::PersonId},
 };
 
@@ -9,27 +9,31 @@ pub struct RestorationStatus {
 }
 
 impl RestorationStatus {
-    pub fn for_political_group(store: &CsbStream) -> Self {
+    pub fn for_political_group(data: &CsbStoreData) -> Self {
         RestorationStatus {
-            has_omissions: !store.get_political_group_omissions().is_empty(),
-            has_corrections: store.get_political_group_csb_corrections_count() > 0,
+            has_omissions: !data.get_political_group_omissions().is_empty(),
+            has_corrections: data.get_political_group_csb_corrections_count() > 0,
         }
     }
 
     pub fn for_candidate_list(
-        store: &CsbStream,
+        data: &CsbStoreData,
         list_id: CandidateListId,
     ) -> Result<Self, AppError> {
         Ok(RestorationStatus {
-            has_omissions: store.has_candidate_list_omissions(list_id)?,
-            has_corrections: store.has_candidate_list_csb_corrections(list_id)?,
+            has_omissions: data.has_candidate_list_omissions(list_id)?,
+            has_corrections: data.has_candidate_list_csb_corrections(list_id)?,
         })
     }
 
-    pub fn for_candidate(store: &CsbStream, person_id: PersonId, list_id: CandidateListId) -> Self {
+    pub fn for_candidate(
+        data: &CsbStoreData,
+        person_id: PersonId,
+        list_id: CandidateListId,
+    ) -> Self {
         RestorationStatus {
-            has_omissions: store.has_candidate_omissions(person_id, list_id),
-            has_corrections: store.has_candidate_csb_corrections(person_id),
+            has_omissions: data.has_candidate_omissions(person_id, list_id),
+            has_corrections: data.has_candidate_csb_corrections(person_id),
         }
     }
 
@@ -65,7 +69,7 @@ mod tests {
     fn for_political_group_no_changes() {
         let store = CsbStore::new_for_test();
 
-        let status = RestorationStatus::for_political_group(&store);
+        let status = RestorationStatus::for_political_group(&store.snapshot());
 
         assert!(!status.has_omissions());
         assert!(!status.has_corrections());
@@ -86,7 +90,7 @@ mod tests {
             )))
             .await?;
 
-        let status = RestorationStatus::for_political_group(&store);
+        let status = RestorationStatus::for_political_group(&store.snapshot());
 
         assert!(status.has_omissions());
         assert!(status.has_corrections());
@@ -111,7 +115,7 @@ mod tests {
             )))
             .await?;
 
-        let status = RestorationStatus::for_candidate_list(&store, list_id1).unwrap();
+        let status = RestorationStatus::for_candidate_list(&store.snapshot(), list_id1).unwrap();
 
         assert!(!status.has_omissions());
         assert!(!status.has_corrections());
@@ -133,7 +137,7 @@ mod tests {
             )))
             .await?;
 
-        let status = RestorationStatus::for_candidate_list(&store, list_id).unwrap();
+        let status = RestorationStatus::for_candidate_list(&store.snapshot(), list_id).unwrap();
 
         assert!(status.has_omissions());
         assert!(!status.has_corrections());
@@ -172,7 +176,7 @@ mod tests {
             )))
             .await?;
 
-        let status = RestorationStatus::for_candidate_list(&store, list_id).unwrap();
+        let status = RestorationStatus::for_candidate_list(&store.snapshot(), list_id).unwrap();
 
         assert!(status.has_omissions());
         assert!(status.has_corrections());
@@ -210,7 +214,7 @@ mod tests {
             .await?;
 
         // retrieve status for the other list
-        let status = RestorationStatus::for_candidate(&store, person_id, list_id2);
+        let status = RestorationStatus::for_candidate(&store.snapshot(), person_id, list_id2);
 
         assert!(!status.has_omissions());
         assert!(!status.has_corrections());
@@ -249,7 +253,7 @@ mod tests {
             )))
             .await?;
 
-        let status = RestorationStatus::for_candidate(&store, person_id, list_id);
+        let status = RestorationStatus::for_candidate(&store.snapshot(), person_id, list_id);
 
         assert!(status.has_omissions());
         assert!(status.has_corrections());

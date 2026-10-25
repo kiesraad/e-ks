@@ -1,6 +1,6 @@
 use super::PaperCorrected;
 use crate::{
-    CsbStream,
+    CsbStoreData,
     projection::WithCorrections,
     structs::list_submitters::{ListSubmitter, ListSubmitterId},
 };
@@ -73,26 +73,26 @@ impl PaperCorrectedSubmitter {
 
 /// The list submitter diffed against the corrections, or `None` when the
 /// corrections have none (never present, or deleted by the corrections).
-pub fn paper_corrected_list_submitter(store: &CsbStream) -> Option<PaperCorrectedSubmitter> {
-    let imported = store.get_list_submitter(WithCorrections::None);
-    let corrected = store.get_list_submitter(WithCorrections::Paper);
+pub fn paper_corrected_list_submitter(data: &CsbStoreData) -> Option<PaperCorrectedSubmitter> {
+    let imported = data.pg(WithCorrections::None).get_list_submitter();
+    let corrected = data.pg(WithCorrections::Paper).get_list_submitter();
 
     if corrected.is_empty() {
         return None;
     }
 
     Some(PaperCorrectedSubmitter::from_pair(
-        (!imported.is_empty()).then_some(&imported),
-        Some(&corrected),
+        (!imported.is_empty()).then_some(imported),
+        Some(corrected),
     ))
 }
 
 /// The substitute submitters paired with their corrected counterparts by id;
 /// substitutes added by the corrections are appended, substitutes deleted by
 /// the corrections are hidden.
-pub fn paper_corrected_substitute_submitters(store: &CsbStream) -> Vec<PaperCorrectedSubmitter> {
-    let imported = store.get_substitute_submitters(WithCorrections::None);
-    let corrected = store.get_substitute_submitters(WithCorrections::Paper);
+pub fn paper_corrected_substitute_submitters(data: &CsbStoreData) -> Vec<PaperCorrectedSubmitter> {
+    let imported = data.pg(WithCorrections::None).get_substitute_submitters();
+    let corrected = data.pg(WithCorrections::Paper).get_substitute_submitters();
 
     let mut rows: Vec<PaperCorrectedSubmitter> = imported
         .iter()
@@ -135,7 +135,7 @@ mod tests {
             sample_list_submitter(ListSubmitterId::new()),
         );
 
-        assert!(paper_corrected_list_submitter(&store).is_none());
+        assert!(paper_corrected_list_submitter(&store.snapshot()).is_none());
     }
 
     #[test]
@@ -145,7 +145,7 @@ mod tests {
         store.set_list_submitter(WithCorrections::None, submitter.clone());
         store.set_list_submitter(WithCorrections::Paper, submitter);
 
-        let row = paper_corrected_list_submitter(&store).unwrap();
+        let row = paper_corrected_list_submitter(&store.snapshot()).unwrap();
         assert!(!row.last_name.differs());
     }
 
@@ -162,7 +162,7 @@ mod tests {
         store.set_list_submitter(WithCorrections::None, submitter);
         store.set_list_submitter(WithCorrections::Paper, corrected);
 
-        let row = paper_corrected_list_submitter(&store).unwrap();
+        let row = paper_corrected_list_submitter(&store.snapshot()).unwrap();
         assert!(row.country.differs());
         assert_eq!(row.country.corrected, "BE");
         assert!(row.state_or_province.differs());
@@ -177,7 +177,7 @@ mod tests {
         store.set_substitute_submitters(WithCorrections::None, vec![kept.clone(), deleted]);
         store.set_substitute_submitters(WithCorrections::Paper, vec![kept]);
 
-        let rows = paper_corrected_substitute_submitters(&store);
+        let rows = paper_corrected_substitute_submitters(&store.snapshot());
         assert_eq!(rows.len(), 1);
     }
 
@@ -228,7 +228,11 @@ mod tests {
         store.set_list_submitter(WithCorrections::Paper, added.clone());
         store.set_substitute_submitters(WithCorrections::Paper, vec![added]);
 
-        assert!(paper_corrected_list_submitter(&store).unwrap().is_foreign);
-        assert!(paper_corrected_substitute_submitters(&store)[0].is_foreign);
+        assert!(
+            paper_corrected_list_submitter(&store.snapshot())
+                .unwrap()
+                .is_foreign
+        );
+        assert!(paper_corrected_substitute_submitters(&store.snapshot())[0].is_foreign);
     }
 }

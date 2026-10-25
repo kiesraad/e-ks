@@ -11,8 +11,8 @@ use tokio::io::{DuplexStream, duplex};
 use tokio_util::io::ReaderStream;
 
 use crate::{
-    AppError, AppRequestState, Context, CsbContext, CsbMainStore, CsbStore, CsbStream,
-    HtmlTemplate,
+    AppError, AppRequestState, Context, CsbContext, CsbMainStore, CsbStore, CsbStoreData,
+    ElectionConfig, HtmlTemplate,
     core::{ModelLocale, ZipResponseWriter},
     csb::examination::{
         extractors::CsbPoliticalGroup,
@@ -50,12 +50,13 @@ pub async fn overview(
     context: CsbContext,
     store: CsbStore,
 ) -> Result<Response, AppError> {
+    let data = store.snapshot();
     let political_group = CsbPoliticalGroup::new_from_csb_store(&store);
-    let all_omissions = store.get_all_omissions(&political_group)?;
+    let all_omissions = data.get_all_omissions(&political_group)?;
 
     Ok(HtmlTemplate(
         CsbOmissionLetterTemplate {
-            omission_count: store.get_omission_count(),
+            omission_count: data.get_omission_count(),
             political_group,
             all_omissions,
         },
@@ -66,8 +67,10 @@ pub async fn overview(
 
 /// Collect the store data the omission letter ("verzuimbrief") of one
 /// political group needs.
-fn omission_letter_model(store: &CsbStream) -> Result<OmissionLetter, AppError> {
-    let election = store.election;
+fn omission_letter_model(
+    data: &CsbStoreData,
+    election: ElectionConfig,
+) -> Result<OmissionLetter, AppError> {
     let session = election.public_session();
 
     Ok(OmissionLetter {
@@ -75,10 +78,10 @@ fn omission_letter_model(store: &CsbStream) -> Result<OmissionLetter, AppError> 
         location: session.location.to_string(),
         // Sent on the day of the examination ("vergadering van heden").
         date: election.document_review_date(),
-        addressee: Person::from(store.get_list_submitter(WithCorrections::All)),
-        appellation: store.get_appellation(WithCorrections::All),
+        addressee: Person::from(data.pg(WithCorrections::All).get_list_submitter().clone()),
+        appellation: data.pg(WithCorrections::All).get_appellation(),
         election_code: election.filename_slug(),
-        omission_groups: omission_letter_sections(store, &election)?,
+        omission_groups: omission_letter_sections(data, &election)?,
         recovery_deadline_date: election.omission_period_end_date(),
         recovery_deadline_time: RECOVERY_DEADLINE_TIME.to_string(),
         // TODO: use the committee's street address once configured.
@@ -100,7 +103,9 @@ pub async fn gen_omission_letter(
     _: CsbOmissionLetterDownloadPath,
     store: CsbStore,
 ) -> Result<Response, AppError> {
-    omission_letter_model(&store)?.pdf_response().await
+    omission_letter_model(&store.snapshot(), store.election)?
+        .pdf_response()
+        .await
 }
 
 /// The same letter as [`gen_omission_letter`], exported as a Word document.
@@ -108,7 +113,9 @@ pub async fn gen_omission_letter_docx(
     _: CsbOmissionLetterDocxDownloadPath,
     store: CsbStore,
 ) -> Result<Response, AppError> {
-    omission_letter_model(&store)?.docx_response().await
+    omission_letter_model(&store.snapshot(), store.election)?
+        .docx_response()
+        .await
 }
 
 /// Every omission letter of the election, as PDF and Word, in one ZIP: the
@@ -129,10 +136,11 @@ pub async fn gen_omission_letters_zip<S: AppRequestState>(
         .stores_for_election(election)
         .await?
     {
-        if store.is_deleted() || store.get_omission_count() == 0 {
+        let data = store.snapshot();
+        if data.is_deleted() || data.get_omission_count() == 0 {
             continue;
         }
-        letters.push(omission_letter_model(&store)?);
+        letters.push(omission_letter_model(&data, election)?);
     }
 
     let filename = format!("verzuimbrieven-{}.zip", election.filename_slug());

@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::{
-    CsbStream, Locale,
+    CsbStoreData, Locale,
     csb::examination::{extractors::CsbPoliticalGroup, structs::BrpFindingTag},
     projection::WithCorrections,
     structs::{
@@ -102,12 +102,13 @@ impl AllBrpFindings {
     }
 }
 
-impl CsbStream {
+impl CsbStoreData {
     /// Every candidate once, in the order the candidate lists put them
     /// forward. A candidate standing on more than one list is listed under the
     /// first list they appear on.
     pub fn listed_candidates(&self) -> Vec<ListedCandidate> {
-        let mut lists = self.get_candidate_lists(WithCorrections::All);
+        let corrected = self.pg(WithCorrections::All);
+        let mut lists = corrected.get_candidate_lists();
         lists.sort_by_key(|list| (list.created_at, list.id));
 
         let mut seen: HashSet<PersonId> = HashSet::new();
@@ -115,12 +116,12 @@ impl CsbStream {
         for list in lists {
             for (index, person_id) in list.candidates.iter().enumerate() {
                 if seen.insert(*person_id)
-                    && let Some(person) = self.get_person(*person_id, WithCorrections::All)
+                    && let Some(person) = corrected.get_person(*person_id).ok()
                 {
                     candidates.push(ListedCandidate {
                         list_id: list.id,
                         position: index + 1,
-                        person,
+                        person: person.clone(),
                     });
                 }
             }

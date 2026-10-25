@@ -1,116 +1,74 @@
-use std::{
-    collections::{HashMap, HashSet},
-    ops::Deref,
-    sync::Arc,
-};
+//! Reads on a CSB stream's projection. The political group's data at a
+//! correction level is reached through [`CsbStoreData::pg`], which hands out
+//! a [`PgStoreData`] with the getters shared with the political group app.
+
+use std::collections::{HashMap, HashSet};
 
 use super::{CsbStoreData, Scrapped, WithCorrections};
 use crate::{
-    AppError, CsbStream, ElectionConfig, ElectoralDistrict, Locale, PgEvent, PgStoreData,
+    AppError, CsbAction, ElectionConfig, ElectoralDistrict, Locale, PgEvent,
     structs::{
         brp::{BrpFinding, BrpStatus},
-        candidate_lists::{CandidateList, CandidateListId},
-        csb::{Omission, OmissionCategory, OmissionId, OmissionTitle, RecoveryProgress},
+        candidate_lists::CandidateListId,
+        common::{Appellation, FullName},
+        csb::{
+            Omission, OmissionCategory, OmissionId, OmissionTitle, PersonCorrection,
+            PersonCorrectionDelta, RecoveryProgress,
+        },
         list_designation::ListDesignation,
-        list_submitters::ListSubmitter,
-        name_authorisations::NameAuthorisation,
-        persons::{Person, PersonId},
-        political_groups::PoliticalGroup,
+        persons::PersonId,
         problems::AllProblems,
     },
     trans,
 };
 
-/// One of the political group's projections, picked from a CSB snapshot by
-/// [`WithCorrections`].
-pub struct PgView {
-    data: Arc<CsbStoreData>,
-    corrections: WithCorrections,
-}
-
-impl Deref for PgView {
-    type Target = PgStoreData;
-
-    fn deref(&self) -> &PgStoreData {
-        self.data.pg(self.corrections)
-    }
-}
-
 impl CsbStoreData {
-    /// The person (candidate) with this id, if any.
-    pub fn get_person(&self, person_id: PersonId, corrections: WithCorrections) -> Option<Person> {
-        self.pg(corrections).persons.get(&person_id).cloned()
-    }
-}
-
-impl CsbStream {
-    /// A snapshot of the political group's projection at the requested
-    /// correction level. Owned, so no lock is held while reading it.
-    pub fn read(&self, corrections: WithCorrections) -> PgView {
-        PgView {
-            data: self.snapshot(),
-            corrections,
-        }
-    }
-
     pub fn is_examination_finished(&self) -> bool {
-        let data = self.snapshot();
-
-        data.is_examination_finished
+        self.is_examination_finished
     }
 
     pub fn is_deleted(&self) -> bool {
-        let data = self.snapshot();
+        self.is_deleted
+    }
 
-        data.is_deleted
+    /// The paper corrections, as the political group's events they wrap.
+    fn paper_corrections(&self) -> impl Iterator<Item = &PgEvent> {
+        self.events
+            .iter()
+            .filter_map(|event| match &event.payload.action {
+                CsbAction::PaperCorrectedUpdate(payload) => Some(&**payload),
+                _ => None,
+            })
     }
 
     pub fn has_paper_corrections(&self) -> bool {
-        let data = self.snapshot();
-
-        data.events.iter().any(|event| {
-            matches!(
-                event.payload.action,
-                crate::CsbAction::PaperCorrectedUpdate(_)
-            )
-        })
+        self.paper_corrections().next().is_some()
     }
 
     /// Whether paper corrections changed more than which lists, districts and
     /// candidates there are: that much shows by comparing the projections.
     pub fn has_paper_corrected_values(&self) -> bool {
-        let data = self.snapshot();
-
-        data.events.iter().any(|event| match &event.payload.action {
-            crate::CsbAction::PaperCorrectedUpdate(payload) => !only_adds_or_removes(payload),
-            _ => false,
-        })
+        self.paper_corrections()
+            .any(|event| !only_adds_or_removes(event))
     }
 
-    pub fn get_omission(&self, omission_id: OmissionId) -> Result<Omission, AppError> {
-        let data = self.snapshot();
-
-        data.omissions
+    pub fn get_omission(&self, omission_id: OmissionId) -> Result<&Omission, AppError> {
+        self.omissions
             .get(&omission_id)
-            .cloned()
             .ok_or(AppError::GenericNotFound)
     }
 
     pub fn get_omission_count(&self) -> usize {
-        let data = self.snapshot();
-
-        data.omissions.len()
+        self.omissions.len()
     }
 
     /// get the total number of CSB corrections added
     pub fn get_correction_count(&self) -> usize {
-        let data = self.snapshot();
-
-        data.csb_corrected_persons
+        self.csb_corrected_persons
             .values()
             .map(|p| p.get_corrections().len())
             .sum::<usize>()
-            + data.csb_corrected_appellation.as_ref().map_or(0, |_| 1)
+            + self.get_political_group_csb_corrections_count()
     }
 
     /// get the total number of CSB corrections and omissions
@@ -120,12 +78,10 @@ impl CsbStream {
 
     /// How far the group is through the "Herstelde lijsten" phase, counted in
     /// recovery decisions (see [`RecoveryProgress`]).
-    pub fn get_recovery_progress(&self) -> RecoveryProgress {
-        let data = self.snapshot();
-
+    pub fn get_recovery_progress(&self, election: ElectionConfig) -> RecoveryProgress {
         let mut progress = RecoveryProgress::default();
-        for omission in data.omissions.values().filter(|o| o.is_actionable()) {
-            let decisions = omission.decision_count(&self.election);
+        for omission in self.omissions.values().filter(|o| o.is_actionable()) {
+            let decisions = omission.decision_count(&election);
             progress.total += decisions;
             if omission.is_pending() {
                 progress.pending += decisions;
@@ -136,14 +92,8 @@ impl CsbStream {
     }
 
     /// What the unresolved omissions scrap, as derived after the last event.
-    pub fn get_scrapped(&self) -> Scrapped {
-        self.snapshot().scrapped.clone()
-    }
-
-    /// The districts scrapped by unresolved declarations-of-support omissions,
-    /// in the election's district order.
-    pub fn get_scrapped_districts(&self) -> Vec<ElectoralDistrict> {
-        self.snapshot().scrapped.districts(&self.election)
+    pub fn get_scrapped(&self) -> &Scrapped {
+        &self.scrapped
     }
 
     /// The candidate's number in the recovery ("Herstelde lijsten") phase.
@@ -156,17 +106,15 @@ impl CsbStream {
         list_id: CandidateListId,
         person_id: PersonId,
     ) -> Option<usize> {
-        let candidates = self
-            .read(WithCorrections::All)
-            .candidate_lists
-            .get(&list_id)?
-            .candidates
-            .clone();
-        let scrapped = &self.snapshot().scrapped;
+        let candidates = &self
+            .csb_corrected_data
+            .get_candidate_list(list_id)
+            .ok()?
+            .candidates;
 
         let mut position = 0;
-        for candidate in candidates {
-            if scrapped.is_candidate_scrapped(list_id, candidate) {
+        for &candidate in candidates {
+            if self.scrapped.is_candidate_scrapped(list_id, candidate) {
                 if candidate == person_id {
                     return None;
                 }
@@ -183,162 +131,125 @@ impl CsbStream {
     }
 
     pub fn get_omissions(&self) -> Vec<Omission> {
-        let data = self.snapshot();
+        self.omissions.values().cloned().collect()
+    }
 
-        data.omissions.values().cloned().collect()
+    fn omissions_where(&self, matches: impl Fn(&Omission) -> bool) -> Vec<Omission> {
+        self.omissions
+            .values()
+            .filter(|omission| matches(omission))
+            .cloned()
+            .collect()
     }
 
     pub fn get_political_group_omissions(&self) -> Vec<Omission> {
-        let data = self.snapshot();
-
-        data.omissions
-            .values()
-            .filter(|o| matches!(o.category, OmissionCategory::PoliticalGroup))
-            .cloned()
-            .collect()
+        self.omissions_where(|o| matches!(o.category, OmissionCategory::PoliticalGroup))
     }
 
     pub fn get_appellation_omissions(&self) -> Vec<Omission> {
-        let data = self.snapshot();
-
-        data.omissions
-            .values()
-            .filter(|o| matches!(o.category, OmissionCategory::Appellation))
-            .cloned()
-            .collect()
+        self.omissions_where(|o| matches!(o.category, OmissionCategory::Appellation))
     }
 
     pub fn get_political_group_csb_corrections_count(&self) -> usize {
-        let data = self.snapshot();
-
-        match data.csb_corrected_appellation {
-            Some(_) => 1,
-            None => 0,
-        }
+        usize::from(self.csb_corrected_appellation.is_some())
     }
 
-    pub fn get_candidate_omissions(&self, person_id: PersonId) -> Vec<Omission> {
-        let mut omissions: Vec<Omission> = self
-            .snapshot()
-            .omissions
-            .values()
-            .filter(|o| matches!(&o.category, OmissionCategory::Candidate { person, .. } if *person == person_id))
-            .cloned()
-            .collect();
-
-        omissions.sort_by_cached_key(|omission| self.title_order(omission));
+    /// The candidate's omissions in title order.
+    pub fn get_candidate_omissions(
+        &self,
+        person_id: PersonId,
+        election: ElectionConfig,
+    ) -> Vec<Omission> {
+        let mut omissions = self.omissions_where(
+            |o| matches!(&o.category, OmissionCategory::Candidate { person, .. } if *person == person_id),
+        );
+        omissions.sort_by_cached_key(|omission| self.title_order(omission, election));
         omissions
     }
 
     /// Whether a candidate has omissions for a specific list
     pub fn has_candidate_omissions(&self, person_id: PersonId, list_id: CandidateListId) -> bool {
-        self.get_candidate_omissions(person_id).iter().any(|o| {
-            if let OmissionCategory::Candidate {
-                person: _person,
-                lists,
-            } = o.category.clone()
-            {
-                lists.contains(&list_id)
-            } else {
-                false
-            }
+        self.omissions.values().any(|o| {
+            matches!(&o.category, OmissionCategory::Candidate { person, lists }
+                if *person == person_id && lists.contains(&list_id))
         })
     }
 
     /// Whether a candidate has csb corrections
     pub fn has_candidate_csb_corrections(&self, person_id: PersonId) -> bool {
-        self.get_all_csb_corrected_persons().contains(&person_id)
+        self.csb_corrected_persons.contains_key(&person_id)
     }
 
     /// Whether the paper corrections changed or added the candidate.
     pub fn is_person_paper_corrected(&self, person_id: PersonId) -> bool {
-        let data = self.snapshot();
-
-        data.get_person(person_id, WithCorrections::None)
-            != data.get_person(person_id, WithCorrections::Paper)
+        self.pg(WithCorrections::None).get_person(person_id).ok()
+            != self.pg(WithCorrections::Paper).get_person(person_id).ok()
     }
 
-    /// Return all candidate-list omissions that reference the given list.
+    fn candidate_list_omissions(&self, list_id: CandidateListId) -> Vec<Omission> {
+        self.omissions_where(|o| {
+            matches!(&o.category, OmissionCategory::CandidateList(lists) if lists.contains(&list_id))
+        })
+    }
+
+    /// All candidate-list omissions that reference the given list, in title
+    /// order.
     pub fn get_candidate_list_omissions(
         &self,
         list_id: CandidateListId,
+        election: ElectionConfig,
     ) -> Result<Vec<Omission>, AppError> {
-        if self
-            .get_candidate_list(list_id, WithCorrections::All)
-            .is_none()
-        {
-            return Err(AppError::GenericNotFound);
-        }
+        self.csb_corrected_data.get_candidate_list(list_id)?;
 
-        let mut omissions: Vec<Omission> = self
-            .snapshot()
-            .omissions
-            .values()
-            .filter(|o| {
-                matches!(&o.category, OmissionCategory::CandidateList(lists)
-                    if lists.contains(&list_id))
-            })
-            .cloned()
-            .collect();
-
-        omissions.sort_by_cached_key(|omission| self.title_order(omission));
+        let mut omissions = self.candidate_list_omissions(list_id);
+        omissions.sort_by_cached_key(|omission| self.title_order(omission, election));
         Ok(omissions)
     }
 
-    /// Returns if the candidate list or any of its candidates has omissions
+    /// Whether the candidate list or any of its candidates has omissions
     pub fn has_candidate_list_omissions(&self, list_id: CandidateListId) -> Result<bool, AppError> {
-        if !self.get_candidate_list_omissions(list_id)?.is_empty() {
-            return Ok(true);
-        }
-        for candidate in self
-            .get_candidate_list(list_id, WithCorrections::All)
-            .ok_or(AppError::GenericNotFound)?
-            .candidates
-        {
-            if self.has_candidate_omissions(candidate, list_id) {
-                return Ok(true);
-            }
-        }
-        Ok(false)
+        let list = self.csb_corrected_data.get_candidate_list(list_id)?;
+
+        Ok(!self.candidate_list_omissions(list_id).is_empty()
+            || list
+                .candidates
+                .iter()
+                .any(|&candidate| self.has_candidate_omissions(candidate, list_id)))
     }
 
-    /// Returns if the candidate list has any candidates with csb corrections
+    /// Whether the candidate list has any candidates with csb corrections
     pub fn has_candidate_list_csb_corrections(
         &self,
         list_id: CandidateListId,
     ) -> Result<bool, AppError> {
-        let candidates_on_list = self
-            .get_candidate_list(list_id, WithCorrections::All)
-            .ok_or(AppError::GenericNotFound)?
+        let list = self.csb_corrected_data.get_candidate_list(list_id)?;
+
+        Ok(list
             .candidates
-            .into_iter()
-            .collect::<HashSet<_>>();
-        let candidates_with_correction = self
-            .get_all_csb_corrected_persons()
-            .into_iter()
-            .collect::<HashSet<_>>();
-        Ok(!candidates_on_list.is_disjoint(&candidates_with_correction))
+            .iter()
+            .any(|candidate| self.csb_corrected_persons.contains_key(candidate)))
     }
 
-    pub fn get_all_declarations_of_support_omissions(&self) -> Vec<Omission> {
-        let mut omissions: Vec<Omission> = self
-            .snapshot()
-            .omissions
-            .values()
-            .filter(|o| matches!(o.category, OmissionCategory::DeclarationsOfSupport(_)))
-            .cloned()
-            .collect();
-
-        omissions.sort_by_cached_key(|omission| self.title_order(omission));
+    pub fn get_all_declarations_of_support_omissions(
+        &self,
+        election: ElectionConfig,
+    ) -> Vec<Omission> {
+        let mut omissions = self
+            .omissions_where(|o| matches!(o.category, OmissionCategory::DeclarationsOfSupport(_)));
+        omissions.sort_by_cached_key(|omission| self.title_order(omission, election));
         omissions
     }
 
     /// Sort key putting omissions in title order, then district order, so the
     /// parts of a split stay together.
-    pub(crate) fn title_order(&self, omission: &Omission) -> (OmissionTitle, usize) {
-        let order = self.election.electoral_districts();
+    pub(crate) fn title_order(
+        &self,
+        omission: &Omission,
+        election: ElectionConfig,
+    ) -> (OmissionTitle, usize) {
+        let order = election.electoral_districts();
         let first_district = self
-            .omission_districts(omission)
+            .omission_districts(omission, election)
             .first()
             .and_then(|district| order.iter().position(|d| d == district))
             .unwrap_or(usize::MAX);
@@ -347,8 +258,12 @@ impl CsbStream {
     }
 
     /// The districts an omission touches, directly or through its lists.
-    fn omission_districts(&self, omission: &Omission) -> Vec<ElectoralDistrict> {
-        let districts = omission.electoral_districts(&self.election);
+    fn omission_districts(
+        &self,
+        omission: &Omission,
+        election: ElectionConfig,
+    ) -> Vec<ElectoralDistrict> {
+        let districts = omission.electoral_districts(&election);
         if !districts.is_empty() {
             return districts.to_vec();
         }
@@ -356,116 +271,47 @@ impl CsbStream {
         omission
             .candidate_lists()
             .iter()
-            .filter_map(|list_id| self.get_candidate_list(*list_id, WithCorrections::All))
-            .flat_map(|list| list.electoral_districts)
+            .filter_map(|list_id| self.csb_corrected_data.get_candidate_list(*list_id).ok())
+            .flat_map(|list| list.electoral_districts.iter().copied())
             .collect()
-    }
-
-    pub fn get_political_group(&self, corrections: WithCorrections) -> PoliticalGroup {
-        self.read(corrections).political_group.clone()
-    }
-
-    pub fn get_candidate_lists(&self, corrections: WithCorrections) -> Vec<CandidateList> {
-        self.read(corrections)
-            .candidate_lists
-            .values()
-            .cloned()
-            .collect()
-    }
-
-    /// The candidate lists in the order the pages show them: by their lowest
-    /// district number.
-    pub fn get_candidate_lists_in_page_order(
-        &self,
-        corrections: WithCorrections,
-    ) -> Vec<CandidateList> {
-        let mut lists = self.get_candidate_lists(corrections);
-        lists.sort_by_key(|list| {
-            list.electoral_districts
-                .iter()
-                .map(ElectoralDistrict::region_number)
-                .min()
-                .unwrap_or_default()
-        });
-        lists
-    }
-
-    /// The candidate list with this id, if any.
-    pub fn get_candidate_list(
-        &self,
-        list_id: CandidateListId,
-        corrections: WithCorrections,
-    ) -> Option<CandidateList> {
-        self.read(corrections)
-            .candidate_lists
-            .get(&list_id)
-            .cloned()
-    }
-
-    /// The person (candidate) with this id, if any.
-    pub fn get_person(&self, person_id: PersonId, corrections: WithCorrections) -> Option<Person> {
-        self.snapshot().get_person(person_id, corrections)
-    }
-
-    /// Retrieve the first [CandidateList] (ordered on creation date) the person appears on,
-    /// or [None] if the person does not appear on any list
-    pub fn get_first_list(&self, person_id: PersonId) -> Option<CandidateList> {
-        let mut lists = self.get_candidate_lists(WithCorrections::All);
-        lists.sort_unstable_by_key(|list| list.created_at);
-        lists
-            .iter()
-            .find(|list| list.candidates.contains(&person_id))
-            .cloned()
     }
 
     pub fn get_all_csb_corrected_persons(&self) -> Vec<PersonId> {
-        self.snapshot()
-            .csb_corrected_persons
-            .keys()
-            .cloned()
-            .collect()
+        self.csb_corrected_persons.keys().copied().collect()
     }
 
-    /// The name of the first candidate across all candidate lists, sorted by list
-    /// creation date. Include a [Scrapped] projection to get the first unscrapped
-    /// candidate from the first unscrapped created list.
+    /// The committee's corrections on a candidate, if any.
+    pub fn get_person_corrections(&self, person_id: PersonId) -> HashSet<PersonCorrection> {
+        self.csb_corrected_persons
+            .get(&person_id)
+            .map(PersonCorrectionDelta::get_corrections)
+            .unwrap_or_default()
+    }
+
+    /// The committee's correction of the appellation, if any.
+    pub fn get_csb_corrected_appellation(&self) -> Option<&Appellation> {
+        self.csb_corrected_appellation.as_ref()
+    }
+
+    /// The name of the first candidate across all candidate lists, sorted by
+    /// list creation date. Include a [Scrapped] projection to get the first
+    /// unscrapped candidate from the first unscrapped created list.
     /// Returns `None` when no candidates are available.
     pub fn get_first_candidate_name(
         &self,
         corrections: WithCorrections,
         scrapped: Option<&Scrapped>,
-    ) -> Option<crate::structs::common::FullName> {
-        let mut lists = self.get_candidate_lists(corrections);
-        lists.sort_unstable_by_key(|l| l.created_at);
-        lists
-            .into_iter()
-            .filter(|l| {
-                if let Some(scrapped) = &scrapped {
-                    !scrapped.is_list_scrapped(l.id)
-                } else {
-                    true
-                }
+    ) -> Option<&FullName> {
+        let data = self.pg(corrections);
+        data.candidates_in_list_order()
+            .filter(|(list, person)| {
+                scrapped.is_none_or(|scrapped| {
+                    !scrapped.is_list_scrapped(*list)
+                        && !scrapped.is_candidate_scrapped(*list, *person)
+                })
             })
-            .flat_map(|list| {
-                list.candidates
-                    .into_iter()
-                    .map(move |person| (list.id, person))
-            })
-            .find(|(list, person)| {
-                if let Some(scrapped) = &scrapped {
-                    !scrapped.is_candidate_scrapped(*list, *person)
-                } else {
-                    true
-                }
-            })
-            .and_then(|(_, id)| self.get_person(id, corrections))
-            .map(|p| p.name)
-    }
-
-    /// Short-hand to get the appellation of the political group (including special names for blank lists)
-    pub fn get_appellation(&self, corrections: WithCorrections) -> String {
-        let political_group = self.get_political_group(corrections);
-        political_group.csb_appellation(self.get_first_candidate_name(corrections, None).as_ref())
+            .find_map(|(_, person)| data.get_person(person).ok())
+            .map(|person| &person.name)
     }
 
     pub fn get_appellation_with_scrapped(
@@ -473,27 +319,23 @@ impl CsbStream {
         corrections: WithCorrections,
         scrapped: &Scrapped,
     ) -> String {
-        let mut political_group = self.get_political_group(corrections);
+        let mut political_group = self.pg(corrections).get_political_group().clone();
         if scrapped.is_appellation_scrapped() {
             political_group.list_designation = Some(ListDesignation::Blank);
         }
-        political_group.csb_appellation(
-            self.get_first_candidate_name(corrections, Some(scrapped))
-                .as_ref(),
-        )
+        political_group.csb_appellation(self.get_first_candidate_name(corrections, Some(scrapped)))
     }
 
-    /// Short-hand to get the appellation of the political group (including special names for blank lists).
-    /// Additionally includes a deleted label when the political group has been deleted
+    /// The appellation of the political group (including special names for
+    /// blank lists), with a deleted label when the political group has been
+    /// deleted.
     pub fn get_appellation_with_deleted_label(
         &self,
         corrections: WithCorrections,
         locale: Locale,
     ) -> String {
-        let political_group = self.get_political_group(corrections);
-        let appellation = political_group
-            .csb_appellation(self.get_first_candidate_name(corrections, None).as_ref());
-        if self.is_deleted() {
+        let appellation = self.pg(corrections).get_appellation();
+        if self.is_deleted {
             format!(
                 "{appellation} ({})",
                 trans!("csb.group.deleted_label", locale)
@@ -503,71 +345,35 @@ impl CsbStream {
         }
     }
 
-    /// One-based position of the candidate on the given list
-    pub fn get_candidate_position(
-        &self,
-        list_id: CandidateListId,
-        person_id: PersonId,
-        corrections: WithCorrections,
-    ) -> Option<usize> {
-        self.read(corrections)
-            .candidate_lists
-            .get(&list_id)?
-            .position_of(person_id)
-    }
-
-    pub fn get_list_submitter(&self, corrections: WithCorrections) -> ListSubmitter {
-        self.read(corrections).list_submitter.clone()
-    }
-
-    pub fn get_substitute_submitters(&self, corrections: WithCorrections) -> Vec<ListSubmitter> {
-        self.read(corrections).substitute_submitters.clone()
-    }
-
-    pub fn get_name_authorisations(&self, corrections: WithCorrections) -> Vec<NameAuthorisation> {
-        self.read(corrections)
-            .name_authorisations
-            .values()
-            .cloned()
-            .collect()
-    }
-
-    /// Every candidate, with the corrections `corrections` asks for.
-    pub fn get_persons(&self, corrections: WithCorrections) -> Vec<Person> {
-        self.read(corrections).persons.values().cloned().collect()
-    }
-
     /// Per checked candidate; candidates absent from the map were not checked.
-    pub fn get_brp_findings(&self) -> HashMap<PersonId, Vec<BrpFinding>> {
-        self.snapshot().brp_findings.clone()
+    pub fn get_brp_findings(&self) -> &HashMap<PersonId, Vec<BrpFinding>> {
+        &self.brp_findings
     }
 
     /// An empty list covers both "checked, nothing found" and "not checked";
     /// use [`Self::get_brp_findings`] when the difference matters.
-    pub fn get_brp_findings_for_person(&self, person_id: PersonId) -> Vec<BrpFinding> {
-        self.snapshot()
-            .brp_findings
+    pub fn get_brp_findings_for_person(&self, person_id: PersonId) -> &[BrpFinding] {
+        self.brp_findings
             .get(&person_id)
-            .cloned()
+            .map(Vec::as_slice)
             .unwrap_or_default()
     }
 
     /// Whether this candidate has been checked, findings or not.
     pub fn is_brp_checked(&self, person_id: PersonId) -> bool {
-        self.snapshot().brp_findings.contains_key(&person_id)
+        self.brp_findings.contains_key(&person_id)
     }
 
     /// How far the BRP sweep for this stream got.
-    pub fn get_brp_status(&self) -> BrpStatus {
-        self.snapshot().brp_validation_status.clone()
+    pub fn get_brp_status(&self) -> &BrpStatus {
+        &self.brp_validation_status
     }
 
     /// Return the single stored omission. Test-only helper for asserting on
     /// omissions whose category has no dedicated getter (e.g. candidate lists).
     #[cfg(test)]
     pub fn get_omission_for_test(&self) -> Omission {
-        self.snapshot()
-            .omissions
+        self.omissions
             .values()
             .next()
             .cloned()
@@ -577,7 +383,7 @@ impl CsbStream {
     /// Collect all problems of the fully corrected data, excluding info
     /// problems.
     pub fn get_all_problems(&self, election: ElectionConfig) -> Result<AllProblems, AppError> {
-        AllProblems::find_all(&self.snapshot().csb_corrected_data, election).map(|mut problems| {
+        AllProblems::find_all(&self.csb_corrected_data, election).map(|mut problems| {
             problems.info_problems = Vec::new();
             problems
         })
@@ -602,7 +408,10 @@ fn only_adds_or_removes(event: &PgEvent) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{BTreeMap, BTreeSet};
+    use std::{
+        collections::{BTreeMap, BTreeSet},
+        sync::Arc,
+    };
 
     use super::*;
     use crate::{
@@ -616,6 +425,7 @@ mod tests {
                 PersonCorrectionDelta, sample_omission,
             },
             list_designation::ListDesignation,
+            political_groups::PoliticalGroup,
         },
         test_utils::{sample_candidate_list, sample_person, sample_person_with},
     };
@@ -633,8 +443,9 @@ mod tests {
         let person = sample_person(PersonId::new());
         store.add_person(person.clone());
 
-        assert!(!store.is_person_paper_corrected(person.id));
-        assert!(!store.is_person_paper_corrected(PersonId::new()));
+        let data = store.snapshot();
+        assert!(!data.is_person_paper_corrected(person.id));
+        assert!(!data.is_person_paper_corrected(PersonId::new()));
     }
 
     #[test]
@@ -646,7 +457,7 @@ mod tests {
         on_paper.name.last_name = "Gewijzigd".parse().unwrap();
         store.set_paper_corrected_person(on_paper);
 
-        assert!(store.is_person_paper_corrected(person.id));
+        assert!(store.snapshot().is_person_paper_corrected(person.id));
     }
 
     #[test]
@@ -655,7 +466,7 @@ mod tests {
         let person = sample_person(PersonId::new());
         store.set_paper_corrected_person(person.clone());
 
-        assert!(store.is_person_paper_corrected(person.id));
+        assert!(store.snapshot().is_person_paper_corrected(person.id));
     }
 
     #[tokio::test]
@@ -670,8 +481,9 @@ mod tests {
             )))
             .await?;
 
-        assert!(store.has_candidate_csb_corrections(person.id));
-        assert!(!store.is_person_paper_corrected(person.id));
+        let data = store.snapshot();
+        assert!(data.has_candidate_csb_corrections(person.id));
+        assert!(!data.is_person_paper_corrected(person.id));
 
         Ok(())
     }
@@ -709,7 +521,7 @@ mod tests {
 
         // The irreparable omission needs no decision and is not actionable.
         assert_eq!(
-            store.get_recovery_progress(),
+            store.snapshot().get_recovery_progress(store.election),
             RecoveryProgress {
                 pending: 1,
                 total: 2
@@ -739,13 +551,27 @@ mod tests {
             OmissionStatus::NotRecovered,
         );
 
-        assert_eq!(store.get_recovery_position(list_id, first), Some(1));
+        assert_eq!(
+            store.snapshot().get_recovery_position(list_id, first),
+            Some(1)
+        );
         // The scrapped candidate keeps its place in the order but loses its
         // number, so the candidate below moves up.
-        assert_eq!(store.get_recovery_position(list_id, scrapped), None);
-        assert_eq!(store.get_recovery_position(list_id, last), Some(2));
+        assert_eq!(
+            store.snapshot().get_recovery_position(list_id, scrapped),
+            None
+        );
+        assert_eq!(
+            store.snapshot().get_recovery_position(list_id, last),
+            Some(2)
+        );
 
-        assert_eq!(store.get_recovery_position(list_id, PersonId::new()), None);
+        assert_eq!(
+            store
+                .snapshot()
+                .get_recovery_position(list_id, PersonId::new()),
+            None
+        );
     }
 
     #[test]
@@ -757,7 +583,7 @@ mod tests {
             OmissionCategory::CandidateList(vec![CandidateListId::new()]),
         );
 
-        let result = store.get_political_group_omissions();
+        let result = store.snapshot().get_political_group_omissions();
 
         assert_eq!(result.len(), 1);
         assert!(matches!(
@@ -774,7 +600,7 @@ mod tests {
             OmissionCategory::CandidateList(vec![CandidateListId::new()]),
         );
 
-        assert!(store.get_political_group_omissions().is_empty());
+        assert!(store.snapshot().get_political_group_omissions().is_empty());
     }
 
     #[test]
@@ -798,7 +624,8 @@ mod tests {
         );
         insert(&store, OmissionCategory::PoliticalGroup);
 
-        let result = store.get_candidate_omissions(person_a);
+        let data = store.snapshot();
+        let result = data.get_candidate_omissions(person_a, store.election);
 
         assert_eq!(result.len(), 1);
         assert!(
@@ -817,7 +644,12 @@ mod tests {
             },
         );
 
-        assert!(store.get_candidate_omissions(PersonId::new()).is_empty());
+        assert!(
+            store
+                .snapshot()
+                .get_candidate_omissions(PersonId::new(), store.election)
+                .is_empty()
+        );
     }
 
     #[test]
@@ -839,8 +671,13 @@ mod tests {
         insert(&store, OmissionCategory::CandidateList(vec![list_b]));
         insert(&store, OmissionCategory::PoliticalGroup);
 
-        let result_a = store.get_candidate_list_omissions(list_a).unwrap();
-        let result_b = store.get_candidate_list_omissions(list_b).unwrap();
+        let data = store.snapshot();
+        let result_a = data
+            .get_candidate_list_omissions(list_a, store.election)
+            .unwrap();
+        let result_b = data
+            .get_candidate_list_omissions(list_b, store.election)
+            .unwrap();
 
         assert_eq!(result_a.len(), 1);
         assert!(
@@ -867,15 +704,18 @@ mod tests {
             ..Default::default()
         });
 
-        let list = store
-            .get_candidate_list(list_id, WithCorrections::None)
+        let data = store.snapshot();
+        let list = data
+            .pg(WithCorrections::None)
+            .get_candidate_list(list_id)
             .unwrap();
         assert_eq!(
             list.electoral_districts,
             BTreeSet::from([ElectoralDistrict::Utrecht])
         );
-        let list = store
-            .get_candidate_list(list_id, WithCorrections::Paper)
+        let list = data
+            .pg(WithCorrections::Paper)
+            .get_candidate_list(list_id)
             .unwrap();
         assert_eq!(
             list.electoral_districts,
@@ -889,17 +729,25 @@ mod tests {
         let person_id = PersonId::new();
         let person = sample_person_with(person_id, None, "Jansen", None, "A.B.");
         let mut data = store.write();
-        std::sync::Arc::make_mut(&mut data.paper_corrected_data)
+        Arc::make_mut(&mut data.paper_corrected_data)
             .persons
             .insert(person_id, person);
         data.refresh_derived();
         drop(data);
 
-        assert!(store.get_person(person_id, WithCorrections::None).is_none());
         assert!(
             store
-                .get_person(person_id, WithCorrections::Paper)
-                .is_some()
+                .snapshot()
+                .pg(WithCorrections::None)
+                .get_person(person_id)
+                .is_err()
+        );
+        assert!(
+            store
+                .snapshot()
+                .pg(WithCorrections::Paper)
+                .get_person(person_id)
+                .is_ok()
         );
     }
 
@@ -913,7 +761,8 @@ mod tests {
 
         assert!(
             store
-                .get_candidate_list_omissions(CandidateListId::new())
+                .snapshot()
+                .get_candidate_list_omissions(CandidateListId::new(), store.election)
                 .is_err()
         );
     }
@@ -924,7 +773,9 @@ mod tests {
 
         assert!(
             store
-                .get_substitute_submitters(WithCorrections::All)
+                .snapshot()
+                .pg(WithCorrections::All)
+                .get_substitute_submitters()
                 .is_empty()
         );
     }
@@ -938,7 +789,10 @@ mod tests {
             ..Default::default()
         });
 
-        assert_eq!(store.get_appellation(WithCorrections::All), "Kiesraad Demo");
+        assert_eq!(
+            store.snapshot().pg(WithCorrections::All).get_appellation(),
+            "Kiesraad Demo"
+        );
     }
 
     #[test]
@@ -959,7 +813,7 @@ mod tests {
         store.add_candidate_list(list);
 
         assert_eq!(
-            store.get_appellation(WithCorrections::All),
+            store.snapshot().pg(WithCorrections::All).get_appellation(),
             "Blanco (Jansen, A.B.)"
         );
     }
@@ -1006,11 +860,12 @@ mod tests {
 
         assert!(scrapped.is_list_scrapped(scrapped_list_id));
 
-        let name = store
+        let data = store.snapshot();
+        let name = data
             .get_first_candidate_name(WithCorrections::All, Some(&scrapped))
             .unwrap();
 
-        assert_eq!(name, present_person.name);
+        assert_eq!(*name, present_person.name);
     }
 
     #[test]
@@ -1021,7 +876,10 @@ mod tests {
             ..Default::default()
         });
 
-        assert_eq!(store.get_appellation(WithCorrections::All), "Blanco");
+        assert_eq!(
+            store.snapshot().pg(WithCorrections::All).get_appellation(),
+            "Blanco"
+        );
     }
 
     #[test]
@@ -1040,12 +898,13 @@ mod tests {
         data.refresh_derived();
         drop(data);
 
-        let corrected = store.get_persons(WithCorrections::All);
+        let data = store.snapshot();
+        let corrected = data.pg(WithCorrections::All).get_persons();
         assert_eq!(corrected.len(), 1);
         assert_eq!(corrected[0].name.last_name.to_string(), "Gecorrigeerd");
 
         // The imported data is untouched.
-        let imported = store.get_persons(WithCorrections::None);
+        let imported = data.pg(WithCorrections::None).get_persons();
         assert_eq!(imported[0].name.last_name.to_string(), "Jansen");
     }
 }

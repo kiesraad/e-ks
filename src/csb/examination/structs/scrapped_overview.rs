@@ -1,5 +1,5 @@
 use crate::{
-    CsbStream, ElectoralDistrict, csb::examination::extractors::CsbPoliticalGroup,
+    CsbStoreData, ElectoralDistrict, csb::examination::extractors::CsbPoliticalGroup,
     projection::WithCorrections, structs::persons::Person,
 };
 
@@ -82,12 +82,14 @@ impl ScrappedOverview {
     }
 }
 
-impl CsbStream {
+impl CsbStoreData {
     /// What is scrapped from this group, over the corrected lists: those are
     /// the lists the committee examines.
     pub fn get_scrapped_overview(&self, political_group: &CsbPoliticalGroup) -> ScrappedOverview {
         let scrapped = &political_group.scrapped;
-        let lists = self.get_candidate_lists_in_page_order(WithCorrections::All);
+        let lists = self
+            .pg(WithCorrections::All)
+            .get_candidate_lists_in_page_order();
 
         let appellation = scrapped
             .is_appellation_scrapped()
@@ -102,7 +104,7 @@ impl CsbStream {
             });
 
         let districts = scrapped
-            .districts(&self.election)
+            .districts(&political_group.election)
             .into_iter()
             .map(|district| ScrappedDistrict {
                 district,
@@ -128,11 +130,11 @@ impl CsbStream {
                 list.candidates
                     .iter()
                     .filter(|person| scrapped.is_candidate_scrapped(list.id, **person))
-                    .filter_map(|person| self.get_person(*person, WithCorrections::All))
+                    .filter_map(|person| self.pg(WithCorrections::All).get_person(*person).ok())
                     .map(|person| ScrappedCandidate {
                         path: political_group.candidate_path(&list.id, &person.id),
                         list_districts: list.electoral_districts.iter().copied().collect(),
-                        person,
+                        person: person.clone(),
                     })
                     .collect::<Vec<_>>()
             })
@@ -191,7 +193,7 @@ mod tests {
     }
 
     fn overview(store: &CsbStore) -> ScrappedOverview {
-        store.get_scrapped_overview(
+        store.snapshot().get_scrapped_overview(
             &CsbPoliticalGroup::new_from_csb_store(store).with_mode(CsbPhase::Recovery),
         )
     }
