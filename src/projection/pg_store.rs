@@ -333,7 +333,7 @@ mod tests {
         let created_at = Utc::now() - age;
 
         for event_id in 1..=count {
-            store.apply_event(StoreEvent::new_at(
+            store.write().apply(StoreEvent::new_at(
                 event_id,
                 PgEvent::DeletePerson {
                     person_id: PersonId::new(),

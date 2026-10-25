@@ -25,13 +25,13 @@ use crate::{
 /// Event-sourced domain projection for a single (stream, election) pair.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct PgStoreData {
-    pub(crate) political_group: PoliticalGroup,
-    pub(crate) persons: HashMap<PersonId, Person>,
-    pub(crate) candidate_lists: HashMap<CandidateListId, CandidateList>,
-    pub(crate) name_authorisations: HashMap<NameAuthorisationId, NameAuthorisation>,
-    pub(crate) list_submitter: ListSubmitter,
-    pub(crate) substitute_submitters: Vec<ListSubmitter>,
-    pub(crate) events: Vec<StoreEvent<PgEvent>>,
+    pub(super) political_group: PoliticalGroup,
+    pub(super) persons: HashMap<PersonId, Person>,
+    pub(super) candidate_lists: HashMap<CandidateListId, CandidateList>,
+    pub(super) name_authorisations: HashMap<NameAuthorisationId, NameAuthorisation>,
+    pub(super) list_submitter: ListSubmitter,
+    pub(super) substitute_submitters: Vec<ListSubmitter>,
+    pub(super) events: Vec<StoreEvent<PgEvent>>,
 }
 
 impl StoreData for PgStoreData {
@@ -105,6 +105,42 @@ impl StoreData for PgStoreData {
 
     fn scope() -> Scope {
         Scope::PoliticalGroup
+    }
+}
+
+#[cfg(test)]
+impl PgStoreData {
+    /// Test builders for a projection with the given entities, without
+    /// events behind them.
+    pub fn with_person(mut self, person: Person) -> Self {
+        self.persons.insert(person.id, person);
+        self
+    }
+
+    pub fn with_candidate_list(mut self, list: CandidateList) -> Self {
+        self.candidate_lists.insert(list.id, list);
+        self
+    }
+
+    pub fn with_political_group(mut self, political_group: PoliticalGroup) -> Self {
+        self.political_group = political_group;
+        self
+    }
+
+    pub fn with_list_submitter(mut self, submitter: ListSubmitter) -> Self {
+        self.list_submitter = submitter;
+        self
+    }
+
+    pub fn with_substitute_submitter(mut self, submitter: ListSubmitter) -> Self {
+        self.substitute_submitters.push(submitter);
+        self
+    }
+
+    pub fn with_name_authorisation(mut self, authorisation: NameAuthorisation) -> Self {
+        self.name_authorisations
+            .insert(authorisation.id, authorisation);
+        self
     }
 }
 

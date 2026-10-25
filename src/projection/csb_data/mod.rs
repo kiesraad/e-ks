@@ -35,23 +35,23 @@ use crate::{
 pub struct CsbStoreData {
     /// The three projections are shared (`Arc`) so a paper-corrections handle
     /// and a copy-on-write clone of this struct never copy them.
-    pub(crate) imported_data: Arc<PgStoreData>,
-    pub(crate) paper_corrected_data: Arc<PgStoreData>,
+    pub(super) imported_data: Arc<PgStoreData>,
+    pub(super) paper_corrected_data: Arc<PgStoreData>,
     /// The paper corrected data with the committee's own ("ambtshalve")
     /// corrections applied; derived again whenever either input changes.
-    pub(crate) csb_corrected_data: Arc<PgStoreData>,
-    pub(crate) events: Vec<StoreEvent<CsbEvent>>,
-    pub(crate) is_examination_finished: bool,
-    pub(crate) is_deleted: bool,
-    pub(crate) omissions: HashMap<OmissionId, Omission>,
+    pub(super) csb_corrected_data: Arc<PgStoreData>,
+    pub(super) events: Vec<StoreEvent<CsbEvent>>,
+    pub(super) is_examination_finished: bool,
+    pub(super) is_deleted: bool,
+    pub(super) omissions: HashMap<OmissionId, Omission>,
     /// A checked candidate is present even with no findings, which keeps a
     /// repeated sweep from checking them again.
-    pub(crate) brp_findings: HashMap<PersonId, Vec<BrpFinding>>,
-    pub(crate) brp_validation_status: BrpStatus,
-    pub(crate) csb_corrected_persons: HashMap<PersonId, PersonCorrectionDelta>,
-    pub(crate) csb_corrected_appellation: Option<Appellation>,
+    pub(super) brp_findings: HashMap<PersonId, Vec<BrpFinding>>,
+    pub(super) brp_validation_status: BrpStatus,
+    pub(super) csb_corrected_persons: HashMap<PersonId, PersonCorrectionDelta>,
+    pub(super) csb_corrected_appellation: Option<Appellation>,
     /// What the unresolved omissions scrap; derived again after every event.
-    pub(crate) scrapped: Scrapped,
+    pub(super) scrapped: Scrapped,
 }
 
 impl StoreData for CsbStoreData {

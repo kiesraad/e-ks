@@ -145,10 +145,9 @@ mod tests {
                 CsbAction::Import {
                     hash: [0u8; 32],
                     source_stream_id: StreamId::new(),
-                    snapshot: Box::new(PgStoreData {
-                        political_group: sample_political_group(),
-                        ..PgStoreData::default()
-                    }),
+                    snapshot: Box::new(
+                        PgStoreData::default().with_political_group(sample_political_group()),
+                    ),
                 }
                 .by(CsbUser::new_test()),
             )

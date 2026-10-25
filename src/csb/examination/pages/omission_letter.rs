@@ -225,15 +225,15 @@ mod tests {
         CsbAction::Import {
             hash: [0u8; 32],
             source_stream_id: StreamId::new(),
-            snapshot: Box::new(PgStoreData {
-                political_group: PoliticalGroup {
-                    appellation: Some(appellation.parse().unwrap()),
-                    list_designation: Some(ListDesignation::Standalone),
-                    ..Default::default()
-                },
-                list_submitter: sample_list_submitter(ListSubmitterId::new()),
-                ..PgStoreData::default()
-            }),
+            snapshot: Box::new(
+                PgStoreData::default()
+                    .with_political_group(PoliticalGroup {
+                        appellation: Some(appellation.parse().unwrap()),
+                        list_designation: Some(ListDesignation::Standalone),
+                        ..Default::default()
+                    })
+                    .with_list_submitter(sample_list_submitter(ListSubmitterId::new())),
+            ),
         }
     }
 

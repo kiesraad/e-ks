@@ -873,6 +873,13 @@ parameterized over a projection type `D`:
   to the CSB stream instead. Handlers are agnostic to which target they write
   to.
 
+A projection only changes by applying events. `Store::apply_event` is private
+to the store module, `Store::replace` only accepts in-memory projections, and
+the fields of `PgStoreData` and `CsbStoreData` are private to `src/projection`,
+so nothing outside it can build or mutate a projection except through
+`StoreData::apply`; tests use the `#[cfg(test)]` setters on `CsbStream` and the
+builders on `PgStoreData`.
+
 Two operations drive a `Store`:
 
 - **`load()`** replays persisted events into the projection. It applies only
