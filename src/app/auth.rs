@@ -101,6 +101,20 @@ impl AppState {
     }
 }
 
+/// The eID identifier types (`NameQualifier`, eID §10.1) this application
+/// accepts. Both name a BSN, so one value is one person. A pseudonym lives in
+/// a different namespace: its value could collide with a BSN, and the stream
+/// derivation below keys on the value alone, so pseudonyms are refused rather
+/// than silently mapped onto a BSN holder's stream.
+const ACCEPTED_ID_TYPES: &[&str] = &[
+    "urn:nl-eid-gdi:1.0:id:legacy-BSN",
+    "urn:nl-eid-gdi:1.0:id:BSN",
+];
+
+fn is_accepted_id_type(name_qualifier: &str) -> bool {
+    ACCEPTED_ID_TYPES.contains(&name_qualifier.trim())
+}
+
 impl AuthState for AppState {
     async fn on_authenticated(
         &self,
@@ -109,6 +123,18 @@ impl AuthState for AppState {
         jar: CookieJar,
         headers: &HeaderMap,
     ) -> Response {
+        if !is_accepted_id_type(&subject_id.name_qualifier) {
+            warn!(
+                event = "auth.failed",
+                name_qualifier = %subject_id.name_qualifier,
+                "authenticated with an unsupported identifier type"
+            );
+            // The RD answered this browser's own flow, so end the session as
+            // for any other failed login (TVS L10).
+            return self
+                .on_authentication_failed(AuthFailure::Error, jar, true)
+                .await;
+        }
         let id_code = subject_id.value;
         let stream_id = self.id_deriver.derive_stream_id(&id_code);
 
@@ -221,5 +247,18 @@ fn ended_session(user: SessionUser) -> LoggedOutSession {
             Err(_) => LoggedOutSession::WithoutSamlSubject,
         },
         SessionUser::CentralElectoralCommittee { .. } => LoggedOutSession::WithoutSamlSubject,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_bsn_identifier_types_are_accepted() {
+        assert!(is_accepted_id_type("urn:nl-eid-gdi:1.0:id:legacy-BSN"));
+        assert!(is_accepted_id_type("urn:nl-eid-gdi:1.0:id:BSN"));
+        assert!(!is_accepted_id_type("urn:nl-eid-gdi:1.0:id:Pseudonym"));
+        assert!(!is_accepted_id_type(""));
     }
 }

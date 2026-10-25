@@ -42,15 +42,40 @@ pub struct IdpMetadata {
     /// The published hard expiry (`validUntil`), retained so runtime users stop
     /// trusting the descriptor even when a refresh fails.
     pub valid_until: Option<chrono::DateTime<chrono::Utc>>,
+    /// When this descriptor was obtained (fetch time, or the cache file's write
+    /// time); anchors the bounded trust lifetime.
+    pub retrieved_at: chrono::DateTime<chrono::Utc>,
 }
 
+/// Trust lifetime for a descriptor without a usable `cacheDuration`.
+const DEFAULT_CACHE_AGE: Duration = Duration::from_secs(24 * 60 * 60);
+/// Floor on the trust lifetime, so a tiny `cacheDuration` cannot expire the
+/// descriptor between two background refreshes.
+const MIN_CACHE_AGE: Duration = Duration::from_secs(60 * 60);
+/// Ceiling on the trust lifetime whatever `cacheDuration` says: an RD key the
+/// metadata no longer publishes stops being trusted within this bound even
+/// when every refresh since has failed.
+const MAX_CACHE_AGE: Duration = Duration::from_secs(7 * 24 * 60 * 60);
+
 impl IdpMetadata {
+    /// When this descriptor stops being trusted: the earlier of `validUntil`
+    /// (plus clock skew) and `retrieved_at` plus the clamped `cacheDuration`.
+    /// Always bounded, so refresh failures cannot keep it trusted forever.
+    pub(crate) fn trust_deadline(&self) -> chrono::DateTime<chrono::Utc> {
+        let lifetime = self
+            .cache_duration
+            .unwrap_or(DEFAULT_CACHE_AGE)
+            .clamp(MIN_CACHE_AGE, MAX_CACHE_AGE);
+        let by_retrieval =
+            self.retrieved_at + chrono::Duration::from_std(lifetime).unwrap_or_default();
+        let by_valid_until = self
+            .valid_until
+            .map(|until| until + chrono::Duration::seconds(CLOCK_SKEW_SECONDS));
+        by_valid_until.map_or(by_retrieval, |v| v.min(by_retrieval))
+    }
+
     pub(crate) fn is_expired_at(&self, now: chrono::DateTime<chrono::Utc>) -> bool {
-        self.valid_until.is_some_and(|until| {
-            until
-                .checked_add_signed(chrono::Duration::seconds(CLOCK_SKEW_SECONDS))
-                .is_none_or(|deadline| now > deadline)
-        })
+        now > self.trust_deadline()
     }
 }
 
@@ -71,6 +96,7 @@ impl IdpMetadata {
             signing_keys: Vec::new(),
             cache_duration: None,
             valid_until: None,
+            retrieved_at: chrono::Utc::now(),
         }
     }
 }
@@ -375,6 +401,7 @@ pub fn parse_idp_metadata(xml: &str, trust: &RdTrust) -> Result<IdpMetadata> {
         signing_keys,
         cache_duration,
         valid_until,
+        retrieved_at: chrono::Utc::now(),
     })
 }
 
@@ -513,6 +540,11 @@ fn resolve_endpoints(
 /// On-disk cache file name for the RD (Routeringsdienst) metadata.
 const RD_METADATA_CACHE_FILE: &str = "rd-metadata.xml";
 
+/// Connection-establishment ceiling for the metadata fetch.
+const METADATA_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+/// Overall ceiling (connect + headers + body) for one metadata fetch.
+const METADATA_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+
 /// Path of the on-disk RD metadata cache under `certs_dir`.
 pub fn metadata_cache_path(certs_dir: &Path) -> PathBuf {
     certs_dir.join(RD_METADATA_CACHE_FILE)
@@ -532,7 +564,13 @@ pub async fn fetch_and_cache_idp_metadata(
     trust: &RdTrust,
 ) -> Result<IdpMetadata> {
     info!("[metadata] Fetching IdP metadata from {url}");
-    let response = reqwest::get(url).await?.error_for_status()?;
+    // Deadlines cover connect through body, so a stalled RD cannot block
+    // startup or park the refresh task.
+    let client = reqwest::Client::builder()
+        .connect_timeout(METADATA_CONNECT_TIMEOUT)
+        .timeout(METADATA_REQUEST_TIMEOUT)
+        .build()?;
+    let response = client.get(url).send().await?.error_for_status()?;
     // Cap the buffered body (see bindings::soap::read_body_capped).
     let xml = crate::bindings::soap::read_body_capped(
         response,
@@ -571,7 +609,7 @@ async fn write_cache(certs_dir: &Path, path: &Path, xml: &str) -> std::io::Resul
 pub async fn load_cached_idp_metadata(certs_dir: &Path, trust: &RdTrust) -> Option<IdpMetadata> {
     let path = metadata_cache_path(certs_dir);
     let xml = tokio::fs::read_to_string(&path).await.ok()?;
-    let metadata = match parse_idp_metadata(&xml, trust) {
+    let mut metadata = match parse_idp_metadata(&xml, trust) {
         Ok(metadata) => metadata,
         Err(e) => {
             warn!(
@@ -582,7 +620,7 @@ pub async fn load_cached_idp_metadata(certs_dir: &Path, trust: &RdTrust) -> Opti
         }
     };
 
-    // eID §8.5: not past cacheDuration, and never past the ceiling
+    // eID §8.5: the trust lifetime runs from when the file was written.
     let Some(age) = cache_age(&path).await else {
         warn!(
             "[metadata] Ignoring cached metadata at {}: its age cannot be determined",
@@ -590,16 +628,14 @@ pub async fn load_cached_idp_metadata(certs_dir: &Path, trust: &RdTrust) -> Opti
         );
         return None;
     };
-    let max_age = metadata
-        .cache_duration
-        .unwrap_or(DEFAULT_CACHE_AGE)
-        .min(MAX_CACHE_AGE);
-    if age > max_age {
+    let now = chrono::Utc::now();
+    metadata.retrieved_at = now - chrono::Duration::from_std(age).unwrap_or_default();
+    if metadata.is_expired_at(now) {
         warn!(
-            "[metadata] Ignoring cached metadata at {}: written {}s ago, older than its cacheDuration of {}s",
+            "[metadata] Ignoring cached metadata at {}: written {}s ago, past its trust lifetime (cacheDuration {:?})",
             path.display(),
             age.as_secs(),
-            max_age.as_secs()
+            metadata.cache_duration
         );
         return None;
     }
@@ -612,11 +648,6 @@ pub async fn load_cached_idp_metadata(certs_dir: &Path, trust: &RdTrust) -> Opti
     );
     Some(metadata)
 }
-
-/// Age limit for a cached descriptor without a usable `cacheDuration`.
-const DEFAULT_CACHE_AGE: std::time::Duration = std::time::Duration::from_secs(24 * 60 * 60);
-/// Age limit for a cached descriptor whatever its `cacheDuration` says.
-const MAX_CACHE_AGE: std::time::Duration = std::time::Duration::from_secs(7 * 24 * 60 * 60);
 
 /// How long ago the cache file was written, from its modification time.
 async fn cache_age(path: &Path) -> Option<std::time::Duration> {
@@ -1012,6 +1043,29 @@ mod tests {
         let xml = r#"<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"></md:EntityDescriptor>"#;
         let err = parse_idp_metadata(xml, &test_trust("urn:test:rd")).unwrap_err();
         assert!(matches!(err, AuthError::Xml(_)));
+    }
+
+    #[test]
+    fn trust_deadline_is_bounded_without_valid_until() {
+        let now = chrono::Utc::now();
+        let mut metadata = IdpMetadata::for_tests();
+        metadata.retrieved_at = now;
+        assert!(!metadata.is_expired_at(now));
+        assert!(!metadata.is_expired_at(now + chrono::Duration::hours(23)));
+        assert!(metadata.is_expired_at(now + chrono::Duration::hours(25)));
+
+        metadata.cache_duration = Some(Duration::from_secs(2 * 60 * 60));
+        assert!(metadata.is_expired_at(now + chrono::Duration::hours(3)));
+
+        // Clamped to [1h, 7d] whatever the RD says.
+        metadata.cache_duration = Some(Duration::from_secs(1));
+        assert!(!metadata.is_expired_at(now + chrono::Duration::minutes(59)));
+        metadata.cache_duration = Some(Duration::from_secs(365 * 24 * 60 * 60));
+        assert!(metadata.is_expired_at(now + chrono::Duration::days(8)));
+
+        // validUntil still wins when it is sooner.
+        metadata.valid_until = Some(now + chrono::Duration::minutes(5));
+        assert!(metadata.is_expired_at(now + chrono::Duration::minutes(6)));
     }
 
     #[test]

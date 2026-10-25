@@ -792,6 +792,120 @@ fn assertion_audience_empty() {
     );
 }
 
+/// Replace the builder's single `<saml:AudienceRestriction>` with `body`.
+fn with_conditions_body(xml: &str, body: &str) -> String {
+    let open = "<saml:AudienceRestriction>";
+    let close = "</saml:AudienceRestriction>";
+    let start = xml.find(open).expect("restriction present");
+    let end = xml[start..]
+        .find(close)
+        .map(|i| start + i + close.len())
+        .expect("close tag");
+    let mut out = xml.to_string();
+    out.replace_range(start..end, body);
+    out
+}
+
+/// SAML core §2.5.1.4: every AudienceRestriction must hold independently, so a
+/// second one that excludes this DV rejects the assertion even though the first
+/// permits it.
+#[test]
+fn assertion_audience_every_restriction_must_name_dv() {
+    let xml = with_conditions_body(
+        &AssertionBuilder::default().build(),
+        &format!(
+            "<saml:AudienceRestriction><saml:Audience>{DV_ENTITY_ID}</saml:Audience></saml:AudienceRestriction>\
+             <saml:AudienceRestriction><saml:Audience>urn:other:party</saml:Audience></saml:AudienceRestriction>"
+        ),
+    );
+    let errs = validate(&xml).errors;
+    assert!(
+        errs.iter()
+            .any(|e| e.contains("not in AudienceRestriction")),
+        "expected the excluding restriction to reject, got: {errs:?}"
+    );
+}
+
+/// A stray `<Audience>` directly under Conditions is not an AudienceRestriction
+/// and must not grant access.
+#[test]
+fn assertion_audience_outside_restriction_does_not_count() {
+    let xml = with_conditions_body(
+        &AssertionBuilder::default().build(),
+        &format!("<saml:Audience>{DV_ENTITY_ID}</saml:Audience>"),
+    );
+    let errs = validate(&xml).errors;
+    assert!(
+        errs.iter()
+            .any(|e| e.contains("not in AudienceRestriction")),
+        "expected missing restriction error, got: {errs:?}"
+    );
+    assert!(
+        errs.iter().any(|e| e.contains("unsupported Condition")),
+        "expected the stray Audience to be flagged, got: {errs:?}"
+    );
+}
+
+/// SAML core §2.5.1: a condition the DV does not implement makes the assertion
+/// Indeterminate; it is rejected rather than ignored.
+#[test]
+fn assertion_unknown_condition_is_rejected() {
+    let base = AssertionBuilder::default().build();
+    for extra in [
+        "<saml:OneTimeUse/>",
+        "<saml:ProxyRestriction Count=\"0\"/>",
+        "<saml:Condition xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:type=\"x:Custom\" xmlns:x=\"urn:x\"/>",
+        "<x:Mandatory xmlns:x=\"urn:x\"/>",
+    ] {
+        let xml = with_conditions_body(
+            &base,
+            &format!(
+                "<saml:AudienceRestriction><saml:Audience>{DV_ENTITY_ID}</saml:Audience></saml:AudienceRestriction>{extra}"
+            ),
+        );
+        let errs = validate(&xml).errors;
+        assert!(
+            errs.iter().any(|e| e.contains("unsupported Condition")),
+            "{extra}: expected rejection, got: {errs:?}"
+        );
+    }
+}
+
+/// `<Conditions>` is read only as the Assertion's own child: a copy nested
+/// elsewhere neither grants an audience nor supplies the validity window.
+#[test]
+fn assertion_conditions_must_be_a_direct_child() {
+    let xml = AssertionBuilder {
+        audiences: vec!["urn:other:party".into()],
+        ..Default::default()
+    }
+    .build()
+    .replace(
+        "</saml:AttributeStatement>",
+        &format!(
+            "<saml:Conditions><saml:AudienceRestriction><saml:Audience>{DV_ENTITY_ID}</saml:Audience></saml:AudienceRestriction></saml:Conditions></saml:AttributeStatement>"
+        ),
+    );
+    let errs = validate(&xml).errors;
+    assert!(
+        errs.iter()
+            .any(|e| e.contains("not in AudienceRestriction")),
+        "nested Conditions must not count, got: {errs:?}"
+    );
+
+    let two = AssertionBuilder::default()
+        .build()
+        .replace(
+            "<saml:AuthnStatement",
+            "<saml:Conditions><saml:AudienceRestriction><saml:Audience>urn:other</saml:Audience></saml:AudienceRestriction></saml:Conditions><saml:AuthnStatement",
+        );
+    let errs = validate(&two).errors;
+    assert!(
+        errs.iter().any(|e| e.contains("Conditions elements")),
+        "two Conditions must be rejected, got: {errs:?}"
+    );
+}
+
 /// §7.6.3.1: DV's entityID present among multiple audiences is valid.
 #[test]
 fn assertion_audience_multiple_including_dv() {

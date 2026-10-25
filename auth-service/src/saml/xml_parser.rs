@@ -233,6 +233,19 @@ impl<'a> Document<'a> {
             .find(roxmltree::Node::is_element)
             .map(|c| c.id())
     }
+
+    /// All child elements of `id` (skipping text/comment nodes), in document
+    /// order; empty for a non-element.
+    pub fn element_children(&self, id: NodeId) -> Vec<NodeId> {
+        self.node(id)
+            .map(|n| {
+                n.children()
+                    .filter(roxmltree::Node::is_element)
+                    .map(|c| c.id())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
 }
 
 /// All text under `id`, concatenated depth-first and unescaped, or `None` if
