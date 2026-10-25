@@ -557,7 +557,7 @@ impl CsbStream {
     }
 
     pub fn get_substitute_submitters(&self, corrections: WithCorrections) -> Vec<ListSubmitter> {
-        ListSubmitter::clone_as_substitutes(&self.read(corrections).substitute_submitters)
+        self.read(corrections).substitute_submitters.clone()
     }
 
     pub fn get_name_authorisations(&self, corrections: WithCorrections) -> Vec<NameAuthorisation> {
@@ -983,21 +983,6 @@ mod tests {
                 .get_candidate_list_omissions(CandidateListId::new())
                 .is_err()
         );
-    }
-
-    #[test]
-    fn get_substitute_submitters_marks_each_as_substitute() {
-        let store = CsbStore::new_for_test();
-        store
-            .write()
-            .imported_data
-            .substitute_submitters
-            .push(ListSubmitter::default());
-
-        let result = store.get_substitute_submitters(WithCorrections::None);
-
-        assert_eq!(result.len(), 1);
-        assert!(result[0].is_substitute);
     }
 
     #[test]

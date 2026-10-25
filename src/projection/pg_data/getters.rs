@@ -47,7 +47,7 @@ impl Store<PgStoreData> {
     pub fn get_substitute_submitters(&self) -> Vec<ListSubmitter> {
         let data = self.snapshot();
 
-        ListSubmitter::clone_as_substitutes(&data.substitute_submitters)
+        data.substitute_submitters.clone()
     }
 
     pub fn get_person_count(&self) -> usize {
@@ -127,9 +127,7 @@ impl Store<PgStoreData> {
     pub fn get_list_submitter(&self) -> ListSubmitter {
         let data = self.snapshot();
 
-        let mut submitter = data.list_submitter.clone();
-        submitter.is_substitute = false;
-        submitter
+        data.list_submitter.clone()
     }
 
     pub fn get_substitute_submitter(
@@ -138,18 +136,11 @@ impl Store<PgStoreData> {
     ) -> Result<ListSubmitter, AppError> {
         let data = self.snapshot();
 
-        match data
-            .substitute_submitters
+        data.substitute_submitters
             .iter()
             .find(|submitter| submitter.id == substitute_submitter_id)
-        {
-            Some(submitter) => {
-                let mut submitter = submitter.clone();
-                submitter.is_substitute = true;
-                Ok(submitter)
-            }
-            None => Err(AppError::GenericNotFound),
-        }
+            .cloned()
+            .ok_or(AppError::GenericNotFound)
     }
 
     pub fn count_candidate_lists(&self, person_id: PersonId) -> usize {

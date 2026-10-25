@@ -284,13 +284,16 @@ impl PgStoreData {
     /// Apply a list-submitter event. Routed here exclusively by [`Self::apply`].
     fn apply_submitter_event(&mut self, event: PgEvent) {
         match event {
-            PgEvent::UpdateListSubmitter(ls) => {
+            PgEvent::UpdateListSubmitter(mut ls) => {
+                ls.is_substitute = false;
                 self.list_submitter = *ls;
             }
-            PgEvent::CreateSubstituteSubmitter(ss) => {
+            PgEvent::CreateSubstituteSubmitter(mut ss) => {
+                ss.is_substitute = true;
                 self.substitute_submitters.push(*ss);
             }
-            PgEvent::UpdateSubstituteSubmitter(ss) => {
+            PgEvent::UpdateSubstituteSubmitter(mut ss) => {
+                ss.is_substitute = true;
                 let ss_id = ss.id;
                 if let Some(existing) = self
                     .substitute_submitters
