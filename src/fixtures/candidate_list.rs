@@ -18,7 +18,7 @@ fn collect_person_ids(persons: Vec<Person>) -> Vec<PersonId> {
 }
 
 pub async fn load(store: &PgStore) -> Result<(), AppError> {
-    let election = store.get_election();
+    let election = store.election;
 
     let persons = Person::list(
         store,
@@ -102,7 +102,7 @@ mod tests {
         crate::fixtures::persons::load(&store).await.unwrap();
         load(&store).await.unwrap();
 
-        let lists = CandidateListSummary::list(&store);
+        let lists = CandidateListSummary::list(&store.snapshot(), store.election);
 
         assert_eq!(lists.len(), 3);
         assert_eq!(lists[0].candidate_count(), FIXTURE_CANDIDATE_LIST_SIZE);
@@ -124,7 +124,7 @@ mod tests {
         crate::fixtures::persons::load(&store).await.unwrap();
         load(&store).await.unwrap();
 
-        let lists = CandidateListSummary::list(&store);
+        let lists = CandidateListSummary::list(&store.snapshot(), store.election);
 
         assert_eq!(lists.len(), 1);
         assert_eq!(
@@ -144,7 +144,7 @@ mod tests {
         crate::fixtures::persons::load(&store).await.unwrap();
         load(&store).await.unwrap();
 
-        let lists = CandidateListSummary::list(&store);
+        let lists = CandidateListSummary::list(&store.snapshot(), store.election);
 
         assert_eq!(lists.len(), 2);
         for list in &lists {

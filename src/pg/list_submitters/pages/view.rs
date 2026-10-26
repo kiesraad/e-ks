@@ -6,9 +6,7 @@ use crate::{
     AppError, Context, HtmlTemplate, PgStore, QueryParamState, filters,
     political_groups::PoliticalGroupSteps,
     structs::{
-        common::{HasSeverity, Problematic},
-        list_submitters::ListSubmitter,
-        name_authorisations::NameAuthorisation,
+        common::HasSeverity, list_submitters::ListSubmitter, name_authorisations::NameAuthorisation,
     },
 };
 

@@ -9,7 +9,9 @@ use chrono::{DateTime, Utc};
 use crate::crypto::EventCipher;
 use crate::{ElectionConfig, StreamId};
 
-use super::{EventHash, EventHashPrefix, StoreData, StoreEvent, memory::MemoryStore};
+#[cfg(any(feature = "database", test))]
+use super::StoreEvent;
+use super::{EventHash, EventHashPrefix, StoreData, memory::MemoryStore};
 
 /// Event-sourced store handle for a single (stream, election) pair.
 pub struct Store<D> {
@@ -64,16 +66,9 @@ impl<D> Store<D>
 where
     D: StoreData,
 {
-    /// Create a temporary, in-memory store with no persistence.
-    ///
-    /// An in-memory store never writes events out, so it has no cipher
-    /// (see [`StoreBackend::Memory`]).
-    pub fn new_for_temp_stream(election: ElectionConfig) -> Self {
-        Self::new_temp(StreamId::new(), election, Arc::default())
-    }
-
     /// An in-memory store over `data`: temp streams, request-local
-    /// projections and tests.
+    /// projections and tests. It never writes events out, so it has no
+    /// cipher (see [`StoreBackend::Memory`]).
     pub(crate) fn new_temp(stream_id: StreamId, election: ElectionConfig, data: Arc<D>) -> Self {
         Store {
             stream_id,
@@ -103,19 +98,21 @@ where
     /// stores seeded from another projection (paper corrections, audit
     /// replays). Persisted stores only change through their events.
     pub(crate) fn replace(&self, data: Arc<D>) {
-        debug_assert!(
+        assert!(
             matches!(self.backend, StoreBackend::Memory { .. }),
             "replace is for in-memory projections only"
         );
         *self.data.write() = data;
     }
 
-    /// Apply a single event to the in-memory projection.
+    /// Apply a single event to the in-memory projection. Store-private: the
+    /// projection only changes through persisted events ([`Self::update`]).
     ///
     /// No-op if the projection is already at or past this event: another
     /// instance of the application may have processed and applied it before
     /// this caller acquired the write lock.
-    pub fn apply_event(&self, store_event: StoreEvent<D::Event>) {
+    #[cfg(any(feature = "database", test))]
+    pub(super) fn apply_event(&self, store_event: StoreEvent<D::Event>) {
         let mut data = self.data.write();
 
         if data.last_event_id() >= store_event.event_id {

@@ -6,7 +6,7 @@ use axum_extra::routing::TypedPath;
 use uuid::Uuid;
 
 use crate::{
-    AppError, CsbContext, CsbStore, CsbStream, Form, HtmlTemplate, Locale, Overlay,
+    AppError, CsbContext, CsbStore, CsbStoreData, Form, HtmlTemplate, Locale, Overlay,
     QueryParamState, StreamId,
     csb::examination::{
         OmissionForm,
@@ -57,9 +57,10 @@ impl OmissionTarget {
     /// A blank list has no appellation, so it cannot get appellation omissions.
     /// The overview stays reachable: a paper correction can blank a list after
     /// its omissions were added.
-    fn ensure_can_add(&self, store: &CsbStream) -> Result<(), AppError> {
-        let is_blank = store
-            .get_political_group(WithCorrections::All)
+    fn ensure_can_add(&self, data: &CsbStoreData) -> Result<(), AppError> {
+        let is_blank = data
+            .pg(WithCorrections::All)
+            .get_political_group()
             .list_designation
             == Some(ListDesignation::Blank);
         if self.omission_type == OmissionType::Appellation && is_blank {
@@ -84,12 +85,14 @@ impl OmissionTarget {
         form: FormData<OmissionForm>,
         query: &QueryParamState,
         context: CsbContext,
-        store: &CsbStream,
+        store: &CsbStore,
     ) -> Result<Response, AppError> {
+        let snapshot = store.snapshot();
+        let data: &CsbStoreData = &snapshot;
         let available_districts = self
             .omission_type
             .needs_districts()
-            .then(|| views::available_electoral_districts(store))
+            .then(|| views::available_electoral_districts(data))
             .filter(|options| options.len() > 1)
             .unwrap_or_default();
         let available_candidate_lists = self
@@ -97,7 +100,7 @@ impl OmissionTarget {
             .needs_candidate_lists()
             .then(|| {
                 views::candidate_list_options(
-                    store,
+                    data,
                     (self.omission_type == OmissionType::Candidate)
                         .then(|| PersonId::from(self.reference)),
                 )
@@ -105,33 +108,35 @@ impl OmissionTarget {
             .filter(|options| options.len() > 1)
             .unwrap_or_default();
 
-        let political_group = CsbPoliticalGroup::new_from_csb_store(store);
+        let political_group = CsbPoliticalGroup::new(store, data);
         Ok(HtmlTemplate(
             CsbAddOmissionTemplate {
                 form,
                 overlay: Overlay::new_create(query),
                 close_action: return_path(self, &political_group),
-                presets: preset_views(self, store),
+                presets: preset_views(self, data),
                 omission_target: self.to_owned(),
                 available_districts,
                 available_candidate_lists,
-                title_suffix: self.generate_title_suffix(store, context.session.locale)?,
+                title_suffix: self.generate_title_suffix(data, context.session.locale)?,
             },
             context,
         )
         .into_response())
     }
 
-    fn generate_title_suffix(&self, store: &CsbStream, locale: Locale) -> Result<String, AppError> {
-        let first_candidate = store.get_first_candidate_name(WithCorrections::All, None);
-        let appellation = store
-            .get_political_group(WithCorrections::All)
-            .csb_appellation(first_candidate.as_ref());
+    fn generate_title_suffix(
+        &self,
+        data: &CsbStoreData,
+        locale: Locale,
+    ) -> Result<String, AppError> {
+        let appellation = data.pg(WithCorrections::All).get_appellation();
         let first_part = match self.omission_type {
             OmissionType::PoliticalGroup => trans!("common.general_information", locale),
             OmissionType::Appellation => {
-                match store
-                    .get_political_group(WithCorrections::All)
+                match data
+                    .pg(WithCorrections::All)
+                    .get_political_group()
                     .list_designation
                 {
                     Some(ListDesignation::Standalone) | None => {
@@ -152,9 +157,9 @@ impl OmissionTarget {
             OmissionType::DeclarationsOfSupport => {
                 trans!("csb.declarations_of_support.title", locale)
             }
-            OmissionType::Candidate => store
-                .get_person(PersonId::from(self.reference), WithCorrections::All)
-                .ok_or(AppError::GenericNotFound)?
+            OmissionType::Candidate => data
+                .pg(WithCorrections::All)
+                .get_person(PersonId::from(self.reference))?
                 .name
                 .display(),
         };
@@ -171,7 +176,7 @@ pub async fn add_omission(
     Query(list_query): Query<OmissionListQuery>,
 ) -> Result<Response, AppError> {
     let target = OmissionTarget::from_add_path(path, list_query);
-    target.ensure_can_add(&store)?;
+    target.ensure_can_add(&store.snapshot())?;
     let form = if target.omission_type == OmissionType::CandidateList {
         // Pre-fill the candidate list from the path
         FormData::new_with_data(OmissionForm {
@@ -201,15 +206,16 @@ pub async fn overview(
     Query(query): Query<QueryParamState>,
     Query(list_query): Query<OmissionListQuery>,
 ) -> Result<Response, AppError> {
+    let data = store.snapshot();
     let omission_target = OmissionTarget::from_overview_path(path, list_query);
-    let political_group = CsbPoliticalGroup::new_from_csb_store(&store);
+    let political_group = CsbPoliticalGroup::new(&store, &data);
 
     Ok(HtmlTemplate(
         CsbOmissionOverviewTemplate {
             overlay: Overlay::new_edit(&query),
             close_action: return_path(&omission_target, &political_group),
-            omissions: omission_views(&omission_target, &store)?,
-            title_suffix: omission_target.generate_title_suffix(&store, context.session.locale)?,
+            omissions: omission_views(&omission_target, &data, context.election)?,
+            title_suffix: omission_target.generate_title_suffix(&data, context.session.locale)?,
             omission_target,
         },
         context,
@@ -254,13 +260,13 @@ pub async fn add_omission_submit(
     Form(form): Form<OmissionForm>,
 ) -> Result<Response, AppError> {
     let target = OmissionTarget::from_add_path(path, list_query);
-    target.ensure_can_add(&store)?;
+    target.ensure_can_add(&store.snapshot())?;
 
     // For candidate list and declarations-of-support omissions at least one district must be selected
     let districts = match selected_or_only_available(
         target.omission_type.needs_districts(),
         &form.electoral_districts,
-        || views::available_electoral_districts(&store),
+        || views::available_electoral_districts(&store.snapshot()),
         "electoral_districts",
     ) {
         Ok(districts) => districts,
@@ -275,7 +281,7 @@ pub async fn add_omission_submit(
         target.omission_type.needs_candidate_lists(),
         &form.candidate_lists,
         || {
-            views::candidate_list_options(&store, None)
+            views::candidate_list_options(&store.snapshot(), None)
                 .into_iter()
                 .map(|o| o.id)
                 .collect()
@@ -318,11 +324,12 @@ pub async fn delete_omission(
     Query(query): Query<QueryParamState>,
     Query(list_query): Query<OmissionListQuery>,
 ) -> Result<Response, AppError> {
+    let data = store.snapshot();
     let CsbDeleteOmissionPath {
         stream_id,
         omission_id,
     } = path;
-    let omission = store.get_omission(omission_id)?;
+    let omission = data.get_omission(omission_id)?;
     let overview = overview_url_for(&omission.category, stream_id, list_query.list);
     omission.delete(&store).await?;
     Ok(Redirect::to(
@@ -518,7 +525,7 @@ mod tests {
         )
         .await;
         assert!(matches!(result, Err(AppError::GenericNotFound)));
-        assert_eq!(store.get_omission_count(), 0);
+        assert_eq!(store.snapshot().get_omission_count(), 0);
     }
 
     #[tokio::test]
@@ -697,11 +704,7 @@ mod tests {
         // projection: they were added during paper corrections.
         let person = sample_person(PersonId::new());
         let person_id = person.id;
-        store
-            .write()
-            .paper_corrected_data
-            .persons
-            .insert(person_id, person);
+        store.set_paper_corrected_person(person);
         let list_id = CandidateListId::new();
         let mut list = sample_candidate_list(list_id);
         list.candidates = vec![person_id];
@@ -787,7 +790,14 @@ mod tests {
         );
         omission.create(&store).await.unwrap();
         let omission_id = omission.id;
-        assert_eq!(store.get_candidate_list_omissions(list).unwrap().len(), 1);
+        assert_eq!(
+            store
+                .snapshot()
+                .get_candidate_list_omissions(list, store.election)
+                .unwrap()
+                .len(),
+            1
+        );
 
         let response =
             submit_delete_omission(store.clone(), omission_id, QueryParamState::default(), None)
@@ -795,7 +805,13 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
         // The omission is gone...
-        assert!(store.get_candidate_list_omissions(list).unwrap().is_empty());
+        assert!(
+            store
+                .snapshot()
+                .get_candidate_list_omissions(list, store.election)
+                .unwrap()
+                .is_empty()
+        );
         // ...and we return to the overview it was listed on, without replaying
         // the overlay open animation
         let location = location(&response);
@@ -869,7 +885,7 @@ mod tests {
         .await;
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
-        assert!(store.get_political_group_omissions().is_empty());
+        assert!(store.snapshot().get_political_group_omissions().is_empty());
         let location = location(&response);
         assert!(location.contains("redirect_to=%2Fback%2Fhere"));
         assert!(location.contains("overlay=true"));
@@ -904,7 +920,7 @@ mod tests {
         let location = location(&response);
         assert!(location.contains(&format!("/list/{list}")));
 
-        let omission = store.get_omission_for_test();
+        let omission = store.snapshot().get_omission_for_test();
         assert_eq!(omission.title.to_string(), "Waarborgsom ontbreekt");
         assert_eq!(
             omission.description.to_string(),
@@ -931,7 +947,7 @@ mod tests {
         .await;
 
         assert_eq!(response.status(), StatusCode::OK);
-        assert!(store.get_political_group_omissions().is_empty());
+        assert!(store.snapshot().get_political_group_omissions().is_empty());
     }
 
     #[tokio::test]
@@ -948,7 +964,7 @@ mod tests {
         )
         .await;
 
-        assert_eq!(store.get_political_group_omissions().len(), 1);
+        assert_eq!(store.snapshot().get_political_group_omissions().len(), 1);
     }
 
     #[tokio::test]
@@ -969,7 +985,7 @@ mod tests {
         )
         .await;
 
-        let omission = store.get_omission_for_test();
+        let omission = store.snapshot().get_omission_for_test();
         assert!(!omission.recoverable);
     }
 
@@ -991,7 +1007,7 @@ mod tests {
         .await;
 
         assert_eq!(response.status(), StatusCode::OK);
-        assert!(store.get_political_group_omissions().is_empty());
+        assert!(store.snapshot().get_political_group_omissions().is_empty());
     }
 
     #[tokio::test]
@@ -1128,7 +1144,7 @@ mod tests {
         let location = location(&response);
         assert!(location.contains(&format!("/list/{list_id}/candidate/{person_id}")));
 
-        let omission = store.get_omission_for_test();
+        let omission = store.snapshot().get_omission_for_test();
         assert!(matches!(
             omission.category,
             OmissionCategory::Candidate { person, ref lists }
@@ -1161,7 +1177,7 @@ mod tests {
         .await;
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
-        let omission = store.get_omission_for_test();
+        let omission = store.snapshot().get_omission_for_test();
         let OmissionCategory::Candidate { person, ref lists } = omission.category else {
             panic!("Should be a candidate omission")
         };

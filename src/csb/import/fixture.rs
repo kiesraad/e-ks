@@ -3,9 +3,9 @@ use uuid::Uuid;
 
 use crate::{
     AppError, AppRequestState, CsbAction, CsbMainAction, CsbMainStore, CsbStore, CsbStoreData,
-    CsbStream, CsbUser, ElectionConfig, ElectoralDistrict, PgStore, PgStoreData, StreamId,
+    CsbUser, ElectionConfig, ElectoralDistrict, PgStore, PgStoreData, StreamId,
     projection::WithCorrections,
-    store::StoreRegistry,
+    store::{StoreData, StoreRegistry},
     structs::{
         brp::{BrpFinding, BrpFindingKind, BrpStatus, BrpValue},
         candidate_lists::{CandidateList, CandidateListId},
@@ -144,8 +144,8 @@ async fn has_fixture_import(
     election: ElectionConfig,
 ) -> Result<bool, AppError> {
     for store in registry.stores_for_election(election).await? {
-        let comes_from_fixtures = store.snapshot().events.first().is_some_and(
-            |e| matches!(&e.payload.action, CsbAction::Import { hash, .. } if *hash == FIXTURE_IMPORT_HASH),
+        let comes_from_fixtures = store.snapshot().events().first().is_some_and(
+            |e| matches!(&e.payload.action, CsbAction::Import { hash, .. } if hash == &FIXTURE_IMPORT_HASH),
         );
         if comes_from_fixtures {
             return Ok(true);
@@ -186,7 +186,7 @@ async fn import_examination_fixture<S: AppRequestState>(
 
         match group.handling {
             Handling::WithOmissions => {
-                for omission in fixture_omissions(&store) {
+                for omission in fixture_omissions(&store.snapshot(), store.election) {
                     omission.create(&store).await?;
                 }
             }
@@ -257,7 +257,7 @@ async fn import_fixture_group<S: AppRequestState>(
     let pg_store = PgStore::own(app_store.clone());
     crate::fixtures::load_for_group(&pg_store, group.political_group()).await?;
     fit_lists_to_maximum(&pg_store, group).await?;
-    let events = app_store.snapshot().events.clone();
+    let events = app_store.snapshot().events().to_vec();
     let snapshot = PgStoreData::snapshot_until(&events, usize::MAX);
 
     let store = CsbStore::acting_as(
@@ -281,7 +281,15 @@ async fn import_fixture_group<S: AppRequestState>(
 async fn fit_lists_to_maximum(store: &PgStore, group: &FixtureGroup) -> Result<(), AppError> {
     let max = group.political_group().get_max_candidates();
     let findings = crate::fixtures::brp_findings();
-    let lists = in_district_order(store.get_candidate_lists(), &store.election);
+    let lists = in_district_order(
+        store
+            .snapshot()
+            .get_candidate_lists()
+            .into_iter()
+            .cloned()
+            .collect(),
+        &store.election,
+    );
 
     for (index, mut list) in lists.into_iter().enumerate() {
         if index == 0 && group.appellation == TOO_MANY_CANDIDATES_GROUP {
@@ -328,7 +336,7 @@ async fn recorded_brp_check(store: &CsbStore) -> Result<(), AppError> {
 /// candidates on the first list have discrepancies, one of them on two fields,
 /// and the BRP agrees with everyone else.
 async fn fixture_brp_check(store: &CsbStore) -> Result<(), AppError> {
-    let flagged: Vec<PersonId> = fixture_lists(store)
+    let flagged: Vec<PersonId> = fixture_lists(&store.snapshot(), store.election)
         .first()
         .map(|list| list.candidates.iter().copied().take(4).collect())
         .unwrap_or_default();
@@ -372,11 +380,11 @@ async fn record_brp_check(
     store: &CsbStore,
     findings_for: impl Fn(&Person) -> Vec<BrpFinding>,
 ) -> Result<(), AppError> {
-    for person in store.get_persons(WithCorrections::All) {
+    for person in store.snapshot().pg(WithCorrections::All).get_persons() {
         store
             .update(CsbAction::BrpPersonChecked {
                 person: person.id,
-                findings: findings_for(&person),
+                findings: findings_for(person),
             })
             .await?;
     }
@@ -392,25 +400,30 @@ async fn record_brp_check(
 async fn fixture_paper_corrections(store: &CsbStore) -> Result<(), AppError> {
     let corrections = store.paper_corrections();
 
-    let mut submitter = corrections.get_list_submitter();
+    let mut submitter = corrections.snapshot().get_list_submitter().clone();
     if let Address::Dutch(address) = &mut submitter.address {
         address.house_number = Some("7".parse().expect("house number"));
         address.house_number_addition = None;
     }
     submitter.update(&corrections).await?;
 
-    let Some(first_list) = fixture_lists(store).into_iter().next() else {
+    let Some(first_list) = fixture_lists(&store.snapshot(), store.election)
+        .into_iter()
+        .next()
+    else {
         return Ok(());
     };
     let mut candidates = first_list.candidates.iter().skip(1);
 
     if let Some(person_id) = candidates.next() {
-        let mut person = corrections.get_person(*person_id)?;
+        let data = corrections.snapshot();
+        let mut person = data.get_person(*person_id).cloned()?;
         person.personal_data.place_of_residence = Some("Utrecht".parse().expect("locality"));
         person.update(&corrections).await?;
     }
     if let Some(person_id) = candidates.next() {
-        let mut person = corrections.get_person(*person_id)?;
+        let data = corrections.snapshot();
+        let mut person = data.get_person(*person_id).cloned()?;
         person.name.initials = Some("A.B.C.".parse().expect("initials"));
         person.update(&corrections).await?;
     }
@@ -421,8 +434,8 @@ async fn fixture_paper_corrections(store: &CsbStore) -> Result<(), AppError> {
 /// Omissions spread over every category, so the recovery phase has something
 /// to assess: an irreparable one, ones decided as a whole and ones decided part
 /// by part (per district, per list), and a candidate with more than one.
-fn fixture_omissions(store: &CsbStream) -> Vec<Omission> {
-    let lists = fixture_lists(store);
+fn fixture_omissions(data: &CsbStoreData, election: ElectionConfig) -> Vec<Omission> {
+    let lists = fixture_lists(data, election);
     let Some(first_list) = lists.first() else {
         return Vec::new();
     };
@@ -451,16 +464,20 @@ fn fixture_omissions(store: &CsbStream) -> Vec<Omission> {
         ),
     ];
     omissions.extend(declarations_of_support_omissions(&lists));
-    omissions.extend(candidate_omissions(store, &lists));
+    omissions.extend(candidate_omissions(data, &lists));
     omissions
 }
 
 /// The candidate lists in district order, so the first list is the one
 /// covering the first district.
-fn fixture_lists(store: &CsbStream) -> Vec<CandidateList> {
+fn fixture_lists(data: &CsbStoreData, election: ElectionConfig) -> Vec<CandidateList> {
     in_district_order(
-        store.get_candidate_lists(WithCorrections::Paper),
-        &store.election,
+        data.pg(WithCorrections::Paper)
+            .get_candidate_lists()
+            .into_iter()
+            .cloned()
+            .collect(),
+        &election,
     )
 }
 
@@ -505,7 +522,7 @@ fn declarations_of_support_omission(key: &[u8], districts: &[ElectoralDistrict])
 
 /// One omission for a candidate on the first list only, and two for a candidate
 /// on several lists: one decided per list, one on the first list only.
-fn candidate_omissions(store: &CsbStream, lists: &[CandidateList]) -> Vec<Omission> {
+fn candidate_omissions(data: &CsbStoreData, lists: &[CandidateList]) -> Vec<Omission> {
     let Some(first_list) = lists.first() else {
         return Vec::new();
     };
@@ -529,7 +546,7 @@ fn candidate_omissions(store: &CsbStream, lists: &[CandidateList]) -> Vec<Omissi
             OmissionType::Candidate,
             title,
             OmissionCategory::Candidate { person, lists },
-            &candidate_tokens(store, first_list, person),
+            &candidate_tokens(data, first_list, person),
         )
     };
 
@@ -564,7 +581,7 @@ fn candidate_omissions(store: &CsbStream, lists: &[CandidateList]) -> Vec<Omissi
 /// The values for the `{candidate_number}` and `{candidate_name}` tokens of
 /// `person` on `list`.
 fn candidate_tokens(
-    store: &CsbStream,
+    data: &CsbStoreData,
     list: &CandidateList,
     person: PersonId,
 ) -> [(&'static str, String); 2] {
@@ -577,8 +594,8 @@ fn candidate_tokens(
         ),
         (
             "{candidate_name}",
-            store
-                .get_person(person, WithCorrections::Paper)
+            data.pg(WithCorrections::Paper)
+                .get_person(person)
                 .map(|person| person.name.display())
                 .unwrap_or_default(),
         ),
@@ -637,7 +654,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        AppState,
+        AppState, CsbStream,
         core::election::WaterCouncil,
         csb::{examination::structs::BrpCheckState, finalise::numbering::list_numbering},
     };
@@ -672,7 +689,9 @@ mod tests {
         fixture_stores(state)
             .await
             .into_iter()
-            .find(|store| store.get_appellation(WithCorrections::None) == appellation)
+            .find(|store| {
+                store.snapshot().pg(WithCorrections::None).get_appellation() == appellation
+            })
             .unwrap_or_else(|| panic!("no fixture import named {appellation:?}"))
     }
 
@@ -749,26 +768,36 @@ mod tests {
         let checked = group_handled(Handling::WithBrpFindings);
         let store = fixture_store_named(&state, checked).await;
 
-        assert!(matches!(store.get_brp_status(), BrpStatus::Finished));
+        assert!(matches!(
+            store.snapshot().get_brp_status(),
+            BrpStatus::Finished
+        ));
 
         // Nothing was recorded that the BRP did not return, and every
         // candidate was checked, findings or not.
         let generated = crate::fixtures::brp_findings();
-        let recorded = store.get_brp_findings();
+        let data = store.snapshot();
+        let recorded = data.get_brp_findings();
         assert_eq!(
             recorded.len(),
-            store.get_persons(WithCorrections::All).len()
+            store
+                .snapshot()
+                .pg(WithCorrections::All)
+                .get_persons()
+                .len()
         );
-        for (person, findings) in &recorded {
+        for (person, findings) in recorded {
             assert_eq!(findings, generated.get(person).unwrap_or(&Vec::new()));
         }
 
         // The candidates on its lists carry the findings the file holds for
         // them.
-        let candidates: BTreeSet<PersonId> = store
-            .get_candidate_lists(WithCorrections::All)
+        let data = store.snapshot();
+        let candidates: BTreeSet<PersonId> = data
+            .pg(WithCorrections::All)
+            .get_candidate_lists()
             .into_iter()
-            .flat_map(|list| list.candidates)
+            .flat_map(|list| list.candidates.iter().copied())
             .collect();
         let errors: usize = candidates
             .iter()
@@ -777,14 +806,14 @@ mod tests {
             .sum();
         assert!(errors > 0, "the BRP fixture group has nothing to show");
         assert_eq!(
-            BrpCheckState::for_political_group(&store),
+            BrpCheckState::for_political_group(&data),
             BrpCheckState::Errors { errors, handled: 0 }
         );
 
         for store in fixture_stores(&state).await {
-            if store.get_appellation(WithCorrections::None) != checked {
+            if store.snapshot().pg(WithCorrections::None).get_appellation() != checked {
                 assert_eq!(
-                    BrpCheckState::for_political_group(&store),
+                    BrpCheckState::for_political_group(&store.snapshot()),
                     BrpCheckState::NotChecked,
                     "only one examination fixture group is checked"
                 );
@@ -797,17 +826,19 @@ mod tests {
     /// The lists with more candidates than the group may have, as
     /// `(appellation, districts)`.
     fn lists_over_maximum(store: &CsbStream) -> Vec<(String, Vec<ElectoralDistrict>)> {
-        let max = store
-            .get_political_group(WithCorrections::None)
+        let data = store.snapshot();
+        let max = data
+            .pg(WithCorrections::None)
+            .get_political_group()
             .get_max_candidates();
-        store
-            .get_candidate_lists(WithCorrections::None)
+        data.pg(WithCorrections::None)
+            .get_candidate_lists()
             .into_iter()
             .filter(|list| list.candidates.len() > max)
             .map(|list| {
                 (
-                    store.get_appellation(WithCorrections::None),
-                    list.electoral_districts.into_iter().collect(),
+                    data.pg(WithCorrections::None).get_appellation(),
+                    list.electoral_districts.iter().copied().collect(),
                 )
             })
             .collect()
@@ -837,10 +868,12 @@ mod tests {
         // Cutting the lists lost no BRP finding.
         let findings = crate::fixtures::brp_findings();
         let checked = fixture_store_named(&state, group_handled(Handling::WithBrpFindings)).await;
-        let candidates: BTreeSet<PersonId> = checked
-            .get_candidate_lists(WithCorrections::None)
+        let data = checked.snapshot();
+        let candidates: BTreeSet<PersonId> = data
+            .pg(WithCorrections::None)
+            .get_candidate_lists()
             .into_iter()
-            .flat_map(|list| list.candidates)
+            .flat_map(|list| list.candidates.iter().copied())
             .collect();
         assert!(findings.keys().all(|person| candidates.contains(person)));
 
@@ -855,33 +888,43 @@ mod tests {
         assert_eq!(stores.len(), 1);
         let store = &stores[0];
         assert_eq!(
-            store.get_appellation(WithCorrections::None),
+            store.snapshot().pg(WithCorrections::None).get_appellation(),
             PRE_SUBMISSION_GROUP
         );
         // The same package the examination got, without anything the
         // examination adds to it.
         assert_eq!(
-            store.get_candidate_lists(WithCorrections::None).len(),
+            store
+                .snapshot()
+                .pg(WithCorrections::None)
+                .get_candidate_lists()
+                .len(),
             fixture_store_named(&state, PRE_SUBMISSION_GROUP)
                 .await
-                .get_candidate_lists(WithCorrections::None)
+                .snapshot()
+                .pg(WithCorrections::None)
+                .get_candidate_lists()
                 .len()
         );
-        assert_eq!(store.get_omission_count(), 0);
-        assert!(!store.has_paper_corrections());
+        assert_eq!(store.snapshot().get_omission_count(), 0);
+        assert!(!store.snapshot().has_paper_corrections());
 
         // Every candidate was checked; the first four on the first list have
         // five findings between them.
-        assert!(matches!(store.get_brp_status(), BrpStatus::Finished));
+        assert!(matches!(
+            store.snapshot().get_brp_status(),
+            BrpStatus::Finished
+        ));
         assert_eq!(
-            BrpCheckState::for_political_group(store),
+            BrpCheckState::for_political_group(&store.snapshot()),
             BrpCheckState::Errors {
                 errors: 5,
                 handled: 0
             }
         );
-        let first_list = fixture_lists(store).remove(0);
-        let findings = store.get_brp_findings();
+        let first_list = fixture_lists(&store.snapshot(), store.election).remove(0);
+        let data = store.snapshot();
+        let findings = data.get_brp_findings();
         let flagged: Vec<usize> = first_list
             .candidates
             .iter()
@@ -946,7 +989,8 @@ mod tests {
         // Every imported group entered the previous result its registration
         // gives it; the unregistered one has no seats.
         for store in fixture_stores(&state).await {
-            let group = store.get_political_group(WithCorrections::None);
+            let data = store.snapshot();
+            let group = data.pg(WithCorrections::None).get_political_group();
             let expected = match registered
                 .iter()
                 .find(|r| r.has_appellation(group.appellation.as_ref().unwrap()))
@@ -1043,13 +1087,18 @@ mod tests {
         let state = fixture_state(ElectionConfig::EK27).await;
         let store = fixture_store_named(&state, "Partij Puntkomma").await;
 
-        assert!(store.has_paper_corrections());
-        assert_eq!(store.get_omission_count(), 0);
-        assert_eq!(store.get_correction_count(), 0, "no CSB corrections");
+        assert!(store.snapshot().has_paper_corrections());
+        assert_eq!(store.snapshot().get_omission_count(), 0);
+        assert_eq!(
+            store.snapshot().get_correction_count(),
+            0,
+            "no CSB corrections"
+        );
 
         // The submitter's house number differs from the package.
-        let imported = store.get_list_submitter(WithCorrections::None);
-        let corrected = store.get_list_submitter(WithCorrections::Paper);
+        let data = store.snapshot();
+        let imported = data.pg(WithCorrections::None).get_list_submitter();
+        let corrected = data.pg(WithCorrections::Paper).get_list_submitter();
         assert_eq!(imported.id, corrected.id);
         assert_ne!(
             imported.address.house_number(),
@@ -1058,27 +1107,29 @@ mod tests {
         assert_eq!(corrected.address.house_number().as_deref(), Some("7"));
 
         // Two candidates on the first list differ from the package.
-        let list = fixture_lists(&store).remove(0);
+        let data = store.snapshot();
+        let list = fixture_lists(&data, store.election).remove(0);
         let changed: Vec<PersonId> = list
             .candidates
             .iter()
             .copied()
-            .filter(|person| {
-                store.get_person(*person, WithCorrections::None)
-                    != store.get_person(*person, WithCorrections::Paper)
-            })
+            .filter(|person| data.is_person_paper_corrected(*person))
             .collect();
         assert_eq!(changed, list.candidates[1..3].to_vec());
-        let residence = store
-            .get_person(changed[0], WithCorrections::Paper)
-            .and_then(|person| person.personal_data.place_of_residence);
+        let residence = data
+            .pg(WithCorrections::Paper)
+            .get_person(changed[0])
+            .ok()
+            .and_then(|person| person.personal_data.place_of_residence.clone());
         assert_eq!(
             residence.map(|p| p.to_string()),
             Some("Utrecht".to_string())
         );
-        let initials = store
-            .get_person(changed[1], WithCorrections::Paper)
-            .and_then(|person| person.name.initials)
+        let initials = data
+            .pg(WithCorrections::Paper)
+            .get_person(changed[1])
+            .ok()
+            .and_then(|person| person.name.initials.clone())
             .map(|initials| initials.to_string());
         assert_eq!(initials, Some("A.B.C.".to_string()));
 
@@ -1095,10 +1146,14 @@ mod tests {
             "Actiegroep Laatste Moment",
         ] {
             let store = fixture_store_named(&state, appellation).await;
-            assert_eq!(store.get_omission_count(), 0, "{appellation}");
-            assert!(!store.has_paper_corrections(), "{appellation}");
+            assert_eq!(store.snapshot().get_omission_count(), 0, "{appellation}");
+            assert!(!store.snapshot().has_paper_corrections(), "{appellation}");
             assert!(
-                !store.get_candidate_lists(WithCorrections::None).is_empty(),
+                !store
+                    .snapshot()
+                    .pg(WithCorrections::None)
+                    .get_candidate_lists()
+                    .is_empty(),
                 "{appellation}"
             );
         }
@@ -1107,7 +1162,7 @@ mod tests {
     #[tokio::test]
     async fn fixture_import_adds_omissions_in_every_category() {
         let store = fixture_store(ElectionConfig::EK27).await;
-        let omissions: Vec<Omission> = store.snapshot().omissions.values().cloned().collect();
+        let omissions: Vec<Omission> = store.snapshot().get_omissions();
 
         assert_eq!(omissions.len(), 7);
         assert!(
@@ -1143,7 +1198,13 @@ mod tests {
             .sum();
         assert_eq!(actionable.len(), 6);
         assert!(decisions > actionable.len());
-        assert_eq!(store.get_recovery_progress().pending, decisions);
+        assert_eq!(
+            store
+                .snapshot()
+                .get_recovery_progress(store.election)
+                .pending,
+            decisions
+        );
         assert!(
             actionable
                 .iter()
@@ -1170,25 +1231,35 @@ mod tests {
     #[tokio::test]
     async fn fixture_omissions_refer_to_imported_lists_and_candidates() {
         let store = fixture_store(ElectionConfig::EK27).await;
-        let omissions: Vec<Omission> = store.snapshot().omissions.values().cloned().collect();
+        let omissions: Vec<Omission> = store.snapshot().get_omissions();
 
         for omission in &omissions {
             for district in omission.electoral_districts(&store.election) {
                 assert!(
                     store
-                        .get_candidate_lists(WithCorrections::Paper)
+                        .snapshot()
+                        .pg(WithCorrections::Paper)
+                        .get_candidate_lists()
                         .iter()
                         .any(|list| list.electoral_districts.contains(district)),
                     "no fixture list covers {district:?}"
                 );
             }
             for list_id in omission.candidate_lists() {
-                let list = store
-                    .get_candidate_list(*list_id, WithCorrections::Paper)
+                let data = store.snapshot();
+                let list = data
+                    .pg(WithCorrections::Paper)
+                    .get_candidate_list(*list_id)
                     .expect("the omission refers to a fixture list");
                 if let OmissionCategory::Candidate { person, .. } = &omission.category {
                     assert!(list.candidates.contains(person));
-                    assert!(store.get_person(*person, WithCorrections::Paper).is_some());
+                    assert!(
+                        store
+                            .snapshot()
+                            .pg(WithCorrections::Paper)
+                            .get_person(*person)
+                            .is_ok()
+                    );
                 }
             }
         }
@@ -1197,7 +1268,7 @@ mod tests {
     #[tokio::test]
     async fn single_district_election_gets_omissions_for_its_one_list() {
         let store = fixture_store(ElectionConfig::WS27(WaterCouncil::Rivierenland)).await;
-        let omissions: Vec<Omission> = store.snapshot().omissions.values().cloned().collect();
+        let omissions: Vec<Omission> = store.snapshot().get_omissions();
 
         // No other districts, and no candidate on more than one list.
         assert_eq!(omissions.len(), 7);

@@ -117,7 +117,8 @@ mod tests {
             .expect("location header")
             .to_str()
             .expect("location header value");
-        let authorisations = store.get_name_authorisations();
+        let data = store.snapshot();
+        let authorisations = data.get_name_authorisations();
         assert_eq!(authorisations.len(), 1);
         assert_eq!(
             location,

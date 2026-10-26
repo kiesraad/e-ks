@@ -43,6 +43,7 @@ ignore = [
     { id = "RUSTSEC-2026-0368", reason = "zip 8.6 pulled transitively by docx-rs (via textris-pdf); only affects ZipArchive::extract, which docx-rs does not call. Revisit when docx-rs moves to zip >= 9." },
     { id = "RUSTSEC-2026-0369", reason = "zip 8.6 pulled transitively by docx-rs (via textris-pdf); only affects ZipArchive::extract / ZipStreamReader::extract, which docx-rs does not call. Revisit when docx-rs moves to zip >= 9." },
     { id = "RUSTSEC-2026-0374", reason = "basic-toml (unmaintained) pulled transitively by askama_derive via the `config` feature, which we need for askama.toml. Only used at compile time by the proc-macro to parse our own askama.toml, so it never runs in the binary. Revisit when askama-rs/askama#594 is resolved." },
+    { id = "RUSTSEC-2026-0387", reason = "crypto-bigint 0.5 pulled transitively by bergshamra 0.9 (via ecdsa 0.16 / elliptic-curve 0.13 / kryptering 0.6); only >= 0.7.6 is patched and the 0.5 line will not be. auth-service signs with an RSA key and unwraps the EncryptedID with RSA-OAEP, so the elliptic-curve 0.13 code only ever verifies signatures against public keys and handles no secret integers. Our own P-256 code uses p256 0.14 on the patched crypto-bigint 0.7.6. Revisit when bergshamra moves off elliptic-curve 0.13." },
 ]
 
 [sources]

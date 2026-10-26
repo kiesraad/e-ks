@@ -75,6 +75,7 @@ pub async fn import_submit<S: AppRequestState>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::store::StoreData;
     use axum::http::StatusCode;
 
     use crate::{
@@ -89,7 +90,7 @@ mod tests {
             .await?;
         source_store.update(PgEvent::HideDownloadWarning).await?;
 
-        let hash = source_store.snapshot().events[0].hash;
+        let hash = source_store.snapshot().events()[0].hash;
         Ok(format_hash(&hash, false))
     }
 
@@ -143,7 +144,7 @@ mod tests {
             .await?;
         assert_eq!(stores.len(), 1);
         assert!(matches!(
-            stores[0].snapshot().events[0].payload.action,
+            stores[0].snapshot().events()[0].payload.action,
             CsbAction::Import { .. }
         ));
         assert!(

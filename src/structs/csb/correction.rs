@@ -44,10 +44,11 @@ impl PersonCorrectionDelta {
         self.corrections.remove(&correction.kind());
     }
 
-    pub fn apply(self, person: &mut Person) {
+    pub fn apply(&self, person: &mut Person) {
         self.corrections
-            .into_iter()
-            .for_each(|(_, correction)| correction.apply(person));
+            .values()
+            .cloned()
+            .for_each(|correction| correction.apply(person));
     }
 
     pub fn get_corrections(&self) -> HashSet<PersonCorrection> {

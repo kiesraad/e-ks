@@ -94,7 +94,8 @@ mod tests {
         let list = sample_candidate_list(list_id);
         list.create(&store).await?;
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
 
         let response = create_person_candidate_list(
             CreateCandidatePath { list_id },
@@ -122,7 +123,8 @@ mod tests {
         let context = Context::new_test_without_db();
         let form = sample_person_form();
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
 
         let response = create_person_candidate_list_submit(
             CreateCandidatePath { list_id },
@@ -141,7 +143,8 @@ mod tests {
             .to_str()
             .expect("location header value");
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
         assert_eq!(full_list.candidates.len(), 1);
         let candidate = full_list.candidates.first().expect("candidate");
         assert_eq!(location, candidate.data.after_create_path());
@@ -167,7 +170,8 @@ mod tests {
         let context = Context::new_test_without_db();
         let form = sample_person_form();
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
 
         let response = create_person_candidate_list_submit(
             CreateCandidatePath { list_id },
@@ -187,9 +191,13 @@ mod tests {
             .expect("location header value");
         assert!(location.contains("max_candidates_reached=true"));
         // No orphan person is created when the list is already full.
-        assert_eq!(store.get_person_count(), MAX_CANDIDATES);
+        assert_eq!(store.snapshot().get_person_count(), MAX_CANDIDATES);
         assert_eq!(
-            store.get_candidate_list(list_id)?.candidates.len(),
+            store
+                .snapshot()
+                .get_candidate_list(list_id)?
+                .candidates
+                .len(),
             MAX_CANDIDATES
         );
 
@@ -214,7 +222,8 @@ mod tests {
         list.candidates = full;
         list.create(&store).await?;
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
 
         let response = create_person_candidate_list_submit(
             CreateCandidatePath { list_id },
@@ -234,7 +243,11 @@ mod tests {
             .expect("location header value");
         assert!(!location.contains("max_candidates_reached=true"));
         assert_eq!(
-            store.get_candidate_list(list_id)?.candidates.len(),
+            store
+                .snapshot()
+                .get_candidate_list(list_id)?
+                .candidates
+                .len(),
             MAX_CANDIDATES + 1
         );
 
@@ -252,7 +265,8 @@ mod tests {
         let mut form = sample_person_form();
         form.name.last_name = " ".to_string();
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
 
         let response = create_person_candidate_list_submit(
             CreateCandidatePath { list_id },

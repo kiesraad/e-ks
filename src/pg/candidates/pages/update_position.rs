@@ -85,20 +85,23 @@ pub async fn update_candidate_position_submit(
     };
 
     match form.validate_update(&candidate_position) {
-        Err(form_data) => Ok(HtmlTemplate(
-            UpdateCandidatePositionTemplate {
-                position_warning: PositionWarning::new_opt(
-                    &store.get_political_group(),
-                    &candidate,
-                ),
-                candidate,
-                full_list,
-                form: form_data,
-                overlay: Overlay::new_edit(&query),
-            },
-            context,
-        )
-        .into_response()),
+        Err(form_data) => {
+            let data = store.snapshot();
+            Ok(HtmlTemplate(
+                UpdateCandidatePositionTemplate {
+                    position_warning: PositionWarning::new_opt(
+                        data.get_political_group(),
+                        &candidate,
+                    ),
+                    candidate,
+                    full_list,
+                    form: form_data,
+                    overlay: Overlay::new_edit(&query),
+                },
+                context,
+            )
+            .into_response())
+        }
         Ok(position_form) => match position_form.action {
             FormAction::Remove => {
                 let mut list = full_list.list;
@@ -148,8 +151,9 @@ mod tests {
         list.candidates = vec![person.id];
         list.create(&store).await?;
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
-        let political_group = store.get_political_group();
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
+        let political_group = store.snapshot().get_political_group().clone();
         let candidate = list.get_candidate(&store, person.id).await?;
 
         let response = update_candidate_position(
@@ -191,8 +195,9 @@ mod tests {
 
         let last_candidate_id = candidates.last().unwrap().to_owned();
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
-        let political_group = store.get_political_group();
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
+        let political_group = store.snapshot().get_political_group().clone();
         let candidate = list.get_candidate(&store, last_candidate_id).await?;
 
         let response = update_candidate_position(
@@ -233,8 +238,10 @@ mod tests {
             .update_order(&store, &[person_a.id, person_b.id])
             .await?;
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
-        let candidate = store
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
+        let data = store.snapshot();
+        let candidate = data
             .get_candidate_list(list_id)?
             .get_candidate(&store, person_a.id)
             .await?;
@@ -259,7 +266,8 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
         assert_eq!(full_list.candidates.len(), 2);
         assert_eq!(full_list.candidates[0].data.person.id, person_b.id);
         assert_eq!(full_list.candidates[1].data.person.id, person_a.id);
@@ -282,8 +290,10 @@ mod tests {
             .update_order(&store, &[person_a.id, person_b.id])
             .await?;
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
-        let candidate = store
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
+        let data = store.snapshot();
+        let candidate = data
             .get_candidate_list(list_id)?
             .get_candidate(&store, person_a.id)
             .await?;
@@ -308,7 +318,8 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
         assert_eq!(full_list.candidates.len(), 1);
         assert_eq!(full_list.candidates[0].data.person.id, person_b.id);
 

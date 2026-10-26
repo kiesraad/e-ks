@@ -126,7 +126,7 @@ mod tests {
         )
         .await?;
 
-        assert_eq!(list.duplicate_districts(&store), vec![]);
+        assert_eq!(list.duplicate_districts(&store.snapshot()), vec![]);
 
         Ok(())
     }
@@ -160,7 +160,7 @@ mod tests {
         .await?;
 
         assert_eq!(
-            list.duplicate_districts(&store),
+            list.duplicate_districts(&store.snapshot()),
             vec![ElectoralDistrict::Drenthe, ElectoralDistrict::Utrecht] // but not Groningen!
         );
 
@@ -186,7 +186,7 @@ mod tests {
         )
         .await?;
 
-        assert_eq!(list.duplicate_districts(&store), vec![]);
+        assert_eq!(list.duplicate_districts(&store.snapshot()), vec![]);
 
         Ok(())
     }
@@ -198,7 +198,7 @@ mod tests {
 
         list.create(&store).await?;
 
-        let lists = CandidateListSummary::list(&store);
+        let lists = CandidateListSummary::list(&store.snapshot(), store.election);
         assert_eq!(1, lists.len());
         assert_eq!(list.id, lists[0].list.id);
         assert_eq!(0, lists[0].candidate_count());
@@ -229,7 +229,7 @@ mod tests {
         .await?;
 
         // test
-        let lists = CandidateListSummary::list(&store);
+        let lists = CandidateListSummary::list(&store.snapshot(), store.election);
 
         // verification
         assert_eq!(3, lists.len());
@@ -284,7 +284,9 @@ mod tests {
         };
         list_late.create(&store).await?;
 
-        let lists = store.get_candidate_lists();
+        let data = store.snapshot();
+
+        let lists = data.get_candidate_lists();
         assert_eq!(lists.len(), 2);
         assert_eq!(lists[0].id, list_early.id);
         assert_eq!(lists[1].id, list_late.id);
@@ -299,7 +301,8 @@ mod tests {
 
         list.create(&store).await?;
 
-        let loaded = store.get_candidate_list(list.id)?;
+        let data = store.snapshot();
+        let loaded = data.get_candidate_list(list.id)?;
 
         assert_eq!(loaded.id, list.id);
 
@@ -449,8 +452,9 @@ mod tests {
 
         list_a.delete(&store).await?;
 
-        let lists = CandidateListSummary::list(&store);
-        let list_b_from_db = FullCandidateList::get(&store, list_b.id).unwrap();
+        let lists = CandidateListSummary::list(&store.snapshot(), store.election);
+        let list_b_from_db =
+            FullCandidateList::get(&store.snapshot(), store.election, list_b.id).unwrap();
 
         assert_eq!(1, lists.len());
         assert_eq!(list_b.id, lists[0].list.id);
@@ -476,7 +480,8 @@ mod tests {
             .update_order(&store, &[person_a.id, person_b.id])
             .await?;
 
-        let detail = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let detail = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
         assert_eq!(2, detail.candidates.len());
         assert_eq!(person_a.id, detail.candidates[0].data.person.id);
         assert_eq!(person_b.id, detail.candidates[1].data.person.id);
@@ -497,7 +502,8 @@ mod tests {
     #[tokio::test]
     async fn get_full_candidate_list_returns_none_for_missing_list() -> Result<(), AppError> {
         let store = PgStore::new_for_test();
-        let missing = FullCandidateList::get(&store, CandidateListId::new());
+        let missing =
+            FullCandidateList::get(&store.snapshot(), store.election, CandidateListId::new());
         assert!(missing.is_err());
 
         Ok(())
@@ -518,7 +524,8 @@ mod tests {
         list.append_candidate(&store, person_a.id).await?;
         list.append_candidate(&store, person_b.id).await?;
 
-        let detail = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let detail = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
 
         assert_eq!(detail.candidates.len(), 2);
         assert_eq!(detail.candidates[0].data.person.id, person_a.id);
@@ -565,7 +572,11 @@ mod tests {
 
         assert!(matches!(err, AppError::TooManyCandidates { .. }));
         assert_eq!(
-            store.get_candidate_list(list_id)?.candidates.len(),
+            store
+                .snapshot()
+                .get_candidate_list(list_id)?
+                .candidates
+                .len(),
             MAX_CANDIDATES
         );
 
@@ -590,7 +601,13 @@ mod tests {
         let err = list.update_order(&store, &person_ids).await.unwrap_err();
 
         assert!(matches!(err, AppError::TooManyCandidates { .. }));
-        assert!(store.get_candidate_list(list_id)?.candidates.is_empty());
+        assert!(
+            store
+                .snapshot()
+                .get_candidate_list(list_id)?
+                .candidates
+                .is_empty()
+        );
 
         Ok(())
     }
@@ -610,7 +627,13 @@ mod tests {
             .unwrap_err();
 
         assert!(matches!(err, AppError::DuplicateCandidate));
-        assert!(store.get_candidate_list(list_id)?.candidates.is_empty());
+        assert!(
+            store
+                .snapshot()
+                .get_candidate_list(list_id)?
+                .candidates
+                .is_empty()
+        );
 
         Ok(())
     }
@@ -626,13 +649,15 @@ mod tests {
         list.create(&store).await?;
         person_a.create(&store).await?;
         person_b.create(&store).await?;
-        let mut list = store.get_candidate_list(list_id)?;
+        let data = store.snapshot();
+        let mut list = data.get_candidate_list(list_id).cloned()?;
         list.append_candidate(&store, person_a.id).await?;
         list.append_candidate(&store, person_b.id).await?;
 
         person_a.delete(&store).await?;
 
-        let detail = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let detail = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
         assert_eq!(detail.candidates.len(), 1);
         assert_eq!(detail.candidates[0].data.person.id, person_b.id);
 
@@ -650,7 +675,8 @@ mod tests {
         person.create(&store).await?;
         list.append_candidate(&store, person.id).await?;
 
-        let candidate = store
+        let data = store.snapshot();
+        let candidate = data
             .get_candidate_list(list_id)?
             .get_candidate(&store, person.id)
             .await?;

@@ -32,9 +32,10 @@ pub async fn delete_person_confirm(
     candidate: Candidate,
     Query(query): Query<QueryParamState>,
 ) -> AppResponse<impl IntoResponse> {
+    let data = store.snapshot();
     Ok(HtmlTemplate(
         DeleteCandidateTemplate {
-            on_candidate_lists: store.count_candidate_lists(candidate.person.id),
+            on_candidate_lists: data.count_candidate_lists(candidate.person.id),
             candidate,
             full_list,
             overlay: Overlay::new_edit(&query),
@@ -86,8 +87,10 @@ mod tests {
         person.create(&store).await?;
         list.clone().update_order(&store, &[person.id]).await?;
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
-        let candidate = store
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
+        let data = store.snapshot();
+        let candidate = data
             .get_candidate_list(list_id)?
             .get_candidate(&store, person.id)
             .await?;
@@ -136,7 +139,8 @@ mod tests {
         list.candidates = vec![person.id, other_person.id];
         list.create(&store).await?;
 
-        let candidate = store
+        let data = store.snapshot();
+        let candidate = data
             .get_candidate_list(list_id)?
             .get_candidate(&store, person.id)
             .await?;
@@ -170,12 +174,12 @@ mod tests {
                 .to_string()
         );
 
-        let updated_list = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let updated_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
         assert_eq!(updated_list.candidates.len(), 1);
         assert_eq!(updated_list.candidates[0].data.person.id, other_person.id);
 
-        let removed = store.get_person(person.id);
-        assert!(removed.is_err());
+        assert!(store.snapshot().get_person(person.id).is_err());
 
         Ok(())
     }
