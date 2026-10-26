@@ -1,6 +1,6 @@
 candidates: Kandidaten
-continue_to_home: Verder naar het startscherm
-save_and_go_home: Opslaan en naar startscherm
+to_home: Naar het startscherm
+save_and_go_home: Opslaan en naar overzicht
 date_field:
   date: Datum
   day_placeholder: dd

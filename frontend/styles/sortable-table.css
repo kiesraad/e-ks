@@ -64,3 +64,9 @@
     }
   }
 }
+
+/* Keep the grabbing cursor across the whole page while a row is being dragged. */
+body.drag-active,
+body.drag-active * {
+  cursor: grabbing !important;
+}

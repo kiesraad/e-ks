@@ -313,6 +313,7 @@ export class SortableTable {
     );
 
     row.classList.add("dragging");
+    document.body.classList.add("drag-active");
     this.computeGeometry();
     this.updatePositionLabels(this.rows);
   }
@@ -423,6 +424,7 @@ export class SortableTable {
     this.rows = finalOrder;
 
     this.drag = null;
+    document.body.classList.remove("drag-active");
 
     this.updatePositionLabels(this.rows);
 
