@@ -3,7 +3,8 @@ use crate::{
     structs::{
         audit_log::audit_fields,
         common::{Appellation, FullName, PreviousElectionResults, Problematic, Problems},
-        list_designation::ListDesignation,
+        csb::RegisteredPoliticalGroupId,
+        list_designation::{ListDesignation, ListDesignationKind},
     },
 };
 use serde::{Deserialize, Serialize};
@@ -17,25 +18,61 @@ pub struct PoliticalGroup {
 
 audit_fields!(PoliticalGroup {
     appellation: leaf(Appellation),
-    list_designation: leaf(ListDesignation),
+    list_designation: flatten,
     previous_election_results: leaf(PreviousElectionResults),
 });
 
 impl Problematic<()> for PoliticalGroup {
     fn get_problems(&self, _: ()) -> Problems {
         Problems::merge(vec![
-            self.appellation.get_problems(self.list_designation),
+            self.appellation.get_problems(self.list_designation.clone()),
             self.list_designation.get_problems(()),
             self.previous_election_results
-                .get_problems(self.list_designation),
+                .get_problems(self.list_designation.clone()),
         ])
     }
 }
 
 impl PoliticalGroup {
+    pub fn list_designation_kind(&self) -> Option<ListDesignationKind> {
+        self.list_designation.as_ref().map(ListDesignation::kind)
+    }
+
+    pub fn is_blank(&self) -> bool {
+        self.list_designation_kind() == Some(ListDesignationKind::Blank)
+    }
+
+    pub fn is_combined(&self) -> bool {
+        self.list_designation_kind() == Some(ListDesignationKind::Combined)
+    }
+
+    /// The registration a standalone list is bound to. A combined list is
+    /// bound to several, which the numbering does not use yet.
+    pub fn registration_id(&self) -> Option<RegisteredPoliticalGroupId> {
+        match self.list_designation {
+            Some(ListDesignation::Standalone { registration }) => registration,
+            _ => None,
+        }
+    }
+
+    /// Bind a standalone list to `registration`, or unbind it with `None`.
+    /// Picking a registration before a list type is chosen makes the list
+    /// standalone; a blank or combined list is left alone.
+    pub fn bind_registration(&mut self, registration: Option<RegisteredPoliticalGroupId>) {
+        match (&mut self.list_designation, registration) {
+            (Some(ListDesignation::Standalone { registration: slot }), _) => *slot = registration,
+            (None, Some(id)) => {
+                self.list_designation = Some(ListDesignation::Standalone {
+                    registration: Some(id),
+                });
+            }
+            _ => {}
+        }
+    }
+
     /// Appellation for use in exported PG documents (EML 210 and H-models)
     pub fn pg_appellation(&self) -> Result<String, AppError> {
-        if self.list_designation == Some(ListDesignation::Blank) {
+        if self.is_blank() {
             // empty place holder
             return Ok(String::new());
         }
@@ -47,7 +84,7 @@ impl PoliticalGroup {
 
     /// Appellation for use in the UI of the CSB module and the I-models
     pub fn csb_appellation(&self, first_candidate_name: Option<&FullName>) -> String {
-        if self.list_designation == Some(ListDesignation::Blank) {
+        if self.is_blank() {
             return match first_candidate_name {
                 Some(name) => match &name.initials {
                     Some(initials) => {
@@ -66,7 +103,7 @@ impl PoliticalGroup {
     }
 
     pub fn get_max_candidates(&self) -> usize {
-        if self.list_designation == Some(ListDesignation::Blank) {
+        if self.is_blank() {
             return 50;
         }
         match self.previous_election_results {
@@ -76,7 +113,7 @@ impl PoliticalGroup {
     }
 
     pub fn was_previously_seated(&self) -> bool {
-        if self.list_designation == Some(ListDesignation::Blank) {
+        if self.is_blank() {
             return false;
         }
         self.previous_election_results
@@ -136,7 +173,7 @@ mod tests {
     fn complete_no_problems() {
         let problems = PoliticalGroup {
             previous_election_results: Some(PreviousElectionResults::OneToFifteenSeats),
-            list_designation: Some(ListDesignation::Standalone),
+            list_designation: Some(ListDesignation::default()),
             appellation: Appellation::from_str("test").ok(),
         }
         .get_problems(());
@@ -161,7 +198,7 @@ mod tests {
     fn blank_lists_force_defaults_even_if_set_differently() {
         let mut group = PoliticalGroup {
             previous_election_results: Some(PreviousElectionResults::SixteenOrMoreSeats),
-            list_designation: Some(ListDesignation::Standalone),
+            list_designation: Some(ListDesignation::default()),
             appellation: Appellation::from_str("test").ok(),
         };
         assert_eq!(group.pg_appellation().unwrap(), "test");
@@ -176,6 +213,48 @@ mod tests {
     }
 
     #[test]
+    fn binding_a_registration_follows_the_list_type() {
+        let id = RegisteredPoliticalGroupId::new();
+        let bound = Some(ListDesignation::Standalone {
+            registration: Some(id),
+        });
+
+        // A standalone list binds and unbinds.
+        let mut group = PoliticalGroup {
+            list_designation: Some(ListDesignation::default()),
+            ..Default::default()
+        };
+        group.bind_registration(Some(id));
+        assert_eq!(group.list_designation, bound);
+        assert_eq!(group.registration_id(), Some(id));
+        group.bind_registration(None);
+        assert_eq!(group.list_designation, Some(ListDesignation::default()));
+        assert_eq!(group.registration_id(), None);
+
+        // A pick before the list type is chosen makes the list standalone;
+        // no pick leaves the type open.
+        let mut group = PoliticalGroup::default();
+        group.bind_registration(None);
+        assert_eq!(group.list_designation, None);
+        group.bind_registration(Some(id));
+        assert_eq!(group.list_designation, bound);
+
+        // Blank and combined lists are left alone.
+        for designation in [
+            ListDesignation::Blank,
+            ListDesignation::from_kind(ListDesignationKind::Combined),
+        ] {
+            let mut group = PoliticalGroup {
+                list_designation: Some(designation.clone()),
+                ..Default::default()
+            };
+            group.bind_registration(Some(id));
+            assert_eq!(group.list_designation, Some(designation));
+            assert_eq!(group.registration_id(), None);
+        }
+    }
+
+    #[test]
     fn csb_appellation() {
         let mut pg = sample_political_group();
         let first_candidate_name = FullName {
@@ -187,21 +266,21 @@ mod tests {
         let cases = [
             (None, "Test Partij", "Test Partij", "", ""),
             (
-                Some(ListDesignation::Blank),
+                Some(ListDesignationKind::Blank),
                 "Blanco (Nagelhout, A.B.)",
                 "Blanco",
                 "Blanco (Nagelhout, A.B.)",
                 "Blanco",
             ),
             (
-                Some(ListDesignation::Combined),
+                Some(ListDesignationKind::Combined),
                 "Test Partij",
                 "Test Partij",
                 "",
                 "",
             ),
             (
-                Some(ListDesignation::Standalone),
+                Some(ListDesignationKind::Standalone),
                 "Test Partij",
                 "Test Partij",
                 "",
@@ -217,7 +296,7 @@ mod tests {
         ) in cases
         {
             pg.appellation = Appellation::from_str("Test Partij").ok();
-            pg.list_designation = designation;
+            pg.list_designation = designation.map(ListDesignation::from_kind);
             assert_eq!(
                 expected_with_candidate,
                 pg.csb_appellation(Some(&first_candidate_name))

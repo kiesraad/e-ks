@@ -1,4 +1,4 @@
-use crate::structs::list_designation::ListDesignation;
+use crate::structs::list_designation::ListDesignationKind;
 use axum_extra::routing::TypedPath;
 
 use crate::{
@@ -16,7 +16,7 @@ pub struct PoliticalGroupSteps {
     pub name_authorisations: Vec<NameAuthorisation>,
     pub list_submitter: ListSubmitter,
     pub substitute_submitters: Vec<ListSubmitter>,
-    pub list_designation: Option<ListDesignation>,
+    pub list_designation: Option<ListDesignationKind>,
     pub initial: bool,
 
     pub list_designation_state: &'static str,
@@ -43,7 +43,7 @@ impl PoliticalGroupSteps {
             basic_state: Self::basic_state(initial, political_group),
             name_authorisations_state: Self::name_authorisations_state(
                 initial,
-                political_group.list_designation,
+                political_group.list_designation_kind(),
                 &name_authorisations,
             ),
             submitters_state: Self::submitters_state(
@@ -54,7 +54,7 @@ impl PoliticalGroupSteps {
             name_authorisations,
             list_submitter: list_submitter.clone(),
             substitute_submitters: substitute_submitters.to_vec(),
-            list_designation: political_group.list_designation,
+            list_designation: political_group.list_designation_kind(),
         })
     }
 
@@ -76,7 +76,7 @@ impl PoliticalGroupSteps {
 
     fn name_authorisations_state(
         fine_if_empty: bool,
-        list_designation: Option<ListDesignation>,
+        list_designation: Option<ListDesignationKind>,
         name_authorisations: &[NameAuthorisation],
     ) -> &'static str {
         if name_authorisations.is_empty() {
@@ -129,11 +129,11 @@ impl PoliticalGroupSteps {
     }
 
     pub fn is_blank(&self) -> bool {
-        self.list_designation == Some(ListDesignation::Blank)
+        self.list_designation == Some(ListDesignationKind::Blank)
     }
 
     pub fn is_combined(&self) -> bool {
-        self.list_designation == Some(ListDesignation::Combined)
+        self.list_designation == Some(ListDesignationKind::Combined)
     }
 
     /// The authorisation form for the appellation: H 3-2 for a combined
@@ -212,13 +212,13 @@ mod tests {
         let mut steps = PoliticalGroupSteps::new(&PgStore::new_for_test(), false)?;
         assert_eq!(steps.designation_form(), "H\u{A0}3-1");
 
-        steps.list_designation = Some(ListDesignation::Standalone);
+        steps.list_designation = Some(ListDesignationKind::Standalone);
         assert_eq!(steps.designation_form(), "H\u{A0}3-1");
 
-        steps.list_designation = Some(ListDesignation::Blank);
+        steps.list_designation = Some(ListDesignationKind::Blank);
         assert_eq!(steps.designation_form(), "H\u{A0}3-1");
 
-        steps.list_designation = Some(ListDesignation::Combined);
+        steps.list_designation = Some(ListDesignationKind::Combined);
         assert_eq!(steps.designation_form(), "H\u{A0}3-2");
 
         Ok(())

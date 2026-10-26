@@ -106,8 +106,10 @@ pub enum PgEvent {
     },
 }
 
-// Large payloads are boxed so each in-memory event stays small.
-const _: () = assert!(std::mem::size_of::<PgEvent>() <= 56);
+// Large payloads are boxed so each in-memory event stays small; the
+// political group, with the registrations its list is bound to, is the
+// largest kept inline.
+const _: () = assert!(std::mem::size_of::<PgEvent>() <= 64);
 
 /// Payload of [`PgEvent::ImportCandidates`]; encodes like the struct variant it replaced.
 #[derive(Debug, Serialize, Deserialize, Clone)]

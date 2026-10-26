@@ -7,7 +7,7 @@ use crate::{
     filters,
     structs::{
         common::{HasSeverity, Severity},
-        list_designation::ListDesignation,
+        list_designation::ListDesignationKind,
         list_submitters::ListSubmitter,
         problems::AllProblems,
     },
@@ -22,7 +22,7 @@ pub struct IndexTemplate {
     download_path_nl: String,
     download_path_fry: String,
     frisian_export_allowed: bool,
-    list_designation: Option<ListDesignation>,
+    list_designation: Option<ListDesignationKind>,
     previously_seated: bool,
 }
 
@@ -49,7 +49,7 @@ pub async fn index(
             }
             .to_string(),
             frisian_export_allowed: context.election.frisian_export_allowed(),
-            list_designation: data.get_political_group().list_designation,
+            list_designation: data.get_political_group().list_designation_kind(),
             previously_seated: data.get_political_group().was_previously_seated(),
         },
         context,

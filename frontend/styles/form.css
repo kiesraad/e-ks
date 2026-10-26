@@ -384,6 +384,7 @@
   cursor: not-allowed;
 }
 
+.form input[readonly],
 .form textarea[readonly] {
   background-color: var(--bg-gray-darker);
   color: var(--gray-500);

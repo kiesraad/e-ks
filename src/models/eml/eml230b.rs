@@ -272,7 +272,7 @@ mod tests {
         let store1 = CsbStream::new_for_test_with_election(election);
         store1.set_political_group(PoliticalGroup {
             appellation: Some("Kiesraad Demo".parse().unwrap()),
-            list_designation: Some(ListDesignation::Standalone),
+            list_designation: Some(ListDesignation::Standalone { registration: None }),
             ..Default::default()
         });
         store1.add_person(candidate1.clone());
@@ -286,7 +286,7 @@ mod tests {
         let store2 = CsbStream::new_for_test_with_election(election);
         store2.set_political_group(PoliticalGroup {
             appellation: Some("Andere Partij".parse().unwrap()),
-            list_designation: Some(ListDesignation::Standalone),
+            list_designation: Some(ListDesignation::Standalone { registration: None }),
             ..Default::default()
         });
         store2.add_person(candidate3.clone());
@@ -449,7 +449,7 @@ mod tests {
         let store = CsbStream::new_for_test();
         store.set_political_group(PoliticalGroup {
             appellation: Some("Kiesraad Demo".parse().unwrap()),
-            list_designation: Some(ListDesignation::Standalone),
+            list_designation: Some(ListDesignation::Standalone { registration: None }),
             ..Default::default()
         });
         store.add_person(candidate.clone());

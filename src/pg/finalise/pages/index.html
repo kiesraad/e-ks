@@ -158,9 +158,9 @@
                 <h5>{{ "finalise.print.h1_title"|trans }}</h5>
                 <p>{{ "finalise.print.h1_description"|trans }}</p>
               </div>
-              {% if list_designation != Some(ListDesignation::Blank) %}
+              {% if list_designation != Some(ListDesignationKind::Blank) %}
                 <div>
-                  {% if list_designation == Some(ListDesignation::Combined) %}
+                  {% if list_designation == Some(ListDesignationKind::Combined) %}
                     <h5>{{ "finalise.print.h3_2_title"|trans }}</h5>
                     <p>{{ "finalise.print.h3_2_description"|trans }}</p>
                   {% else %}

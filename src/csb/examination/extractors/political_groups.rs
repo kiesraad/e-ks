@@ -147,23 +147,29 @@ impl CsbPoliticalGroup {
     /// The registered appellation to match the group on: none for a blank
     /// list or once the appellation is scrapped.
     pub fn registered_appellation(&self) -> Option<&Appellation> {
-        if self.is_appellation_scrapped()
-            || self.political_group.list_designation == Some(ListDesignation::Blank)
-        {
+        if self.is_appellation_scrapped() || self.political_group.is_blank() {
             return None;
         }
         self.political_group.appellation.as_ref()
     }
 
-    /// The registration matching the group's appellation, if any.
+    /// The registration the group is bound to, or failing that the one its
+    /// appellation matches: groups imported before the binding existed, and
+    /// combined lists, are still matched on appellation.
     pub fn registration<'a>(
         &self,
         registered: &'a [RegisteredPoliticalGroup],
     ) -> Option<&'a RegisteredPoliticalGroup> {
         let appellation = self.registered_appellation()?;
+        let bound = self.political_group.registration_id();
         registered
             .iter()
-            .find(|registration| registration.has_appellation(appellation))
+            .find(|registration| Some(registration.id) == bound)
+            .or_else(|| {
+                registered
+                    .iter()
+                    .find(|registration| registration.has_appellation(appellation))
+            })
     }
 
     /// The districts in which the group still has a valid list.
@@ -245,6 +251,7 @@ mod tests {
     use std::collections::{BTreeMap, BTreeSet};
 
     use super::*;
+    use crate::structs::csb::{RegisteredPoliticalGroupId, sample_registered_political_group};
     use axum::{body::Body, http::Request};
 
     use crate::{
@@ -336,6 +343,49 @@ mod tests {
     }
 
     #[test]
+    fn registration_prefers_the_bound_id_over_the_appellation() {
+        let bound = sample_registered_political_group("Nieuwe Naam", 100, 1);
+        let by_name = sample_registered_political_group("Kiesraad Demo", 50, 1);
+        let registered = [by_name.clone(), bound.clone()];
+
+        let group = CsbPoliticalGroup {
+            political_group: PoliticalGroup {
+                list_designation: Some(ListDesignation::Standalone {
+                    registration: Some(bound.id),
+                }),
+                ..CsbPoliticalGroup::sample("Kiesraad Demo").political_group
+            },
+            ..CsbPoliticalGroup::sample("Kiesraad Demo")
+        };
+        assert_eq!(group.registration(&registered), Some(&bound));
+
+        // Imported before the binding existed, or bound to a registration
+        // the committee deleted since: matched on appellation.
+        let unbound = CsbPoliticalGroup::sample("kiesraad demo");
+        assert_eq!(unbound.registration(&registered), Some(&by_name));
+        let dangling = CsbPoliticalGroup {
+            political_group: PoliticalGroup {
+                list_designation: Some(ListDesignation::Standalone {
+                    registration: Some(RegisteredPoliticalGroupId::new()),
+                }),
+                ..CsbPoliticalGroup::sample("Kiesraad Demo").political_group
+            },
+            ..CsbPoliticalGroup::sample("Kiesraad Demo")
+        };
+        assert_eq!(dangling.registration(&registered), Some(&by_name));
+
+        // A blank list has no registration, however it is bound.
+        let blank = CsbPoliticalGroup {
+            political_group: PoliticalGroup {
+                list_designation: Some(ListDesignation::Blank),
+                ..CsbPoliticalGroup::sample("Kiesraad Demo").political_group
+            },
+            ..CsbPoliticalGroup::sample("Kiesraad Demo")
+        };
+        assert_eq!(blank.registration(&registered), None);
+    }
+
+    #[test]
     fn csb_appellation_returns_appellation_for_normal_list() {
         let group = CsbPoliticalGroup::sample("Kiesraad Demo");
 
@@ -347,7 +397,7 @@ mod tests {
         let store = CsbStore::new_for_test();
         store.set_political_group(PoliticalGroup {
             appellation: Some("Kiesraad Demo".parse().unwrap()),
-            list_designation: Some(ListDesignation::Standalone),
+            list_designation: Some(ListDesignation::Standalone { registration: None }),
             ..Default::default()
         });
         let mut omission = sample_omission(OmissionCategory::Appellation);
@@ -398,7 +448,7 @@ mod tests {
         let group = CsbPoliticalGroup {
             political_group: PoliticalGroup {
                 // should convert to Blank because of appellation scrapping
-                list_designation: Some(ListDesignation::Standalone),
+                list_designation: Some(ListDesignation::Standalone { registration: None }),
                 ..Default::default()
             },
             mode: CsbPhase::Recovery,

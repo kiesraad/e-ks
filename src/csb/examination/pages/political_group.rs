@@ -953,7 +953,7 @@ mod tests {
 
         store.set_political_group(PoliticalGroup {
             appellation: None,
-            list_designation: Some(ListDesignation::Standalone),
+            list_designation: Some(ListDesignation::Standalone { registration: None }),
             previous_election_results: Some(PreviousElectionResults::ZeroSeats),
         });
 

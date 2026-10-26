@@ -3,7 +3,7 @@ use crate::{
     CsbStoreData, Locale,
     projection::WithCorrections,
     structs::{
-        common::PreviousElectionResults, csb::CsbPhase, list_designation::ListDesignation,
+        common::PreviousElectionResults, csb::CsbPhase, list_designation::ListDesignationKind,
         political_groups::PoliticalGroup,
     },
     trans,
@@ -26,7 +26,9 @@ impl PaperCorrectedPoliticalGroupInfo {
         let imported_group = data.pg(WithCorrections::None).get_political_group();
         let paper_corrected_group = data.pg(WithCorrections::Paper).get_political_group();
 
-        let designation = paper_corrected_group.list_designation.unwrap_or_default();
+        let designation = paper_corrected_group
+            .list_designation_kind()
+            .unwrap_or_default();
 
         let mut list_type = PaperCorrected::new(
             list_type_label(imported_group, locale),
@@ -49,24 +51,30 @@ impl PaperCorrectedPoliticalGroupInfo {
                 previous_results_label(imported_group, locale),
                 previous_results_label(paper_corrected_group, locale),
             ),
-            is_blank: designation == ListDesignation::Blank,
+            is_blank: designation == ListDesignationKind::Blank,
         }
     }
 }
 
-fn appellation_label(designation: ListDesignation, locale: Locale) -> Option<String> {
+fn appellation_label(designation: ListDesignationKind, locale: Locale) -> Option<String> {
     match designation {
-        ListDesignation::Standalone => Some(trans!("political_group.appellation", locale)),
-        ListDesignation::Combined => Some(trans!("political_group.appellation_combined", locale)),
-        ListDesignation::Blank => None,
+        ListDesignationKind::Standalone => Some(trans!("political_group.appellation", locale)),
+        ListDesignationKind::Combined => {
+            Some(trans!("political_group.appellation_combined", locale))
+        }
+        ListDesignationKind::Blank => None,
     }
 }
 
 fn list_type_label(political_group: &PoliticalGroup, locale: Locale) -> String {
-    match political_group.list_designation {
-        Some(ListDesignation::Standalone) => trans!("political_group.type.registered_name", locale),
-        Some(ListDesignation::Combined) => trans!("political_group.type.name_combination", locale),
-        Some(ListDesignation::Blank) => trans!("political_group.type.blank_name", locale),
+    match political_group.list_designation_kind() {
+        Some(ListDesignationKind::Standalone) => {
+            trans!("political_group.type.registered_name", locale)
+        }
+        Some(ListDesignationKind::Combined) => {
+            trans!("political_group.type.name_combination", locale)
+        }
+        Some(ListDesignationKind::Blank) => trans!("political_group.type.blank_name", locale),
         None => "-".to_string(),
     }
 }

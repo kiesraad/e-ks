@@ -15,7 +15,7 @@ use crate::{
     id_newtype,
     structs::{
         audit_log::{AuditLeaf, AuditValue, audit_fields},
-        common::Appellation,
+        common::{Appellation, LegalName, PreviousElectionResults},
     },
 };
 
@@ -93,6 +93,10 @@ pub struct RegisteredPoliticalGroup {
     pub id: RegisteredPoliticalGroupId,
     /// The appellation registered with the central electoral committee.
     pub appellation: Appellation,
+    /// The group's statutory name, as recorded in its articles of association
+    /// and at the chamber of commerce (Kieswet Art. G 1, eerste lid).
+    #[serde(default)]
+    pub legal_name: LegalName,
     /// Votes cast on the group's lists at the previous election.
     pub previous_votes: VoteCount,
     /// Seats the group obtained at the previous election.
@@ -102,6 +106,7 @@ pub struct RegisteredPoliticalGroup {
 audit_fields!(RegisteredPoliticalGroup {
     id: skip,
     appellation: leaf(Appellation),
+    legal_name: leaf(LegalName),
     previous_votes: leaf(PreviousVotes),
     previous_seats: leaf(PreviousSeats),
 });
@@ -116,6 +121,16 @@ impl RegisteredPoliticalGroup {
     /// Art. I 14): only groups that obtained one or more seats are.
     pub fn is_numbered_on_votes(&self) -> bool {
         self.was_previously_seated()
+    }
+
+    /// The previous election result as the political group answers it on its
+    /// general information: the bracket its seat count falls in.
+    pub fn previous_election_results(&self) -> PreviousElectionResults {
+        match self.previous_seats.value() {
+            0 => PreviousElectionResults::ZeroSeats,
+            1..=15 => PreviousElectionResults::OneToFifteenSeats,
+            _ => PreviousElectionResults::SixteenOrMoreSeats,
+        }
     }
 
     /// Whether `appellation` is this group's, ignoring case.
@@ -145,6 +160,9 @@ pub mod tests {
         RegisteredPoliticalGroup {
             id: RegisteredPoliticalGroupId::new(),
             appellation: appellation.parse().expect("valid appellation"),
+            legal_name: format!("Vereniging {appellation}")
+                .parse()
+                .expect("valid legal name"),
             previous_votes: VoteCount::from(votes),
             previous_seats: SeatCount::from(seats),
         }
@@ -198,6 +216,28 @@ pub mod tests {
     fn a_group_with_a_seat_was_previously_seated() {
         assert!(sample_registered_political_group("A", 1000, 1).was_previously_seated());
         assert!(!sample_registered_political_group("B", 1000, 0).was_previously_seated());
+    }
+
+    #[test]
+    fn previous_election_results_follow_the_seat_brackets() {
+        let results =
+            |seats| sample_registered_political_group("A", 1, seats).previous_election_results();
+        assert_eq!(results(0), PreviousElectionResults::ZeroSeats);
+        assert_eq!(results(1), PreviousElectionResults::OneToFifteenSeats);
+        assert_eq!(results(15), PreviousElectionResults::OneToFifteenSeats);
+        assert_eq!(results(16), PreviousElectionResults::SixteenOrMoreSeats);
+    }
+
+    #[test]
+    fn a_registration_without_a_legal_name_still_deserialises() {
+        let group: RegisteredPoliticalGroup = serde_json::from_value(serde_json::json!({
+            "id": uuid::Uuid::nil(),
+            "appellation": "Partij",
+            "previous_votes": 1,
+            "previous_seats": 1,
+        }))
+        .unwrap();
+        assert_eq!(group.legal_name.to_string(), "");
     }
 
     #[test]

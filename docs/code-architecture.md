@@ -369,11 +369,18 @@ The CSB section has two projections of its own on the shared store machinery
   candidate's values against the BRP's and names the committee member, by
   GitHub login and id, who started the check.
 - **`registered_political_groups`**: administration of the political groups
-  registered for the election with their result at the previous election of
-  the same body (appellation, votes, seats), kept on the CSB main stream. The
-  lists of groups that obtained one or more seats are numbered first on model
-  I 4, in the order of their votes (Kieswet Art. I 14); the remaining list order
-  is decided by lot (Art. I 15).
+  registered for the election with their statutory name and their result at
+  the previous election of the same body (appellation, legal name, votes,
+  seats), kept on the CSB main stream. A political group picks its
+  registration on its general information page, which takes over the
+  appellation and previous election result and binds the group to the
+  registration by id in its `ListDesignation` (a standalone list carries one
+  registration, a combined list several, a blank list none). The committee
+  matches an imported group on that id, falling back to the appellation for
+  groups imported before the binding existed. The lists of groups that
+  obtained one or more seats are numbered first on model I 4, in the order of
+  their votes (Kieswet Art. I 14); the remaining list order is decided by lot
+  (Art. I 15).
 - **`common`**: the not-found page for paths under `/csb` that no CSB route
   claims. The error pages for the CSB routes (`csb/error_response.rs`) render
   the page an `AppError` carries in the CSB layout, the counterpart of the
@@ -951,7 +958,10 @@ existing log:
 What CBOR does not cover: a field added to an existing event still needs
 `#[serde(default)]` to read events written before it existed, and removing or
 renaming a variant or field still needs an explicit migration or a new frame
-version.
+version. A value that changed shape keeps reading its old form through an
+untagged repr it is deserialised `from`: `BrpFinding` (once a bare kind, now
+a kind with a flag) and `ListDesignation` (once a bare kind, now the kind with
+the registrations it is bound to).
 
 Raw byte fields (the chain `hash` and `encrypted_payload` of a frame) carry
 `#[serde(with = "serde_bytes")]` so they encode as CBOR byte strings rather

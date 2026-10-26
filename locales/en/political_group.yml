@@ -32,6 +32,9 @@ no_legal_names: No statutory name
 no_list_submitter: No list submitter
 no_substitute_submitters: No substitute submitters
 previous_election_results: "In the previous {}, your party obtained:"
+registered_political_group: Registered political group
+registered_political_group_hint: Pick the political group as registered with the central electoral committee. Its registered appellation and seats at the previous election are then taken over and cannot be changed.
+registered_political_group_none: "Not in the list, enter by hand"
 substitute_submitter: Substitute submitter
 substitute_submitter_data: Substitute submitter data
 substitute_submitters_data: Substitute submitters data

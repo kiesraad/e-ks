@@ -255,7 +255,7 @@ pub fn sample_representative_form() -> RepresentativeForm {
 pub fn sample_political_group() -> PoliticalGroup {
     PoliticalGroup {
         appellation: Some("Kiesraad Demo".parse::<Appellation>().expect("appellation")),
-        list_designation: Some(ListDesignation::Standalone),
+        list_designation: Some(ListDesignation::Standalone { registration: None }),
         previous_election_results: Some(PreviousElectionResults::ZeroSeats),
     }
 }
@@ -264,7 +264,7 @@ pub fn sample_political_group() -> PoliticalGroup {
 pub fn sample_political_group_named(appellation: &str) -> PoliticalGroup {
     PoliticalGroup {
         appellation: Some(appellation.parse::<Appellation>().expect("appellation")),
-        list_designation: Some(ListDesignation::Standalone),
+        list_designation: Some(ListDesignation::Standalone { registration: None }),
         ..Default::default()
     }
 }
@@ -376,6 +376,7 @@ pub fn sample_political_group_form() -> PoliticalGroupForm {
     PoliticalGroupForm {
         previous_election_results: PreviousElectionResults::OneToFifteenSeats.to_string(),
         appellation: "Updated Appellation".to_string(),
+        ..Default::default()
     }
 }
 

@@ -84,6 +84,7 @@ mod tests {
         let large_at = body.find("Grote Partij").expect("large group listed");
         let small_at = body.find("Kleine Partij").expect("small group listed");
         assert!(large_at < small_at);
+        assert!(body.contains(">Vereniging Grote Partij<"));
         assert!(body.contains(">5000<"));
         assert!(body.contains(">7<"));
         assert!(body.contains(&format!(

@@ -3,7 +3,7 @@ use crate::{
     structs::{
         audit_log::audit_fields,
         common::{FullName, LegalName, PotentialProblems, Problematic, Problems, Severity},
-        list_designation::ListDesignation,
+        list_designation::ListDesignationKind,
     },
     trans,
 };
@@ -36,19 +36,19 @@ impl Problematic<()> for NameAuthorisation {
 
 impl NameAuthorisation {
     pub fn get_size_problems(
-        list_designation: Option<ListDesignation>,
+        list_designation: Option<ListDesignationKind>,
         name_authorisation_count: usize,
     ) -> Option<PotentialProblems> {
-        match list_designation.unwrap_or(ListDesignation::Standalone) {
-            ListDesignation::Standalone if name_authorisation_count > 1 => {
+        match list_designation.unwrap_or(ListDesignationKind::Standalone) {
+            ListDesignationKind::Standalone if name_authorisation_count > 1 => {
                 Some(PotentialProblems::TooManyAuthorizedNames {
                     count: name_authorisation_count - 1,
                 })
             }
-            ListDesignation::Standalone if name_authorisation_count < 1 => {
+            ListDesignationKind::Standalone if name_authorisation_count < 1 => {
                 Some(PotentialProblems::TooFewAuthorizedNames { count: 1 })
             }
-            ListDesignation::Combined if name_authorisation_count < 2 => {
+            ListDesignationKind::Combined if name_authorisation_count < 2 => {
                 Some(PotentialProblems::TooFewAuthorizedNames {
                     count: 2 - name_authorisation_count,
                 })

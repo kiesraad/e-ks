@@ -4,7 +4,7 @@ pub(crate) mod database;
 
 pub(crate) mod persistence;
 
-mod encoding;
+pub(crate) mod encoding;
 mod event;
 mod event_hash_prefix;
 mod health;

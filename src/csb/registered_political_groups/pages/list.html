@@ -21,6 +21,7 @@
         <thead>
           <tr>
             <th>{{ "political_group.appellation"|trans }}</th>
+            <th>{{ "political_group.legal_name_data"|trans }}</th>
             <th>{{ "csb.registered_political_groups.previous_votes"|trans }}</th>
             <th>{{ "csb.registered_political_groups.previous_seats"|trans }}</th>
             <th></th>
@@ -30,6 +31,7 @@
           {% for group in groups %}
             <tr class="clickable">
               <td>{{ group.appellation }}</td>
+              <td>{{ group.legal_name }}</td>
               <td class="font-number">{{ group.previous_votes }}</td>
               <td class="font-number">{{ group.previous_seats }}</td>
               <td>
