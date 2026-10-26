@@ -23,12 +23,12 @@ legal_name_data_combined: Statutory names
 list_submitter: List submitter
 list_submitter_address_info: This address will be used to send the notice of omissions.
 list_submitter_data: List submitter data
-list_submitter_info: "The list submitter is the only person authorised to submit the candidate list. The central electoral committee verifies the documents that get submitted on nomination day. If any documents are missing or errors have been made, you will receive written notification of these omissions. This notice will also mention the deadline to rectify the omissions."
+list_submitter_info: "The list submitter is the only person authorised to hand in the list of candidates. On the day of submission, the central electoral committee checks for any omissions, such as incomplete or incorrect data. The person who submitted the list will then be notified in writing. The letter from the central electoral committee will also specify the deadline by which these omissions must be corrected."
 list_type: List type
 names_size_hint_add_name: Add the statutory name of the party.
 names_size_hint_combination: Combinations must consist of at least two statutory names.
 names_size_hint_standalone: A standalone registered name must consist of a single name.
-no_legal_names: No statutory name
+no_legal_names: No statutory name has been added yet
 no_list_submitter: No list submitter
 no_substitute_submitters: No substitute submitters
 previous_election_results: "In the previous {}, your party obtained:"

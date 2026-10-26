@@ -1,5 +1,6 @@
 candidates: Candidates
 continue_to_home: Continue to home
+save_and_go_home: Save and go home
 date_field:
   date: Date
   day_placeholder: dd

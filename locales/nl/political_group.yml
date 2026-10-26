@@ -9,7 +9,7 @@ appellation_any: Aanduiding
 appellation_combined: Samengevoegde aanduiding
 authorised_agent: Gemachtigde
 authorised_agent_data: Gegevens (plv.) gemachtigde
-authorised_agent_info: "Voeg hier de statutaire naam met bijbehorende gemachtigde toe. De statutaire naam is de naam van de partij die is vastgelegd in de notariële akte en bij de Kamer van Koophandel. De gemachtigde of plaatsvervangend gemachtigde is geregistreerd bij het centraal stembureau samen met de aanduiding. Deze persoon geeft de lijstinleveraar toestemming om de naam van de partij boven de kandidatenlijst te plaatsen. Dit gebeurt met formulier {}."
+authorised_agent_info: "Voeg hier de statutaire naam met bijbehorende gemachtigde toe. De statutaire naam is de naam van de partij die is vastgelegd in de notariële akte en bij de Kamer van Koophandel.<br><br>De gemachtigde of plaatsvervangend gemachtigde is geregistreerd bij het centraal stembureau samen met de aanduiding. Deze persoon geeft de lijstinleveraar toestemming om de naam van de partij boven de kandidatenlijst te plaatsen. Dit gebeurt met formulier {}."
 basic_information_political_group: Gegevens politieke groepering
 blank_list_warning: U gebruikt een blanco lijst. Wijzigingen die u hier maakt hebben geen effect.
 delete_name_authorisation_warning_text: Weet u zeker dat u dit wilt verwijderen? Deze actie kan niet ongedaan worden gemaakt.
@@ -23,12 +23,12 @@ legal_name_data_combined: Statutaire namen
 list_submitter: Lijstinleveraar
 list_submitter_address_info: Naar dit adres wordt de verzuimbrief verstuurd.
 list_submitter_data: Gegevens lijstinleveraar
-list_submitter_info: "De lijstinleveraar is de enige persoon die bevoegd is om de kandidatenlijst in te leveren. Het centraal stembureau controleert de stukken die worden overhandigd op de dag van kandidaatstelling. Mochten hierbij stukken ontbreken of fouten zijn gemaakt, dan ontvangt u schriftelijk bericht over deze verzuimen. In het bericht dat u van het centraal stembureau ontvangt staat ook tot wanneer verzuimen kunnen worden hersteld."
+list_submitter_info: "De lijstinleveraar is de enige persoon die de kandidatenlijst mag inleveren. Het centraal stembureau controleert op de dag van inleveren of er verzuimen zijn (dat is als er dingen ontbreken of fouten zijn gemaakt). De lijstinleveraar krijgt dan schriftelijk bericht. In de brief van het centraal stembureau staat ook tot wanneer verzuimen kunnen worden hersteld."
 list_type: Type lijstaanduiding
 names_size_hint_add_name: Voeg de statutaire naam van de partij toe.
 names_size_hint_combination: Combinaties van meerdere geregistreerde namen moeten uit minstens twee statutaire namen bestaan.
 names_size_hint_standalone: Een op zichzelf staande geregistreerde naam moet uit één naam bestaan.
-no_legal_names: Geen statutaire naam
+no_legal_names: Nog geen statutaire name toegevoegd
 no_list_submitter: Geen lijstinleveraar
 no_substitute_submitters: Geen vervangers voor het herstel van verzuimen
 previous_election_results: "Bij de vorige {} had uw partij:"
@@ -47,7 +47,7 @@ type:
   one_to_fifteen_seats: 1 tot 15 zetels
   previous_election_results_combined: "Bij de vorige {} had de samenvoeging van aanduidingen, of één van de partijen afzonderlijk:"
   previous_election_results_combined_hint: "Als de partijen bij de vorige verkiezing als afzonderlijke lijsten hebben meegedaan, kies dan het hoogste aantal zetels dat één van de partijen had behaald. De zetels die partijen afzonderlijk hebben behaald mogen niet bij elkaar worden opgeteld."
-  previous_election_results_hint: Het aantal behaalde zetels bij de vorige verkiezing bepaalt of u ondersteunings\u00ADverklaringen moet indienen. Ook bepaalt het of het maximale aantal toegestane kandidaten op de lijst 50 of 80 is.
+  previous_election_results_hint: "Het aantal behaalde zetels bij de vorige verkiezing bepaalt:<ul> <li>of u ondersteuningsverklaringen moet inleveren;</li> <li>of u 50 of 80 kaniddaten op de lijst mag zetten;</li> </ul> <br>Deden de partijen bij de vorige verkiezing apart mee? Kies dan het aantal zetels van de partij met de meeste zetels. Deden de partijen als combinatie mee? Tel de zetels van de partijen dan bij elkaar op."
   registered_name: Op zichzelf staande geregistreerde naam
   registered_name_hint: De partij neemt deel aan de verkiezing met een geregistreerde naam.
   sixteen_or_more_seats: 16 of meer zetels

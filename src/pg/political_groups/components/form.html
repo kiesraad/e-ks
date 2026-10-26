@@ -42,10 +42,10 @@
             <label for="previous_election_results_16">{{ "political_group.type.sixteen_or_more_seats"|trans }}</label>
           </div>
         </div>
-        <span class="alert alert-info">
-          {{ "political_group.type.previous_election_results_hint"|trans }}
+        <div class="alert alert-info alert-narrow">
+          {{ "political_group.type.previous_election_results_hint"|trans|safe }}
           {% if steps.is_combined() %}{{ "political_group.type.previous_election_results_combined_hint"|trans }}{% endif %}
-        </span>
+        </div>
       </fieldset>
     </div>
     <div class="form-row">

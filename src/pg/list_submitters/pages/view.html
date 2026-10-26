@@ -6,15 +6,15 @@
     {% include "pg/political_groups/components/steps.html" %}
     <div>
       <h3 class="mb-6">{{ "political_group.list_submitter_data"|trans }}</h3>
-      <p class="mb-6">{{ "political_group.list_submitter_info"|trans }}</p>
+      <p class="mb-6 text-body-width">{{ "political_group.list_submitter_info"|trans }}</p>
       <div class="card card-plain submitters-card">
         {% if list_submitter.is_empty() %}
-          <div class="submitters">
-            <p class="submitters-empty">{{ "political_group.no_list_submitter"|trans }}</p>
-          </div>
           <a href="{{ steps.step_url(ListSubmitter::update_path() ) }}"
              class="button secondary icon-plus"
              type="button">{{ "political_group.add_list_submitter"|trans }}</a>
+          <div class="submitters">
+            <p class="submitters-empty">{{ "political_group.no_list_submitter"|trans }}</p>
+          </div>
         {% else %}
           <div class="submitters">
             <a href="{{ steps.step_url(ListSubmitter::update_path() ) }}"
@@ -29,7 +29,7 @@
         {% endif %}
       </div>
       <h3 class="mb-6">{{ "political_group.substitute_submitters_data"|trans }}</h3>
-      <p class="mb-6">{{ "political_group.substitute_submitters_info"|trans }}</p>
+      <p class="mb-6 text-body-width">{{ "political_group.substitute_submitters_info"|trans }}</p>
       <div class="card card-plain submitters-card">
         <div class="submitters">
           {% if substitute_submitters.is_empty() %}
@@ -52,7 +52,7 @@
            type="button">{{ "political_group.add_substitute_submitter"|trans }}</a>
       </div>
       <p class="mt-xl">
-        <a href="/" class="button">{{ "common.continue_to_home"|trans }}</a>
+        <a href="/" class="button">{{ "common.save_and_go_home"|trans }}</a>
       </p>
     </div>
   </div>

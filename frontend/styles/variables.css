@@ -172,6 +172,7 @@
 
   --text-color-header: var(--gray-900);
   --text-color-body: var(--gray-700);
+  --text-body-width: 65ch;
 
   --container-max-width: 82.5rem;
   --container-size: min(

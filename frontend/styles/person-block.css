@@ -60,6 +60,12 @@ a.person-block {
     flex-direction: column;
     flex: 1;
     gap: var(--space-4);
+
+    /* when empty, show the add button first and the empty text next to it */
+    &:has(.submitters-empty) {
+      order: 1;
+      text-align: right;
+    }
   }
 
   a.person-block {
