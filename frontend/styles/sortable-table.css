@@ -68,5 +68,14 @@
 /* Keep the grabbing cursor across the whole page while a row is being dragged. */
 body.drag-active,
 body.drag-active * {
-  cursor: grabbing !important;
+  cursor: grabbing;
+}
+
+/*
+ * the handle cells set the open hand grabbing cursor, so they need to be
+ * overwritten when the body has drag-active
+ */
+body.drag-active #candidate-table td.drag-handle,
+body.drag-active #list-order-table td.drag-handle {
+  cursor: grabbing;
 }
