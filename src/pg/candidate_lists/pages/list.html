@@ -10,24 +10,24 @@
 {% block header_action %}<a href="/" class="button secondary">{{ "action.back"|trans }}</a>{% endblock %}
 {% block content %}
   <section class="candidate-lists">
-      <div class="candidates">
-        <a href="{{ Person::list_path() }}" class="card card-persons">
-          <div class="card-header">
-            <div class="badge badge-candidates {{ person_problem_severity }}"></div>
-            <div>
-              <h3 class="h4">{{ "candidate_list.all_candidates"|trans }}</h3>
-              {% if persons_with_problems > 0 %}
-                <p class="{{ person_problem_severity }}">{{ "person.with_problems"|trans(&persons_with_problems.to_string() ) }}</p>
-              {% endif %}
-            </div>
+    <div class="candidates">
+      <a href="{{ Person::list_path() }}" class="card card-persons">
+        <div class="card-header">
+          <div class="badge badge-candidates {{ person_problem_severity }}"></div>
+          <div>
+            <h3 class="h4">{{ "candidate_list.all_candidates"|trans }}</h3>
+            {% if persons_with_problems > 0 %}
+              <p class="{{ person_problem_severity }}">{{ "person.with_problems"|trans(&persons_with_problems.to_string() ) }}</p>
+            {% endif %}
           </div>
-          <div class="card-content">
-            <p>{{ "person.total"|trans(&total_persons.to_string() )|safe }}</p>
-            <p>{{ "candidate_list.all_candidates_note"|trans }}</p>
-          </div>
-          <div class="card-footer">{{ "action.manage_candidates"|trans }}</div>
-        </a>
-      </div>
+        </div>
+        <div class="card-content">
+          <p>{{ "person.total"|trans(&total_persons.to_string() )|safe }}</p>
+          <p>{{ "candidate_list.all_candidates_note"|trans }}</p>
+        </div>
+        <div class="card-footer">{{ "action.manage_candidates"|trans }}</div>
+      </a>
+    </div>
     <div class="cards cards-candidate-lists">
       {% let election = "election"|election_value %}
       {% let max_candidates = "max_candidates"|integer_value %}
@@ -85,7 +85,8 @@
       {% if election.has_only_one_district() && has_list %}
         {# do not show the add button #}
       {% else %}
-        <div class="card card-add-list" data-href="{{ CandidateList::create_path() }}">
+        <div class="card card-add-list"
+             data-href="{{ CandidateList::create_path() }}">
           <div class="card-header">
             <h3 class="h4">
               {% if has_list %}
@@ -95,7 +96,9 @@
               {% endif %}
             </h3>
           </div>
-          <a href="{{ CandidateList::create_path() }}" class="button {% if has_list %}secondary{% endif %} circular-button icon-plus"></a>
+          <a href="{{ CandidateList::create_path() }}"
+             class="button {% if has_list %}secondary{% endif %} circular-button icon-plus"
+             aria-label="{% if has_list %}{{ "candidate_list.actions.add_more"|trans }}{% else %}{{ "candidate_list.actions.add_first"|trans }}{% endif %}"></a>
           <p>{{ "candidate_list.add_list_note"|trans(&election|election_type_title) }}</p>
         </div>
       {% endif %}

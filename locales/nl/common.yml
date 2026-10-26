@@ -1,6 +1,4 @@
 candidates: Kandidaten
-to_home: Naar het startscherm
-save_and_go_home: Opslaan en naar overzicht
 date_field:
   date: Datum
   day_placeholder: dd
@@ -58,6 +56,7 @@ request_error:
   too_large_title: Upload te groot
   unreadable_message: Het verzoek is niet volledig ontvangen. Probeer het opnieuw.
   unreadable_title: Verzoek niet verwerkt
+save_and_go_home: Opslaan en naar overzicht
 save_success: Opgeslagen
 select_election:
   description: Kies de verkiezing waar je mee wilt werken om verder te gaan.
@@ -77,5 +76,6 @@ switch_election:
   submit: Verkiezing wisselen
   water_council: Waterschap
 title: Kiesraad - Kandidaatstelling
+to_home: Naar het startscherm
 version: Versie
 warning_prefix: Let op

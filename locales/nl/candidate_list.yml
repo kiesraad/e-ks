@@ -1,8 +1,8 @@
 actions:
-  add_first: Kandidatenlijst toevoegen
-  add_more: Nog een lijst toevoegen
   add_candidates: Kandidaten toevoegen
   add_existing: Bestaand
+  add_first: Kandidatenlijst toevoegen
+  add_more: Nog een lijst toevoegen
   add_new: Nieuw
   back_to_list: Terug
   delete_list: Kandidatenlijst verwijderen

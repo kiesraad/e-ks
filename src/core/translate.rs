@@ -50,22 +50,53 @@ mod tests {
         }
     }
 
+    /// Report entries where a document name is separated by a regular space.
+    fn documents_with_breaking_space<'a>(
+        locale_name: &str,
+        entries: impl IntoIterator<Item = (&'a str, &'a str)>,
+    ) -> Vec<String> {
+        const FAULTY_DOCUMENTS: [&str; 7] = ["I 4", "I 1", "H 1", "H 3-1", "H 3-2", "H 4", "H 9"];
+
+        entries
+            .into_iter()
+            .flat_map(|(key, value)| {
+                FAULTY_DOCUMENTS
+                    .into_iter()
+                    .filter(move |document| value.contains(document))
+                    .map(move |document| {
+                        format!(" locales/{locale_name}: [{key}] contains document '{document}'")
+                    })
+            })
+            .collect()
+    }
+
+    #[test]
+    fn documents_with_breaking_space_are_reported() {
+        let entries = [
+            ("ok", "formulier H\u{A0}3-1"),
+            ("faulty", "formulier H 3-1 en H 9"),
+        ];
+
+        assert_eq!(
+            documents_with_breaking_space("nl", entries),
+            [
+                " locales/nl: [faulty] contains document 'H 3-1'",
+                " locales/nl: [faulty] contains document 'H 9'",
+            ]
+        );
+    }
+
     #[test]
     fn all_documents_separated_by_non_breaking_space() {
-        const FAULTY_DOCUMENTS: [&str; 7] = ["I 4", "I 1", "H 1", "H 3-1", "H 3-2", "H 4", "H 9"];
-        let mut failures = Vec::new();
-
-        for (locale_name, locale) in [("nl", &LOCALE_NL), ("en", &LOCALE_EN)] {
-            for (key, value) in locale.entries() {
-                for document in FAULTY_DOCUMENTS {
-                    if value.contains(document) {
-                        failures.push(format!(
-                            " locales/{locale_name}: [{key}] contains document '{document}'"
-                        ))
-                    }
-                }
-            }
-        }
+        let failures: Vec<String> = [("nl", &LOCALE_NL), ("en", &LOCALE_EN)]
+            .into_iter()
+            .flat_map(|(locale_name, locale)| {
+                documents_with_breaking_space(
+                    locale_name,
+                    locale.entries().map(|(key, value)| (*key, *value)),
+                )
+            })
+            .collect();
 
         assert!(
             failures.is_empty(),

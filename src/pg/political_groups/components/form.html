@@ -44,8 +44,15 @@
         </div>
         <div class="alert alert-info alert-full">
           <div class="text-body-width">
-            {{ "political_group.type.previous_election_results_hint"|trans|safe }}
-            {% if steps.is_combined() %}<br>{{ "political_group.type.previous_election_results_combined_hint"|trans }}{% endif %}
+            {{ "political_group.type.previous_election_results_hint"|trans }}
+            <ul>
+              <li>{{ "political_group.type.previous_election_results_hint_support"|trans }}</li>
+              <li>{{ "political_group.type.previous_election_results_hint_candidates"|trans }}</li>
+            </ul>
+            {% if steps.is_combined() %}
+              <br>
+              {{ "political_group.type.previous_election_results_combined_hint"|trans }}
+            {% endif %}
           </div>
         </div>
       </fieldset>

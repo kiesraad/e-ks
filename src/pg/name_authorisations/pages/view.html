@@ -15,7 +15,12 @@
           {{ "political_group.legal_name_data"|trans }}
         {% endif %}
       </h3>
-      <p class="mb-6 text-body-width">{{ "political_group.authorised_agent_info"|trans(steps.designation_form())|safe }}</p>
+      <p class="mb-6 text-body-width">
+        {{ "political_group.authorised_agent_info"|trans }}
+        <br>
+        <br>
+        {{ "political_group.authorised_agent_info_form"|trans(steps.designation_form() ) }}
+      </p>
       {% if !(steps.initial && name_authorisations.is_empty()) && let Some(size_problem) = size_problem %}
         <p class="alert alert-{{ size_problem.severity().class() }}">
           {% if steps.is_combined() %}
