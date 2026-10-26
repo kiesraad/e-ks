@@ -200,7 +200,7 @@ pub(super) fn omission_views(
             data.get_all_declarations_of_support_omissions(election)
         }
         OmissionType::Candidate => {
-            data.get_candidate_omissions(PersonId::from(target.reference), election)
+            data.get_candidate_omissions(PersonId::from(target.reference), None, election)
         }
         OmissionType::Appellation => data.get_appellation_omissions(),
     };
