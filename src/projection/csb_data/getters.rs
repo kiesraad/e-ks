@@ -175,13 +175,16 @@ impl CsbStoreData {
         usize::from(self.csb_corrected_appellation.is_some())
     }
 
-    /// The candidate's omissions in title order.
+    /// The candidate's omissions in title order, only those on `list_id` when
+    /// given.
     pub fn get_candidate_omissions(
         &self,
         person_id: PersonId,
+        list_id: Option<CandidateListId>,
         election: ElectionConfig,
     ) -> Vec<Omission> {
-        let mut omissions = self.omissions_where(|o| o.category.is_for_candidate(person_id, None));
+        let mut omissions =
+            self.omissions_where(|o| o.category.is_for_candidate(person_id, list_id));
         omissions.sort_by_cached_key(|omission| self.title_order(omission, election));
         omissions
     }
@@ -639,11 +642,44 @@ mod tests {
         insert(&store, OmissionCategory::PoliticalGroup);
 
         let data = store.snapshot();
-        let result = data.get_candidate_omissions(person_a, store.election);
+        let result = data.get_candidate_omissions(person_a, None, store.election);
 
         assert_eq!(result.len(), 1);
         assert!(
             matches!(result[0].category, OmissionCategory::Candidate { person, .. } if person == person_a)
+        );
+    }
+
+    #[test]
+    fn get_candidate_omissions_filters_on_the_given_list() {
+        let person = PersonId::new();
+        let list_a = CandidateListId::new();
+        let list_b = CandidateListId::new();
+        let store = CsbStore::new_for_test();
+        insert(
+            &store,
+            OmissionCategory::Candidate {
+                person,
+                lists: vec![list_a],
+            },
+        );
+        insert(
+            &store,
+            OmissionCategory::Candidate {
+                person,
+                lists: vec![list_b],
+            },
+        );
+
+        let data = store.snapshot();
+        let result = data.get_candidate_omissions(person, Some(list_a), store.election);
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].candidate_lists(), &[list_a]);
+        assert_eq!(
+            data.get_candidate_omissions(person, None, store.election)
+                .len(),
+            2
         );
     }
 
@@ -661,7 +697,7 @@ mod tests {
         assert!(
             store
                 .snapshot()
-                .get_candidate_omissions(PersonId::new(), store.election)
+                .get_candidate_omissions(PersonId::new(), None, store.election)
                 .is_empty()
         );
     }
