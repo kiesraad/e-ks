@@ -17,7 +17,7 @@
   position: relative;
   width: fit-content;
 
-  > ul {
+  ul {
     list-style: disc;
     padding-left: var(--space-md);
   }
@@ -30,8 +30,8 @@
     margin-block-start: 0;
   }
 
-  &.alert-narrow {
-    --alert-pr: 20%;
+  &.alert-full {
+    width: 100%;
   }
 
   &.alert-info {

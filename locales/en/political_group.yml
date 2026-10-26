@@ -46,8 +46,8 @@ type:
   name_combination_hint: "The party has formed an alliance with one or more other registered parties. Together, they nominate all candidates for the candidate list."
   one_to_fifteen_seats: 1 to 15 seats
   previous_election_results_combined: "In the previous {}, the combination of appellations, or one of the parties individually, obtained:"
-  previous_election_results_combined_hint: "If the parties participated as separate lists in the previous election, select the highest number of seats obtained by any one of the parties. The seats won by the parties separately must not be added together."
-  previous_election_results_hint: The number of seats obtained in the previous election determines whether you must submit declarations of support. It also determines whether the maximum number of candidates allowed on the list is 50 or 80.
+  previous_election_results_combined_hint: "If the parties participated as separate lists in the previous election, select the highest number of seats obtained by any one of the parties. Did the parties participate as a combination? In that case, add the seats of the parties together."
+  previous_election_results_hint: "The number of seats obtained in the previous election determines:<ul> <li>if you must submit declarations of support;</li> <li>if the number of candidates allowed on the list is 50 or 80;</li> </ul>"
   registered_name: Standalone registered name
   registered_name_hint: The party participates in the election with a registered name.
   sixteen_or_more_seats: 16 or more seats

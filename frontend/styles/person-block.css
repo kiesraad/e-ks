@@ -49,6 +49,7 @@ a.person-block {
 .submitters-card {
   --card-padding: var(--space-6);
   border: none;
+  border-radius: 0;
   align-items: flex-start;
   flex-direction: row;
   gap: var(--space-6);

@@ -70,10 +70,6 @@
 
       .button.secondary:not(:focus, :active) {
         background: var(--gray-100);
-
-        &:hover {
-          background: var(--gray-200);
-        }
       }
 
       .button.secondary:active {

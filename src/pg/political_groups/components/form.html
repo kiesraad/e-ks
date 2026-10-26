@@ -7,7 +7,7 @@
   <h3 class="mb-6">{{ "common.political_group"|trans }}</h3>
   <fieldset>
     <div class="form-row">
-      <fieldset class="checklist">
+      <fieldset class="checklist w-full">
         {% let election = "election"|election_value %}
         <legend class="legend-md">
           {% if steps.is_combined() %}
@@ -42,9 +42,11 @@
             <label for="previous_election_results_16">{{ "political_group.type.sixteen_or_more_seats"|trans }}</label>
           </div>
         </div>
-        <div class="alert alert-info alert-narrow">
-          {{ "political_group.type.previous_election_results_hint"|trans|safe }}
-          {% if steps.is_combined() %}{{ "political_group.type.previous_election_results_combined_hint"|trans }}{% endif %}
+        <div class="alert alert-info alert-full">
+          <div class="text-body-width">
+            {{ "political_group.type.previous_election_results_hint"|trans|safe }}
+            {% if steps.is_combined() %}<br>{{ "political_group.type.previous_election_results_combined_hint"|trans }}{% endif %}
+          </div>
         </div>
       </fieldset>
     </div>
@@ -67,7 +69,9 @@
     </div>
     <div class="form-row">
       {% if steps.is_combined() %}
-        <span class="alert alert-info">{{ "political_group.type.appellation_combined_hint"|trans }}</span>
+        <div class="alert alert-info alert-full">
+          <p class="text-body-width">{{ "political_group.type.appellation_combined_hint"|trans }}</p>
+        </div>
       {% endif %}
     </div>
   </fieldset>
