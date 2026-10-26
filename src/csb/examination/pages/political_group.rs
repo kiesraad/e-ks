@@ -814,6 +814,39 @@ mod tests {
         assert!(body.contains("Declarations of support"), "{body}");
     }
 
+    const UNREGISTERED_WARNING: &str = "matches none of the registered political groups";
+
+    #[tokio::test]
+    async fn an_unregistered_group_is_warned_about() {
+        let body = body_with_main_store(CsbMainStore::new_for_test(), CsbPhase::Examination).await;
+        assert!(body.contains(UNREGISTERED_WARNING), "{body}");
+
+        let registered = main_store_registering_sample_group(0).await;
+        let body = body_with_main_store(registered, CsbPhase::Examination).await;
+        assert!(!body.contains(UNREGISTERED_WARNING), "{body}");
+    }
+
+    #[tokio::test]
+    async fn a_blank_list_is_not_warned_about() {
+        let store = CsbStore::new_for_test();
+        store.set_political_group(PoliticalGroup {
+            list_designation: Some(crate::structs::list_designation::ListDesignation::Blank),
+            ..sample_political_group()
+        });
+        let response = render(
+            CsbContext::new_test(),
+            store,
+            CsbMainStore::new_for_test(),
+            CsbPhase::Examination,
+        )
+        .await
+        .unwrap()
+        .into_response();
+
+        let body = response_body_string(response).await;
+        assert!(!body.contains(UNREGISTERED_WARNING), "{body}");
+    }
+
     /// Only the registration counts, not what the group says about itself.
     #[tokio::test]
     async fn an_unregistered_group_claiming_a_seat_has_the_declarations_of_support_block() {

@@ -40,6 +40,9 @@ pub struct CsbPoliticalGroup {
     /// its registration; such a group needs no declarations of support
     /// (Kieswet Art. H 4). Set by [`Self::with_registrations`].
     pub previously_seated: bool,
+    /// Whether the group carries an appellation that matches none of the
+    /// committee's registrations. Set by [`Self::with_registrations`].
+    pub is_unregistered: bool,
     /// The electoral districts of each candidate list, which is how the
     /// shared templates name a list (see [`Self::candidate_list_districts`]).
     pub candidate_list_districts: HashMap<CandidateListId, BTreeSet<ElectoralDistrict>>,
@@ -74,6 +77,7 @@ impl CsbPoliticalGroup {
                 .get_first_candidate_name(WithCorrections::All, &scrapped)
                 .cloned(),
             previously_seated: false,
+            is_unregistered: false,
             scrapped,
             candidate_list_districts: corrected
                 .get_candidate_lists()
@@ -91,9 +95,10 @@ impl CsbPoliticalGroup {
     /// Look the group up among the committee's registrations, which decide
     /// whether it was previously seated.
     pub fn with_registrations(mut self, registered: &[RegisteredPoliticalGroup]) -> Self {
-        self.previously_seated = self
-            .registration(registered)
-            .is_some_and(RegisteredPoliticalGroup::was_previously_seated);
+        let registration = self.registration(registered);
+        self.previously_seated =
+            registration.is_some_and(RegisteredPoliticalGroup::was_previously_seated);
+        self.is_unregistered = registration.is_none() && self.registered_appellation().is_some();
         self
     }
 
@@ -216,6 +221,7 @@ impl CsbPoliticalGroup {
             first_candidate_name: None,
             first_non_scrapped_candidate_name: None,
             previously_seated: false,
+            is_unregistered: false,
             candidate_list_districts: HashMap::from([(
                 CandidateListId::new(),
                 BTreeSet::from([ElectoralDistrict::Groningen]),
