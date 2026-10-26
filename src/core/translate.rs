@@ -51,6 +51,32 @@ mod tests {
     }
 
     #[test]
+    fn all_documents_separated_by_non_breaking_space() {
+        const FAULTY_DOCUMENTS: [&str; 7] = ["I 4", "I 1", "H 1", "H 3-1", "H 3-2", "H 4", "H 9"];
+        let mut failures = Vec::new();
+
+        for (locale_name, locale) in [("nl", &LOCALE_NL), ("en", &LOCALE_EN)] {
+            for (key, value) in locale.entries() {
+                for document in FAULTY_DOCUMENTS {
+                    if value.contains(document) {
+                        failures.push(format!(
+                            " locales/{locale_name}: [{key}] contains document '{document}'"
+                        ))
+                    }
+                }
+            }
+        }
+
+        assert!(
+            failures.is_empty(),
+            "Translation values contain documents using non-breaking space. \
+             Use \\u00A0 instead of a space in the YAML file to mark where the \
+             word can not be separated:\n{}",
+            failures.join("\n")
+        );
+    }
+
+    #[test]
     fn test_no_long_words_without_soft_hyphen() {
         // Long words should be broken up by soft hyphens (\u00AD in YAML)
         // Soft hyphens are only rendered by the browser when it wants to split up the text
