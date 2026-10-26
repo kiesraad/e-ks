@@ -37,7 +37,7 @@ pub async fn all_brp_findings(
     store: CsbStore,
 ) -> Result<Response, AppError> {
     let data = store.snapshot();
-    let political_group = CsbPoliticalGroup::new_from_csb_store(&store);
+    let political_group = CsbPoliticalGroup::new(&store, &data);
     let all_problems = data.get_all_problems(context.election)?;
     let candidates = data
         .get_all_brp_findings(&political_group, context.session.locale)

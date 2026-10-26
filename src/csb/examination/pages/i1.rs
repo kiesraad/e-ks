@@ -66,7 +66,8 @@ mod tests {
     use std::collections::BTreeSet;
 
     use crate::{
-        AppState, CsbAction, CsbMainAction, CsbUser, ElectionConfig, PgStoreData, StreamId,
+        AppState, CsbAction, CsbMainAction, CsbUser, ElectionConfig, PgEvent, PgStoreData,
+        StreamId,
         structs::{
             candidate_lists::CandidateList,
             csb::{HearingDetails, OmissionCategory, sample_omission},
@@ -196,19 +197,20 @@ mod tests {
             .acting_as_test_user();
 
         let person = sample_person(PersonId::new());
-        let mut snapshot = PgStoreData::default()
-            .with_political_group(PoliticalGroup {
-                appellation: Some("Kiesraad Demo".parse().unwrap()),
-                list_designation: Some(ListDesignation::Standalone),
-                ..Default::default()
-            })
-            .with_person(person.clone());
         let list = CandidateList {
             electoral_districts: BTreeSet::from([crate::ElectoralDistrict::Groningen]),
             candidates: vec![person.id],
             ..Default::default()
         };
-        snapshot = snapshot.with_candidate_list(list);
+        let snapshot = PgStoreData::from_events([
+            PgEvent::UpdatePoliticalGroup(PoliticalGroup {
+                appellation: Some("Kiesraad Demo".parse().unwrap()),
+                list_designation: Some(ListDesignation::Standalone),
+                ..Default::default()
+            }),
+            PgEvent::CreatePerson(Box::new(person)),
+            PgEvent::CreateCandidateList(Box::new(list)),
+        ]);
         store
             .update(CsbAction::Import {
                 hash: [0u8; 32],

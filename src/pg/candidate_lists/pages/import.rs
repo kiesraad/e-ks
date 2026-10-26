@@ -1,4 +1,4 @@
-use crate::structs::candidate_lists::{CandidateList, CandidateListId};
+use crate::structs::candidate_lists::CandidateList;
 use askama::Template;
 use axum::{
     http::StatusCode,
@@ -54,31 +54,21 @@ fn render_import_export(
 }
 
 pub async fn import_export(
-    CandidateListImportPath { list_id }: CandidateListImportPath,
+    _: CandidateListImportPath,
+    list: CandidateList,
     context: Context,
     store: PgStore,
 ) -> Result<Response, AppError> {
-    Ok(render_import_export(
-        load_list(&store, list_id)?,
-        vec![],
-        context,
-        &store,
-    ))
-}
-
-/// The list as it is now; absent lists are a not-found.
-fn load_list(store: &PgStore, list_id: CandidateListId) -> Result<CandidateList, AppError> {
-    store.snapshot().get_candidate_list(list_id).cloned()
+    Ok(render_import_export(list, vec![], context, &store))
 }
 
 pub async fn import_candidate_list(
-    CandidateListImportPath { list_id }: CandidateListImportPath,
+    _: CandidateListImportPath,
+    mut list: CandidateList,
     context: Context,
     store: PgStore,
     import_data: Result<FileForm, AppError>,
 ) -> Result<Response, AppError> {
-    let mut list = load_list(&store, list_id)?;
-
     let import_data = match import_data {
         Ok(form) => form,
         Err(err) => match upload_error_messages(&err, context.session.locale) {
@@ -262,8 +252,13 @@ mod tests {
         let context = Context::new_test_without_db();
         let csrf_token = context.session.csrf_token().0.clone();
 
-        let response =
-            import_export(CandidateListImportPath { list_id: list.id }, context, store).await?;
+        let response = import_export(
+            CandidateListImportPath { list_id: list.id },
+            list.clone(),
+            context,
+            store,
+        )
+        .await?;
 
         assert_eq!(response.status(), StatusCode::OK);
 
@@ -291,6 +286,7 @@ mod tests {
 
         let response = import_candidate_list(
             CandidateListImportPath { list_id: list.id },
+            list.clone(),
             context,
             store.clone(),
             Ok(FileForm {
@@ -321,6 +317,7 @@ mod tests {
 
         let response = import_candidate_list(
             CandidateListImportPath { list_id: list.id },
+            list.clone(),
             context,
             store,
             Ok(FileForm {
@@ -367,6 +364,7 @@ mod tests {
 
         let response = import_candidate_list(
             CandidateListImportPath { list_id: list.id },
+            list.clone(),
             context,
             store,
             Ok(FileForm {
@@ -400,6 +398,7 @@ mod tests {
 
         let response = import_candidate_list(
             CandidateListImportPath { list_id: list.id },
+            list.clone(),
             Context::new_test_without_db(),
             store.clone(),
             Ok(FileForm {
@@ -500,6 +499,7 @@ mod tests {
 
         let response = import_candidate_list(
             CandidateListImportPath { list_id: list.id },
+            list.clone(),
             context,
             store,
             Ok(FileForm {

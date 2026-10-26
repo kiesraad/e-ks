@@ -110,37 +110,11 @@ impl StoreData for PgStoreData {
 
 #[cfg(test)]
 impl PgStoreData {
-    /// Test builders for a projection with the given entities, without
-    /// events behind them.
-    pub fn with_person(mut self, person: Person) -> Self {
-        self.persons.insert(person.id, person);
-        self
-    }
-
-    pub fn with_candidate_list(mut self, list: CandidateList) -> Self {
-        self.candidate_lists.insert(list.id, list);
-        self
-    }
-
-    pub fn with_political_group(mut self, political_group: PoliticalGroup) -> Self {
-        self.political_group = political_group;
-        self
-    }
-
-    pub fn with_list_submitter(mut self, submitter: ListSubmitter) -> Self {
-        self.list_submitter = submitter;
-        self
-    }
-
-    pub fn with_substitute_submitter(mut self, submitter: ListSubmitter) -> Self {
-        self.substitute_submitters.push(submitter);
-        self
-    }
-
-    pub fn with_name_authorisation(mut self, authorisation: NameAuthorisation) -> Self {
-        self.name_authorisations
-            .insert(authorisation.id, authorisation);
-        self
+    /// Replay `events` from an empty projection, as an import delivers them.
+    pub fn from_events(events: impl IntoIterator<Item = PgEvent>) -> Self {
+        let mut data: Self = crate::store::replay(events);
+        data.events.clear();
+        data
     }
 }
 
@@ -153,15 +127,25 @@ impl PgStoreData {
     /// produced it. `events` is expected to be the ordered event log of a single
     /// stream (as returned by `StoreData::events`); later events are ignored.
     pub fn snapshot_until(events: &[StoreEvent<PgEvent>], target_event_id: usize) -> Self {
-        let mut snapshot = PgStoreData::default();
-        for event in events
-            .iter()
-            .filter(|event| event.event_id <= target_event_id)
-        {
-            snapshot.apply(event.clone());
-        }
+        let mut snapshot = Self::replay_onto(PgStoreData::default(), events, target_event_id);
         snapshot.events.clear();
         snapshot
+    }
+
+    /// `base` with the events of an ordered log up to and including
+    /// `target_event_id` applied on top.
+    pub fn replay_onto(
+        mut base: Self,
+        events: &[StoreEvent<PgEvent>],
+        target_event_id: usize,
+    ) -> Self {
+        for event in events
+            .iter()
+            .take_while(|event| event.event_id <= target_event_id)
+        {
+            base.apply(event.clone());
+        }
+        base
     }
 
     /// Apply a person-related event. Routed here exclusively by [`Self::apply`].
@@ -320,16 +304,13 @@ impl PgStoreData {
     /// Apply a list-submitter event. Routed here exclusively by [`Self::apply`].
     fn apply_submitter_event(&mut self, event: PgEvent) {
         match event {
-            PgEvent::UpdateListSubmitter(mut ls) => {
-                ls.is_substitute = false;
+            PgEvent::UpdateListSubmitter(ls) => {
                 self.list_submitter = *ls;
             }
-            PgEvent::CreateSubstituteSubmitter(mut ss) => {
-                ss.is_substitute = true;
+            PgEvent::CreateSubstituteSubmitter(ss) => {
                 self.substitute_submitters.push(*ss);
             }
-            PgEvent::UpdateSubstituteSubmitter(mut ss) => {
-                ss.is_substitute = true;
+            PgEvent::UpdateSubstituteSubmitter(ss) => {
                 let ss_id = ss.id;
                 if let Some(existing) = self
                     .substitute_submitters
@@ -395,9 +376,7 @@ mod tests {
 
     /// A `PgStoreData` containing a single sample person.
     fn data_with_person(person_id: PersonId) -> PgStoreData {
-        let mut data = PgStoreData::default();
-        data.persons.insert(person_id, sample_person(person_id));
-        data
+        PgStoreData::from_events([PgEvent::CreatePerson(Box::new(sample_person(person_id)))])
     }
 
     fn sample_address() -> DutchAddress {

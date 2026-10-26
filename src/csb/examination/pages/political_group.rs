@@ -86,7 +86,7 @@ pub(in crate::csb) async fn render(
     mode: CsbPhase,
 ) -> Result<Response, AppError> {
     let data = store.snapshot();
-    let political_group = CsbPoliticalGroup::new_from_csb_store(&store)
+    let political_group = CsbPoliticalGroup::new(&store, &data)
         .with_mode(mode)
         .with_registrations(&main_store.registered_political_groups());
 

@@ -22,7 +22,7 @@ use crate::{
     store::StoreData,
     structs::{
         candidate_lists::{CandidateListId, FullCandidateList},
-        common::{HasSeverity, Problematic, Severity},
+        common::{HasSeverity, Severity},
         list_designation::ListDesignation,
     },
     utils::{format_hash, no_cache_headers},
@@ -206,7 +206,7 @@ impl DocumentData {
         let list_submitter = data.get_list_submitter();
         if list_submitter.is_empty()
             || list_submitter
-                .get_problems(())
+                .main_problems()
                 .has_severity_or_higher(Severity::Error)
         {
             return Err(AppError::IncompleteData("Incomplete list submitter"));

@@ -69,7 +69,6 @@ pub async fn load(store: &PgStore, political_group: PoliticalGroup) -> Result<()
         id: fixture_id::<ListSubmitterId>(b"fixture_list_submitter"),
         name: name("E.F.", None, "Bos"),
         address: address("Coolsingel", "5", Some("B"), "3011 CC", "Rotterdam"),
-        is_substitute: false,
     }
     .update(store)
     .await?;
@@ -78,7 +77,6 @@ pub async fn load(store: &PgStore, political_group: PoliticalGroup) -> Result<()
         id: fixture_id::<ListSubmitterId>(b"fixture_substitute_submitter_1"),
         name: name("G.H.", Some("van"), "Smit"),
         address: address("Spui", "18", None, "2511 DD", "Den Haag"),
-        is_substitute: true,
     }
     .create_substitute(store)
     .await?;
@@ -87,7 +85,6 @@ pub async fn load(store: &PgStore, political_group: PoliticalGroup) -> Result<()
         id: fixture_id::<ListSubmitterId>(b"fixture_substitute_submitter_2"),
         name: name("I.J.", None, "Jong"),
         address: address("Oudegracht", "21", Some("C"), "3511 AA", "Utrecht"),
-        is_substitute: true,
     }
     .create_substitute(store)
     .await?;
@@ -98,7 +95,7 @@ pub async fn load(store: &PgStore, political_group: PoliticalGroup) -> Result<()
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::structs::common::{HasSeverity, Problematic};
+    use crate::structs::common::HasSeverity;
 
     #[tokio::test]
     async fn test_load() {
@@ -106,7 +103,7 @@ mod tests {
         load(&store, fixture_group(None)).await.unwrap();
 
         let list_submitter = store.snapshot().get_list_submitter().clone();
-        assert!(list_submitter.get_problems(()).is_all_good());
+        assert!(list_submitter.main_problems().is_all_good());
 
         let data = store.snapshot();
 

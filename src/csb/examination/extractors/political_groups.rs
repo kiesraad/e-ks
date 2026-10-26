@@ -47,15 +47,17 @@ pub struct CsbPoliticalGroup {
 
 impl CsbPoliticalGroup {
     pub fn new_from_csb_store(store: &CsbStream) -> Self {
-        Self::new(&store.snapshot(), store.stream_id, store.election)
+        Self::new(store, &store.snapshot())
     }
 
-    pub fn new(data: &CsbStoreData, stream_id: StreamId, election: ElectionConfig) -> Self {
+    /// The group as `data`, a snapshot of `store`, shows it.
+    pub fn new(store: &CsbStream, data: &CsbStoreData) -> Self {
+        let election = store.election;
         let scrapped = data.get_scrapped().clone();
         let corrected = data.pg(WithCorrections::All);
         Self {
             political_group: corrected.get_political_group().clone(),
-            stream_id,
+            stream_id: store.stream_id,
             election,
             brp: BrpCheckState::for_political_group(data),
             mode: CsbPhase::Examination,
@@ -69,7 +71,7 @@ impl CsbPoliticalGroup {
                 .get_first_candidate_name()
                 .cloned(),
             first_non_scrapped_candidate_name: data
-                .get_first_candidate_name(WithCorrections::All, Some(&scrapped))
+                .get_first_candidate_name(WithCorrections::All, &scrapped)
                 .cloned(),
             previously_seated: false,
             scrapped,

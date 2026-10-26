@@ -280,10 +280,9 @@ impl PgStore {
     pub fn new_for_test_with_election(election: crate::ElectionConfig) -> Self {
         use crate::StreamId;
 
-        let data = PgStoreData {
-            political_group: crate::test_utils::sample_political_group(),
-            ..PgStoreData::default()
-        };
+        let data = PgStoreData::from_events([crate::PgEvent::UpdatePoliticalGroup(
+            crate::test_utils::sample_political_group(),
+        )]);
 
         Self::own(Store::new_temp(StreamId::new(), election, Arc::new(data)))
     }

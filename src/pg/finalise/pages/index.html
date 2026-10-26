@@ -51,7 +51,7 @@
                 {% endfor %}
                 {% if let Some(ls) = problems.general.list_submitter %}
                   <div class="mb-md">
-                    <div class="mb-sm">{{ ls.entity.display(locale, false) }}:</div>
+                    <div class="mb-sm">{{ ls.entity.display_main(locale) }}:</div>
                     <ul class="warnings tags-list">
                       {% for problem in ls.problems %}
                         <li class="tag link">
@@ -64,7 +64,7 @@
                 {% endif %}
                 {% for ss_pp in problems.general.substitute_submitters %}
                   <div class="mb-md">
-                    <div class="mb-sm">{{ ss_pp.entity.display(locale, true) }}:</div>
+                    <div class="mb-sm">{{ ss_pp.entity.display_substitute(locale) }}:</div>
                     <ul class="warnings tags-list">
                       {% for problem in &ss_pp.problems %}
                         <li class="tag link">

@@ -145,6 +145,13 @@ pub enum OmissionCategory {
 }
 
 impl OmissionCategory {
+    /// Whether this is a candidate omission about `person_id`, on `list_id`
+    /// when given.
+    pub fn is_for_candidate(&self, person_id: PersonId, list_id: Option<CandidateListId>) -> bool {
+        matches!(self, OmissionCategory::Candidate { person, lists }
+            if *person == person_id && list_id.is_none_or(|list_id| lists.contains(&list_id)))
+    }
+
     /// The districts this category is scoped to. Only the
     /// "ondersteuningsverklaringen" (H 4) are; no districts means all of them.
     pub fn electoral_districts(&self, election: &ElectionConfig) -> &[ElectoralDistrict] {

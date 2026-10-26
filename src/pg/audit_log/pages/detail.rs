@@ -121,14 +121,11 @@ pub async fn audit_log_gen_documents(
 /// inspected as it was back then. In paper-corrections mode the replay starts
 /// from the imported snapshot the corrections were applied on top of.
 fn replay_until(store: &PgStore, events: &[StoreEvent<PgEvent>], event_id: usize) -> PgStoreData {
-    let mut data = store
+    let base = store
         .imported_snapshot()
         .map(std::sync::Arc::unwrap_or_clone)
         .unwrap_or_default();
-    for event in events.iter().take_while(|e| e.event_id <= event_id) {
-        data.apply(event.clone());
-    }
-    data
+    PgStoreData::replay_onto(base, events, event_id)
 }
 
 #[cfg(test)]

@@ -85,20 +85,23 @@ pub async fn update_candidate_position_submit(
     };
 
     match form.validate_update(&candidate_position) {
-        Err(form_data) => Ok(HtmlTemplate(
-            UpdateCandidatePositionTemplate {
-                position_warning: PositionWarning::new_opt(
-                    &store.snapshot().get_political_group().clone(),
-                    &candidate,
-                ),
-                candidate,
-                full_list,
-                form: form_data,
-                overlay: Overlay::new_edit(&query),
-            },
-            context,
-        )
-        .into_response()),
+        Err(form_data) => {
+            let data = store.snapshot();
+            Ok(HtmlTemplate(
+                UpdateCandidatePositionTemplate {
+                    position_warning: PositionWarning::new_opt(
+                        data.get_political_group(),
+                        &candidate,
+                    ),
+                    candidate,
+                    full_list,
+                    form: form_data,
+                    overlay: Overlay::new_edit(&query),
+                },
+                context,
+            )
+            .into_response())
+        }
         Ok(position_form) => match position_form.action {
             FormAction::Remove => {
                 let mut list = full_list.list;

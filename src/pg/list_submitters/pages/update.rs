@@ -87,7 +87,7 @@ mod tests {
     use super::*;
     use crate::{
         AppError, Context, Form, PgStore, QueryParamState,
-        structs::common::{Address, PotentialProblems, Problematic},
+        structs::common::{Address, PotentialProblems},
         test_utils::{response_body_string, sample_list_submitter, sample_list_submitter_form},
     };
     use axum::{
@@ -191,7 +191,7 @@ mod tests {
         // ...which surfaces as an `UnknownAddress` warning.
         assert!(
             stored
-                .get_problems(())
+                .main_problems()
                 .potential_problems
                 .contains(&PotentialProblems::UnknownAddress)
         );

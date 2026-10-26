@@ -51,7 +51,7 @@ pub async fn overview(
     store: CsbStore,
 ) -> Result<Response, AppError> {
     let data = store.snapshot();
-    let political_group = CsbPoliticalGroup::new_from_csb_store(&store);
+    let political_group = CsbPoliticalGroup::new(&store, &data);
     let all_omissions = data.get_all_omissions(&political_group)?;
 
     Ok(HtmlTemplate(
@@ -209,7 +209,7 @@ mod tests {
     };
 
     use crate::{
-        AppState, CsbAction, ElectionConfig, ElectoralDistrict, PgStoreData, StreamId,
+        AppState, CsbAction, ElectionConfig, ElectoralDistrict, PgEvent, PgStoreData, StreamId,
         structs::{
             csb::{Omission, OmissionCategory, sample_omission},
             list_designation::ListDesignation,
@@ -225,15 +225,16 @@ mod tests {
         CsbAction::Import {
             hash: [0u8; 32],
             source_stream_id: StreamId::new(),
-            snapshot: Box::new(
-                PgStoreData::default()
-                    .with_political_group(PoliticalGroup {
-                        appellation: Some(appellation.parse().unwrap()),
-                        list_designation: Some(ListDesignation::Standalone),
-                        ..Default::default()
-                    })
-                    .with_list_submitter(sample_list_submitter(ListSubmitterId::new())),
-            ),
+            snapshot: Box::new(PgStoreData::from_events([
+                PgEvent::UpdatePoliticalGroup(PoliticalGroup {
+                    appellation: Some(appellation.parse().unwrap()),
+                    list_designation: Some(ListDesignation::Standalone),
+                    ..Default::default()
+                }),
+                PgEvent::UpdateListSubmitter(Box::new(sample_list_submitter(
+                    ListSubmitterId::new(),
+                ))),
+            ])),
         }
     }
 

@@ -18,7 +18,7 @@
         {% else %}
           <div class="submitters">
             <a href="{{ steps.step_url(ListSubmitter::update_path() ) }}"
-               class="person-block {{ list_submitter.get_problems(*() ).highest_severity_class() }}">
+               class="person-block {{ list_submitter.main_problems().highest_severity_class() }}">
               {{ list_submitter.name.display() }}
               <br />
               {{ list_submitter.address_line_1() }}
@@ -37,7 +37,7 @@
           {% else %}
             {% for submitter in substitute_submitters %}
               <a href="{{ steps.step_url(submitter.substitute_update_path() ) }}"
-                 class="person-block {{ submitter.get_problems(*() ).highest_severity_class() }}">
+                 class="person-block {{ submitter.substitute_problems().highest_severity_class() }}">
                 {{ submitter.name.display() }}
                 <br />
                 {{ submitter.address_line_1() }}

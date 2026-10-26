@@ -330,12 +330,12 @@ mod tests {
     }
 
     fn import_of(person: &crate::structs::persons::Person) -> CsbAction {
-        let mut snapshot = PgStoreData::default();
-        snapshot.persons.insert(person.id, person.clone());
         CsbAction::Import {
             hash: [1; 32],
             source_stream_id: StreamId::new(),
-            snapshot: Box::new(snapshot),
+            snapshot: Box::new(PgStoreData::from_events([PgEvent::CreatePerson(Box::new(
+                person.clone(),
+            ))])),
         }
     }
 

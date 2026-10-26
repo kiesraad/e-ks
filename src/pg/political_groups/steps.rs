@@ -5,7 +5,7 @@ use crate::{
     AppError, PgStore, QueryParamState,
     structs::{
         common::{HasSeverity, PotentialProblems, Problematic, Severity},
-        list_submitters::ListSubmitter,
+        list_submitters::{ListSubmitter, SubmitterRole},
         name_authorisations::NameAuthorisation,
         political_groups::PoliticalGroup,
     },
@@ -111,8 +111,15 @@ impl PoliticalGroupSteps {
 
         match substitute_submitters
             .iter()
-            .filter_map(|ss| ss.get_problems(()).highest_severity())
-            .chain(list_submitter.get_problems(()).highest_severity())
+            .filter_map(|ss| {
+                ss.get_problems(SubmitterRole::Substitute)
+                    .highest_severity()
+            })
+            .chain(
+                list_submitter
+                    .get_problems(SubmitterRole::Main)
+                    .highest_severity(),
+            )
             .chain(substitute_submitters.is_empty().then_some(Severity::Info))
             .max()
         {

@@ -183,11 +183,7 @@ impl CsbStoreData {
 
     /// Take over an imported package as both projections. `import` becomes
     /// event #1 of the corrected one, starting its audit log.
-    fn apply_import(&mut self, mut snapshot: PgStoreData, import: StoreEvent<crate::PgEvent>) {
-        // The flag is not serialized; restore it as `apply` sets it.
-        for submitter in &mut snapshot.substitute_submitters {
-            submitter.is_substitute = true;
-        }
+    fn apply_import(&mut self, snapshot: PgStoreData, import: StoreEvent<crate::PgEvent>) {
         self.imported_data = Arc::new(snapshot);
         self.paper_corrected_data = Arc::clone(&self.imported_data);
         Arc::make_mut(&mut self.paper_corrected_data).apply(import);
@@ -584,21 +580,20 @@ mod tests {
         CsbAction::Import {
             hash: [42; 32],
             source_stream_id: StreamId::new(),
-            snapshot: Box::new(PgStoreData {
-                political_group: sample_political_group(),
-                ..PgStoreData::default()
-            }),
+            snapshot: Box::new(PgStoreData::from_events([PgEvent::UpdatePoliticalGroup(
+                sample_political_group(),
+            )])),
         }
         .by(CsbUser::new_test())
     }
 
     fn import_event_with_person(person: Person) -> CsbEvent {
-        let mut snapshot = PgStoreData::default();
-        snapshot.persons.insert(person.id, person);
         CsbAction::Import {
             hash: [42; 32],
             source_stream_id: StreamId::new(),
-            snapshot: Box::new(snapshot),
+            snapshot: Box::new(PgStoreData::from_events([PgEvent::CreatePerson(Box::new(
+                person,
+            ))])),
         }
         .by(CsbUser::new_test())
     }
@@ -612,24 +607,6 @@ mod tests {
                 .unwrap(),
             None,
         )
-    }
-
-    /// The substitute flag is not serialized, so an imported snapshot
-    /// arrives without it.
-    #[test]
-    fn an_import_restores_the_substitute_flag() {
-        let mut snapshot = PgStoreData::default();
-        snapshot
-            .substitute_submitters
-            .push(crate::structs::list_submitters::ListSubmitter::default());
-        let data = replay(&[CsbAction::Import {
-            hash: [42; 32],
-            source_stream_id: StreamId::new(),
-            snapshot: Box::new(snapshot),
-        }]);
-
-        assert!(data.imported_data.substitute_submitters[0].is_substitute);
-        assert!(data.paper_corrected_data.substitute_submitters[0].is_substitute);
     }
 
     /// The corrected projection is the paper corrected one plus the

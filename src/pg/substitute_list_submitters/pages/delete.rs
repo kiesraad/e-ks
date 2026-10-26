@@ -6,10 +6,7 @@ use axum::{
 
 use crate::{
     AppError, AppResponse, Context, HtmlTemplate, Overlay, PgStore, QueryParamState, filters,
-    structs::{
-        common::{HasSeverity, Problematic},
-        list_submitters::ListSubmitter,
-    },
+    structs::{common::HasSeverity, list_submitters::ListSubmitter},
 };
 
 use super::SubstituteSubmitterDeletePath;

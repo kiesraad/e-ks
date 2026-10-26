@@ -129,7 +129,7 @@ mod tests {
     use tower::ServiceExt;
 
     use crate::{
-        AppState, CsbAction, CsbUser, ElectionConfig, Locale, PgStoreData, Province,
+        AppState, CsbAction, CsbUser, ElectionConfig, Locale, PgEvent, PgStoreData, Province,
         store::StoreRegistry, test_utils::sample_political_group,
     };
 
@@ -145,9 +145,9 @@ mod tests {
                 CsbAction::Import {
                     hash: [0u8; 32],
                     source_stream_id: StreamId::new(),
-                    snapshot: Box::new(
-                        PgStoreData::default().with_political_group(sample_political_group()),
-                    ),
+                    snapshot: Box::new(PgStoreData::from_events([PgEvent::UpdatePoliticalGroup(
+                        sample_political_group(),
+                    )])),
                 }
                 .by(CsbUser::new_test()),
             )

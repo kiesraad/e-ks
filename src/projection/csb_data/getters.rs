@@ -181,19 +181,16 @@ impl CsbStoreData {
         person_id: PersonId,
         election: ElectionConfig,
     ) -> Vec<Omission> {
-        let mut omissions = self.omissions_where(
-            |o| matches!(&o.category, OmissionCategory::Candidate { person, .. } if *person == person_id),
-        );
+        let mut omissions = self.omissions_where(|o| o.category.is_for_candidate(person_id, None));
         omissions.sort_by_cached_key(|omission| self.title_order(omission, election));
         omissions
     }
 
     /// Whether a candidate has omissions for a specific list
     pub fn has_candidate_omissions(&self, person_id: PersonId, list_id: CandidateListId) -> bool {
-        self.omissions.values().any(|o| {
-            matches!(&o.category, OmissionCategory::Candidate { person, lists }
-                if *person == person_id && lists.contains(&list_id))
-        })
+        self.omissions
+            .values()
+            .any(|o| o.category.is_for_candidate(person_id, Some(list_id)))
     }
 
     /// Whether a candidate has csb corrections
@@ -203,8 +200,8 @@ impl CsbStoreData {
 
     /// Whether the paper corrections changed or added the candidate.
     pub fn is_person_paper_corrected(&self, person_id: PersonId) -> bool {
-        self.pg(WithCorrections::None).get_person(person_id).ok()
-            != self.pg(WithCorrections::Paper).get_person(person_id).ok()
+        let versions = self.get_person_versions(person_id);
+        versions.imported != versions.paper
     }
 
     fn candidate_list_omissions(&self, list_id: CandidateListId) -> Vec<Omission> {
@@ -248,7 +245,7 @@ impl CsbStoreData {
         Ok(list
             .candidates
             .iter()
-            .any(|candidate| self.csb_corrected_persons.contains_key(candidate)))
+            .any(|candidate| self.has_candidate_csb_corrections(*candidate)))
     }
 
     pub fn get_all_declarations_of_support_omissions(
@@ -314,22 +311,18 @@ impl CsbStoreData {
         self.csb_corrected_appellation.as_ref()
     }
 
-    /// The name of the first candidate across all candidate lists, sorted by
-    /// list creation date. Include a [Scrapped] projection to get the first
-    /// unscrapped candidate from the first unscrapped created list.
-    /// Returns `None` when no candidates are available.
+    /// The name of the first unscrapped candidate on the first unscrapped
+    /// list, in list creation order; `None` without candidates. Without
+    /// scrapping, use [`crate::PgStoreData::get_first_candidate_name`].
     pub fn get_first_candidate_name(
         &self,
         corrections: WithCorrections,
-        scrapped: Option<&Scrapped>,
+        scrapped: &Scrapped,
     ) -> Option<&FullName> {
         let data = self.pg(corrections);
         data.candidates_in_list_order()
             .filter(|(list, person)| {
-                scrapped.is_none_or(|scrapped| {
-                    !scrapped.is_list_scrapped(*list)
-                        && !scrapped.is_candidate_scrapped(*list, *person)
-                })
+                !scrapped.is_list_scrapped(*list) && !scrapped.is_candidate_scrapped(*list, *person)
             })
             .find_map(|(_, person)| data.get_person(person).ok())
             .map(|person| &person.name)
@@ -344,7 +337,7 @@ impl CsbStoreData {
         if scrapped.is_appellation_scrapped() {
             political_group.list_designation = Some(ListDesignation::Blank);
         }
-        political_group.csb_appellation(self.get_first_candidate_name(corrections, Some(scrapped)))
+        political_group.csb_appellation(self.get_first_candidate_name(corrections, scrapped))
     }
 
     /// The appellation of the political group (including special names for
@@ -883,7 +876,7 @@ mod tests {
 
         let data = store.snapshot();
         let name = data
-            .get_first_candidate_name(WithCorrections::All, Some(&scrapped))
+            .get_first_candidate_name(WithCorrections::All, &scrapped)
             .unwrap();
 
         assert_eq!(*name, present_person.name);

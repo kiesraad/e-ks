@@ -655,7 +655,7 @@ fn lists_by_creation(data: &CsbStoreData) -> Vec<CandidateList> {
 
 /// E.g. `van Dijk, A.B. (Anne)`; empty without candidates.
 fn first_candidate_name(data: &CsbStoreData, scrapped: &Scrapped) -> String {
-    data.get_first_candidate_name(WithCorrections::All, Some(scrapped))
+    data.get_first_candidate_name(WithCorrections::All, scrapped)
         .map(crate::structs::common::FullName::display)
         .unwrap_or_default()
 }

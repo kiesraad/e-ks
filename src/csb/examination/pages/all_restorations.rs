@@ -27,7 +27,7 @@ pub async fn all_restorations(
     store: CsbStore,
 ) -> Result<Response, AppError> {
     let data = store.snapshot();
-    let political_group = CsbPoliticalGroup::new_from_csb_store(&store);
+    let political_group = CsbPoliticalGroup::new(&store, &data);
     let omission_count = data.get_omission_count();
     let correction_count = data.get_correction_count();
     Ok(HtmlTemplate(

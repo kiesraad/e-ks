@@ -196,30 +196,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn getters_set_substitute_flag() {
-        let store = PgStore::new_for_test();
-
-        let main_submitter = sample_list_submitter(ListSubmitterId::new());
-        let substitute_submitter = sample_list_submitter(ListSubmitterId::new());
-
-        main_submitter.update(&store).await.unwrap();
-        substitute_submitter
-            .create_substitute(&store)
-            .await
-            .unwrap();
-
-        assert!(!store.snapshot().get_list_submitter().is_substitute);
-        assert!(store.snapshot().get_substitute_submitters()[0].is_substitute);
-        assert!(
-            store
-                .snapshot()
-                .get_substitute_submitter(substitute_submitter.id)
-                .unwrap()
-                .is_substitute
-        );
-    }
-
-    #[tokio::test]
     async fn should_show_download_warning_tracks_download_and_hide_events() {
         let store = PgStore::new_for_test();
 

@@ -85,8 +85,10 @@ impl OmissionTarget {
         form: FormData<OmissionForm>,
         query: &QueryParamState,
         context: CsbContext,
-        data: &CsbStoreData,
+        store: &CsbStore,
     ) -> Result<Response, AppError> {
+        let snapshot = store.snapshot();
+        let data: &CsbStoreData = &snapshot;
         let available_districts = self
             .omission_type
             .needs_districts()
@@ -106,7 +108,7 @@ impl OmissionTarget {
             .filter(|options| options.len() > 1)
             .unwrap_or_default();
 
-        let political_group = CsbPoliticalGroup::new(data, self.stream_id, context.election);
+        let political_group = CsbPoliticalGroup::new(store, data);
         Ok(HtmlTemplate(
             CsbAddOmissionTemplate {
                 form,
@@ -128,11 +130,7 @@ impl OmissionTarget {
         data: &CsbStoreData,
         locale: Locale,
     ) -> Result<String, AppError> {
-        let first_candidate = data.pg(WithCorrections::All).get_first_candidate_name();
-        let appellation = data
-            .pg(WithCorrections::All)
-            .get_political_group()
-            .csb_appellation(first_candidate);
+        let appellation = data.pg(WithCorrections::All).get_appellation();
         let first_part = match self.omission_type {
             OmissionType::PoliticalGroup => trans!("common.general_information", locale),
             OmissionType::Appellation => {
@@ -195,7 +193,7 @@ pub async fn add_omission(
     } else {
         FormData::new()
     };
-    target.render_add_form(form, &query, context, &store.snapshot())
+    target.render_add_form(form, &query, context, &store)
 }
 
 /// Render the omissions overview page for an entity: the list of omissions
@@ -210,7 +208,7 @@ pub async fn overview(
 ) -> Result<Response, AppError> {
     let data = store.snapshot();
     let omission_target = OmissionTarget::from_overview_path(path, list_query);
-    let political_group = CsbPoliticalGroup::new(&data, store.stream_id, context.election);
+    let political_group = CsbPoliticalGroup::new(&store, &data);
 
     Ok(HtmlTemplate(
         CsbOmissionOverviewTemplate {
@@ -274,7 +272,7 @@ pub async fn add_omission_submit(
         Ok(districts) => districts,
         Err(errors) => {
             let form = FormData::new_with_errors(form, errors);
-            return target.render_add_form(form, &query, context, &store.snapshot());
+            return target.render_add_form(form, &query, context, &store);
         }
     };
 
@@ -293,12 +291,12 @@ pub async fn add_omission_submit(
         Ok(candidate_lists) => candidate_lists,
         Err(errors) => {
             let form = FormData::new_with_errors(form, errors);
-            return target.render_add_form(form, &query, context, &store.snapshot());
+            return target.render_add_form(form, &query, context, &store);
         }
     };
 
     match form.validate_create() {
-        Err(form_data) => target.render_add_form(form_data, &query, context, &store.snapshot()),
+        Err(form_data) => target.render_add_form(form_data, &query, context, &store),
         Ok(mut omission) => {
             omission.category = if target.omission_type == OmissionType::DeclarationsOfSupport {
                 OmissionCategory::DeclarationsOfSupport(districts)

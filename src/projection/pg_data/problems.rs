@@ -6,7 +6,7 @@ use crate::{
         candidate_lists::CandidateListSummary,
         common::{InfoProblems, PotentialProblems, Problematic},
         list_designation::ListDesignation,
-        list_submitters::ListSubmitter,
+        list_submitters::{ListSubmitter, SubmitterRole},
         name_authorisations::NameAuthorisation,
         problems::{
             AllProblems, EntityInfoProblems, EntityProblems, GeneralProblems, ListProblems,
@@ -103,7 +103,7 @@ impl AllProblems {
             general.push(PotentialProblems::NoListSubmitter);
         }
 
-        let problems = list_submitter.get_problems(());
+        let problems = list_submitter.get_problems(SubmitterRole::Main);
         info_problems.extend(
             problems
                 .info_problems
@@ -135,7 +135,8 @@ impl AllProblems {
 
         let mut substitute_submitters = Vec::new();
         for ss in submitters {
-            let (ss_problems, infos) = EntityProblems::new(ss.clone());
+            let (ss_problems, infos) =
+                EntityProblems::new_with(ss.clone(), SubmitterRole::Substitute);
             if !ss_problems.problems.is_empty() {
                 substitute_submitters.push(ss_problems)
             }

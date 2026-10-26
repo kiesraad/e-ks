@@ -7,9 +7,7 @@ use axum::{
 
 use crate::{
     AppError, Context, Form, HtmlTemplate, Overlay, PgStore, QueryParamState, filters,
-    form::FormData,
-    list_submitters::ListSubmitterForm,
-    structs::common::{HasSeverity, Problematic},
+    form::FormData, list_submitters::ListSubmitterForm, structs::common::HasSeverity,
 };
 
 use super::SubstituteSubmitterUpdatePath;
