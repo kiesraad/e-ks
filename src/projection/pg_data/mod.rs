@@ -25,13 +25,13 @@ use crate::{
 /// Event-sourced domain projection for a single (stream, election) pair.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct PgStoreData {
-    pub(crate) political_group: PoliticalGroup,
-    pub(crate) persons: HashMap<PersonId, Person>,
-    pub(crate) candidate_lists: HashMap<CandidateListId, CandidateList>,
-    pub(crate) name_authorisations: HashMap<NameAuthorisationId, NameAuthorisation>,
-    pub(crate) list_submitter: ListSubmitter,
-    pub(crate) substitute_submitters: Vec<ListSubmitter>,
-    pub(crate) events: Vec<StoreEvent<PgEvent>>,
+    pub(super) political_group: PoliticalGroup,
+    pub(super) persons: HashMap<PersonId, Person>,
+    pub(super) candidate_lists: HashMap<CandidateListId, CandidateList>,
+    pub(super) name_authorisations: HashMap<NameAuthorisationId, NameAuthorisation>,
+    pub(super) list_submitter: ListSubmitter,
+    pub(super) substitute_submitters: Vec<ListSubmitter>,
+    pub(super) events: Vec<StoreEvent<PgEvent>>,
 }
 
 impl StoreData for PgStoreData {
@@ -108,6 +108,16 @@ impl StoreData for PgStoreData {
     }
 }
 
+#[cfg(test)]
+impl PgStoreData {
+    /// Replay `events` from an empty projection, as an import delivers them.
+    pub fn from_events(events: impl IntoIterator<Item = PgEvent>) -> Self {
+        let mut data: Self = crate::store::replay(events);
+        data.events.clear();
+        data
+    }
+}
+
 impl PgStoreData {
     /// Build a point-in-time snapshot of the projection by replaying `events`
     /// up to and including the event with `target_event_id`.
@@ -117,15 +127,25 @@ impl PgStoreData {
     /// produced it. `events` is expected to be the ordered event log of a single
     /// stream (as returned by `StoreData::events`); later events are ignored.
     pub fn snapshot_until(events: &[StoreEvent<PgEvent>], target_event_id: usize) -> Self {
-        let mut snapshot = PgStoreData::default();
-        for event in events
-            .iter()
-            .filter(|event| event.event_id <= target_event_id)
-        {
-            snapshot.apply(event.clone());
-        }
+        let mut snapshot = Self::replay_onto(PgStoreData::default(), events, target_event_id);
         snapshot.events.clear();
         snapshot
+    }
+
+    /// `base` with the events of an ordered log up to and including
+    /// `target_event_id` applied on top.
+    pub fn replay_onto(
+        mut base: Self,
+        events: &[StoreEvent<PgEvent>],
+        target_event_id: usize,
+    ) -> Self {
+        for event in events
+            .iter()
+            .take_while(|event| event.event_id <= target_event_id)
+        {
+            base.apply(event.clone());
+        }
+        base
     }
 
     /// Apply a person-related event. Routed here exclusively by [`Self::apply`].
@@ -356,9 +376,7 @@ mod tests {
 
     /// A `PgStoreData` containing a single sample person.
     fn data_with_person(person_id: PersonId) -> PgStoreData {
-        let mut data = PgStoreData::default();
-        data.persons.insert(person_id, sample_person(person_id));
-        data
+        PgStoreData::from_events([PgEvent::CreatePerson(Box::new(sample_person(person_id)))])
     }
 
     fn sample_address() -> DutchAddress {
@@ -629,7 +647,8 @@ mod tests {
 
         name_authorisation.create(&store).await?;
 
-        let loaded = store.get_name_authorisation(id)?;
+        let data = store.snapshot();
+        let loaded = data.get_name_authorisation(id)?;
         assert_eq!(loaded.id, name_authorisation.id);
 
         Ok(())
@@ -692,7 +711,7 @@ mod tests {
 
         // Reads serve a snapshot of the corrected projection.
         assert_eq!(
-            store.get_political_group().appellation,
+            store.snapshot().get_political_group().appellation,
             sample_political_group().appellation
         );
 
@@ -723,7 +742,7 @@ mod tests {
 
         // The request-local snapshot observes the correction right away.
         assert_eq!(
-            store.get_political_group().appellation,
+            store.snapshot().get_political_group().appellation,
             corrected_group.appellation
         );
 
@@ -789,7 +808,8 @@ mod tests {
 
             person.create(&store).await?;
 
-            let loaded = store.get_person(person_id)?;
+            let data = store.snapshot();
+            let loaded = data.get_person(person_id)?;
             assert_eq!(loaded.id, person_id);
 
             let fresh_store =
@@ -798,7 +818,8 @@ mod tests {
                     .unwrap();
             fresh_store.load().await?;
 
-            let reloaded = fresh_store.get_person(person_id)?;
+            let data = fresh_store.snapshot();
+            let reloaded = data.get_person(person_id)?;
             assert_eq!(reloaded.id, person_id);
 
             Ok(())
@@ -947,11 +968,8 @@ mod tests {
             .unwrap();
             sample_person(PersonId::new()).create(&store).await?;
 
-            let target = store
-                .get_events()
-                .last()
-                .cloned()
-                .expect("at least one event");
+            let data = store.snapshot();
+            let target = data.events.last().expect("at least one event");
             let expected = Some((group, ElectionConfig::EK27, target.event_id));
 
             assert_eq!(

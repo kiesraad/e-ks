@@ -145,7 +145,17 @@ pub struct EntityProblems<T> {
 
 impl<T: Problematic<()>> EntityProblems<T> {
     pub fn new(entity: T) -> (Self, Vec<InfoProblems>) {
-        let problems = entity.get_problems(());
+        Self::new_with(entity, ())
+    }
+}
+
+impl<T> EntityProblems<T> {
+    /// Like [`Self::new`], for entities whose problems need a context.
+    pub fn new_with<C>(entity: T, context: C) -> (Self, Vec<InfoProblems>)
+    where
+        T: Problematic<C>,
+    {
+        let problems = entity.get_problems(context);
         (
             EntityProblems {
                 entity,

@@ -22,10 +22,11 @@ pub struct PreSubmissionGroup {
 
 impl PreSubmissionGroup {
     pub fn from_store(store: &CsbStream) -> Self {
+        let data = store.snapshot();
         Self {
             stream_id: store.stream_id,
-            appellation: store.get_appellation(WithCorrections::All),
-            brp: BrpCheckState::for_political_group(store),
+            appellation: data.pg(WithCorrections::All).get_appellation(),
+            brp: BrpCheckState::for_political_group(&data),
         }
     }
 
@@ -107,7 +108,7 @@ impl<S: AppRequestState> FromRequestParts<S> for PreSubmissionGroups {
             .stores_for_election(election)
             .await?
         {
-            if !store.is_deleted() {
+            if !store.snapshot().is_deleted() {
                 groups.push(PreSubmissionGroup::from_store(&store));
             }
         }
@@ -128,7 +129,7 @@ mod tests {
     use tower::ServiceExt;
 
     use crate::{
-        AppState, CsbAction, CsbUser, ElectionConfig, Locale, PgStoreData, Province,
+        AppState, CsbAction, CsbUser, ElectionConfig, Locale, PgEvent, PgStoreData, Province,
         store::StoreRegistry, test_utils::sample_political_group,
     };
 
@@ -144,10 +145,9 @@ mod tests {
                 CsbAction::Import {
                     hash: [0u8; 32],
                     source_stream_id: StreamId::new(),
-                    snapshot: Box::new(PgStoreData {
-                        political_group: sample_political_group(),
-                        ..PgStoreData::default()
-                    }),
+                    snapshot: Box::new(PgStoreData::from_events([PgEvent::UpdatePoliticalGroup(
+                        sample_political_group(),
+                    )])),
                 }
                 .by(CsbUser::new_test()),
             )

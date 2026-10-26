@@ -57,6 +57,7 @@ pub async fn delete_submit(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::store::StoreData;
     use axum::http::StatusCode;
 
     use crate::{
@@ -120,6 +121,6 @@ mod tests {
 
         assert!(matches!(result, Err(AppError::GenericNotFound)));
         // No event was recorded for the stale request.
-        assert!(store.snapshot().events.is_empty());
+        assert!(store.snapshot().events().is_empty());
     }
 }

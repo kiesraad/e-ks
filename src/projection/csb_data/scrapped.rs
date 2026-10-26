@@ -182,10 +182,13 @@ impl Scrapped {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::structs::{
-        candidate_lists::CandidateList,
-        csb::{OmissionStatus, sample_omission},
-        political_groups::PoliticalGroup,
+    use crate::{
+        PgEvent,
+        structs::{
+            candidate_lists::CandidateList,
+            csb::{OmissionStatus, sample_omission},
+            political_groups::PoliticalGroup,
+        },
     };
 
     fn omission(category: OmissionCategory, recoverable: bool, status: OmissionStatus) -> Omission {
@@ -209,16 +212,11 @@ mod tests {
     }
 
     fn data_with_list(id: CandidateListId, districts: Vec<ElectoralDistrict>) -> PgStoreData {
-        let mut data = PgStoreData::default();
-        data.candidate_lists.insert(
+        PgStoreData::from_events([PgEvent::CreateCandidateList(Box::new(CandidateList {
             id,
-            CandidateList {
-                id,
-                electoral_districts: districts.into_iter().collect(),
-                ..Default::default()
-            },
-        );
-        data
+            electoral_districts: districts.into_iter().collect(),
+            ..Default::default()
+        }))])
     }
 
     #[test]
@@ -390,13 +388,10 @@ mod tests {
 
     #[test]
     fn blank_list_has_no_appellation_to_scrap() {
-        let data = PgStoreData {
-            political_group: PoliticalGroup {
-                list_designation: Some(ListDesignation::Blank),
-                ..Default::default()
-            },
+        let data = PgStoreData::from_events([PgEvent::UpdatePoliticalGroup(PoliticalGroup {
+            list_designation: Some(ListDesignation::Blank),
             ..Default::default()
-        };
+        })]);
         let omission = irreparable(OmissionCategory::Appellation);
         let id = omission.id;
 

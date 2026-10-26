@@ -303,13 +303,12 @@ impl CsbAction {
 /// corrections included).
 fn correction_changes(before: &CsbStoreData, correction: &Correction) -> Vec<Change> {
     match correction {
-        Correction::Appellation(appellation) => {
-            diff_updated(Some(&before.corrected_political_group()), |group| {
-                group.appellation = Some(appellation.clone())
-            })
-        }
+        Correction::Appellation(appellation) => diff_updated(
+            Some(before.pg(WithCorrections::All).get_political_group()),
+            |group| group.appellation = Some(appellation.clone()),
+        ),
         Correction::Person(person_id, correction) => diff_updated(
-            before.get_person(*person_id, WithCorrections::All).as_ref(),
+            before.pg(WithCorrections::All).get_person(*person_id).ok(),
             |person| correction.clone().apply(person),
         ),
     }
@@ -331,12 +330,12 @@ mod tests {
     }
 
     fn import_of(person: &crate::structs::persons::Person) -> CsbAction {
-        let mut snapshot = PgStoreData::default();
-        snapshot.persons.insert(person.id, person.clone());
         CsbAction::Import {
             hash: [1; 32],
             source_stream_id: StreamId::new(),
-            snapshot: Box::new(snapshot),
+            snapshot: Box::new(PgStoreData::from_events([PgEvent::CreatePerson(Box::new(
+                person.clone(),
+            ))])),
         }
     }
 

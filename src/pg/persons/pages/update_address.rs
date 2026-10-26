@@ -197,7 +197,8 @@ mod tests {
 
         assert_eq!(location, expected_path);
 
-        let updated = store.get_person(person_id)?;
+        let data = store.snapshot();
+        let updated = data.get_person(person_id).cloned()?;
         assert_eq!(
             updated.address.locality.as_deref().map(ToString::to_string),
             Some("Juinen".to_string())
@@ -268,7 +269,8 @@ mod tests {
         .unwrap();
 
         // The international address should be removed because `lives_in_nl` is true
-        let updated = store.get_person(person_id)?;
+        let data = store.snapshot();
+        let updated = data.get_person(person_id).cloned()?;
         assert_eq!(
             updated.address.locality.as_deref().map(ToString::to_string),
             Some("Juinen".to_string())

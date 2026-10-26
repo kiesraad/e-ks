@@ -53,10 +53,10 @@
             {{ restorations::problems_group(na.entity.display(locale) , Some(political_group.general_information_path()), na.problems.clone() ) }}
           {% endfor %}
           {% if let Some(ls) = all_problems.general.list_submitter %}
-            {{ restorations::problems_group(ls.entity.display(locale, false) , Some(political_group.general_information_path()), ls.problems.clone() ) }}
+            {{ restorations::problems_group(ls.entity.display_main(locale) , Some(political_group.general_information_path()), ls.problems.clone() ) }}
           {% endif %}
           {% for ss in all_problems.general.substitute_submitters %}
-            {{ restorations::problems_group(ss.entity.display(locale, true) , Some(political_group.general_information_path()), ss.problems.clone() ) }}
+            {{ restorations::problems_group(ss.entity.display_substitute(locale) , Some(political_group.general_information_path()), ss.problems.clone() ) }}
           {% endfor %}
         {% endif %}
         {% if !all_problems.lists.is_empty() %}

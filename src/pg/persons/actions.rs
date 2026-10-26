@@ -28,7 +28,7 @@ impl Person {
             })
             .await?;
 
-        store.get_person(person_id)
+        store.snapshot().get_person(person_id).cloned()
     }
 
     pub async fn update_personal_data(
@@ -45,7 +45,7 @@ impl Person {
             })
             .await?;
 
-        store.get_person(self.id)
+        store.snapshot().get_person(self.id).cloned()
     }
 
     pub async fn create(&self, store: &PgStore) -> Result<(), AppError> {
@@ -116,7 +116,8 @@ impl Person {
         sort_field: &PersonSort,
         sort_direction: &SortDirection,
     ) -> Result<Vec<PersonWithProblems>, AppError> {
-        let mut persons = store.get_persons();
+        let data = store.snapshot();
+        let mut persons = data.get_persons();
         persons.sort_by(|a, b| compare_persons(a, b, sort_field));
 
         if matches!(sort_direction, SortDirection::Desc) {
@@ -129,7 +130,7 @@ impl Person {
             .take(limit)
             .map(|person| PersonWithProblems {
                 problems: person.get_problems(store.election),
-                data: person,
+                data: person.clone(),
             })
             .collect())
     }

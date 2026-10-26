@@ -221,7 +221,7 @@ mod tests {
 
         person.create(&store).await?;
 
-        let loaded = store.get_person(id)?;
+        let loaded = store.snapshot().get_person(id).cloned()?;
         assert_eq!(loaded.id, id);
         assert_eq!(loaded.name.last_name.to_string(), "Jansen");
 
@@ -239,7 +239,7 @@ mod tests {
         person.name.last_name = "Updated".parse().expect("last name");
         person.update(&store).await?;
 
-        let updated = store.get_person(id)?;
+        let updated = store.snapshot().get_person(id).cloned()?;
         assert_eq!(updated.name.last_name.to_string(), "Updated");
 
         Ok(())
@@ -254,8 +254,7 @@ mod tests {
         person.create(&store).await?;
         person.delete(&store).await?;
 
-        let missing = store.get_person(id);
-        assert!(missing.is_err());
+        assert!(store.snapshot().get_person(id).is_err());
 
         Ok(())
     }
@@ -278,7 +277,7 @@ mod tests {
             .update_address(&store, person.address.clone())
             .await?;
 
-        let updated = store.get_person(id)?;
+        let updated = store.snapshot().get_person(id).cloned()?;
         assert_eq!(
             updated.address.locality.as_deref().map(ToString::to_string),
             Some("Nieuwegein".to_string())
@@ -318,7 +317,7 @@ mod tests {
             .create(&store)
             .await?;
 
-        let total = store.get_person_count();
+        let total = store.snapshot().get_person_count();
         assert_eq!(total, 2);
 
         let persons = Person::list(&store, 10, 0, &PersonSort::LastName, &SortDirection::Asc)?;

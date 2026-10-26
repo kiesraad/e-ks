@@ -8,7 +8,7 @@ request_extractor!(FullCandidateList, |store, context, parts, state| {
     let Path(CandidateListPathParams { list_id }) =
         Path::<CandidateListPathParams>::from_request_parts(parts, state).await?;
 
-    FullCandidateList::get(&store, list_id).map_err(|_| {
+    FullCandidateList::get(&store.snapshot(), store.election, list_id).map_err(|_| {
         AppError::NotFound(trans!(
             "candidate_list.not_found",
             context.session.locale,

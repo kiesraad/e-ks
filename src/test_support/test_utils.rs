@@ -15,8 +15,8 @@ use http_body_util::BodyExt;
 use std::collections::BTreeSet;
 
 use crate::{
-    AppError, AppState, Context, CsbAction, CsbStore, ElectionConfig, ElectoralDistrict, PgStore,
-    PgStoreData, StreamId, TokenValue,
+    AppError, AppState, Context, CsbAction, CsbStore, ElectionConfig, ElectoralDistrict, PgEvent,
+    PgStore, PgStoreData, StreamId, TokenValue,
     common::{DutchAddressForm, FullNameForm, InternationalAddressForm, MinimalNameForm},
     list_submitters::ListSubmitterForm,
     name_authorisations::NameAuthorisationForm,
@@ -284,16 +284,16 @@ pub async fn seed_csb_group(
         .expect("csb store")
         .acting_as_test_user();
 
-    let mut snapshot = PgStoreData {
-        political_group,
-        ..PgStoreData::default()
-    };
-    for person in persons {
-        snapshot.persons.insert(person.id, person);
-    }
-    for list in lists {
-        snapshot.candidate_lists.insert(list.id, list);
-    }
+    let snapshot = PgStoreData::from_events(
+        std::iter::once(PgEvent::UpdatePoliticalGroup(political_group))
+            .chain(persons.into_iter().map(Box::new).map(PgEvent::CreatePerson))
+            .chain(
+                lists
+                    .into_iter()
+                    .map(Box::new)
+                    .map(PgEvent::CreateCandidateList),
+            ),
+    );
 
     store
         .update(CsbAction::Import {
@@ -315,10 +315,9 @@ pub async fn paper_corrections_store() -> Result<PgStore, AppError> {
         .update(crate::CsbAction::Import {
             hash: [1; 32],
             source_stream_id: crate::StreamId::new(),
-            snapshot: Box::new(crate::PgStoreData {
-                political_group: sample_political_group(),
-                ..Default::default()
-            }),
+            snapshot: Box::new(crate::PgStoreData::from_events([
+                PgEvent::UpdatePoliticalGroup(sample_political_group()),
+            ])),
         })
         .await?;
 
@@ -351,7 +350,6 @@ pub fn sample_list_submitter(id: ListSubmitterId) -> ListSubmitter {
             "B",
             "Coolsingel",
         )),
-        is_substitute: false,
     }
 }
 

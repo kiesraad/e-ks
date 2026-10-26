@@ -31,7 +31,8 @@ pub async fn index(
     context: Context,
     store: PgStore,
 ) -> Result<impl IntoResponse, AppError> {
-    let problems = AllProblems::find_all(&store)?;
+    let data = store.snapshot();
+    let problems = AllProblems::find_all(&data, store.election)?;
     let event_hash = EventHashPrefix::of(&store.current_event_hash());
 
     Ok(HtmlTemplate(
@@ -48,8 +49,8 @@ pub async fn index(
             }
             .to_string(),
             frisian_export_allowed: context.election.frisian_export_allowed(),
-            list_designation: store.get_political_group().list_designation,
-            previously_seated: store.get_political_group().was_previously_seated(),
+            list_designation: data.get_political_group().list_designation,
+            previously_seated: data.get_political_group().was_previously_seated(),
         },
         context,
     ))

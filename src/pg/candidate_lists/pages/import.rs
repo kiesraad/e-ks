@@ -54,26 +54,21 @@ fn render_import_export(
 }
 
 pub async fn import_export(
-    CandidateListImportPath { list_id }: CandidateListImportPath,
+    _: CandidateListImportPath,
+    list: CandidateList,
     context: Context,
     store: PgStore,
 ) -> Result<Response, AppError> {
-    Ok(render_import_export(
-        store.get_candidate_list(list_id)?,
-        vec![],
-        context,
-        &store,
-    ))
+    Ok(render_import_export(list, vec![], context, &store))
 }
 
 pub async fn import_candidate_list(
-    CandidateListImportPath { list_id }: CandidateListImportPath,
+    _: CandidateListImportPath,
+    mut list: CandidateList,
     context: Context,
     store: PgStore,
     import_data: Result<FileForm, AppError>,
 ) -> Result<Response, AppError> {
-    let mut list = store.get_candidate_list(list_id)?;
-
     let import_data = match import_data {
         Ok(form) => form,
         Err(err) => match upload_error_messages(&err, context.session.locale) {
@@ -257,8 +252,13 @@ mod tests {
         let context = Context::new_test_without_db();
         let csrf_token = context.session.csrf_token().0.clone();
 
-        let response =
-            import_export(CandidateListImportPath { list_id: list.id }, context, store).await?;
+        let response = import_export(
+            CandidateListImportPath { list_id: list.id },
+            list.clone(),
+            context,
+            store,
+        )
+        .await?;
 
         assert_eq!(response.status(), StatusCode::OK);
 
@@ -286,6 +286,7 @@ mod tests {
 
         let response = import_candidate_list(
             CandidateListImportPath { list_id: list.id },
+            list.clone(),
             context,
             store.clone(),
             Ok(FileForm {
@@ -316,6 +317,7 @@ mod tests {
 
         let response = import_candidate_list(
             CandidateListImportPath { list_id: list.id },
+            list.clone(),
             context,
             store,
             Ok(FileForm {
@@ -362,6 +364,7 @@ mod tests {
 
         let response = import_candidate_list(
             CandidateListImportPath { list_id: list.id },
+            list.clone(),
             context,
             store,
             Ok(FileForm {
@@ -395,6 +398,7 @@ mod tests {
 
         let response = import_candidate_list(
             CandidateListImportPath { list_id: list.id },
+            list.clone(),
             Context::new_test_without_db(),
             store.clone(),
             Ok(FileForm {
@@ -417,13 +421,16 @@ mod tests {
         );
         assert!(!location.contains("import_capped"), "{location}");
 
-        let candidate_id = store.get_candidate_list(list.id)?.candidates[0];
+        let data = store.snapshot();
+        let candidate_id = data.get_candidate_list(list.id)?.candidates[0];
         assert_eq!(
             store
+                .snapshot()
                 .get_person(candidate_id)?
                 .personal_data
                 .date_of_birth
-                .map(|d| d.to_string()),
+                .as_ref()
+                .map(ToString::to_string),
             Some("1984-06-23".to_string())
         );
 
@@ -492,6 +499,7 @@ mod tests {
 
         let response = import_candidate_list(
             CandidateListImportPath { list_id: list.id },
+            list.clone(),
             context,
             store,
             Ok(FileForm {

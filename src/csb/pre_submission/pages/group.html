@@ -68,10 +68,10 @@
             {{ restorations::problems_group(na.entity.display(locale) , None::<String>, na.problems.clone() ) }}
           {% endfor %}
           {% if let Some(ls) = all_problems.general.list_submitter %}
-            {{ restorations::problems_group(ls.entity.display(locale, false) , None::<String>, ls.problems.clone() ) }}
+            {{ restorations::problems_group(ls.entity.display_main(locale) , None::<String>, ls.problems.clone() ) }}
           {% endif %}
           {% for ss in all_problems.general.substitute_submitters %}
-            {{ restorations::problems_group(ss.entity.display(locale, true) , None::<String>, ss.problems.clone() ) }}
+            {{ restorations::problems_group(ss.entity.display_substitute(locale) , None::<String>, ss.problems.clone() ) }}
           {% endfor %}
         {% endif %}
         {% if !all_problems.lists.is_empty() %}

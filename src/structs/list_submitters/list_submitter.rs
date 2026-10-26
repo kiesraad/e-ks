@@ -13,6 +13,15 @@ use serde::{Deserialize, Serialize};
 
 id_newtype!(pub struct ListSubmitterId);
 
+/// Whether a submitter is the list submitter or one of their substitutes.
+/// The projection stores the two apart, so the role is known wherever a
+/// submitter is read and is passed along rather than stored on it.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum SubmitterRole {
+    Main,
+    Substitute,
+}
+
 #[derive(Default, Debug, Clone)]
 pub struct ListSubmitterData {
     pub name: FullName,
@@ -76,26 +85,22 @@ pub struct ListSubmitter {
     pub id: ListSubmitterId,
     pub name: FullName,
     pub address: Address,
-    #[serde(skip)]
-    pub is_substitute: bool,
 }
 
 audit_fields!(ListSubmitter {
     id: skip,
     name: flatten,
     address: group(Address),
-    is_substitute: skip,
 });
 
-impl Problematic<()> for ListSubmitter {
-    fn get_problems(&self, _: ()) -> Problems {
-        let severity = if self.is_substitute {
-            Severity::Warn
-        } else {
-            Severity::Error
+impl Problematic<SubmitterRole> for ListSubmitter {
+    fn get_problems(&self, role: SubmitterRole) -> Problems {
+        let severity = match role {
+            SubmitterRole::Main => Severity::Error,
+            SubmitterRole::Substitute => Severity::Warn,
         };
 
-        if self.is_empty() && !self.is_substitute {
+        if self.is_empty() && role == SubmitterRole::Main {
             return Problems::new_empty(); // error gets returned in general problems
         }
 
@@ -109,20 +114,6 @@ impl Problematic<()> for ListSubmitter {
 impl ListSubmitter {
     pub fn is_empty(&self) -> bool {
         self.name.is_empty() && self.address.is_empty()
-    }
-
-    /// Clone the stored submitters with the (unpersisted) substitute flag set.
-    pub fn clone_as_substitutes<'a>(
-        submitters: impl IntoIterator<Item = &'a ListSubmitter>,
-    ) -> Vec<ListSubmitter> {
-        submitters
-            .into_iter()
-            .cloned()
-            .map(|mut submitter| {
-                submitter.is_substitute = true;
-                submitter
-            })
-            .collect()
     }
 
     /// Build the updated submitter from validated form data, keeping this
@@ -144,14 +135,31 @@ impl ListSubmitter {
         self.address.address_line_2().unwrap_or_default()
     }
 
-    pub fn display(&self, locale: &Locale, is_substitute: bool) -> String {
-        let role = if is_substitute {
-            trans!("political_group.substitute_submitter", locale)
-        } else {
-            trans!("political_group.list_submitter", locale)
+    pub fn display(&self, locale: &Locale, role: SubmitterRole) -> String {
+        let role = match role {
+            SubmitterRole::Main => trans!("political_group.list_submitter", locale),
+            SubmitterRole::Substitute => trans!("political_group.substitute_submitter", locale),
         };
 
         format!("{} ({role})", self.name.display())
+    }
+
+    // Shorthands for templates, which name the role rather than pass it.
+
+    pub fn display_main(&self, locale: &Locale) -> String {
+        self.display(locale, SubmitterRole::Main)
+    }
+
+    pub fn display_substitute(&self, locale: &Locale) -> String {
+        self.display(locale, SubmitterRole::Substitute)
+    }
+
+    pub fn main_problems(&self) -> Problems {
+        self.get_problems(SubmitterRole::Main)
+    }
+
+    pub fn substitute_problems(&self) -> Problems {
+        self.get_problems(SubmitterRole::Substitute)
     }
 }
 
@@ -179,7 +187,7 @@ mod tests {
 
     use super::*;
 
-    fn incomplete_submitter(is_substitute: bool) -> ListSubmitter {
+    fn incomplete_submitter() -> ListSubmitter {
         ListSubmitter {
             id: ListSubmitterId::new(),
             name: FullName {
@@ -187,13 +195,12 @@ mod tests {
                 ..Default::default()
             },
             address: Address::Dutch(crate::structs::common::DutchAddress::default()),
-            is_substitute,
         }
     }
 
     #[test]
     fn main_submitter_problems_use_error_severity() {
-        let problems = incomplete_submitter(false).get_problems(());
+        let problems = incomplete_submitter().get_problems(SubmitterRole::Main);
 
         assert!(
             problems
@@ -236,7 +243,7 @@ mod tests {
         assert!(matches!(submitter.address, Address::International(_)));
         assert!(
             !submitter
-                .get_problems(())
+                .get_problems(SubmitterRole::Main)
                 .potential_problems
                 .contains(&PotentialProblems::UnknownAddress)
         );
@@ -244,7 +251,7 @@ mod tests {
 
     #[test]
     fn substitute_submitter_problems_use_warn_severity() {
-        let problems = incomplete_submitter(true).get_problems(());
+        let problems = incomplete_submitter().get_problems(SubmitterRole::Substitute);
 
         assert!(
             problems

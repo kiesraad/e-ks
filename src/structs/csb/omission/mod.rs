@@ -145,6 +145,13 @@ pub enum OmissionCategory {
 }
 
 impl OmissionCategory {
+    /// Whether this is a candidate omission about `person_id`, on `list_id`
+    /// when given.
+    pub fn is_for_candidate(&self, person_id: PersonId, list_id: Option<CandidateListId>) -> bool {
+        matches!(self, OmissionCategory::Candidate { person, lists }
+            if *person == person_id && list_id.is_none_or(|list_id| lists.contains(&list_id)))
+    }
+
     /// The districts this category is scoped to. Only the
     /// "ondersteuningsverklaringen" (H 4) are; no districts means all of them.
     pub fn electoral_districts(&self, election: &ElectionConfig) -> &[ElectoralDistrict] {
@@ -666,7 +673,8 @@ pub mod tests {
 
         omission.create(&store).await?;
 
-        let loaded = store.get_omission(omission.id)?;
+        let data = store.snapshot();
+        let loaded = data.get_omission(omission.id)?;
         assert_eq!(loaded.id, omission.id);
         assert_eq!(loaded.description.to_string(), "test description");
 
@@ -683,7 +691,8 @@ pub mod tests {
         omission.description = "Updated description".parse().unwrap();
         omission.update(&store).await?;
 
-        let updated = store.get_omission(omission.id)?;
+        let data = store.snapshot();
+        let updated = data.get_omission(omission.id)?;
         assert_eq!(updated.description.to_string(), "Updated description");
 
         Ok(())
@@ -699,7 +708,8 @@ pub mod tests {
             .set_status(&store, OmissionStatus::Recovered)
             .await?;
 
-        let updated = store.get_omission(omission.id)?;
+        let data = store.snapshot();
+        let updated = data.get_omission(omission.id)?;
         assert_eq!(updated.status, OmissionStatus::Recovered);
         assert!(!updated.is_pending());
         assert!(!updated.is_unresolved());
@@ -707,7 +717,7 @@ pub mod tests {
         omission
             .set_status(&store, OmissionStatus::NotRecovered)
             .await?;
-        assert!(store.get_omission(omission.id)?.is_unresolved());
+        assert!(store.snapshot().get_omission(omission.id)?.is_unresolved());
 
         Ok(())
     }
@@ -731,7 +741,7 @@ pub mod tests {
                 .is_err()
         );
         assert_eq!(
-            store.get_omission(omission.id)?.status,
+            store.snapshot().get_omission(omission.id)?.status,
             OmissionStatus::Pending
         );
 
@@ -746,8 +756,7 @@ pub mod tests {
         omission.create(&store).await?;
         omission.delete(&store).await?;
 
-        let missing = store.get_omission(omission.id);
-        assert!(missing.is_err());
+        assert!(store.snapshot().get_omission(omission.id).is_err());
 
         Ok(())
     }

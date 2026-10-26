@@ -2,7 +2,7 @@
   <ul>
     <li>
       <a href="{{ overlay.forward(substitute_submitter.substitute_update_path() ) }}"
-         class="{{ substitute_submitter.get_problems(*() ).highest_severity_class() }}">{{ "political_group.substitute_submitter_data"|trans }}</a>
+         class="{{ substitute_submitter.substitute_problems().highest_severity_class() }}">{{ "political_group.substitute_submitter_data"|trans }}</a>
     </li>
   </ul>
   <ul>

@@ -16,7 +16,10 @@ request_extractor!(ListSubmitter, |store, parts, state| {
     let Path(SubstituteSubmitterPathParams { submitter_id }) =
         Path::<SubstituteSubmitterPathParams>::from_request_parts(parts, state).await?;
 
-    store.get_substitute_submitter(submitter_id)
+    store
+        .snapshot()
+        .get_substitute_submitter(submitter_id)
+        .cloned()
 });
 
 #[cfg(test)]

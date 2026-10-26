@@ -40,7 +40,8 @@ impl AddExistingPersonTemplate {
         form: FormData<AddPersonForm>,
         just_added: Option<PersonId>,
     ) -> Result<Self, AppError> {
-        let full_list = FullCandidateList::get(store, list_id)?;
+        let data = store.snapshot();
+        let full_list = FullCandidateList::get(&data, store.election, list_id)?;
         let added_candidates = match added_position {
             Some(pos) => full_list
                 .candidates
@@ -51,7 +52,7 @@ impl AddExistingPersonTemplate {
             None => HashMap::new(),
         };
         let candidate_ids = added_candidates.keys().cloned().collect::<Vec<_>>();
-        let persons = full_list.list.persons_not_on_list(store, &candidate_ids)?;
+        let persons = full_list.list.persons_not_on_list(&data, &candidate_ids)?;
         let allow_add = full_list.candidates.len() < store.candidate_limit();
         let show_add_all = persons.len() != candidate_ids.len() && allow_add;
         let close_action = if !added_candidates.is_empty() {
@@ -93,7 +94,7 @@ async fn handle_add_candidate_form(
                 add_person.added_position = Some(full_list.list.candidates.len() + 1);
             }
 
-            let persons_not_on_list = full_list.list.persons_not_on_list(store, &[])?;
+            let persons_not_on_list = full_list.list.persons_not_on_list(&store.snapshot(), &[])?;
             let person_ids = persons_not_on_list
                 .iter()
                 .map(|person| person.id)
@@ -256,7 +257,8 @@ mod tests {
             added_position: String::new(),
         };
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
 
         let response = add_person_to_candidate_list(
             AddCandidatePath { list_id },
@@ -269,7 +271,8 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
         assert_eq!(full_list.candidates.len(), 1);
         assert_eq!(full_list.candidates[0].data.person.id, person.id);
 
@@ -301,7 +304,8 @@ mod tests {
             added_position: String::new(),
         };
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
 
         let response = add_person_to_candidate_list(
             AddCandidatePath { list_id },
@@ -314,7 +318,8 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
         assert_eq!(full_list.candidates.len(), 2);
         assert_eq!(full_list.candidates[0].data.person.id, existing_person.id);
         assert_eq!(full_list.candidates[1].data.person.id, new_person.id);
@@ -347,7 +352,8 @@ mod tests {
             added_position: String::new(),
         };
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
 
         let response = add_person_to_candidate_list(
             AddCandidatePath { list_id },
@@ -360,7 +366,8 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
         assert_eq!(full_list.candidates.len(), 3);
         assert!(full_list.contains(existing_person.id));
         assert!(full_list.contains(person_one.id));
@@ -394,7 +401,8 @@ mod tests {
             added_position: String::new(),
         };
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
 
         let response = add_person_to_candidate_list(
             AddCandidatePath { list_id },
@@ -408,7 +416,11 @@ mod tests {
         // Bulk add silently caps: no error, just the maximum number of candidates.
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
-            store.get_candidate_list(list_id)?.candidates.len(),
+            store
+                .snapshot()
+                .get_candidate_list(list_id)?
+                .candidates
+                .len(),
             MAX_CANDIDATES
         );
 
@@ -439,7 +451,8 @@ mod tests {
             added_position: String::new(),
         };
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
 
         let response = add_person_to_candidate_list(
             AddCandidatePath { list_id },
@@ -459,7 +472,11 @@ mod tests {
             .expect("location header value");
         assert!(location.contains("max_candidates_reached=true"));
         assert_eq!(
-            store.get_candidate_list(list_id)?.candidates.len(),
+            store
+                .snapshot()
+                .get_candidate_list(list_id)?
+                .candidates
+                .len(),
             MAX_CANDIDATES
         );
 
@@ -484,7 +501,8 @@ mod tests {
             action: AddPersonAction::AddAll.to_string(),
             added_position: String::new(),
         };
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
 
         let response = add_person_to_candidate_list(
             AddCandidatePath { list_id },
@@ -497,7 +515,11 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
-            store.get_candidate_list(list_id)?.candidates.len(),
+            store
+                .snapshot()
+                .get_candidate_list(list_id)?
+                .candidates
+                .len(),
             MAX_CANDIDATES + 5
         );
 
@@ -526,7 +548,8 @@ mod tests {
             added_position: String::new(),
         };
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
 
         let response = add_person_to_candidate_list(
             AddCandidatePath { list_id },
@@ -545,7 +568,8 @@ mod tests {
             added_position: "2".into(),
         };
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
 
         let response = add_person_to_candidate_list(
             AddCandidatePath { list_id },
@@ -558,7 +582,8 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
         assert_eq!(full_list.candidates.len(), 1);
         assert_eq!(full_list.candidates[0].data.person.id, existing_person.id);
 
@@ -582,7 +607,8 @@ mod tests {
             added_position: String::new(),
         };
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
 
         let response = add_person_to_candidate_list(
             AddCandidatePath { list_id },
@@ -621,7 +647,8 @@ mod tests {
             added_position: String::new(),
         };
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
 
         let response = add_person_to_candidate_list(
             AddCandidatePath { list_id },
@@ -634,7 +661,8 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
 
-        let full_list = FullCandidateList::get(&store, list_id).expect("candidate list");
+        let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)
+            .expect("candidate list");
         assert_eq!(full_list.candidates.len(), 1);
         assert_eq!(full_list.candidates[0].data.person.id, keep_person.id);
 

@@ -32,7 +32,7 @@ pub async fn update_candidate_list(
 ) -> Result<Response, AppError> {
     let available_districts = CandidateList::available_districts(&store, &context.election);
     let districts_on_other_lists =
-        CandidateList::districts_on_other_lists(&store, Some(candidate_list.id));
+        CandidateList::districts_on_other_lists(&store.snapshot(), Some(candidate_list.id));
     Ok(HtmlTemplate(
         CandidateListUpdateTemplate {
             form: FormData::new_with_data(CandidateListForm::from(candidate_list.clone())),
@@ -62,7 +62,7 @@ pub async fn update_candidate_list_submit(
     }
     let available_districts = CandidateList::available_districts(&store, &context.election);
     let districts_on_other_lists =
-        CandidateList::districts_on_other_lists(&store, Some(candidate_list.id));
+        CandidateList::districts_on_other_lists(&store.snapshot(), Some(candidate_list.id));
     form.electoral_districts = context.election.known_districts(&form.electoral_districts);
     match form.validate_update(&candidate_list) {
         Err(form_data) => Ok(HtmlTemplate(
@@ -163,7 +163,7 @@ mod tests {
             .expect("location header value");
 
         // verify updated candidate list object in database
-        let lists = CandidateListSummary::list(&store);
+        let lists = CandidateListSummary::list(&store.snapshot(), store.election);
         assert_eq!(lists.len(), 1);
 
         let updated_list = &lists[0].list;
@@ -213,7 +213,7 @@ mod tests {
         let body = response_body_string(response).await;
         assert!(body.contains("Manage electoral districts"));
 
-        let lists = CandidateListSummary::list(&store);
+        let lists = CandidateListSummary::list(&store.snapshot(), store.election);
         assert_eq!(lists.len(), 1);
 
         let updated_list = &lists[0].list;
@@ -259,6 +259,7 @@ mod tests {
         // deduplicated, in the election's district order
         assert_eq!(
             store
+                .snapshot()
                 .get_candidate_list(candidate_list.id)?
                 .electoral_districts,
             BTreeSet::from([ElectoralDistrict::Drenthe, ElectoralDistrict::Utrecht])
@@ -301,7 +302,9 @@ mod tests {
         // verify
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
 
-        let lists = store.get_candidate_lists();
+        let data = store.snapshot();
+
+        let lists = data.get_candidate_lists();
         assert_eq!(lists.len(), 1);
         let list = &lists[0];
         // WsFryslan got dropped because it's not part of EK27

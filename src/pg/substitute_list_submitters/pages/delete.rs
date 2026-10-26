@@ -6,10 +6,7 @@ use axum::{
 
 use crate::{
     AppError, AppResponse, Context, HtmlTemplate, Overlay, PgStore, QueryParamState, filters,
-    structs::{
-        common::{HasSeverity, Problematic},
-        list_submitters::ListSubmitter,
-    },
+    structs::{common::HasSeverity, list_submitters::ListSubmitter},
 };
 
 use super::SubstituteSubmitterDeletePath;
@@ -117,7 +114,9 @@ mod tests {
                 .to_string()
         );
 
-        let submitters = store.get_substitute_submitters();
+        let data = store.snapshot();
+
+        let submitters = data.get_substitute_submitters();
         assert!(submitters.is_empty());
 
         Ok(())
