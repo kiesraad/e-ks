@@ -27,6 +27,7 @@ no_problems: Compleet
 no_representative: Geen gemachtigde
 no_substitute_submitter: Geen vervanger voor het herstel van verzuimen
 position_warning: "Meer dan {} kandidaten op de lijst"
+possible_duplicate_person: Mogelijk dubbel ingevoerd
 representative: Gemachtigde
 too_few_authorized_names: "{} statutaire namen te weinig"
 too_few_authorized_names_one: 1 statutaire naam te weinig

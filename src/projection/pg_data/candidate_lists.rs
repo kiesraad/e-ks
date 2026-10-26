@@ -4,10 +4,7 @@ use std::collections::BTreeSet;
 
 use crate::{
     ElectionConfig, ElectoralDistrict, PgStoreData,
-    structs::{
-        candidate_lists::{CandidateList, CandidateListId, CandidateListSummary},
-        common::Problematic,
-    },
+    structs::candidate_lists::{CandidateList, CandidateListId, CandidateListSummary},
 };
 
 impl CandidateList {
@@ -49,7 +46,10 @@ impl CandidateListSummary {
                     .iter()
                     .filter(|id| {
                         data.get_person(**id).is_ok_and(|person| {
-                            !person.get_problems(election).potential_problems.is_empty()
+                            !data
+                                .get_person_problems(person, election)
+                                .potential_problems
+                                .is_empty()
                         })
                     })
                     .count();

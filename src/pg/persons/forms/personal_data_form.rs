@@ -1,6 +1,6 @@
 use crate::structs::common::{
-    BsnOrNoneConfirmed, CountryCode, DateOfBirth, Gender, Initials, LastName, LastNamePrefix,
-    PlaceOfResidence,
+    BsnOrNoneConfirmed, CountryCode, DateOfBirth, FullName, Gender, Initials, LastName,
+    LastNamePrefix, PlaceOfResidence,
 };
 use std::str::FromStr;
 
@@ -12,7 +12,7 @@ use crate::{
     common::FullNameForm,
     constants::DEFAULT_DATE_FORMAT,
     form::{FieldErrors, FormData, MergeErrors, ValidationError},
-    structs::persons::{Person, PersonalData},
+    structs::persons::{IdentityMatch, Person, PersonalData},
 };
 
 #[derive(Default, Serialize, Deserialize, Clone, Debug, Validate)]
@@ -109,67 +109,79 @@ impl PersonalDataForm {
     ) -> Result<Person, Box<FormData<Self>>> {
         let data = store.snapshot();
         let existing = data.get_persons();
-        let existing_without_current: Vec<&Person> =
-            existing.into_iter().filter(|p| *p != current).collect();
+        let existing_without_current: Vec<&Person> = existing
+            .into_iter()
+            .filter(|p| p.id != current.id)
+            .collect();
         let person_result = self.clone().validate_update(current);
         let errors = self.uniqueness_errors(existing_without_current);
 
         person_result.merge_errors(self, errors)
     }
 
-    /// Validate that the BSN is unique OR the name (initials, prefix, lastname) is unique
+    /// A person with the same BSN, or without a BSN the same name and date
+    /// of birth, may not be entered twice.
     fn uniqueness_errors(&self, existing: Vec<&Person>) -> FieldErrors {
-        let mut errors = Vec::new();
+        let bsn = BsnOrNoneConfirmed::from_str(&self.personal_data.bsn).ok();
+        let has_bsn = matches!(bsn, Some(BsnOrNoneConfirmed::Bsn(_)));
 
-        // If a BSN is set, validate BSN uniqueness and skip name uniqueness checks
-        if let Ok(BsnOrNoneConfirmed::Bsn(bsn)) =
-            BsnOrNoneConfirmed::from_str(&self.personal_data.bsn)
+        // The outer validation reports an invalid name; a BSN identifies the
+        // person without it.
+        let Some(name) = self
+            .identity_name()
+            .or_else(|| has_bsn.then(FullName::default))
+        else {
+            return Vec::new();
+        };
+
+        let candidate = Person {
+            name,
+            personal_data: PersonalData {
+                bsn,
+                date_of_birth: DateOfBirth::from_str(&self.personal_data.date_of_birth).ok(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        if !existing
+            .iter()
+            .any(|p| candidate.identity_match(p) == IdentityMatch::Same)
         {
-            if existing.iter().any(|existing_person| {
-                existing_person.personal_data.bsn == Some(BsnOrNoneConfirmed::Bsn(bsn.clone()))
-            }) {
-                errors.push((
-                    "personal_data.bsn".to_string(),
-                    ValidationError::BsnAlreadyExists,
-                ));
-            }
-
-            return errors;
+            return Vec::new();
         }
 
-        if let Ok(last_name) = LastName::from_str(&self.name.last_name)
-            && let Ok(initials) = Initials::from_str(&self.name.initials)
-        {
-            let last_name_prefix = if self.name.last_name_prefix.is_empty() {
-                None
-            } else {
-                match LastNamePrefix::from_str(&self.name.last_name_prefix) {
-                    Ok(prefix) => Some(prefix),
-                    // Prefix validation will be handled by the outer validation
-                    // we can ignore parsing errors here for the purpose of uniqueness checks
-                    Err(_) => return Vec::new(),
-                }
-            };
-
-            let has_duplicate_name = existing.iter().any(|p| {
-                p.name.initials.as_ref() == Some(&initials)
-                    && p.name.last_name_prefix == last_name_prefix
-                    && p.name.last_name == last_name
-            });
-
-            if has_duplicate_name {
-                errors.push((
-                    "name.initials".to_string(),
-                    ValidationError::NameAlreadyExists,
-                ));
-                errors.push((
-                    "name.last_name".to_string(),
-                    ValidationError::NameAlreadyExists,
-                ));
-            }
+        if has_bsn {
+            vec![(
+                "personal_data.bsn".to_string(),
+                ValidationError::BsnAlreadyExists,
+            )]
+        } else {
+            [
+                "name.initials",
+                "name.last_name",
+                "personal_data.date_of_birth",
+            ]
+            .into_iter()
+            .map(|field| (field.to_string(), ValidationError::NameAlreadyExists))
+            .collect()
         }
+    }
 
-        errors
+    /// The identifying name fields, or `None` when one does not parse.
+    fn identity_name(&self) -> Option<FullName> {
+        let last_name_prefix = if self.name.last_name_prefix.is_empty() {
+            None
+        } else {
+            Some(LastNamePrefix::from_str(&self.name.last_name_prefix).ok()?)
+        };
+
+        Some(FullName {
+            first_name: None,
+            last_name: LastName::from_str(&self.name.last_name).ok()?,
+            last_name_prefix,
+            initials: Some(Initials::from_str(&self.name.initials).ok()?),
+        })
     }
 }
 
@@ -366,13 +378,9 @@ mod tests {
         assert_eq!(person.name.display(), "Klaas Smit, E.D.");
     }
 
-    #[test]
-    fn uniqueness_errors_for_duplicate_name_without_bsn() {
-        let mut existing = sample_person_with(PersonId::new(), None, "Klaas Smit", None, "E.D.");
-        existing.personal_data.bsn =
-            Some(BsnOrNoneConfirmed::Bsn("123456782".parse().expect("bsn")));
-
-        let form = PersonalDataForm {
+    /// A form with the same name and date of birth as the sample person.
+    fn namesake_form(bsn: &str, date_of_birth: &str) -> PersonalDataForm {
+        PersonalDataForm {
             name: FullNameForm {
                 first_name: "".to_string(),
                 last_name: "Klaas Smit".to_string(),
@@ -381,23 +389,66 @@ mod tests {
             },
             personal_data: PersonalDataFieldsForm {
                 gender: "m".to_string(),
-                date_of_birth: "12-12-1970".to_string(),
-                bsn: "".to_string(),
+                date_of_birth: date_of_birth.to_string(),
+                bsn: bsn.to_string(),
                 place_of_residence: "Amsterdam".to_string(),
                 country: "NL".to_string(),
             },
-        };
+        }
+    }
 
-        let errors = form.uniqueness_errors(vec![&existing]);
+    #[test]
+    fn uniqueness_errors_for_duplicate_name_and_date_of_birth_without_bsn() {
+        let existing = sample_person_with(PersonId::new(), None, "Klaas Smit", None, "E.D.");
 
-        assert!(errors.contains(&(
-            "name.initials".to_string(),
-            ValidationError::NameAlreadyExists
-        )));
-        assert!(errors.contains(&(
-            "name.last_name".to_string(),
-            ValidationError::NameAlreadyExists
-        )));
+        let errors = namesake_form("", "01-02-1990").uniqueness_errors(vec![&existing]);
+
+        assert_eq!(
+            errors,
+            vec![
+                (
+                    "name.initials".to_string(),
+                    ValidationError::NameAlreadyExists
+                ),
+                (
+                    "name.last_name".to_string(),
+                    ValidationError::NameAlreadyExists
+                ),
+                (
+                    "personal_data.date_of_birth".to_string(),
+                    ValidationError::NameAlreadyExists
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn uniqueness_allows_duplicate_name_with_other_date_of_birth() {
+        let existing = sample_person_with(PersonId::new(), None, "Klaas Smit", None, "E.D.");
+
+        let errors = namesake_form("", "12-12-1970").uniqueness_errors(vec![&existing]);
+
+        assert!(errors.is_empty());
+    }
+
+    #[test]
+    fn uniqueness_allows_duplicate_name_without_date_of_birth() {
+        let existing = sample_person_with(PersonId::new(), None, "Klaas Smit", None, "E.D.");
+
+        let errors = namesake_form("", "").uniqueness_errors(vec![&existing]);
+
+        assert!(errors.is_empty());
+    }
+
+    #[test]
+    fn uniqueness_allows_duplicate_name_when_only_existing_has_bsn() {
+        let mut existing = sample_person_with(PersonId::new(), None, "Klaas Smit", None, "E.D.");
+        existing.personal_data.bsn =
+            Some(BsnOrNoneConfirmed::Bsn("123456782".parse().expect("bsn")));
+
+        let errors = namesake_form("", "01-02-1990").uniqueness_errors(vec![&existing]);
+
+        assert!(errors.is_empty());
     }
 
     #[test]

@@ -5,8 +5,8 @@ use crate::{
     structs::{
         audit_log::audit_fields,
         common::{
-            BsnOrNoneConfirmed, CountryCode, DateOfBirth, Gender, InfoProblems, PlaceOfResidence,
-            PotentialProblems, Problematic, Problems,
+            Bsn, BsnOrNoneConfirmed, CountryCode, DateOfBirth, Gender, InfoProblems,
+            PlaceOfResidence, PotentialProblems, Problematic, Problems,
         },
     },
 };
@@ -75,6 +75,14 @@ impl Problematic<ElectionConfig> for PersonalData {
 }
 
 impl PersonalData {
+    /// The BSN, if one is known.
+    pub fn bsn(&self) -> Option<&Bsn> {
+        match &self.bsn {
+            Some(BsnOrNoneConfirmed::Bsn(bsn)) => Some(bsn),
+            _ => None,
+        }
+    }
+
     pub fn lives_in_nl(&self) -> bool {
         self.country.as_ref().is_none_or(CountryCode::is_nl)
     }

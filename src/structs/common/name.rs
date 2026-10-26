@@ -75,6 +75,14 @@ impl FullName {
             && self.last_name.is_empty()
             && self.last_name_prefix.is_empty_or_none()
     }
+
+    /// Same initials, prefix and last name; the first name is not part of a
+    /// person's identity on a candidate list.
+    pub fn same_person_name(&self, other: &FullName) -> bool {
+        self.initials == other.initials
+            && self.last_name_prefix == other.last_name_prefix
+            && self.last_name == other.last_name
+    }
 }
 
 impl PartialOrd for FullName {
