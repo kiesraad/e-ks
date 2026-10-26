@@ -36,7 +36,7 @@ export class ListSubmittersPage {
     // .person-block link that opens the edit overlay.
     this.linkEditSubmitter = this.page.locator("a.person-block").first();
     this.buttonNext = this.page.getByRole("link", {
-      name: "Verder naar het startscherm",
+      name: "Opslaan en naar overzicht",
     });
   }
 

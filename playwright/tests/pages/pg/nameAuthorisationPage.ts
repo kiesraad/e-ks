@@ -29,7 +29,9 @@ export class NameAuthorisationPage {
       name: "Statutaire naam toevoegen",
     });
     this.buttonSave = this.page.getByRole("button", { name: "Opslaan" });
-    this.buttonNext = this.page.getByRole("link", { name: "Volgende" });
+    this.buttonNext = this.page.getByRole("link", {
+      name: "Opslaan en volgende",
+    });
   }
 
   getAgentLocator(lastName: string) {

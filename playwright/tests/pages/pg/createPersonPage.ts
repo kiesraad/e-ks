@@ -38,7 +38,9 @@ export class CreatePersonPage {
     this.checkboxNoBSN = this.page.getByRole("checkbox", {
       name: "Ik bevestig dat deze persoon geen BSN heeft.",
     });
-    this.buttonNext = this.page.getByRole("button", { name: "Volgende" });
+    this.buttonNext = this.page.getByRole("button", {
+      name: "Opslaan en volgende",
+    });
     this.buttonSave = this.page.getByRole("button", { name: "Opslaan" });
   }
 

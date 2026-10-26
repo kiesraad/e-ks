@@ -55,7 +55,9 @@ export class ManageCandidateListPage {
     });
     this.textfieldBirthYear = this.page.getByRole("textbox", { name: "Jaar" });
     this.dropdownGender = this.page.getByLabel("Geslacht");
-    this.buttonNext = this.page.getByRole("button", { name: "Volgende" });
+    this.buttonNext = this.page.getByRole("button", {
+      name: "Opslaan en volgende",
+    });
     this.buttonSave = this.page.getByRole("button", { name: "Opslaan" });
     this.textfieldPostalCode = this.page.getByLabel("Postcode");
     this.textfieldHouseNumber = this.page.getByLabel("Huisnummer", {
@@ -77,7 +79,7 @@ export class ManageCandidateListPage {
       exact: true,
     });
     this.buttonCSV = this.page.getByRole("link", {
-      name: "Importeren",
+      name: "Import en export kandidatenlijst",
     });
     this.headingCandidateList = this.page.getByRole("heading", {
       name: "Kandidatenlijst",
