@@ -158,6 +158,13 @@ test.describe("check candidate and add corrections and omissions", async () => {
       districts,
     );
 
+    // The candidate has a different position on the Drenthe list, so the
+    // omission cannot be applied to that list
+    const differentPositionDistrict = "Drenthe";
+    const applicableDistricts = districts.filter(
+      (district) => district !== differentPositionDistrict,
+    );
+
     // Add each type of omission, verify and then remove
     const omissions = [
       {
@@ -185,7 +192,12 @@ test.describe("check candidate and add corrections and omissions", async () => {
         districts,
         selectedDistrict,
       );
+      const differentPositionCheckbox = page.getByRole("checkbox", {
+        name: differentPositionDistrict,
+      });
+      await expect(differentPositionCheckbox).toBeDisabled();
       await omissionsPage.checkboxAllLists.check();
+      await expect(differentPositionCheckbox).not.toBeChecked();
       await button.click();
       if (resolvable) {
         await expect(omissionsPage.checkboxRecoverable).toBeChecked();
@@ -204,7 +216,9 @@ test.describe("check candidate and add corrections and omissions", async () => {
           page.getByText("Onherstelbaar", { exact: true }),
         ).toBeVisible();
       }
-      await omissionsPage.expectAllDistrictsAdded(page, districts);
+      await omissionsPage.expectDistrictsAdded(page, applicableDistricts, [
+        differentPositionDistrict,
+      ]);
 
       await omissionsPage.clickRemoveOmission();
 

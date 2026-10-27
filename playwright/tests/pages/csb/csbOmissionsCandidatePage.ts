@@ -119,11 +119,17 @@ export class CsbOmissionsCandidatePage {
     }
   }
 
-  // verifies that the omission is added for all electoral districts
-  async expectAllDistrictsAdded(page: Page, districts: string[]) {
-    for (const district of districts) {
-      const text = page.getByText(district);
-      await expect(text).toBeVisible();
+  // verifies that the omission is added for the given electoral districts only
+  async expectDistrictsAdded(
+    page: Page,
+    added: string[],
+    notAdded: string[],
+  ) {
+    for (const district of added) {
+      await expect(page.getByText(district)).toBeVisible();
+    }
+    for (const district of notAdded) {
+      await expect(page.getByText(district)).not.toBeVisible();
     }
   }
 
