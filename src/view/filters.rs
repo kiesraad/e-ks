@@ -1,11 +1,13 @@
 //! Askama template filters for, among others, display, translation, and validation errors.
 //! Used to keep the formatting logic out of the templates.
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Datelike, NaiveDate, Utc};
 
 use crate::{
     ElectionConfig, ElectoralDistrict, Locale, SessionExpiry,
-    constants::{DATE_TIME_SECONDS_FORMAT, DEFAULT_DATE_TIME_FORMAT, DEFAULT_TIMEZONE},
-    core::AnyLocale,
+    constants::{
+        DATE_TIME_SECONDS_FORMAT, DEFAULT_DATE_FORMAT, DEFAULT_DATE_TIME_FORMAT, DEFAULT_TIMEZONE,
+    },
+    core::{AnyLocale, ModelLocale},
     form::FormData,
     structs::persons::Person,
 };
@@ -27,6 +29,81 @@ fn format_local(value: &DateTime<Utc>, format: &str) -> String {
         .with_timezone(DEFAULT_TIMEZONE)
         .format(format)
         .to_string()
+}
+
+/// Format a date in the default date format (`31-12-2027`)
+#[askama::filter_fn]
+pub fn date(value: NaiveDate, _: &dyn askama::Values) -> askama::Result<String> {
+    Ok(value.format(DEFAULT_DATE_FORMAT).to_string())
+}
+
+/// Format a date with the month written out in the template's locale (`27 oktober 2027`)
+#[askama::filter_fn]
+pub fn long_date(value: NaiveDate, values: &dyn askama::Values) -> askama::Result<String> {
+    let locale = template_locale(values)?;
+
+    let months: [&str; 12] = match locale {
+        AnyLocale::En => [
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December",
+        ],
+        AnyLocale::Fry => [
+            "jannewaris",
+            "febrewaris",
+            "maart",
+            "april",
+            "maaie",
+            "juny",
+            "july",
+            "augustus",
+            "septimber",
+            "oktober",
+            "novimber",
+            "desimber",
+        ],
+        AnyLocale::Nl => [
+            "januari",
+            "februari",
+            "maart",
+            "april",
+            "mei",
+            "juni",
+            "juli",
+            "augustus",
+            "september",
+            "oktober",
+            "november",
+            "december",
+        ],
+    };
+
+    Ok(format!(
+        "{} {} {}",
+        value.day(),
+        months[value.month0() as usize],
+        value.year()
+    ))
+}
+
+/// The locale a template renders in: the session locale of a web page, or
+/// the locale of a PDF model
+fn template_locale(values: &dyn askama::Values) -> askama::Result<AnyLocale> {
+    if let Ok(locale) = askama::get_value::<Locale>(values, "locale") {
+        return Ok(AnyLocale::from(*locale));
+    }
+    let locale: &ModelLocale = askama::get_value(values, "locale")?;
+
+    Ok(AnyLocale::from(*locale))
 }
 
 #[askama::filter_fn]
@@ -205,4 +282,26 @@ pub fn error<T>(
 #[askama::filter_fn]
 pub fn abbreviate_str(s: &str, _: &dyn askama::Values) -> askama::Result<String> {
     Ok(crate::abbreviate_str(s))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn long(locale: impl std::any::Any, year: i32, month: u32, day: u32) -> String {
+        let date = NaiveDate::from_ymd_opt(year, month, day).unwrap();
+        let values = ("locale", &locale as &dyn std::any::Any);
+        long_date::default().execute(date, &values).unwrap()
+    }
+
+    #[test]
+    fn long_date_writes_the_month_out_in_the_template_locale() {
+        assert_eq!(long(Locale::Nl, 2025, 9, 16), "16 september 2025");
+        assert_eq!(long(Locale::En, 2027, 10, 27), "27 October 2027");
+        assert_eq!(long(ModelLocale::Nl, 2027, 5, 27), "27 mei 2027");
+        assert_eq!(long(ModelLocale::Fry, 2027, 5, 27), "27 maaie 2027");
+        // No zero padding on the day
+        assert_eq!(long(Locale::Nl, 2027, 1, 1), "1 januari 2027");
+        assert_eq!(long(Locale::Nl, 2027, 12, 31), "31 december 2027");
+    }
 }

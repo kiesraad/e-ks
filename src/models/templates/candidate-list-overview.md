@@ -8,7 +8,7 @@ footer_right = "Pagina {page} van {total}"
 
 # Centraal Stembureau
 
-Voor de verkiezing van de leden van **{{ election_name|line }}** op **{{ election_date|line }}**
+Voor de verkiezing van de leden van **{{ election_name|line }}** op **{{ *election_date|long_date|line }}**
 
 De voorzitter van het centraal stembureau voor de verkiezing van de leden van **{{ election_name | line}}**
 

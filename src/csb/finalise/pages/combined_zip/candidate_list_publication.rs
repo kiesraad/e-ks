@@ -1,6 +1,6 @@
 use crate::{
     AppError, AppRequestState, CsbContext, CsbMainStore,
-    core::{ModelLocale, constants::DEFAULT_DATE_FORMAT},
+    core::ModelLocale,
     csb::finalise::numbering::list_numbering,
     models::{
         candidate_list_publication::CandidateListPublication, csb_model_inputs::published_lists,
@@ -28,10 +28,7 @@ pub(super) async fn candidate_list_publication_model<S: AppRequestState>(
 
     Ok(CandidateListPublication {
         election_name: election.formal_title(ModelLocale::Nl),
-        election_date: election
-            .election_date()
-            .format(DEFAULT_DATE_FORMAT)
-            .to_string(),
+        election_date: election.election_date(),
         valid_lists: published_lists(registry, &election, &numbering.stream_ids()).await?,
         public_session,
     })
@@ -128,7 +125,10 @@ mod tests {
                 ("Drenthe", vec![(2, "Overal")]),
             ]
         );
-        assert_eq!(model.election_date, "27-05-2027");
+        assert_eq!(
+            model.election_date,
+            chrono::NaiveDate::from_ymd_opt(2027, 5, 27).unwrap()
+        );
 
         Ok(())
     }

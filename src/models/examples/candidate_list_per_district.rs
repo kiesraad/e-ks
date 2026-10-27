@@ -6,7 +6,7 @@ use crate::models::{
 pub fn candidate_list_per_district_example_1() -> CandidateListPerDistrict {
     CandidateListPerDistrict {
         election_name: "de Eerste Kamer der Staten-Generaal".to_string(),
-        election_date: "27-05-2027".to_string(),
+        election_date: super::date(2027, 5, 27),
         electoral_district: "Groningen".to_string(),
         lists: vec![kiesraad_demo(1), correcte_partij(2), blanco_nagelhout(3)],
         file_stem: "Kandidatenlijsten_EK2027_Groningen".to_string(),

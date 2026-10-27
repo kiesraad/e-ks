@@ -1,6 +1,5 @@
 use crate::{
     AppError, AppRequestState, CsbContext, CsbMainStore,
-    constants::DEFAULT_DATE_FORMAT,
     core::ModelLocale,
     csb::finalise::numbering::list_numbering,
     models::{candidate_list_overview::CandidateListOverview, csb_model_inputs::lists_overview},
@@ -19,10 +18,7 @@ pub(super) async fn candidate_list_overview_model<S: AppRequestState>(
 
     Ok(CandidateListOverview {
         election_name: election.formal_title(ModelLocale::Nl),
-        election_date: election
-            .election_date()
-            .format(DEFAULT_DATE_FORMAT)
-            .to_string(),
+        election_date: election.election_date(),
         electoral_districts: election.electoral_districts().to_vec(),
         groups: lists_overview(registry, &election, &numbering.stream_ids()).await?,
     })

@@ -2,7 +2,7 @@ use axum::{extract::State, response::Response};
 
 use crate::{
     AppError, AppRequestState, CsbMainStore,
-    core::{ModelLocale, constants::DEFAULT_DATE_FORMAT},
+    core::ModelLocale,
     csb::examination::pages::{CsbI1DocxDownloadPath, CsbI1DownloadPath},
     models::{
         Pdf,
@@ -27,10 +27,7 @@ async fn i1_model<S: AppRequestState>(main_store: CsbMainStore, state: &S) -> Re
 
     Ok(I1 {
         election_name: election.formal_title(ModelLocale::Nl),
-        election_date: election
-            .election_date()
-            .format(DEFAULT_DATE_FORMAT)
-            .to_string(),
+        election_date: election.election_date(),
         session,
         submitted_lists,
         found_omissions,
@@ -142,7 +139,7 @@ mod tests {
         let model = i1_model(CsbMainStore::new_for_test(), &state).await?;
 
         let configured = ElectionConfig::EK27.public_session();
-        assert_eq!(model.session.date, configured.formatted_date());
+        assert_eq!(model.session.date, configured.datetime.date());
         assert_eq!(model.session.time, configured.formatted_time());
         assert_eq!(model.session.chair, configured.chair);
         assert_eq!(model.session.members.len(), configured.members.len());
@@ -173,7 +170,10 @@ mod tests {
 
         let model = i1_model(main_store, &state).await?;
 
-        assert_eq!(model.session.date, "31-12-1999");
+        assert_eq!(
+            model.session.date,
+            chrono::NaiveDate::from_ymd_opt(1999, 12, 31).unwrap()
+        );
         assert_eq!(model.session.time, "12:34");
         assert_eq!(model.session.chair, "Vera Voorzitter");
         assert_eq!(model.session.members, vec!["Jan Klaassen", "Malle Babbe"]);

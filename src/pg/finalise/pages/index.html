@@ -250,7 +250,7 @@
         </div>
         <div class="step-content less-wide">
           <p class="alert alert-info">
-            {{ "finalise.delivery.only_on"|trans(&election.nomination_day_date().format("%d-%m-%Y").to_string())|safe }}
+            {{ "finalise.delivery.only_on"|trans(&(election.nomination_day_date()|long_date))|safe }}
           </p>
           <p>{{ "finalise.delivery.description"|trans |safe }}</p>
           <p>{{ "finalise.delivery.appointment"|trans }}</p>
@@ -271,7 +271,7 @@
         </div>
         <div class="step-content less-wide">
           <p class="alert alert-info">
-            {{ "finalise.verification.until"|trans(&election.document_review_date().format("%d-%m-%Y").to_string())|safe }}
+            {{ "finalise.verification.until"|trans(&(election.document_review_date()|long_date))|safe }}
           </p>
           <p>{{ "finalise.verification.description"|trans }}</p>
           <p>{{ "finalise.verification.correction_notice"|trans }}</p>
@@ -285,11 +285,11 @@
         </div>
         <div class="step-content less-wide">
           <p class="alert alert-info">
-            {{ "finalise.correction.until"|trans(&election.omission_period_end_date().format("%d-%m-%Y").to_string())|safe }}
+            {{ "finalise.correction.until"|trans(&(election.omission_period_end_date()|long_date))|safe }}
           </p>
           <p>{{ "finalise.correction.description"|trans }}</p>
           <p>
-            {{ "finalise.correction.deadline"|trans(&election.omission_period_end_date().format("%d-%m-%Y").to_string())|safe }}
+            {{ "finalise.correction.deadline"|trans(&(election.omission_period_end_date()|long_date))|safe }}
           </p>
         </div>
       </div>
@@ -301,7 +301,7 @@
         </div>
         <div class="step-content less-wide">
           <p class="alert alert-info">
-            {{ "finalise.hearing.date"|trans(&election.public_session().formatted_date(), &election.public_session().formatted_time())|safe }}
+            {{ "finalise.hearing.date"|trans(&(election.public_session().datetime.date()|long_date), &election.public_session().formatted_time())|safe }}
           </p>
           <p>{{ "finalise.hearing.description"|trans }}</p>
           <p>{{ "finalise.hearing.open_to_public"|trans }}</p>

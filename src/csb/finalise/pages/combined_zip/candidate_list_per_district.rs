@@ -1,6 +1,5 @@
 use crate::{
     AppError, AppRequestState, CsbContext, CsbMainStore,
-    constants::DEFAULT_DATE_FORMAT,
     core::ModelLocale,
     csb::finalise::{
         numbering::list_numbering,
@@ -41,10 +40,7 @@ pub(super) async fn candidate_list_per_district_model<S: AppRequestState>(
 
         models.push(CandidateListPerDistrict {
             election_name: election.formal_title(ModelLocale::Nl),
-            election_date: election
-                .election_date()
-                .format(DEFAULT_DATE_FORMAT)
-                .to_string(),
+            election_date: election.election_date(),
             electoral_district: district.title().to_string(),
             lists,
             file_stem: candidate_lists_stem(&election, Some(district))?,

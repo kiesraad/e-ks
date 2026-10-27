@@ -37,7 +37,7 @@
         </div>
         <div class="csb-phase-close-date">
           <span>{{ "csb.index.closes_on"|trans }}</span>
-          <span>{{ election.nomination_day_date().format("%d-%m-%y") }}</span>
+          <span>{{ election.nomination_day_date()|long_date }}</span>
         </div>
       </div>
       <div class="card-content">
@@ -62,7 +62,7 @@
         </div>
         <div class="csb-phase-close-date">
           <span>{{ "csb.index.closes_on"|trans }}</span>
-          <span>{{ election.document_review_date().format("%d-%m-%y") }}</span>
+          <span>{{ election.document_review_date()|long_date }}</span>
         </div>
       </div>
       <div class="card-content">
@@ -88,7 +88,7 @@
         </div>
         <div class="csb-phase-close-date">
           <span>{{ "csb.index.closes_on"|trans }}</span>
-          <span>{{ election.public_session().datetime.format("%d-%m-%y") }}</span>
+          <span>{{ election.public_session().datetime.date()|long_date }}</span>
         </div>
       </div>
       <div class="card-content">
@@ -113,7 +113,7 @@
         </div>
         <div class="csb-phase-close-date">
           <span>{{ "csb.index.closes_on"|trans }}</span>
-          <span>{{ election.election_date().format("%d-%m-%y") }}</span>
+          <span>{{ election.election_date()|long_date }}</span>
         </div>
       </div>
       <div class="card-content">

@@ -10,11 +10,7 @@ use tracing::error;
 
 use crate::{
     AppError, ElectionConfig,
-    core::{
-        AnyLocale, ElectionType, ModelLocale,
-        constants::{DEFAULT_DATE_FORMAT, DEFAULT_TIME_FORMAT},
-        election,
-    },
+    core::{AnyLocale, ElectionType, ModelLocale, constants::DEFAULT_TIME_FORMAT, election},
     structs::{
         candidate_lists::CandidateList,
         candidates::Candidate as AppCandidate,
@@ -251,7 +247,7 @@ impl DetailedCandidate {
 #[derive(Debug, Default)]
 pub struct PublicSession {
     pub location: String,
-    pub date: String,
+    pub date: NaiveDate,
     pub time: String,
     pub chair: String,
     pub members: Vec<String>,
@@ -261,7 +257,7 @@ impl From<election::PublicSession> for PublicSession {
     fn from(session: election::PublicSession) -> Self {
         PublicSession {
             location: session.location.to_string(),
-            date: session.formatted_date(),
+            date: session.datetime.date(),
             time: session.formatted_time(),
             chair: session.chair.to_string(),
             members: session.members.iter().map(ToString::to_string).collect(),
@@ -275,7 +271,7 @@ impl PublicSession {
     /// configured: the form shows it read-only.
     pub fn with_hearing_details(self, details: HearingDetails) -> Self {
         Self {
-            date: details.date_time.format(DEFAULT_DATE_FORMAT).to_string(),
+            date: details.date_time.date(),
             time: details.date_time.format(DEFAULT_TIME_FORMAT).to_string(),
             chair: details.chair,
             members: details.members,

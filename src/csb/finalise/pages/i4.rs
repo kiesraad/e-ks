@@ -2,7 +2,7 @@ use axum::{extract::State, response::Response};
 
 use crate::{
     AppError, AppRequestState, CsbContext, CsbMainStore,
-    core::{ModelLocale, constants::DEFAULT_DATE_FORMAT},
+    core::ModelLocale,
     csb::finalise::{
         numbering::list_numbering,
         paths::{CsbI4DraftDocxDownloadPath, CsbI4DraftDownloadPath},
@@ -41,10 +41,7 @@ pub(in crate::csb::finalise::pages) async fn i4_model<S: AppRequestState>(
 
     Ok(I4 {
         election_name: election.formal_title(ModelLocale::Nl),
-        election_date: election
-            .election_date()
-            .format(DEFAULT_DATE_FORMAT)
-            .to_string(),
+        election_date: election.election_date(),
         public_session,
         numbered_based_on_votes: numbering
             .on_votes()
@@ -164,7 +161,10 @@ mod tests {
 
         let model = i4_model(&context, &main_store, &state, I4Status::Final(None)).await?;
 
-        assert_eq!(model.public_session.date, "09-04-2027");
+        assert_eq!(
+            model.public_session.date,
+            chrono::NaiveDate::from_ymd_opt(2027, 4, 9).unwrap()
+        );
         assert_eq!(model.public_session.time, "10:15");
         assert_eq!(model.public_session.chair, "Vera Voorzitter");
         assert_eq!(model.public_session.members, vec!["Jan Klaassen"]);
@@ -195,7 +195,7 @@ mod tests {
         let model = i4_model(&context, &main_store, &state, I4Status::Final(None)).await?;
 
         let configured = ElectionConfig::EK27.public_session();
-        assert_eq!(model.public_session.date, configured.formatted_date());
+        assert_eq!(model.public_session.date, configured.datetime.date());
         assert_eq!(model.public_session.chair, configured.chair);
 
         Ok(())

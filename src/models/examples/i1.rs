@@ -9,7 +9,7 @@ use crate::models::{
 fn i1_session() -> PublicSession {
     PublicSession {
         location: "'s-Gravenhage".to_string(),
-        date: "05-04-2027".to_string(),
+        date: super::date(2027, 4, 5),
         time: "16:00 uur".to_string(),
         chair: "M.C. Voorzitter".to_string(),
         members: strings(&["A. Lid", "B. Lid", "C. Lid", "D. Lid", "E. Lid", "F. Lid"]),
@@ -75,7 +75,7 @@ fn i1_found_omissions() -> Vec<OmissionGroup> {
 fn i1_example(found_omissions: Vec<OmissionGroup>) -> I1 {
     I1 {
         election_name: "de Eerste Kamer der Staten-Generaal".to_string(),
-        election_date: "27-05-2027".to_string(),
+        election_date: super::date(2027, 5, 27),
         session: i1_session(),
         submitted_lists: i1_submitted_lists(),
         found_omissions,

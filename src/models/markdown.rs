@@ -8,10 +8,7 @@
 //! extension in `askama.toml`)
 
 use askama::filters::Safe;
-use chrono::NaiveDate;
 use textris_pdf::markdown;
-
-use crate::core::constants::DEFAULT_DATE_FORMAT;
 
 /// The `.md` auto-escaper: [`markdown::escape`] for flow contexts
 /// (paragraphs, headings, list items, quotes).
@@ -25,13 +22,11 @@ impl askama::filters::Escaper for MarkdownEscaper {
 }
 
 /// Filters for the escaping contexts the flow auto-escaper does not cover,
-/// plus the shared `display` filter for optional values.
+/// plus the shared `display` and date filters.
 pub mod filters {
-    use chrono::Datelike;
+    use super::{Safe, markdown};
 
-    use super::{DEFAULT_DATE_FORMAT, NaiveDate, Safe, markdown};
-
-    pub use crate::filters::display;
+    pub use crate::filters::{date, display, long_date};
 
     /// Escape a value interpolated into a table cell.
     #[askama::filter_fn]
@@ -60,37 +55,6 @@ pub mod filters {
         _: &dyn askama::Values,
     ) -> askama::Result<Safe<String>> {
         Ok(Safe(markdown::mono_cell(&value.to_string())))
-    }
-
-    /// Format a date in the model date format (`31-12-2027`).
-    #[askama::filter_fn]
-    pub fn date(value: &NaiveDate, _: &dyn askama::Values) -> askama::Result<String> {
-        Ok(value.format(DEFAULT_DATE_FORMAT).to_string())
-    }
-
-    /// Format a date as a letter writes it, in Dutch: `16 september 2025`.
-    #[askama::filter_fn]
-    pub fn long_date(value: &NaiveDate, _: &dyn askama::Values) -> askama::Result<String> {
-        const MONTHS: [&str; 12] = [
-            "januari",
-            "februari",
-            "maart",
-            "april",
-            "mei",
-            "juni",
-            "juli",
-            "augustus",
-            "september",
-            "oktober",
-            "november",
-            "december",
-        ];
-        Ok(format!(
-            "{} {} {}",
-            value.day(),
-            MONTHS[value.month0() as usize],
-            value.year()
-        ))
     }
 
     /// An optional count as printed in a table: the value, or a dash when
@@ -158,25 +122,10 @@ mod tests {
             .0
     }
 
-    fn long_date(year: i32, month: u32, day: u32) -> String {
-        let date = chrono::NaiveDate::from_ymd_opt(year, month, day).unwrap();
-        filters::long_date::default()
-            .execute(&date, askama::NO_VALUES)
-            .unwrap()
-    }
-
     fn or_dash(value: Option<usize>) -> String {
         filters::or_dash::default()
             .execute(&value, askama::NO_VALUES)
             .unwrap()
-    }
-
-    #[test]
-    fn long_date_writes_the_month_out_in_dutch() {
-        assert_eq!(long_date(2025, 9, 16), "16 september 2025");
-        // No zero padding on the day.
-        assert_eq!(long_date(2027, 1, 1), "1 januari 2027");
-        assert_eq!(long_date(2027, 12, 31), "31 december 2027");
     }
 
     #[test]
