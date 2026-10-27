@@ -1181,6 +1181,7 @@ mod tests {
         assert!(!is_disabled(first));
         assert!(!is_disabled(same));
         assert!(is_disabled(different));
+        assert!(body.contains("Deze kandidaat heeft op sommige lijsten een andere positie"))
     }
 
     #[tokio::test]

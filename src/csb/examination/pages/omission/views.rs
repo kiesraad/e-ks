@@ -46,6 +46,16 @@ pub(super) struct CsbAddOmissionTemplate {
     pub(super) title_suffix: String,
 }
 
+impl CsbAddOmissionTemplate {
+    /// Returns true when the position of the candidate is the same on all lists
+    /// and the omission can thus be applied to all lists
+    fn all_candidate_lists_apply(&self) -> bool {
+        self.available_candidate_lists
+            .iter()
+            .all(|candidate_list_option| candidate_list_option.applicable)
+    }
+}
+
 /// The overview tab of the dialog: the omissions already added to this entity.
 #[derive(Template)]
 #[template(path = "csb/examination/pages/omission_overview.html")]

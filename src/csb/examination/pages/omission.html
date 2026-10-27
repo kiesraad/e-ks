@@ -31,6 +31,9 @@
           {% endfor %}
         </div>
         {% for error in form|error("candidate_lists") %}<span class="error">{{ error }}</span>{% endfor %}
+        {% if !all_candidate_lists_apply() %}
+          <div class="alert alert-info"> {{ "csb.omission.form.different_position_hint"|trans }} </>
+        {% endif %}
       </div>
     {% endif %}
     {% if !available_districts.is_empty() %}
