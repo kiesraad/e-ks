@@ -1,16 +1,11 @@
 use axum::{extract::FromRequestParts, http::request::Parts};
 
 use crate::{
-    AppError, AppRequestState, CsbStore, CsbStream, Session, StreamId,
-    csb::{
-        examination::structs::BrpCheckState,
-        pre_submission::paths::{
-            CsbPreSubmissionBrpCheckPath, CsbPreSubmissionBrpCheckStatusPath,
-            CsbPreSubmissionBrpOverviewDocxPath, CsbPreSubmissionBrpOverviewMarkdownPath,
-            CsbPreSubmissionBrpOverviewPdfPath, CsbPreSubmissionGroupPath,
+    AppError, AppRequestState, CsbStore, CsbStream, Session, StreamId, csb::{
+        examination::structs::BrpCheckState, pre_submission::paths::{
+            CsbPreSubmissionBrpCheckPath, CsbPreSubmissionBrpCheckStatusPath, CsbPreSubmissionBrpOverviewDocxPath, CsbPreSubmissionBrpOverviewMarkdownPath, CsbPreSubmissionBrpOverviewPdfPath, CsbPreSubmissionDeleteGroupPath, CsbPreSubmissionGroupPath,
         },
-    },
-    projection::WithCorrections,
+    }, projection::WithCorrections,
 };
 
 /// A political group imported for the pre-submission check.
@@ -32,6 +27,12 @@ impl PreSubmissionGroup {
 
     pub fn path(&self) -> CsbPreSubmissionGroupPath {
         CsbPreSubmissionGroupPath {
+            stream_id: self.stream_id,
+        }
+    }
+
+    pub fn delete_path(&self) -> CsbPreSubmissionDeleteGroupPath {
+        CsbPreSubmissionDeleteGroupPath {
             stream_id: self.stream_id,
         }
     }

@@ -18,6 +18,11 @@ pub struct CsbPreSubmissionImportPath;
 pub struct CsbPreSubmissionGroupPath {
     pub stream_id: StreamId,
 }
+#[derive(TypedPath, Deserialize)]
+#[typed_path("/csb/pre-submission/{stream_id}/delete", rejection(AppError))]
+pub struct CsbPreSubmissionDeleteGroupPath {
+    pub stream_id: StreamId,
+}
 
 #[derive(TypedPath, Deserialize)]
 #[typed_path("/csb/pre-submission/{stream_id}/brp-check", rejection(AppError))]
