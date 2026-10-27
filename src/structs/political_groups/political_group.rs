@@ -46,8 +46,8 @@ impl PoliticalGroup {
         self.list_designation_kind() == Some(ListDesignationKind::Combined)
     }
 
-    /// The registration a standalone list is bound to. A combined list is
-    /// bound to several, which the numbering does not use yet.
+    /// The registration a standalone list is bound to. The committee matches
+    /// a combined list on the legal names of its name authorisations instead.
     pub fn registration_id(&self) -> Option<RegisteredPoliticalGroupId> {
         match self.list_designation {
             Some(ListDesignation::Standalone { registration }) => registration,

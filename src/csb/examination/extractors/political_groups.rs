@@ -9,7 +9,7 @@ use crate::{
     projection::{Scrapped, WithCorrections},
     structs::{
         candidate_lists::CandidateListId,
-        common::{Appellation, FullName},
+        common::{Appellation, FullName, LegalName},
         csb::{CsbPhase, RecoveryProgress, RegisteredPoliticalGroup},
         list_designation::ListDesignation,
         political_groups::PoliticalGroup,
@@ -36,13 +36,20 @@ pub struct CsbPoliticalGroup {
     pub recovery: RecoveryProgress,
     pub first_candidate_name: Option<FullName>,
     pub first_non_scrapped_candidate_name: Option<FullName>,
+    /// The statutory names on the group's name authorisations, one per party
+    /// behind a combined list, which is matched to its registrations on them.
+    pub legal_names: Vec<LegalName>,
     /// Whether the group obtained a seat at the previous election according to
     /// its registration; such a group needs no declarations of support
     /// (Kieswet Art. H 4). Set by [`Self::with_registrations`].
     pub previously_seated: bool,
     /// Whether the group carries an appellation that matches none of the
-    /// committee's registrations. Set by [`Self::with_registrations`].
+    /// committee's registrations, or for a combined list whether one of its
+    /// parties is not registered. Set by [`Self::with_registrations`].
     pub is_unregistered: bool,
+    /// The statutory names of a combined list that match no registration.
+    /// Set by [`Self::with_registrations`].
+    pub unregistered_legal_names: Vec<LegalName>,
     /// The electoral districts of each candidate list, which is how the
     /// shared templates name a list (see [`Self::candidate_list_districts`]).
     pub candidate_list_districts: HashMap<CandidateListId, BTreeSet<ElectoralDistrict>>,
@@ -76,8 +83,15 @@ impl CsbPoliticalGroup {
             first_non_scrapped_candidate_name: data
                 .get_first_candidate_name(WithCorrections::All, &scrapped)
                 .cloned(),
+            legal_names: corrected
+                .get_name_authorisations()
+                .into_iter()
+                .map(|authorisation| authorisation.legal_name.clone())
+                .filter(|legal_name| !legal_name.is_empty())
+                .collect(),
             previously_seated: false,
             is_unregistered: false,
+            unregistered_legal_names: Vec::new(),
             scrapped,
             candidate_list_districts: corrected
                 .get_candidate_lists()
@@ -98,7 +112,19 @@ impl CsbPoliticalGroup {
         let registration = self.registration(registered);
         self.previously_seated =
             registration.is_some_and(RegisteredPoliticalGroup::was_previously_seated);
-        self.is_unregistered = registration.is_none() && self.registered_appellation().is_some();
+        if self.registered_appellation().is_some() && self.political_group.is_combined() {
+            self.unregistered_legal_names = self
+                .legal_names
+                .iter()
+                .filter(|name| !registered.iter().any(|r| r.has_legal_name(name)))
+                .cloned()
+                .collect();
+            self.is_unregistered =
+                registration.is_none() || !self.unregistered_legal_names.is_empty();
+        } else {
+            self.is_unregistered =
+                registration.is_none() && self.registered_appellation().is_some();
+        }
         self
     }
 
@@ -158,14 +184,27 @@ impl CsbPoliticalGroup {
         self.political_group.appellation.as_ref()
     }
 
-    /// The registration the group is bound to, or failing that the one its
-    /// appellation matches: groups imported before the binding existed, and
-    /// combined lists, are still matched on appellation.
-    pub fn registration<'a>(
+    /// The registrations behind the group. A combined list has those whose
+    /// statutory name is on one of its name authorisations. Any other list has
+    /// the one it is bound to, or failing that the one its appellation
+    /// matches, for groups imported before the binding existed.
+    pub fn registrations<'a>(
         &self,
         registered: &'a [RegisteredPoliticalGroup],
-    ) -> Option<&'a RegisteredPoliticalGroup> {
-        let appellation = self.registered_appellation()?;
+    ) -> Vec<&'a RegisteredPoliticalGroup> {
+        let Some(appellation) = self.registered_appellation() else {
+            return Vec::new();
+        };
+        if self.political_group.is_combined() {
+            return registered
+                .iter()
+                .filter(|registration| {
+                    self.legal_names
+                        .iter()
+                        .any(|name| registration.has_legal_name(name))
+                })
+                .collect();
+        }
         let bound = self.political_group.registration_id();
         registered
             .iter()
@@ -175,6 +214,20 @@ impl CsbPoliticalGroup {
                     .iter()
                     .find(|registration| registration.has_appellation(appellation))
             })
+            .into_iter()
+            .collect()
+    }
+
+    /// The registration the group is numbered and exempted on: for a combined
+    /// list the one of its parties with the most votes, as their results are
+    /// not added up.
+    pub fn registration<'a>(
+        &self,
+        registered: &'a [RegisteredPoliticalGroup],
+    ) -> Option<&'a RegisteredPoliticalGroup> {
+        self.registrations(registered)
+            .into_iter()
+            .min_by(|a, b| a.numbering_order(b))
     }
 
     /// The districts in which the group still has a valid list.
@@ -220,8 +273,10 @@ impl CsbPoliticalGroup {
             recovery: Default::default(),
             first_candidate_name: None,
             first_non_scrapped_candidate_name: None,
+            legal_names: Vec::new(),
             previously_seated: false,
             is_unregistered: false,
+            unregistered_legal_names: Vec::new(),
             candidate_list_districts: HashMap::from([(
                 CandidateListId::new(),
                 BTreeSet::from([ElectoralDistrict::Groningen]),
@@ -389,6 +444,58 @@ mod tests {
             ..CsbPoliticalGroup::sample("Kiesraad Demo")
         };
         assert_eq!(blank.registration(&registered), None);
+    }
+
+    /// A combined list named `A/B` whose name authorisations carry
+    /// `legal_names`.
+    fn combined(legal_names: &[&str]) -> CsbPoliticalGroup {
+        let sample = CsbPoliticalGroup::sample("A/B");
+        CsbPoliticalGroup {
+            political_group: PoliticalGroup {
+                list_designation: Some(ListDesignation::Combined {
+                    registrations: Vec::new(),
+                }),
+                ..sample.political_group
+            },
+            legal_names: legal_names
+                .iter()
+                .map(|name| name.parse().unwrap())
+                .collect(),
+            ..CsbPoliticalGroup::sample("A/B")
+        }
+    }
+
+    #[test]
+    fn a_combined_list_is_matched_on_the_legal_names_of_its_parties() {
+        let a = sample_registered_political_group("A", 100, 0);
+        let b = sample_registered_political_group("B", 300, 2);
+        let other = sample_registered_political_group("A/B", 500, 3);
+        let registered = [a.clone(), b.clone(), other];
+
+        // Matched on statutory name, not on the combined appellation; the
+        // party with the most votes stands for the combination.
+        let group = combined(&["vereniging a", "Vereniging B"]);
+        assert_eq!(group.registrations(&registered), [&a, &b]);
+        assert_eq!(group.registration(&registered), Some(&b));
+        let group = group.with_registrations(&registered);
+        assert!(group.previously_seated);
+        assert!(!group.is_unregistered);
+
+        // One party unregistered: still matched on the other, with a warning
+        // naming the unregistered one.
+        let group = combined(&["Vereniging A", "Vereniging C"]).with_registrations(&registered);
+        assert!(!group.previously_seated);
+        assert!(group.is_unregistered);
+        assert_eq!(
+            group.unregistered_legal_names,
+            ["Vereniging C".parse::<LegalName>().unwrap()]
+        );
+
+        // Without name authorisations nothing matches.
+        let group = combined(&[]).with_registrations(&registered);
+        assert_eq!(group.registration(&registered), None);
+        assert!(group.is_unregistered);
+        assert!(group.unregistered_legal_names.is_empty());
     }
 
     #[test]

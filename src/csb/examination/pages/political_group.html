@@ -20,7 +20,20 @@
     {% include "csb/components/examination_controls.html" %}
   {% endif %}
   {% if political_group.is_unregistered %}
-    <div class="alert alert-warning mb-md">{{ "csb.group.unregistered_warning"|trans }}</div>
+    {% if political_group.political_group.is_combined() %}
+      <div class="alert alert-warning mb-md">
+        <p>{{ "csb.group.unregistered_combined_warning"|trans }}</p>
+        {% if !political_group.unregistered_legal_names.is_empty() %}
+          <ul>
+            {% for legal_name in political_group.unregistered_legal_names %}
+              <li>{{ legal_name }}</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+      </div>
+    {% else %}
+      <div class="alert alert-warning mb-md">{{ "csb.group.unregistered_warning"|trans }}</div>
+    {% endif %}
   {% endif %}
   <div class="examination-panels {% if political_group.mode.is_examination() && political_group.is_examination_finished %}disabled{% endif %}">
     {% if political_group.mode.is_examination() %}

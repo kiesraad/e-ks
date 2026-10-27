@@ -138,6 +138,12 @@ impl RegisteredPoliticalGroup {
         self.appellation.to_lowercase() == appellation.to_lowercase()
     }
 
+    /// Whether `legal_name` is this group's statutory name, ignoring case. A
+    /// registration without a legal name matches none.
+    pub fn has_legal_name(&self, legal_name: &LegalName) -> bool {
+        !self.legal_name.is_empty() && self.legal_name.to_lowercase() == legal_name.to_lowercase()
+    }
+
     /// The order the lists are numbered in on votes: most votes first, ties
     /// (decided by lot during the session) alphabetically for a stable listing.
     pub fn numbering_order(&self, other: &Self) -> std::cmp::Ordering {
@@ -245,6 +251,19 @@ pub mod tests {
         let group = sample_registered_political_group("De Tegen Partij", 1, 1);
         assert!(group.has_appellation(&"de tegen partij".parse().unwrap()));
         assert!(!group.has_appellation(&"De Voor Partij".parse().unwrap()));
+    }
+
+    #[test]
+    fn legal_names_match_ignoring_case() {
+        let group = sample_registered_political_group("De Tegen Partij", 1, 1);
+        assert!(group.has_legal_name(&"vereniging de tegen partij".parse().unwrap()));
+        assert!(!group.has_legal_name(&"Vereniging De Voor Partij".parse().unwrap()));
+
+        let without = RegisteredPoliticalGroup {
+            legal_name: LegalName::default(),
+            ..group
+        };
+        assert!(!without.has_legal_name(&"Vereniging De Tegen Partij".parse().unwrap()));
     }
 
     #[test]

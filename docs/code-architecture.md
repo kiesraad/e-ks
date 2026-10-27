@@ -377,7 +377,11 @@ The CSB section has two projections of its own on the shared store machinery
   registration by id in its `ListDesignation` (a standalone list carries one
   registration, a combined list several, a blank list none). The committee
   matches an imported group on that id, falling back to the appellation for
-  groups imported before the binding existed. The lists of groups that
+  groups imported before the binding existed. A combined list is matched on
+  the statutory names of its name authorisations, one per party; the party
+  with the most votes stands for the combination in the numbering and the
+  exemption from declarations of support, as the parties' results are not
+  added up. The lists of groups that
   obtained one or more seats are numbered first on model I 4, in the order of
   their votes (Kieswet Art. I 14); the remaining list order is decided by lot
   (Art. I 15).
