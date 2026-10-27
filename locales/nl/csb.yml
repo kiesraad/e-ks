@@ -223,10 +223,10 @@ omission:
   form:
     applies_to: "Dit verzuim geldt voor:"
     description_label: I\u00A01 verzuim toevoegen
+    different_position_hint: Deze kandidaat heeft op sommige lijsten een ander kandidaatnummer. Voeg indien nodig apart een verzuim toe bij de betreffende lijst(en).
     edit_heading: Typ of bewerk hier het verzuim
     help_text_hint: Alleen bij een herstelbaar verzuim. Onherstelbare verzuimen komen niet in de verzuimbrief.
     help_text_label: Verzuimbriefnotitie toevoegen
-    different_position_hint: Deze kandidaat heeft op sommige lijsten een andere positie. Voeg indien nodig apart een verzuim toe bij de betreffende lijst(en).
     no_omission_letter_hint: "Let op: dit verzuim komt nu niet in de verzuimbrief en het model I\u00A01 te staan"
     presets_heading: Gebruik deze verzuimen als sjabloon (optioneel)
     recoverable_hint: "Een herstelbaar verzuim kan de politieke groepering nog herstellen, een onherstelbaar verzuim niet."

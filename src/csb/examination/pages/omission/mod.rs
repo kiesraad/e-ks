@@ -90,16 +90,17 @@ impl OmissionTarget {
         data: &CsbStoreData,
         form: &OmissionForm,
     ) -> Result<Vec<CandidateListId>, FieldErrors> {
-        let applicable_lists: Vec<CandidateListId> =
-            views::candidate_list_options(data, self.candidate(), self.list)
-                .into_iter()
-                .filter(|o| o.applicable)
-                .map(|o| o.id)
-                .collect();
+        let options = views::candidate_list_options(data, self.candidate(), self.list);
+        let applicable_lists: Vec<CandidateListId> = options
+            .iter()
+            .filter(|o| o.applicable)
+            .map(|o| o.id)
+            .collect();
+        // Auto-fill only when the dialog hides the checkboxes (a single option)
         let lists = selected_or_only_available(
             self.omission_type.needs_candidate_lists(),
             &form.candidate_lists,
-            || applicable_lists.clone(),
+            || options.iter().map(|o| o.id).collect(),
             "candidate_lists",
         )?;
 
