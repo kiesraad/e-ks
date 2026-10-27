@@ -179,6 +179,12 @@ fn too_few_authorized_names(count: usize, locale: &Locale) -> String {
 }
 
 impl PotentialProblems {
+    /// Whether the CSB acts on this candidate problem. A missing BSN is
+    /// already a BRP finding and initials may be removed by correction.
+    pub fn is_relevant_for_csb(&self) -> bool {
+        !matches!(self, Self::NoBsn | Self::NoInitials(_))
+    }
+
     #[expect(
         clippy::cognitive_complexity,
         reason = "A flat translation table; the `trans!` expansions inflate the metric."

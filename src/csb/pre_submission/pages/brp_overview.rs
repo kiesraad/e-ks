@@ -100,6 +100,7 @@ fn candidate_problems(person: &Person, election: ElectionConfig, locale: Locale)
     problems
         .potential_problems
         .iter()
+        .filter(|problem| problem.is_relevant_for_csb())
         .map(|problem| problem.translate(&locale))
         .chain(
             problems
@@ -170,7 +171,7 @@ mod tests {
 
     /// The sample group with three candidates: the first with BRP
     /// discrepancies on two fields, the second matching the BRP, the third
-    /// not checked and without a BSN.
+    /// not checked and without a BSN or date of birth.
     async fn store_with_candidates() -> PreSubmissionStore {
         let store = CsbStore::new_for_test();
         store.set_political_group(sample_political_group());
@@ -181,6 +182,7 @@ mod tests {
             let mut person = sample_person_with_last_name(PersonId::new(), last_name);
             if last_name == "Derde" {
                 person.personal_data.bsn = None;
+                person.personal_data.date_of_birth = None;
             }
             ids.push(person.id);
             store.add_person(person);
@@ -265,10 +267,12 @@ mod tests {
         );
         assert_eq!(first.details[2].value, "Eerste");
 
-        // The third has no BRP findings, only the application's own warning.
+        // The third has no BRP findings, only the application's own problem
+        // about the date of birth; the missing BSN is left to the BRP check.
         let third = &model.candidates[1];
         assert!(third.findings.is_empty());
         assert_eq!(third.problems.len(), 1, "{:?}", third.problems);
+        assert_eq!(third.details[4].value, "-");
         assert_eq!(third.details[5].value, "");
     }
 

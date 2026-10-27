@@ -361,7 +361,9 @@ mod tests {
         person.name.first_name = None;
         person.name.initials = Some("A.".parse().expect("parse initials"));
         person.name.last_name = "Nagelhout IV".parse().expect("parse last name");
-        person.personal_data.bsn = None;
+        person.personal_data.place_of_residence = Some(
+            crate::structs::common::PlaceOfResidence::Unknown("Nergenshuizen".into()),
+        );
 
         let mut list = sample_candidate_list(list_id);
         list.candidates.push(person_id);
@@ -374,7 +376,7 @@ mod tests {
         assert!(body.contains("Candidates</h4>"));
         assert!(body.contains("Nagelhout IV, A.</h3>"));
         assert!(body.contains(&format!(
-            "href=\"/csb/examination/{stream_id}/list/{list_id}/candidate/{person_id}\">BSN</a>"
+            "href=\"/csb/examination/{stream_id}/list/{list_id}/candidate/{person_id}\">Place of residence not found in the BAG</a>"
         )));
     }
 }
