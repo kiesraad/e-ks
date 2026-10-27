@@ -279,7 +279,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn the_page_carries_none_of_the_examination_actions() {
+    async fn the_page_carries_none_of_the_examination_actions_except_delete() {
         let (store, _) = store_with_a_candidate();
 
         let body = render(store).await;
@@ -289,7 +289,6 @@ mod tests {
             "paper-corrections",
             "omission",
             "correction",
-            "delete",
         ] {
             assert!(!body.contains(action), "found {action:?} in {body}");
         }

@@ -11,10 +11,10 @@ pub(in crate::csb) use super::paths::{
 };
 
 pub(in crate::csb) mod brp_overview;
+mod delete;
 mod group;
 mod import;
 mod overview;
-mod delete;
 
 pub fn router<S: AppRequestState>() -> Router<S> {
     Router::new()

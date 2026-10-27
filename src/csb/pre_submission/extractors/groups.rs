@@ -1,11 +1,17 @@
 use axum::{extract::FromRequestParts, http::request::Parts};
 
 use crate::{
-    AppError, AppRequestState, CsbStore, CsbStream, Session, StreamId, csb::{
-        examination::structs::BrpCheckState, pre_submission::paths::{
-            CsbPreSubmissionBrpCheckPath, CsbPreSubmissionBrpCheckStatusPath, CsbPreSubmissionBrpOverviewDocxPath, CsbPreSubmissionBrpOverviewMarkdownPath, CsbPreSubmissionBrpOverviewPdfPath, CsbPreSubmissionDeleteGroupPath, CsbPreSubmissionGroupPath,
+    AppError, AppRequestState, CsbStore, CsbStream, Session, StreamId,
+    csb::{
+        examination::structs::BrpCheckState,
+        pre_submission::paths::{
+            CsbPreSubmissionBrpCheckPath, CsbPreSubmissionBrpCheckStatusPath,
+            CsbPreSubmissionBrpOverviewDocxPath, CsbPreSubmissionBrpOverviewMarkdownPath,
+            CsbPreSubmissionBrpOverviewPdfPath, CsbPreSubmissionDeleteGroupPath,
+            CsbPreSubmissionGroupPath,
         },
-    }, projection::WithCorrections,
+    },
+    projection::WithCorrections,
 };
 
 /// A political group imported for the pre-submission check.
@@ -130,8 +136,8 @@ mod tests {
     use tower::ServiceExt;
 
     use crate::{
-        AppState, CsbAction, CsbUser, ElectionConfig, Locale, PgEvent, PgStoreData, Province,
-        store::StoreRegistry, test_utils::sample_political_group,
+        AppState, CsbAction, CsbEvent, CsbUser, ElectionConfig, Locale, PgEvent, PgStoreData,
+        Province, store::StoreRegistry, test_utils::sample_political_group,
     };
 
     /// Seed a stream in `registry` with an import of the sample group.
@@ -199,6 +205,36 @@ mod tests {
             ElectionConfig::PS27(Province::Groningen),
         )
         .await;
+
+        let mut parts = committee_parts(ElectionConfig::EK27);
+        let PreSubmissionGroups(groups) =
+            PreSubmissionGroups::from_request_parts(&mut parts, &state)
+                .await
+                .unwrap();
+
+        let stream_ids: Vec<_> = groups.iter().map(|g| g.stream_id).collect();
+        assert_eq!(stream_ids, vec![own]);
+    }
+
+    #[tokio::test]
+    async fn skips_deleted_groups() {
+        let state = AppState::new_for_tests().await;
+        let own = seed(state.pre_submission_store_registry(), ElectionConfig::EK27).await;
+        let deleted = seed(state.pre_submission_store_registry(), ElectionConfig::EK27).await;
+
+        let deleted_store = state
+            .pre_submission_store_registry
+            .get_or_create(deleted, ElectionConfig::EK27)
+            .await
+            .unwrap();
+        deleted_store
+            .update(CsbEvent {
+                user: CsbUser::Developer,
+                action: CsbAction::Delete,
+            })
+            .await
+            .unwrap();
+        assert!(deleted_store.snapshot().is_deleted());
 
         let mut parts = committee_parts(ElectionConfig::EK27);
         let PreSubmissionGroups(groups) =
