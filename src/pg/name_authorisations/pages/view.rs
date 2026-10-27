@@ -1,7 +1,7 @@
 use super::NameAuthorisationsPath;
 use crate::{
     AppError, Context, HtmlTemplate, PgStore, QueryParamState, filters,
-    political_groups::PoliticalGroupSteps,
+    political_groups::{PoliticalGroupStep, PoliticalGroupSteps},
     structs::{
         common::{HasSeverity, PotentialProblems, Problematic},
         list_designation::ListDesignation,
@@ -27,7 +27,11 @@ pub async fn list_name_authorisations(
     store: PgStore,
     Query(query): Query<QueryParamState>,
 ) -> Result<impl IntoResponse, AppError> {
-    let steps = PoliticalGroupSteps::new(&store, query.is_initial())?;
+    let steps = PoliticalGroupSteps::new(
+        &store,
+        query.is_initial(),
+        PoliticalGroupStep::NameAuthorisations,
+    )?;
     Ok(HtmlTemplate(
         NameAuthorisationTemplate {
             name_authorisations: steps.name_authorisations.clone(),

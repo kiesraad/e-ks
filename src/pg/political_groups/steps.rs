@@ -11,6 +11,15 @@ use crate::{
     },
 };
 
+/// The steps of the political group flow, in order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PoliticalGroupStep {
+    ListDesignation,
+    BasicInformation,
+    NameAuthorisations,
+    ListSubmitter,
+}
+
 #[derive(Clone, Debug)]
 pub struct PoliticalGroupSteps {
     pub name_authorisations: Vec<NameAuthorisation>,
@@ -26,7 +35,14 @@ pub struct PoliticalGroupSteps {
 }
 
 impl PoliticalGroupSteps {
-    pub fn new(store: &PgStore, initial: bool) -> Result<Self, AppError> {
+    /// The steps as seen from `current`. While `initial`, a step not reached
+    /// yet is fine when empty; a step skipped on the way shows its problems.
+    pub fn new(
+        store: &PgStore,
+        initial: bool,
+        current: PoliticalGroupStep,
+    ) -> Result<Self, AppError> {
+        let fine_if_empty = |step| initial && step >= current;
         let data = store.snapshot();
         let political_group = data.get_political_group();
         let name_authorisations: Vec<NameAuthorisation> = data
@@ -40,14 +56,17 @@ impl PoliticalGroupSteps {
         Ok(Self {
             initial,
             list_designation_state: Self::list_designation_state(political_group),
-            basic_state: Self::basic_state(initial, political_group),
+            basic_state: Self::basic_state(
+                fine_if_empty(PoliticalGroupStep::BasicInformation),
+                political_group,
+            ),
             name_authorisations_state: Self::name_authorisations_state(
-                initial,
+                fine_if_empty(PoliticalGroupStep::NameAuthorisations),
                 political_group.list_designation_kind(),
                 &name_authorisations,
             ),
             submitters_state: Self::submitters_state(
-                initial,
+                fine_if_empty(PoliticalGroupStep::ListSubmitter),
                 list_submitter,
                 substitute_submitters,
             ),
@@ -175,7 +194,7 @@ mod tests {
             .create(&store)
             .await?;
 
-        let steps = PoliticalGroupSteps::new(&store, false)?;
+        let steps = PoliticalGroupSteps::new(&store, false, PoliticalGroupStep::ListSubmitter)?;
         assert_eq!(steps.name_authorisations_state, "error");
 
         Ok(())
@@ -188,7 +207,24 @@ mod tests {
             .create(&store)
             .await?;
 
-        let steps = PoliticalGroupSteps::new(&store, true)?;
+        let steps = PoliticalGroupSteps::new(&store, true, PoliticalGroupStep::NameAuthorisations)?;
+        assert_eq!(steps.submitters_state, "empty");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn initial_steps_skipped_on_the_way_show_their_problems() -> Result<(), AppError> {
+        let store = PgStore::new_for_test();
+
+        // On the step itself, and before it, an empty step is fine.
+        let steps = PoliticalGroupSteps::new(&store, true, PoliticalGroupStep::NameAuthorisations)?;
+        assert_eq!(steps.name_authorisations_state, "empty");
+        assert_eq!(steps.submitters_state, "empty");
+
+        // Past it, the skipped steps warn.
+        let steps = PoliticalGroupSteps::new(&store, true, PoliticalGroupStep::ListSubmitter)?;
+        assert_eq!(steps.name_authorisations_state, "warning");
         assert_eq!(steps.submitters_state, "empty");
 
         Ok(())
@@ -201,7 +237,7 @@ mod tests {
             .create(&store)
             .await?;
 
-        let steps = PoliticalGroupSteps::new(&store, false)?;
+        let steps = PoliticalGroupSteps::new(&store, false, PoliticalGroupStep::ListSubmitter)?;
         assert_eq!(steps.submitters_state, "error");
 
         Ok(())
@@ -209,7 +245,11 @@ mod tests {
 
     #[test]
     fn designation_form_depends_on_combined() -> Result<(), AppError> {
-        let mut steps = PoliticalGroupSteps::new(&PgStore::new_for_test(), false)?;
+        let mut steps = PoliticalGroupSteps::new(
+            &PgStore::new_for_test(),
+            false,
+            PoliticalGroupStep::ListDesignation,
+        )?;
         assert_eq!(steps.designation_form(), "H\u{A0}3-1");
 
         steps.list_designation = Some(ListDesignationKind::Standalone);

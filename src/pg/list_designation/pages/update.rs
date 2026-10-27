@@ -11,7 +11,7 @@ use crate::{
     list_designation::{
         ListDesignationUpdatePath, forms::list_designation_form::ListDesignationForm,
     },
-    political_groups::PoliticalGroupSteps,
+    political_groups::{PoliticalGroupStep, PoliticalGroupSteps},
     structs::{list_submitters::ListSubmitter, name_authorisations::NameAuthorisation},
 };
 
@@ -29,7 +29,11 @@ pub async fn update_list_designation(
     political_group: PoliticalGroup,
     Query(query): Query<QueryParamState>,
 ) -> Result<Response, AppError> {
-    let steps = PoliticalGroupSteps::new(&store, query.is_initial())?;
+    let steps = PoliticalGroupSteps::new(
+        &store,
+        query.is_initial(),
+        PoliticalGroupStep::ListDesignation,
+    )?;
     Ok(HtmlTemplate(
         ListDesignationUpdateTemplate {
             steps,
@@ -48,7 +52,11 @@ pub async fn update_list_designation_submit(
     Query(query): Query<QueryParamState>,
     Form(form): Form<ListDesignationForm>,
 ) -> Result<Response, AppError> {
-    let steps = PoliticalGroupSteps::new(&store, query.is_initial())?;
+    let steps = PoliticalGroupSteps::new(
+        &store,
+        query.is_initial(),
+        PoliticalGroupStep::ListDesignation,
+    )?;
 
     match form.validate_update(&political_group.list_designation_kind().into()) {
         Err(form_data) => Ok(HtmlTemplate(

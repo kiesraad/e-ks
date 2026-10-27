@@ -9,4 +9,4 @@ mod steps;
 pub use forms::PoliticalGroupForm;
 pub use pages::router;
 pub use paths::PoliticalGroupUpdatePath;
-pub use steps::PoliticalGroupSteps;
+pub use steps::{PoliticalGroupStep, PoliticalGroupSteps};

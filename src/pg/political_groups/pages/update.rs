@@ -8,7 +8,7 @@ use axum::{
 use crate::{
     AppError, Context, CsbMainStore, HtmlTemplate, PgStore, QueryParamState, filters,
     form::{Form, FormData, ValidationError},
-    political_groups::{PoliticalGroupForm, PoliticalGroupSteps},
+    political_groups::{PoliticalGroupForm, PoliticalGroupStep, PoliticalGroupSteps},
     structs::{
         csb::RegisteredPoliticalGroup, list_designation::ListDesignation,
         list_submitters::ListSubmitter, name_authorisations::NameAuthorisation,
@@ -55,7 +55,11 @@ pub async fn update_political_group(
     political_group: PoliticalGroup,
     Query(query): Query<QueryParamState>,
 ) -> Result<Response, AppError> {
-    let steps = PoliticalGroupSteps::new(&store, query.is_initial())?;
+    let steps = PoliticalGroupSteps::new(
+        &store,
+        query.is_initial(),
+        PoliticalGroupStep::BasicInformation,
+    )?;
     let registered_political_groups = main_store.registered_political_groups();
     // A registration the committee deleted since leaves the fields unlocked.
     let registration = political_group
@@ -88,7 +92,11 @@ pub async fn update_political_group_submit(
     Query(query): Query<QueryParamState>,
     Form(form): Form<PoliticalGroupForm>,
 ) -> Result<Response, AppError> {
-    let steps = PoliticalGroupSteps::new(&store, query.is_initial())?;
+    let steps = PoliticalGroupSteps::new(
+        &store,
+        query.is_initial(),
+        PoliticalGroupStep::BasicInformation,
+    )?;
     let registered_political_groups = main_store.registered_political_groups();
 
     let (form_data, registration) = match picked_registration(&registered_political_groups, &form) {
