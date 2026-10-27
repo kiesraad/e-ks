@@ -165,6 +165,8 @@ mod tests {
             let response = create_name_authorisation(
                 NameAuthorisationCreatePath {},
                 Context::new_test_without_db(),
+                PgStore::new_for_test(),
+                CsbMainStore::new_for_test(),
                 Query(query),
             )
             .await

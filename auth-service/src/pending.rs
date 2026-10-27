@@ -1,13 +1,14 @@
 //! In-memory store of outstanding AuthnRequest IDs for the `InResponseTo`
 //! replay check (eID §7.6.3.5 rule 4 / §9.7).
 //!
-//! Default process-local implementation an embedding application can use for
+//! Process-local implementation of the storage behind
 //! [`AuthState::consume_if_pending`](crate::AuthState) and
-//! [`register_pending_request`](crate::AuthState::register_pending_request)
-//! when IDs need not be shared across instances. Deployments running more than
-//! one application server should back the storage with something shared (e.g.
-//! the database), because a login started on one server may have its ACS
-//! callback handled by another.
+//! [`register_pending_request`](crate::AuthState::register_pending_request),
+//! for test setups only: it is lost on restart and not shared between
+//! instances, while a login started on one server may have its ACS callback
+//! handled by another. Production runs on the embedding application's
+//! Postgres-backed store (`STORAGE_URL=postgres://`), which never touches this
+//! module.
 
 use parking_lot::Mutex;
 use std::{
@@ -26,12 +27,29 @@ pub const PENDING_REQUEST_TTL: std::time::Duration = std::time::Duration::from_s
 
 const PENDING_REQUEST_TTL_MS: u64 = PENDING_REQUEST_TTL.as_secs() * 1000;
 
-/// Map size above which a housekeeping sweep runs. Chosen so a normal working
+/// Map size below which no housekeeping sweep runs. Chosen so a normal working
 /// set (outstanding logins within the 15-minute TTL) never triggers one, while
-/// abandoned flows still cannot grow the map without bound: the sweep is O(n)
-/// but amortised over at least this many inserts, so the per-request cost stays
-/// O(1).
+/// abandoned flows still cannot grow the map without bound.
 const SWEEP_THRESHOLD: usize = 1024;
+
+/// The outstanding IDs and the map size at which the next sweep runs: twice
+/// what the last sweep left, so a sweep over n entries is paid for by at least
+/// n registrations and the per-request cost stays O(1), however many fresh
+/// entries abandoned logins keep in the map.
+#[derive(Default)]
+struct Pending {
+    map: HashMap<String, u64>,
+    sweep_at: usize,
+}
+
+impl Pending {
+    fn sweep_if_large(&mut self, now: u64) {
+        if self.map.len() >= self.sweep_at.max(SWEEP_THRESHOLD) {
+            sweep(&mut self.map, now);
+            self.sweep_at = self.map.len() * 2;
+        }
+    }
+}
 
 /// Sweep entries that have outlived [`PENDING_REQUEST_TTL`] so abandoned flows
 /// cannot accumulate.
@@ -49,20 +67,13 @@ fn is_expired(created: u64, now: u64) -> bool {
     now.saturating_sub(created) >= PENDING_REQUEST_TTL_MS
 }
 
-/// Sweep only once the map has grown past [`SWEEP_THRESHOLD`], keeping the
-/// common path a single hash operation.
-fn sweep_if_large(pending: &mut HashMap<String, u64>, now: u64) {
-    if pending.len() >= SWEEP_THRESHOLD {
-        sweep(pending, now);
-    }
-}
-
 /// Process-local, in-memory set of outstanding AuthnRequest IDs with creation
-/// timestamps. Cheap to clone (internally reference-counted), so it can be
-/// stored on an application's shared state.
+/// timestamps, for test setups (see the module docs). Cheap to clone
+/// (internally reference-counted), so it can be stored on an application's
+/// shared state.
 #[derive(Clone, Default)]
 pub struct PendingRequests {
-    inner: Arc<Mutex<HashMap<String, u64>>>,
+    inner: Arc<Mutex<Pending>>,
 }
 
 impl PendingRequests {
@@ -70,8 +81,8 @@ impl PendingRequests {
     pub fn register(&self, id: String) {
         let now = unix_ms();
         let mut pending = self.inner.lock();
-        sweep_if_large(&mut pending, now);
-        pending.insert(id, now);
+        pending.sweep_if_large(now);
+        pending.map.insert(id, now);
     }
 
     /// Atomically check whether `id` is a still-valid outstanding request and,
@@ -85,8 +96,8 @@ impl PendingRequests {
     pub fn consume_if_pending(&self, id: &str) -> bool {
         let now = unix_ms();
         let mut pending = self.inner.lock();
-        sweep_if_large(&mut pending, now);
-        match pending.remove(id) {
+        pending.sweep_if_large(now);
+        match pending.map.remove(id) {
             Some(created) => !is_expired(created, now),
             None => false,
         }
@@ -131,12 +142,31 @@ mod tests {
         pending
             .inner
             .lock()
+            .map
             .insert("stale".into(), unix_ms() - PENDING_REQUEST_TTL_MS - 1);
 
         // An expired ID no longer matches (so a stale InResponseTo is rejected,
         // eID §9.7)...
         assert!(!pending.consume_if_pending("stale"));
         // ...and the stale entry has been physically swept in the same call.
-        assert!(pending.inner.lock().is_empty());
+        assert!(pending.inner.lock().map.is_empty());
+    }
+
+    /// Fresh entries survive a sweep, so one at the threshold must not repeat
+    /// on every call while abandoned flows keep the map large.
+    #[test]
+    fn sweeps_are_amortised_over_registrations() {
+        let pending = PendingRequests::default();
+        for i in 0..SWEEP_THRESHOLD {
+            pending.register(i.to_string());
+        }
+        assert_eq!(pending.inner.lock().sweep_at, 0);
+
+        // The registration at the threshold sweeps, finds everything fresh, and
+        // defers the next sweep to twice the surviving size.
+        pending.register("fresh".into());
+        assert_eq!(pending.inner.lock().sweep_at, 2 * SWEEP_THRESHOLD);
+        assert!(!pending.consume_if_pending("unknown"));
+        assert_eq!(pending.inner.lock().sweep_at, 2 * SWEEP_THRESHOLD);
     }
 }

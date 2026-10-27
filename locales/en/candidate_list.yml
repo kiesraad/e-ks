@@ -65,6 +65,7 @@ import_errors:
   missing_columns: "The following required columns are missing: {}."
   missing_file: Please select a CSV file to import.
   parse_error: "The candidate on line {} could not be imported. Please check field '{}': {}"
+  record_too_wide: "Line {} contains too many columns. Download the CSV template and use it as a starting point."
   too_many_errors: "The file contains too many errors. Only the first {} are shown here; fix those and try again."
   upload_failed: Your file could not be uploaded. Please try again.
 import_export:

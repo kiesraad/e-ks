@@ -690,9 +690,15 @@ stays fully viewable. The download event is recorded before the zip is
 streamed, so a refused download renders no PDF. The CSB side, including paper
 corrections, is not rate limited.
 
+Besides these rate limits, a stream holds at most `MAX_PERSONS` persons,
+`MAX_CANDIDATE_LISTS` candidate lists and `MAX_SUBSTITUTE_SUBMITTERS`
+substitute submitters (`src/core/constants.rs`): every page compares or looks
+up these collections in full, so their size is bounded independently of the
+event caps. Only writes that insert count, so a stream at a cap stays editable.
+
 Every refused write logs a warning with `event="rate_limit.hit"`, the limit
-name (`downloads`, `events`, `events_total`) and the stream id; monitoring
-alerts on that marker.
+name (`downloads`, `events`, `events_total`, `persons`, `candidate_lists`,
+`substitute_submitters`) and the stream id; monitoring alerts on that marker.
 
 ### CSB access alerts
 

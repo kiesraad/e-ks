@@ -58,8 +58,9 @@ const BRP_DATE_FORMAT: &str = "%Y-%m-%d";
 /// The PKIoverheid private chain the tussenpartij's server certificate chains
 /// to: the Staat der Nederlanden Private Root CA - G1 and the two intermediates
 /// below it. The root is not in the system trust store, and the server sends
-/// only its own certificate, so all three are trusted explicitly. The same
-/// chain the auth-service pins for the TVS back-channel.
+/// only its own certificate, so all three are trusted explicitly, and nothing
+/// else is: a public CA's certificate for the same host does not pass. The
+/// same chain the auth-service pins for the TVS back-channel.
 const PKIOVERHEID_PRIVATE_CHAIN: &[&[u8]] = &[
     include_bytes!("../../../pkioverheid/pkioverheid_private_root_g1.pem"),
     include_bytes!("../../../pkioverheid/staat_private_services_ca_g1.pem"),
@@ -83,11 +84,12 @@ struct BrpClientInner {
 impl BrpClient {
     /// Fails when the configured client certificate cannot be read or parsed.
     pub fn new(config: &BrpConfig) -> Result<Self, AppError> {
-        let mut builder = Client::builder();
-        for pem in PKIOVERHEID_PRIVATE_CHAIN {
-            let certificate = Certificate::from_pem(pem).map_err(brp_cert_error)?;
-            builder = builder.add_root_certificate(certificate);
-        }
+        let chain = PKIOVERHEID_PRIVATE_CHAIN
+            .iter()
+            .map(|pem| Certificate::from_pem(pem))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(brp_cert_error)?;
+        let mut builder = Client::builder().tls_certs_only(chain);
         if let Some(cert) = &config.client_cert {
             // reqwest takes the chain and the key as one PEM buffer.
             let mut pem = std::fs::read(&cert.cert_path).map_err(brp_cert_error)?;

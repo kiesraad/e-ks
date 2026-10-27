@@ -33,6 +33,16 @@ pub(crate) const DEV_LOGIN_ELECTION: crate::ElectionConfig = crate::ElectionConf
 /// the CSB import, so the count is bounded independently of the event caps.
 pub const MAX_PERSONS: usize = 1_000;
 
+/// Hard cap on the candidate lists one political group's stream may hold. A
+/// group needs at most one list per electoral district (twenty for the Tweede
+/// Kamer), and every list page compares the districts of each list with those
+/// of all the others.
+pub const MAX_CANDIDATE_LISTS: usize = 25;
+
+/// Hard cap on the substitute submitters one political group's stream may
+/// hold; the audit log looks each one up with a scan of the collection.
+pub const MAX_SUBSTITUTE_SUBMITTERS: usize = 20;
+
 /// Path of the Haal Centraal "personen" resource as the test stub serves it,
 /// mirroring the `personen-mock` container; `BRP_URL` names it in full.
 #[cfg(test)]

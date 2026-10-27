@@ -41,11 +41,15 @@ political_group: Politieke groepering
 possible_problems: "{} mogelijke problemen"
 possible_problems_one: 1 mogelijk probleem
 rate_limit:
+  candidate_lists_message: "Dit account bevat al het maximum van {} kandidatenlijsten. Verwijder lijsten die u niet meer nodig heeft voordat u nieuwe toevoegt."
+  candidate_lists_title: Maximum aantal kandidatenlijsten bereikt
   cap_message: "Het maximale aantal wijzigingen voor dit account is bereikt. U kunt alles wat u heeft ingevoerd nog bekijken, maar nieuwe wijzigingen kunnen niet meer worden opgeslagen."
   downloads_message: Te veel downloads in korte tijd. Wacht even voordat u het opnieuw probeert.
   events_message: Te veel wijzigingen in korte tijd. Wacht even voordat u het opnieuw probeert.
   persons_message: "Dit account bevat al het maximum van {} personen. Verwijder personen die u niet meer nodig heeft voordat u nieuwe toevoegt."
   persons_title: Maximum aantal personen bereikt
+  substitute_submitters_message: "Dit account bevat al het maximum van {} vervangers voor het herstel van verzuimen. Verwijder vervangers die u niet meer nodig heeft voordat u nieuwe toevoegt."
+  substitute_submitters_title: Maximum aantal vervangers bereikt
   title: Te veel verzoeken
 request_error:
   conflict_message: "De gegevens zijn gewijzigd terwijl uw verzoek werd verwerkt, mogelijk in een ander tabblad. Ververs de pagina en probeer het opnieuw."

@@ -11,7 +11,7 @@ use crate::{
         crypto::{self, SignatureVerification},
         xml_parser::{
             Document, NodeId, QName, all_elements, children_by_tag, descendants_by_tag,
-            direct_text, find_descendant,
+            direct_text, element_descendants, find_descendant,
         },
     },
 };
@@ -357,9 +357,21 @@ impl<'a, 'input> SignatureChecks<'a, 'input> {
     fn check_reference_transforms(&mut self, sig: NodeId) -> bool {
         let mut ok = true;
         for r in descendants_by_tag(self.doc, sig, NS_DSIG, "Reference") {
-            let nodes = descendants_by_tag(self.doc, r, NS_DSIG, "Transform");
+            // The backend applies every `Transform` by local name alone, so one
+            // in another namespace would run while escaping the allow-list.
+            let nodes: Vec<NodeId> = element_descendants(self.doc, r)
+                .into_iter()
+                .filter(|&n| self.doc.local_name(n) == Some("Transform"))
+                .collect();
             let mut transforms = Vec::with_capacity(nodes.len());
             for t in nodes {
+                if self.doc.node_qname(t).and_then(|name| name.namespace) != Some(NS_DSIG) {
+                    self.error(
+                        "Signature Reference Transform outside the XML-DSig namespace".to_string(),
+                    );
+                    ok = false;
+                    continue;
+                }
                 match self.doc.get_attribute(t, "Algorithm") {
                     Some(a) => transforms.push(a),
                     None => {
@@ -722,6 +734,30 @@ mod tests {
                 "{rejected}: {errors:?}"
             );
         }
+    }
+
+    /// The backend runs any `Transform` by local name, whatever its namespace,
+    /// so one outside XML-DSig must not slip past the allow-list.
+    #[test]
+    fn check_reference_transforms_rejects_transforms_outside_the_dsig_namespace() {
+        let xml = signed_info(
+            "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256",
+            "http://www.w3.org/2001/04/xmlenc#sha256",
+            EXCLUSIVE_C14N,
+            &[ENVELOPED_SIGNATURE_TRANSFORM],
+        )
+        .replace(
+            "</Transforms>",
+            r#"<x:Transform xmlns:x="urn:x" Algorithm="http://www.w3.org/TR/1999/REC-xslt-19991116"/></Transforms>"#,
+        );
+        let (ok, errors) = algorithm_errors(&xml);
+        assert!(!ok);
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.contains("outside the XML-DSig namespace")),
+            "{errors:?}"
+        );
     }
 
     #[test]

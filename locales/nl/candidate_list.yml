@@ -65,6 +65,7 @@ import_errors:
   missing_columns: "De volgende verplichte kolommen ontbreken: {}."
   missing_file: Selecteer een CSV-bestand om te importeren.
   parse_error: "De kandidaat op regel {} kon niet worden geïmporteerd. Controleer veld '{}': {}"
+  record_too_wide: "Regel {} bevat te veel kolommen. Download het CSV-sjabloon en gebruik dit als uitgangspunt."
   too_many_errors: "Het bestand bevat te veel fouten. Alleen de eerste {} fouten worden hier getoond; herstel deze en probeer het opnieuw."
   upload_failed: Het bestand kon niet worden geüpload. Probeer het opnieuw.
 import_export:
