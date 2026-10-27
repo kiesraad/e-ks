@@ -885,7 +885,9 @@ mod tests {
         let person_id = PersonId::new();
 
         let mut person = sample_person(person_id);
-        person.personal_data.bsn = None;
+        person.personal_data.place_of_residence = Some(
+            crate::structs::common::PlaceOfResidence::Unknown("Nergenshuizen".into()),
+        );
 
         let mut list = sample_candidate_list(list_id);
         list.candidates.push(person_id);
@@ -906,7 +908,7 @@ mod tests {
         .expect("candidate page response");
         let body = response_body_string(response).await;
 
-        assert!(body.contains(">BSN</span>"));
+        assert!(body.contains(">Place of residence not found in the BAG</span>"));
     }
 
     /// The store of [`store_with_candidate`], with the candidate checked and two

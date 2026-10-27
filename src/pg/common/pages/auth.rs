@@ -273,8 +273,28 @@ mod tests {
     fn subject(value: &str) -> SubjectId {
         SubjectId {
             value: SecretString::from(value.to_string()),
-            name_qualifier: "DV".to_string(),
+            name_qualifier: "urn:nl-eid-gdi:1.0:id:BSN".to_string(),
         }
+    }
+
+    #[tokio::test]
+    async fn on_authenticated_refuses_a_pseudonym() {
+        // A pseudonym shares the BSN value space but not its namespace; it is
+        // a failed login, not a session on the BSN holder's stream.
+        let state = crate::AppState::new_for_tests().await;
+        let pseudonym = SubjectId {
+            value: SecretString::from("999999990".to_string()),
+            name_qualifier: "urn:nl-eid-gdi:1.0:id:Pseudonym".to_string(),
+        };
+        let response = state
+            .on_authenticated(
+                pseudonym,
+                NameId::parse("name-id-xyz").unwrap(),
+                CookieJar::new(),
+                &HeaderMap::new(),
+            )
+            .await;
+        assert!(response.headers().get(header::LOCATION).is_none());
     }
 
     #[tokio::test]

@@ -11,7 +11,7 @@ use crate::{
     structs::{
         brp::{BrpFinding, BrpStatus},
         candidate_lists::CandidateListId,
-        common::{Appellation, FullName},
+        common::{Appellation, FullName, PotentialProblems},
         csb::{
             Omission, OmissionCategory, OmissionId, OmissionTitle, PersonCorrection,
             PersonCorrectionDelta, RecoveryProgress,
@@ -398,10 +398,18 @@ impl CsbStoreData {
     }
 
     /// Collect all problems of the fully corrected data, excluding info
-    /// problems.
+    /// problems and candidate problems the CSB does not act on.
     pub fn get_all_problems(&self, election: ElectionConfig) -> Result<AllProblems, AppError> {
         AllProblems::find_all(&self.csb_corrected_data, election).map(|mut problems| {
             problems.info_problems = Vec::new();
+            for candidate in &mut problems.candidates {
+                candidate
+                    .problems
+                    .retain(PotentialProblems::is_relevant_for_csb);
+            }
+            problems
+                .candidates
+                .retain(|candidate| !candidate.problems.is_empty());
             problems
         })
     }
@@ -956,5 +964,33 @@ mod tests {
         // The imported data is untouched.
         let imported = data.pg(WithCorrections::None).get_persons();
         assert_eq!(imported[0].name.last_name.to_string(), "Jansen");
+    }
+
+    #[test]
+    fn get_all_problems_skips_the_bsn_and_initials_of_candidates() {
+        let store = CsbStore::new_for_test();
+        let mut only_bsn = sample_person(PersonId::new());
+        only_bsn.personal_data.bsn = None;
+        let mut also_dob = sample_person(PersonId::new());
+        also_dob.personal_data.bsn = None;
+        also_dob.name.initials = None;
+        also_dob.personal_data.date_of_birth = None;
+        let mut list = sample_candidate_list(CandidateListId::new());
+        list.candidates = vec![only_bsn.id, also_dob.id];
+        store.add_person(only_bsn);
+        store.add_person(also_dob.clone());
+        store.add_candidate_list(list);
+
+        let problems = store
+            .snapshot()
+            .get_all_problems(store.election)
+            .expect("problems");
+
+        assert_eq!(problems.candidates.len(), 1);
+        assert_eq!(problems.candidates[0].entity.id, also_dob.id);
+        assert_eq!(
+            problems.candidates[0].problems,
+            vec![PotentialProblems::NoDateOfBirth]
+        );
     }
 }

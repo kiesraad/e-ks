@@ -262,6 +262,12 @@ impl Session {
         self.expiry_at(Utc::now()).expires_in_secs == 0
     }
 
+    /// Whether no request has used the session since login: the session
+    /// middleware advances `last_activity` on every request it serves.
+    pub fn is_unused(&self) -> bool {
+        self.last_activity == self.created_at
+    }
+
     /// The remaining lifetime as seen from `now`, for the browser-side warning.
     pub fn expiry(&self) -> SessionExpiry {
         self.expiry_at(Utc::now())
@@ -376,6 +382,14 @@ fn generate_session_token() -> SessionToken {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_session_is_unused_until_touched() {
+        let mut session = Session::new_test();
+        assert!(session.is_unused());
+        session.last_activity = session.created_at + Duration::seconds(1);
+        assert!(!session.is_unused());
+    }
 
     /// Ensures session tokens are 42-char base62 strings (~250-bit entropy).
     #[test]

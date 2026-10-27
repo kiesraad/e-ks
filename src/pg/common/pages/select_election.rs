@@ -89,9 +89,13 @@ pub async fn select_election_submit<S: AppRequestState>(
         if let Some(user_agent_hash) = session.user_agent_hash.clone() {
             committee.set_user_agent_hash(user_agent_hash);
         }
-        let jar =
-            crate::auth::session_extractor::establish_session(state.sessions(), jar, committee)
-                .await?;
+        let jar = crate::auth::session_extractor::establish_session(
+            state.sessions(),
+            jar,
+            committee,
+            crate::auth::session_extractor::LoginOrigin::SameSite,
+        )
+        .await?;
 
         return Ok((jar, Redirect::to(&CsbIndexPath {}.to_string())).into_response());
     }
