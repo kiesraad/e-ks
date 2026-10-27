@@ -680,11 +680,23 @@ mod tests {
             Err(CsvError::HeaderTooLarge)
         ));
 
-        let widest_accepted = "value".to_string() + &",".repeat(MAX_HEADER_FIELDS - 1) + "\n1\n";
-        assert!(reader_from_bytes(widest_accepted.as_bytes()).is_ok());
-
         let errors = Csv::<TestRecord>::from_bytes(wide.as_bytes(), 10).unwrap_err();
         assert!(matches!(errors.as_slice(), [CsvError::HeaderTooLarge]));
+    }
+
+    #[test]
+    fn reader_from_bytes_accepts_a_header_line_at_the_bounds() {
+        let widest = "value".to_string() + &",".repeat(MAX_HEADER_FIELDS - 1) + "\n1\n";
+        let Ok(mut reader) = reader_from_bytes(widest.as_bytes()) else {
+            panic!("widest header line rejected");
+        };
+        assert_eq!(reader.headers().unwrap().len(), MAX_HEADER_FIELDS);
+
+        let longest = "x".repeat(MAX_HEADER_LINE_BYTES) + "\n1\n";
+        let Ok(mut reader) = reader_from_bytes(longest.as_bytes()) else {
+            panic!("longest header line rejected");
+        };
+        assert_eq!(reader.headers().unwrap()[0].len(), MAX_HEADER_LINE_BYTES);
     }
 
     #[test]

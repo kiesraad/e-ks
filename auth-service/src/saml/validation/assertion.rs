@@ -427,7 +427,9 @@ impl Validator<'_, '_> {
                     "Assertion carries an unsupported Condition <{}> (namespace {:?})",
                     q.local_name, q.namespace
                 )),
-                None => {}
+                // `element_children` yields elements only, so this cannot
+                // happen; fail closed rather than silently accept the child.
+                None => self.error("Conditions carries a non-element child".to_string()),
             }
         }
         if restrictions == 0 {

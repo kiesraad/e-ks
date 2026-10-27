@@ -109,7 +109,8 @@ async fn build_mtls_client(tls: &TlsConfig) -> Result<reqwest::Client> {
         .timeout(REQUEST_TIMEOUT)
         // The ARS endpoint comes from verified metadata and passed the eID §9.4
         // host/https checks; following a redirect would re-send the signed
-        // ArtifactResolve (and the mTLS identity) to a URL that did not.
+        // ArtifactResolve (and the mTLS identity) to a URL that did not pass
+        // those checks.
         .redirect(reqwest::redirect::Policy::none())
         .build()
         .map_err(|e| AuthError::Http(format!("Failed to build mTLS client: {e}")))
