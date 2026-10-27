@@ -46,18 +46,19 @@ const METADATA_RECOVERY_RETRY_INTERVAL: Duration = Duration::from_secs(60);
 /// The next refresh delay for a loaded descriptor: its `cacheDuration` clamped to
 /// `[MIN_METADATA_REFRESH_INTERVAL, MAX_METADATA_REFRESH_INTERVAL]`, defaulting to
 /// the 24h cap when the metadata carries no (parseable) `cacheDuration`, and
-/// halfway to a hard `validUntil` expiry when that is sooner.
+/// halfway to the trust deadline when that is sooner, so a failed refresh is
+/// retried before the descriptor expires.
 fn next_refresh_interval(metadata: &IdpMetadata) -> Duration {
     let cache_delay = metadata
         .cache_duration
         .unwrap_or(MAX_METADATA_REFRESH_INTERVAL)
         .clamp(MIN_METADATA_REFRESH_INTERVAL, MAX_METADATA_REFRESH_INTERVAL);
-    match metadata.valid_until {
-        Some(until) => cache_delay
-            .min((until - chrono::Utc::now()).to_std().unwrap_or_default() / 2)
-            .max(Duration::from_secs(1)),
-        None => cache_delay,
-    }
+    let remaining = (metadata.trust_deadline() - chrono::Utc::now())
+        .to_std()
+        .unwrap_or_default();
+    cache_delay
+        .min(remaining / 2)
+        .max(METADATA_RECOVERY_RETRY_INTERVAL)
 }
 
 /// Number of times startup tries to fetch the RD metadata before falling back to
@@ -181,19 +182,26 @@ mod tests {
 
     #[test]
     fn refresh_precedes_hard_expiry_even_when_the_cache_hint_is_longer() {
+        let now = chrono::Utc::now();
         let mut metadata = IdpMetadata::for_tests();
-        assert_eq!(
-            next_refresh_interval(&metadata),
-            MAX_METADATA_REFRESH_INTERVAL
-        );
+        // No cacheDuration: a 24h trust lifetime, refreshed halfway through.
+        assert!(next_refresh_interval(&metadata) <= MAX_METADATA_REFRESH_INTERVAL / 2);
         metadata.cache_duration = Some(Duration::from_secs(1));
         assert_eq!(
             next_refresh_interval(&metadata),
             MIN_METADATA_REFRESH_INTERVAL
         );
-        metadata.valid_until = Some(chrono::Utc::now() + chrono::Duration::minutes(4));
-        assert!(next_refresh_interval(&metadata) <= Duration::from_secs(120));
-        metadata.valid_until = Some(chrono::Utc::now());
-        assert_eq!(next_refresh_interval(&metadata), Duration::from_secs(1));
+        metadata.valid_until = Some(now + chrono::Duration::minutes(4));
+        assert!(next_refresh_interval(&metadata) <= Duration::from_secs(135));
+        metadata.valid_until = Some(now);
+        assert_eq!(
+            next_refresh_interval(&metadata),
+            METADATA_RECOVERY_RETRY_INTERVAL
+        );
+        // Refreshes have been failing: retried sooner as the deadline nears.
+        metadata.valid_until = None;
+        metadata.cache_duration = Some(Duration::from_secs(24 * 60 * 60));
+        metadata.retrieved_at = now - chrono::Duration::hours(23);
+        assert!(next_refresh_interval(&metadata) <= Duration::from_secs(30 * 60));
     }
 }

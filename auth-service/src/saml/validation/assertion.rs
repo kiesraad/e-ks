@@ -102,8 +102,7 @@ pub fn validate_assertion_at(
     // EntityID, ensuring the RD-signed payload originates from the RD.
     v.check_issuer(root, opts.expected_issuer, "Assertion");
     v.check_subject_confirmation(root, opts);
-    v.check_conditions(root);
-    v.check_audience_restriction(root, opts.dv_entity_id);
+    v.check_conditions(root, opts.dv_entity_id);
     v.check_assertion_instants(root);
 
     // Extraction records its own errors (NameID format, LoA, ServiceUUID,
@@ -371,16 +370,31 @@ impl Validator<'_, '_> {
         }
     }
 
-    // eID §7.6.3 / §9.5: Conditions NotBefore and NotOnOrAfter window.
-    fn check_conditions(&mut self, root: NodeId) {
-        let Some(cond) = self.find_claim(root, "Conditions") else {
-            // eID §7.6.3 (cardinality 1) / §9.5: Conditions with its NotBefore /
-            // NotOnOrAfter validity window is mandatory; fail closed on its
-            // absence rather than treating the assertion as unconditionally
-            // time-valid.
-            debug!("[validate] No Conditions element found");
-            self.error("Assertion is missing the required Conditions".to_string());
-            return;
+    // eID §7.6.3 / §9.5: the Conditions validity window, then every condition
+    // it carries (SAML core §2.5.1: all must be satisfied).
+    fn check_conditions(&mut self, root: NodeId, dv_entity_id: &EntityId) {
+        // Structural path, not a descendant search: `<Conditions>` is the
+        // Assertion's own child (SAML core §2.3.3, at most one), so a copy
+        // planted deeper in the tree is never the one evaluated.
+        let conditions = children_by_tag(self.doc, root, NS_SAML, "Conditions");
+        let cond = match conditions.as_slice() {
+            [cond] => *cond,
+            [] => {
+                // eID §7.6.3 (cardinality 1) / §9.5: Conditions with its NotBefore /
+                // NotOnOrAfter validity window is mandatory; fail closed on its
+                // absence rather than treating the assertion as unconditionally
+                // time-valid.
+                debug!("[validate] No Conditions element found");
+                self.error("Assertion is missing the required Conditions".to_string());
+                return;
+            }
+            many => {
+                self.error(format!(
+                    "Assertion carries {} Conditions elements; SAML allows at most one",
+                    many.len()
+                ));
+                return;
+            }
         };
         debug!(
             "[validate] Rule 6: Conditions NotBefore={:?}, NotOnOrAfter={:?}",
@@ -392,17 +406,49 @@ impl Validator<'_, '_> {
             "Assertion Conditions",
         );
         self.check_not_on_or_after(self.doc.get_attribute(cond, "NotOnOrAfter"), "Assertion");
+        self.check_condition_elements(cond, dv_entity_id);
     }
 
-    // §7.6.3.5 rule 5: Verify DV EntityID is in AudienceRestriction.
+    // SAML core §2.5.1: a condition the DV does not understand makes the
+    // assertion Indeterminate, so only AudienceRestriction is accepted, and
+    // §2.5.1.4: several AudienceRestrictions are independent and ALL must hold.
+    // eID §7.6.3.1 / §7.6.3.5 rule 5: at least one must name this DV.
+    fn check_condition_elements(&mut self, cond: NodeId, dv_entity_id: &EntityId) {
+        let mut restrictions = 0;
+        for child in self.doc.element_children(cond) {
+            match self.doc.node_qname(child) {
+                Some(q)
+                    if q.namespace == Some(NS_SAML) && q.local_name == "AudienceRestriction" =>
+                {
+                    restrictions += 1;
+                    self.check_audience_restriction(child, dv_entity_id);
+                }
+                Some(q) => self.error(format!(
+                    "Assertion carries an unsupported Condition <{}> (namespace {:?})",
+                    q.local_name, q.namespace
+                )),
+                // `element_children` yields elements only, so this cannot
+                // happen; fail closed rather than silently accept the child.
+                None => self.error("Conditions carries a non-element child".to_string()),
+            }
+        }
+        if restrictions == 0 {
+            self.error(format!(
+                "DV entityId {dv_entity_id} not in AudienceRestriction: [] (no AudienceRestriction)"
+            ));
+        }
+    }
+
+    // §7.6.3.5 rule 5: Verify DV EntityID is in this AudienceRestriction.
     // eID §7.6.3.1: Assertion may only be processed if AudienceRestriction
     // contains the DV EntityID.
-    fn check_audience_restriction(&mut self, root: NodeId, dv_entity_id: &EntityId) {
+    fn check_audience_restriction(&mut self, restriction: NodeId, dv_entity_id: &EntityId) {
+        // Only the restriction's own `<Audience>` children count (SAML core
+        // §2.5.1.4); a stray `<Audience>` elsewhere is not a grant.
         // `direct_text`: an entry with element children is not an audience, so it
         // is skipped and cannot match. Trimmed because an <Audience> holds one
         // EntityID token and the RD pretty-prints around it.
-        let audiences: Vec<String> = self
-            .find_claims(root, "Audience")
+        let audiences: Vec<String> = children_by_tag(self.doc, restriction, NS_SAML, "Audience")
             .iter()
             .filter_map(|&n| direct_text(self.doc, n))
             .map(|a| a.trim().to_string())

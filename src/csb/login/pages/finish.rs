@@ -19,7 +19,7 @@ use crate::{
     AppError, AppRequestState, CsbMainStore, CsbUser, CsbUsername, Form, Locale, Session,
     auth::{
         csb_webauthn::{AssertionError, LoginFailure, VerifiedLogin, verify_login},
-        session_extractor::{establish_session, user_agent_hash},
+        session_extractor::{LoginOrigin, establish_session, user_agent_hash},
     },
     csb::{
         index::CsbIndexPath,
@@ -112,7 +112,7 @@ async fn establish_committee_session<S: AppRequestState>(
         return Ok(login_failed_with(failure, peer));
     }
 
-    let jar = establish_session(state.sessions(), jar, session).await?;
+    let jar = establish_session(state.sessions(), jar, session, LoginOrigin::SameSite).await?;
 
     info!("committee member {username} logged in to the CSB");
     Ok((jar, Redirect::to(&CsbIndexPath {}.to_string())).into_response())

@@ -53,19 +53,19 @@ pub struct DecryptedNameId {
 /// whatever the backend would otherwise accept.
 ///
 /// `dv_entity_id` is our own EntityID. eID §7.6.3.4 requires every `EncryptedKey`
-/// to name its intended recipient in `@Recipient`, and says keys for other
-/// recipients SHOULD be ignored, so only keys addressed to us are algorithm-
-/// checked: a key wrapped for a *different* DV with a weak transport is skipped
-/// rather than failing the whole message. At least one key must be ours (§7.6.3.4
-/// pairs `@Recipient` with the `<Audience>` values, and we already require our
-/// EntityID among the audiences).
+/// to name its intended recipient in `@Recipient`, and at least one key must be
+/// ours (§7.6.3.4 pairs `@Recipient` with the `<Audience>` values, and we already
+/// require our EntityID among the audiences). The transport check then covers
+/// *every* key, not only ours: the backend unwraps with whichever key our RSA
+/// private key opens, ignoring `@Recipient`, so a weak key labelled for another
+/// DV could be the one that decrypts.
 fn check_encryption_algorithms(
     doc: &Document,
     enc_id: NodeId,
     dv_entity_id: Option<&str>,
 ) -> Result<(), String> {
     check_data_encryption(doc, enc_id)?;
-    check_key_transport(doc, &our_encrypted_keys(doc, enc_id, dv_entity_id)?)
+    check_key_transport(doc, &encrypted_keys(doc, enc_id, dv_entity_id)?)
 }
 
 // eID §9.3: the `EncryptedData` block cipher MUST be AES-256-CBC.
@@ -83,11 +83,10 @@ fn check_data_encryption(doc: &Document, enc_id: NodeId) -> Result<(), String> {
     Ok(())
 }
 
-// eID §7.6.3.4: `@Recipient` identifies the intended recipient of each wrapped
-// key. When we know our own EntityID, consider only our keys; more than one may
-// carry it (§7.6.3.4: one per encryption cert during rollover). At least one
-// key must be ours.
-fn our_encrypted_keys(
+// Every `EncryptedKey` in the EncryptedID, after checking that at least one
+// is addressed to us (eID §7.6.3.4 `@Recipient`; more than one may be, one per
+// encryption cert during rollover).
+fn encrypted_keys(
     doc: &Document,
     enc_id: NodeId,
     dv_entity_id: Option<&str>,
@@ -96,28 +95,22 @@ fn our_encrypted_keys(
     if enc_keys.is_empty() {
         return Err("EncryptedID has no EncryptedKey".to_string());
     }
-
-    let ours: Vec<NodeId> = match dv_entity_id {
-        Some(dv) => enc_keys
-            .iter()
-            .copied()
-            .filter(|&ek| doc.get_attribute(ek, "Recipient") == Some(dv))
-            .collect(),
-        None => enc_keys.clone(),
-    };
-    if ours.is_empty() {
+    let recipient = |&ek: &NodeId| doc.get_attribute(ek, "Recipient");
+    if let Some(dv) = dv_entity_id
+        && !enc_keys.iter().any(|ek| recipient(ek) == Some(dv))
+    {
         let recipients: Vec<&str> = enc_keys
             .iter()
-            .map(|&ek| doc.get_attribute(ek, "Recipient").unwrap_or("<absent>"))
+            .map(|ek| recipient(ek).unwrap_or("<absent>"))
             .collect();
         return Err(format!(
             "no EncryptedKey addressed to this DV (eID §7.6.3.4 @Recipient); saw {recipients:?}"
         ));
     }
-    Ok(ours)
+    Ok(enc_keys)
 }
 
-// eID §9.3: every `EncryptedKey` addressed to us MUST use RSA-OAEP transport.
+// eID §9.3: every `EncryptedKey` the backend could unwrap MUST use RSA-OAEP.
 fn check_key_transport(doc: &Document, enc_keys: &[NodeId]) -> Result<(), String> {
     for &ek in enc_keys {
         let key_alg = find_child(doc, ek, NS_XENC, "EncryptionMethod")
@@ -465,17 +458,16 @@ mod tests {
     }
 
     #[test]
-    fn check_encryption_algorithms_ignores_other_recipients_weak_keys() {
-        // §7.6.3.4 says keys for other recipients SHOULD be ignored: a foreign
-        // key with a weak (rsa-1_5) transport must not fail a message whose own
-        // key is sound, but the reverse must still be rejected.
-        let ours_ok = format!(
+    fn check_encryption_algorithms_rejects_weak_keys_for_any_recipient() {
+        // The backend ignores @Recipient, so a weak (rsa-1_5) key labelled for
+        // another DV could be the one that decrypts: rejected either way.
+        let other_weak = format!(
             r#"<saml:EncryptedID xmlns:saml="{NS_SAML}" xmlns:xenc="http://www.w3.org/2001/04/xmlenc#" xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><xenc:EncryptedData><xenc:EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes256-cbc"/><ds:KeyInfo><xenc:EncryptedKey Recipient="urn:other"><xenc:EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#rsa-1_5"/></xenc:EncryptedKey><xenc:EncryptedKey Recipient="{DV_ENTITY_ID}"><xenc:EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#rsa-oaep-mgf1p"/></xenc:EncryptedKey></ds:KeyInfo></xenc:EncryptedData></saml:EncryptedID>"#
         );
-        let doc = parse(&ours_ok).unwrap();
+        let doc = parse(&other_weak).unwrap();
         assert!(
-            check_encryption_algorithms(&doc, doc.document_element(), Some(DV_ENTITY_ID)).is_ok(),
-            "a foreign weak key must not fail a message whose own key is sound"
+            check_encryption_algorithms(&doc, doc.document_element(), Some(DV_ENTITY_ID)).is_err(),
+            "a weak key for any recipient must be rejected"
         );
 
         let ours_weak = format!(
