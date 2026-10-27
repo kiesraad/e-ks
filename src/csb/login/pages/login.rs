@@ -12,7 +12,8 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    AppError, AppRequestState, Context, CsbWebauthnConfig, HtmlTemplate, Locale, LocaleValues,
+    AnyLocale, AppError, AppRequestState, Context, CsbWebauthnConfig, ElectionConfig, HtmlTemplate,
+    Locale, LocaleValues, Province, WaterCouncil,
     auth::csb_webauthn::Challenge,
     csb::login::{CsbLoginPath, require_webauthn},
     filters,
@@ -30,6 +31,12 @@ struct CsbLoginTemplate {
     show_error: bool,
     /// The ceremony options as JSON; escaped into a data attribute.
     options: String,
+    /// The elections to pick from; empty when `DEFAULT_ELECTION` pins one.
+    /// The ceremony then waits for a click instead of starting straight away.
+    elections: Vec<ElectionConfig>,
+    title_locale: AnyLocale,
+    provinces: &'static [Province],
+    water_councils: &'static [WaterCouncil],
 }
 
 #[derive(Debug, Deserialize)]
@@ -102,6 +109,13 @@ pub async fn login_page<S: AppRequestState>(
     let template = CsbLoginTemplate {
         show_error: query.error.is_some(),
         options: request_options(config, challenge.as_str())?,
+        elections: match state.config().default_election {
+            Some(_) => Vec::new(),
+            None => ElectionConfig::type_options(),
+        },
+        title_locale: AnyLocale::from(Locale::default()),
+        provinces: Province::ALL,
+        water_councils: WaterCouncil::ALL,
     };
 
     Ok(HtmlTemplate(
@@ -151,6 +165,7 @@ mod tests {
         let failed_message = crate::trans!("csb.auth.error.message", Locale::default());
         assert!(!body.contains(&failed_message));
         assert!(!body.contains("data-webauthn-autostart"));
+        assert!(!body.contains("name=\"election\""));
 
         let (options, challenge) = ceremony_options(&body);
         assert_eq!(options["publicKey"]["rpId"], "csb.example.nl");
@@ -177,6 +192,29 @@ mod tests {
                 .await
                 .is_ok()
         );
+    }
+
+    /// Without `DEFAULT_ELECTION` the page asks which election to log in
+    /// to, so the ceremony waits for the button.
+    #[tokio::test]
+    async fn login_page_offers_elections_when_not_pinned() {
+        let mut config = test_support::webauthn_test_config();
+        config.default_election = None;
+        let state = crate::AppState::new_for_tests_with_config(config).await;
+        let app = crate::app::router::create(state.clone()).with_state(state);
+
+        let request = Request::builder()
+            .uri("/csb/login")
+            .body(Body::empty())
+            .expect("valid request");
+        let response = app.oneshot(request).await.expect("response");
+
+        let body = response_body_string(response).await;
+        assert!(body.contains("name=\"election\""));
+        assert!(body.contains("name=\"domain_province\""));
+        assert!(body.contains("data-webauthn-autostart=\"false\""));
+        let start = crate::trans!("csb.auth.ceremony.start", Locale::default());
+        assert!(body.contains(&start));
     }
 
     #[tokio::test]

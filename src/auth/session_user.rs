@@ -26,7 +26,8 @@ pub enum SessionUser {
     CentralElectoralCommittee {
         /// The committee member, recorded on every CSB event for the audit log.
         user: CsbUser,
-        /// Fixed at login from the configured default election.
+        /// Fixed at login: `DEFAULT_ELECTION`, or the one picked on the
+        /// login page.
         election: ElectionConfig,
         /// CSB stream whose paper documents are being corrected. While set,
         /// app routes serve that stream's paper-corrected data.

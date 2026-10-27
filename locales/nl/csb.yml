@@ -19,6 +19,7 @@ auth:
     failed: "De beveiligingssleutel heeft niet bevestigd. Controleer of de sleutel is aangesloten en of u de juiste pincode heeft ingevoerd, en probeer het opnieuw."
     intro: "Sluit uw beveiligingssleutel aan, voer de pincode in en raak de sleutel aan als deze knippert."
     retry: Opnieuw proberen
+    start: Inloggen met uw beveiligingssleutel
     unsupported: Deze browser ondersteunt geen beveiligingssleutel of JavaScript staat uit.
   error:
     message: Inloggen is niet gelukt. Controleer of uw beveiligingssleutel is geregistreerd en probeer het opnieuw.

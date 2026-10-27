@@ -132,8 +132,6 @@ mod tests {
     use secrecy::SecretString;
     use tower::ServiceExt;
 
-    // Only the fixtures-gated test below redirects to the index.
-    #[cfg(feature = "fixtures")]
     use crate::common::PgIndexPath;
 
     use crate::{
@@ -317,6 +315,63 @@ mod tests {
             .to_str()
             .unwrap();
         assert_eq!(location, SelectElectionPath.to_string());
+    }
+
+    /// A pinned `DEFAULT_ELECTION` skips the selection page: the first login
+    /// gets a stream for that election with the login on its audit log.
+    #[tokio::test]
+    async fn on_authenticated_lands_on_the_pinned_election() {
+        use crate::{Config, ElectionConfig, PgEvent, Province, store::StoreData};
+
+        let election = ElectionConfig::PS27(Province::Groningen);
+        let mut config = Config::new_test();
+        config.default_election = Some(election);
+        let state = crate::AppState::new_for_tests_with_config(config).await;
+        let stream_id = state
+            .id_deriver()
+            .derive_stream_id(&SecretString::from("999999990"));
+
+        let response = state
+            .on_authenticated(
+                subject("999999990"),
+                NameId::parse("name-id-xyz").unwrap(),
+                CookieJar::new(),
+                &HeaderMap::new(),
+            )
+            .await;
+
+        assert_eq!(
+            response.headers().get(header::LOCATION).unwrap(),
+            &PgIndexPath.to_string()
+        );
+        let token = Cookie::parse(
+            response
+                .headers()
+                .get(header::SET_COOKIE)
+                .unwrap()
+                .to_str()
+                .unwrap(),
+        )
+        .unwrap()
+        .value()
+        .to_string();
+        let session = state.sessions.get(&token).await.unwrap().unwrap();
+        assert_eq!(session.user.election(), Some(election));
+        assert_eq!(
+            state
+                .existing_elections_for_stream(stream_id)
+                .await
+                .unwrap(),
+            vec![election]
+        );
+        let store = state
+            .store_for_stream(stream_id, election, false)
+            .await
+            .unwrap();
+        assert!(matches!(
+            store.snapshot().events(),
+            [event] if matches!(event.payload, PgEvent::Login)
+        ));
     }
 
     #[cfg(feature = "fixtures")]

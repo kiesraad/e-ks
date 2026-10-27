@@ -601,7 +601,7 @@ mod tests {
             crate::CsbUser::SecurityKey {
                 username: crate::auth::csb_webauthn::test_support::alice(),
             },
-            config.default_election,
+            crate::ElectionConfig::EK27,
             crate::Locale::En,
         );
         let token = session.token_string();

@@ -141,7 +141,7 @@ pub(crate) use core::{
 };
 pub(crate) use csb::CsbContext;
 pub(crate) use error::AppResponse;
-pub(crate) use form::{Form, TokenValue};
+pub(crate) use form::{Form, SwitchElectionForm, TokenValue};
 pub(crate) use store::{DbHealth, Event};
 pub(crate) use utils::{
     OptionAsStrExt, OptionStringExt, Overlay, QueryParamState, abbreviate_str, overlay_active,
