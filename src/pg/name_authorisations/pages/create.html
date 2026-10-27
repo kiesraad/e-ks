@@ -12,3 +12,10 @@
     {% include "pg/common/components/name_fields.html" %}
   </fieldset>
 {% endblock %}
+{% block overlay_actions %}
+  {% let mut submit_label = "action.save_and_close"|trans %}
+  {% if overlay.redirects_to(crate::finalise::FinalisePath) %}
+    {% mut submit_label = "action.save"|trans %}
+  {% endif %}
+  {% include "pg/common/components/submit.html" %}
+{% endblock %}

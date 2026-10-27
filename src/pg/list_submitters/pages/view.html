@@ -9,12 +9,12 @@
       <p class="mb-6 text-body-width">{{ "political_group.list_submitter_info"|trans }}</p>
       <div class="card card-plain submitters-card">
         {% if list_submitter.is_empty() %}
-          <a href="{{ steps.step_url(ListSubmitter::update_path() ) }}"
-             class="button secondary icon-plus"
-             type="button">{{ "political_group.add_list_submitter"|trans }}</a>
           <div class="submitters">
             <p class="submitters-empty">{{ "political_group.no_list_submitter"|trans }}</p>
           </div>
+          <a href="{{ steps.step_url(ListSubmitter::update_path() ) }}"
+             class="button secondary icon-plus"
+             type="button">{{ "political_group.add_list_submitter"|trans }}</a>
         {% else %}
           <div class="submitters">
             <a href="{{ steps.step_url(ListSubmitter::update_path() ) }}"

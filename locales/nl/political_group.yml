@@ -29,7 +29,7 @@ list_type: Type lijstaanduiding
 names_size_hint_add_name: Voeg de statutaire naam van de partij toe.
 names_size_hint_combination: Combinaties van meerdere geregistreerde namen moeten uit minstens twee statutaire namen bestaan.
 names_size_hint_standalone: Een op zichzelf staande geregistreerde naam moet uit één naam bestaan.
-no_legal_names: Nog geen statutaire name toegevoegd
+no_legal_names: Nog geen statutaire naam toegevoegd
 no_list_submitter: Geen lijstinleveraar
 no_substitute_submitters: Geen vervangers voor het herstel van verzuimen
 previous_election_results: "Bij de vorige {} had uw partij:"
