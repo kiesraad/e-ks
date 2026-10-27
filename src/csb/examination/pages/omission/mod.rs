@@ -77,6 +77,41 @@ impl OmissionTarget {
         Ok(())
     }
 
+    /// The candidate this dialog was opened for, if it is a candidate omission.
+    fn candidate(&self) -> Option<PersonId> {
+        (self.omission_type == OmissionType::Candidate).then(|| PersonId::from(self.reference))
+    }
+
+    /// The candidate lists the submitted omission applies to. At least one list
+    /// must be selected, and for a candidate omission only lists on which the
+    /// candidate has the same position as on the list the dialog was opened for.
+    fn selected_candidate_lists(
+        &self,
+        data: &CsbStoreData,
+        form: &OmissionForm,
+    ) -> Result<Vec<CandidateListId>, FieldErrors> {
+        let applicable_lists: Vec<CandidateListId> =
+            views::candidate_list_options(data, self.candidate(), self.list)
+                .into_iter()
+                .filter(|o| o.applicable)
+                .map(|o| o.id)
+                .collect();
+        let lists = selected_or_only_available(
+            self.omission_type.needs_candidate_lists(),
+            &form.candidate_lists,
+            || applicable_lists.clone(),
+            "candidate_lists",
+        )?;
+
+        if self.candidate().is_some() && !lists.iter().all(|id| applicable_lists.contains(id)) {
+            return Err(vec![(
+                "candidate_lists".to_string(),
+                ValidationError::InvalidValue,
+            )]);
+        }
+        Ok(lists)
+    }
+
     fn from_overview_path(path: CsbOmissionOverviewPath, query: OmissionListQuery) -> Self {
         Self {
             stream_id: path.stream_id,
@@ -106,13 +141,7 @@ impl OmissionTarget {
         let available_candidate_lists = self
             .omission_type
             .needs_candidate_lists()
-            .then(|| {
-                views::candidate_list_options(
-                    data,
-                    (self.omission_type == OmissionType::Candidate)
-                        .then(|| PersonId::from(self.reference)),
-                )
-            })
+            .then(|| views::candidate_list_options(data, self.candidate(), self.list))
             .filter(|options| options.len() > 1)
             .unwrap_or_default();
 
@@ -284,18 +313,7 @@ pub async fn add_omission_submit(
         }
     };
 
-    // For candidate omissions at least one list must be selected
-    let candidate_lists = match selected_or_only_available(
-        target.omission_type.needs_candidate_lists(),
-        &form.candidate_lists,
-        || {
-            views::candidate_list_options(&store.snapshot(), None)
-                .into_iter()
-                .map(|o| o.id)
-                .collect()
-        },
-        "candidate_lists",
-    ) {
+    let candidate_lists = match target.selected_candidate_lists(&store.snapshot(), &form) {
         Ok(candidate_lists) => candidate_lists,
         Err(errors) => {
             let form = FormData::new_with_errors(form, errors);
@@ -1117,6 +1135,74 @@ mod tests {
         let body = response_body_string(response).await;
         assert!(body.contains("Kandidaat nr. 2, Jansen, H.A.H.A. (Henk)"));
         assert!(!body.contains("Kandidaat nr. 1, Jansen"));
+    }
+
+    fn store_with_candidate_on_three_lists() -> (CsbStore, PersonId, [CandidateListId; 3]) {
+        use crate::test_utils::{sample_candidate_list, sample_person};
+
+        let store = CsbStore::new_for_test();
+        let person = sample_person(PersonId::new());
+        let person_id = person.id;
+        store.add_person(person);
+
+        let ids = [
+            CandidateListId::new(),
+            CandidateListId::new(),
+            CandidateListId::new(),
+        ];
+        for (id, candidates) in ids.iter().zip([
+            vec![person_id],
+            vec![person_id],
+            vec![PersonId::new(), person_id],
+        ]) {
+            let mut list = sample_candidate_list(*id);
+            list.candidates = candidates;
+            store.add_candidate_list(list);
+        }
+
+        (store, person_id, ids)
+    }
+
+    #[tokio::test]
+    async fn candidate_dialog_disables_lists_with_a_different_position() {
+        let (store, person_id, [first, same, different]) = store_with_candidate_on_three_lists();
+
+        let response =
+            render_add_omission(store, OmissionType::Candidate, person_id, Some(first)).await;
+        let body = normalized(&response_body_string(response).await);
+
+        let is_disabled = |id: CandidateListId| {
+            let checkbox = body
+                .split_once(&format!("id=\"omission_candidate_list_{id}\""))
+                .and_then(|(_, rest)| rest.split("/>").next())
+                .expect("checkbox should be rendered");
+            checkbox.contains("disabled")
+        };
+        assert!(!is_disabled(first));
+        assert!(!is_disabled(same));
+        assert!(is_disabled(different));
+    }
+
+    #[tokio::test]
+    async fn add_candidate_omission_rejects_lists_with_a_different_position() {
+        let (store, person_id, [first, _, different]) = store_with_candidate_on_three_lists();
+
+        let form = OmissionForm {
+            candidate_lists: vec![first, different],
+            ..sample_form()
+        };
+        let response = submit_add_omission(
+            store.clone(),
+            OmissionType::Candidate,
+            person_id,
+            Some(first),
+            form,
+        )
+        .await;
+
+        // The form is re-rendered instead of saving the omission
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(store.snapshot().get_omissions().is_empty());
     }
 
     #[tokio::test]

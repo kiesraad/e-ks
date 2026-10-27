@@ -19,12 +19,13 @@
         </div>
         <div class="checklist" id="omission_candidate_list">
           {% for option in available_candidate_lists %}
-            <div class="checkbox">
+            <div class="checkbox {% if !option.applicable %}disabled{% endif %}">
               <input type="checkbox"
                      name="candidate_lists"
                      id="omission_candidate_list_{{ option.id }}"
                      value="{{ option.id }}"
-                     {% if form.data.candidate_lists.contains(&option.id) %}checked{% endif %} />
+                     {% if form.data.candidate_lists.contains(&option.id) %}checked{% endif %}
+                     {% if !option.applicable %}disabled{% endif %} />
               <label for="omission_candidate_list_{{ option.id }}">{{ option.label }}</label>
             </div>
           {% endfor %}

@@ -21,6 +21,10 @@ pub(super) struct CandidateListOption {
     pub(super) id: CandidateListId,
     /// Dutch label derived from the list's electoral districts (e.g. "1. Groningen").
     pub(super) label: String,
+    /// Whether this omission can also be applied to this candidate list. False
+    /// if the position on the list is different from the currently selected
+    /// list.
+    pub(super) applicable: bool,
 }
 
 /// The add-omission form tab of the dialog.
@@ -127,19 +131,32 @@ fn placeholders_for(target: &OmissionTarget, data: &CsbStoreData) -> OmissionPla
 }
 
 /// Candidate lists of the political group, optionally filtered to those
-/// containing a specific candidate. When `person_id` is `None`, returns all
+/// containing a specific candidate. When `person_filter` is `None`, returns all
 /// lists; when `Some`, returns only lists this candidate appears on.
+///
+/// When the dialog was opened from a list (`current_list`), lists on which the
+/// candidate has a different position are marked as not applicable, since the
+/// omission refers to the candidate's position on the current list.
 pub(super) fn candidate_list_options(
     data: &CsbStoreData,
     person_filter: Option<PersonId>,
+    current_list: Option<CandidateListId>,
 ) -> Vec<CandidateListOption> {
-    data.pg(WithCorrections::All)
-        .get_candidate_lists()
+    let pg = data.pg(WithCorrections::All);
+    let current_position = person_filter
+        .zip(current_list)
+        .and_then(|(person, list)| pg.get_candidate_position(list, person));
+
+    pg.get_candidate_lists()
         .into_iter()
         .filter(|l| person_filter.is_none_or(|id| l.candidates.contains(&id)))
         .map(|l| CandidateListOption {
             id: l.id,
             label: l.districts_name(),
+            applicable: match (person_filter, current_position) {
+                (Some(person), Some(position)) => l.position_of(person) == Some(position),
+                _ => true,
+            },
         })
         .collect()
 }
