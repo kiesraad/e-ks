@@ -8,18 +8,20 @@ use textris_pdf::build::Textris;
 
 use super::{
     Pdf,
-    inputs::{DistrictLists, OmissionGroup, PublicSession},
+    inputs::{DistrictLists, OmissionGroup},
     layout::markdown_document,
     markdown::{filters, model_template},
 };
-use crate::{AppError, core::ModelLocale};
+use crate::{AppError, core::ModelLocale, structs::csb::HearingDetails};
 
 #[derive(Debug)]
 pub struct I1 {
     pub election_name: String,
     pub election_date: NaiveDate,
+    /// The configured location of the session
+    pub session_location: String,
     /// The session in which the central voting bureau examined the lists.
-    pub session: PublicSession,
+    pub session: HearingDetails,
     /// The lists that were submitted, one table per electoral district.
     pub submitted_lists: Vec<DistrictLists<SubmittedList>>,
     /// Empty when the examination found no omissions.

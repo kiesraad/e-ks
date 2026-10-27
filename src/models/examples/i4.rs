@@ -1,12 +1,15 @@
 //! Example inputs for model I 4.
 
 use super::strings;
-use crate::models::{
-    i4::{
-        CorrectedAppellation, I4, I4Status, NumberedOnDistricts, NumberedOnVotes,
-        RemovedAppellation, RemovedCandidate, RemovedCandidates,
+use crate::{
+    models::{
+        i4::{
+            CorrectedAppellation, I4, I4Status, NumberedOnDistricts, NumberedOnVotes,
+            RemovedAppellation, RemovedCandidate, RemovedCandidates,
+        },
+        inputs::{DistrictLists, OmissionGroup, ValidList, ValidListCandidate},
     },
-    inputs::{DistrictLists, OmissionGroup, PublicSession, ValidList, ValidListCandidate},
+    structs::csb::HearingDetails,
 };
 
 fn omission_group(
@@ -35,11 +38,9 @@ fn valid_list_candidate(
     }
 }
 
-fn i4_public_session() -> PublicSession {
-    PublicSession {
-        location: "'s-Gravenhage".to_string(),
-        date: super::date(2027, 5, 3),
-        time: "17:00 uur".to_string(),
+fn i4_public_session() -> HearingDetails {
+    HearingDetails {
+        date_time: super::date_time(super::date(2027, 5, 3), 17, 0),
         chair: "M.C. Voorzitter".to_string(),
         members: strings(&["A. Lid", "B. Lid", "C. Lid", "D. Lid", "E. Lid", "F. Lid"]),
     }
@@ -220,6 +221,7 @@ fn i4_example(
     I4 {
         election_name: "de Eerste Kamer der Staten-Generaal".to_string(),
         election_date: super::date(2027, 5, 27),
+        session_location: "'s-Gravenhage".to_string(),
         public_session: i4_public_session(),
         found_omissions: i4_found_omissions(),
         recovered_omissions: i4_recovered_omissions(),

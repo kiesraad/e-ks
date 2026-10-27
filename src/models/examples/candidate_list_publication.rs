@@ -4,8 +4,9 @@ use crate::{
     ElectoralDistrict,
     models::{
         candidate_list_publication::{CandidateListPublication, NumberedList, PublishedCandidate},
-        inputs::{DistrictLists, PublicSession, ValidList},
+        inputs::{DistrictLists, ValidList},
     },
+    structs::csb::HearingDetails,
 };
 
 fn candidate(name: &str, locality: &str, position: usize) -> PublishedCandidate {
@@ -70,12 +71,11 @@ pub fn candidate_list_publication_example_1() -> CandidateListPublication {
                 lists: vec![kiesraad_demo(1), blanco_nagelhout(3)],
             },
         ],
-        public_session: PublicSession {
-            location: "'s-Gravenhage".to_string(),
-            date: super::date(2027, 5, 3),
-            time: String::with_capacity(0),
+        session_location: "'s-Gravenhage".to_string(),
+        public_session: HearingDetails {
+            date_time: super::date_time(super::date(2027, 5, 3), 17, 0),
             chair: "M.C. Voorzitter".to_string(),
-            members: Vec::with_capacity(0),
+            members: Vec::new(),
         },
     }
 }

@@ -35,7 +35,13 @@ pub async fn hearing_details(
     store: CsbMainStore,
     context: CsbContext,
 ) -> Result<Response, AppError> {
-    let hearing_details = store.get_hearing_details(model).unwrap_or_default();
+    let hearing_details = store
+        .get_hearing_details(model)
+        .unwrap_or_else(|| match model {
+            HearingModel::I1 => HearingDetails::default(),
+            // The I 4 hearing is the configured public session
+            HearingModel::I4 => context.election.public_session().into(),
+        });
     let form_data = FormData::new_with_data(HearingDetailsForm::from(hearing_details));
     Ok(HtmlTemplate(
         CsbHearingDetailsTemplate {
@@ -103,6 +109,15 @@ mod tests {
         let body = render(HearingModel::I1).await;
         assert!(body.contains("&#39;s-Gravenhage"));
         assert!(body.contains(r#"name="hearing-location""#));
+    }
+
+    #[tokio::test]
+    async fn i4_hearing_details_default_to_the_configured_public_session() {
+        let configured = CsbContext::new_test().election.public_session();
+        let body = render(HearingModel::I4).await;
+
+        assert!(body.contains(&format!(r#"value="{}""#, configured.formatted_date())));
+        assert!(body.contains(&format!(r#"value="{}""#, configured.formatted_time())));
     }
 
     /// The model is a path segment, so it has to survive a real request: the

@@ -7,16 +7,20 @@ use textris_pdf::build::Textris;
 
 use super::{
     Pdf,
-    inputs::{DistrictLists, OmissionGroup, PublicSession, ValidList},
+    inputs::{DistrictLists, OmissionGroup, ValidList},
     markdown::{filters, model_template},
 };
-use crate::{AppError, core::ModelLocale, models::layout::eml_hash_document};
+use crate::{
+    AppError, core::ModelLocale, models::layout::eml_hash_document, structs::csb::HearingDetails,
+};
 
 #[derive(Debug, Default)]
 pub struct I4 {
     pub election_name: String,
     pub election_date: NaiveDate,
-    pub public_session: PublicSession,
+    /// The configured location of the public session
+    pub session_location: String,
+    pub public_session: HearingDetails,
     pub found_omissions: Vec<OmissionGroup>,
     pub recovered_omissions: Vec<OmissionGroup>,
     pub invalid_lists: Vec<OmissionGroup>,

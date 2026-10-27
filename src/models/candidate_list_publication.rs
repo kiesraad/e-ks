@@ -14,8 +14,7 @@ use super::{
 use crate::{
     AppError,
     core::{AnyLocale, ModelLocale},
-    models::inputs::PublicSession,
-    structs::persons::Person,
+    structs::{csb::HearingDetails, persons::Person},
 };
 
 #[derive(Debug)]
@@ -24,7 +23,9 @@ pub struct CandidateListPublication {
     pub election_date: NaiveDate,
     /// Per district, the lists in list number order.
     pub valid_lists: Vec<DistrictLists<NumberedList>>,
-    pub public_session: PublicSession,
+    /// The configured location of the public session
+    pub session_location: String,
+    pub public_session: HearingDetails,
 }
 
 /// A valid list with its group's list number, the same in every district;

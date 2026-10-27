@@ -1,4 +1,5 @@
 use axum::{extract::State, response::Response};
+use chrono::Local;
 
 use crate::{
     AppError, AppRequestState, CsbMainStore,
@@ -8,9 +9,8 @@ use crate::{
         Pdf,
         csb_model_inputs::{found_omissions, submitted_lists},
         i1::I1,
-        inputs::PublicSession,
     },
-    structs::csb::HearingModel,
+    structs::csb::{HearingDetails, HearingModel},
 };
 
 /// Collect the store data the I 1 model needs.
@@ -20,14 +20,20 @@ async fn i1_model<S: AppRequestState>(main_store: CsbMainStore, state: &S) -> Re
     let submitted_lists = submitted_lists(registry, &election).await?;
     let found_omissions = found_omissions(registry, &election).await?;
 
-    let mut session = PublicSession::from(election.public_session());
-    if let Some(hearing_details) = main_store.get_hearing_details(HearingModel::I1) {
-        session = session.with_hearing_details(hearing_details);
-    }
+    let configured_session = election.public_session();
+    // The configuration has no I 1 hearing moment: default to now, like the
+    // hearing details form
+    let session = main_store
+        .get_hearing_details(HearingModel::I1)
+        .unwrap_or_else(|| HearingDetails {
+            date_time: Local::now().naive_local(),
+            ..configured_session.into()
+        });
 
     Ok(I1 {
         election_name: election.formal_title(ModelLocale::Nl),
         election_date: election.election_date(),
+        session_location: configured_session.location.to_string(),
         session,
         submitted_lists,
         found_omissions,
@@ -134,13 +140,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn i1_session_falls_back_to_the_configured_session() -> Result<(), AppError> {
+    async fn i1_session_defaults_to_now_with_the_configured_session() -> Result<(), AppError> {
         let state = AppState::new_for_tests().await;
         let model = i1_model(CsbMainStore::new_for_test(), &state).await?;
 
         let configured = ElectionConfig::EK27.public_session();
-        assert_eq!(model.session.date, configured.datetime.date());
-        assert_eq!(model.session.time, configured.formatted_time());
+        let since = Local::now().naive_local() - model.session.date_time;
+        assert!(since.num_seconds() < 5);
         assert_eq!(model.session.chair, configured.chair);
         assert_eq!(model.session.members.len(), configured.members.len());
 
@@ -171,15 +177,17 @@ mod tests {
         let model = i1_model(main_store, &state).await?;
 
         assert_eq!(
-            model.session.date,
-            chrono::NaiveDate::from_ymd_opt(1999, 12, 31).unwrap()
+            model.session.date_time,
+            chrono::NaiveDate::from_ymd_opt(1999, 12, 31)
+                .unwrap()
+                .and_hms_opt(12, 34, 0)
+                .unwrap()
         );
-        assert_eq!(model.session.time, "12:34");
         assert_eq!(model.session.chair, "Vera Voorzitter");
         assert_eq!(model.session.members, vec!["Jan Klaassen", "Malle Babbe"]);
-        // The location and chair keep coming from the election configuration.
+        // The location keeps coming from the election configuration.
         assert_eq!(
-            model.session.location,
+            model.session_location,
             ElectionConfig::EK27.public_session().location
         );
 

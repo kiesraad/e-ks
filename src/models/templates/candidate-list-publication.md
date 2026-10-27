@@ -45,8 +45,8 @@ De voorzitter van het centraal stembureau voor de verkiezing van de leden van
 **{{ election_name | line}}**,
 
 { style = "data", striped = false, flush-first, widths = "5 4 6" }
-| Datum | {{ public_session.date.clone()|long_date|cell }} |  |
-| Ondertekeningsplaats | {{ public_session.location|cell }} |  |
+| Datum | {{ public_session.date_time.date()|long_date|cell }} |  |
+| Ondertekeningsplaats | {{ session_location|cell }} |  |
 
 { style = "data", striped = false, flush-first, widths = "5 4 6", row-height = "3.5em" }
 | Naam en handtekening voorzitter | {{ public_session.chair|cell }} | ________ |

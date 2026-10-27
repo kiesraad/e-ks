@@ -1,11 +1,12 @@
 //! Askama template filters for, among others, display, translation, and validation errors.
 //! Used to keep the formatting logic out of the templates.
-use chrono::{DateTime, Datelike, NaiveDate, Utc};
+use chrono::{DateTime, Datelike, NaiveDate, NaiveTime, Utc};
 
 use crate::{
     ElectionConfig, ElectoralDistrict, Locale, SessionExpiry,
     constants::{
-        DATE_TIME_SECONDS_FORMAT, DEFAULT_DATE_FORMAT, DEFAULT_DATE_TIME_FORMAT, DEFAULT_TIMEZONE,
+        DATE_TIME_SECONDS_FORMAT, DEFAULT_DATE_FORMAT, DEFAULT_DATE_TIME_FORMAT,
+        DEFAULT_TIME_FORMAT, DEFAULT_TIMEZONE,
     },
     core::{AnyLocale, ModelLocale},
     form::FormData,
@@ -35,6 +36,12 @@ fn format_local(value: &DateTime<Utc>, format: &str) -> String {
 #[askama::filter_fn]
 pub fn date(value: NaiveDate, _: &dyn askama::Values) -> askama::Result<String> {
     Ok(value.format(DEFAULT_DATE_FORMAT).to_string())
+}
+
+/// Format a time in the default time format (`17:00`)
+#[askama::filter_fn]
+pub fn time(value: NaiveTime, _: &dyn askama::Values) -> askama::Result<String> {
+    Ok(value.format(DEFAULT_TIME_FORMAT).to_string())
 }
 
 /// Format a date with the month written out in the template's locale (`27 oktober 2027`)

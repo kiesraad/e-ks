@@ -22,11 +22,11 @@ impl askama::filters::Escaper for MarkdownEscaper {
 }
 
 /// Filters for the escaping contexts the flow auto-escaper does not cover,
-/// plus the shared `display` and date filters.
+/// plus the shared `display`, date and time filters.
 pub mod filters {
     use super::{Safe, markdown};
 
-    pub use crate::filters::{date, display, long_date};
+    pub use crate::filters::{date, display, long_date, time};
 
     /// Escape a value interpolated into a table cell.
     #[askama::filter_fn]
