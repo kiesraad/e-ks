@@ -6,16 +6,8 @@
 {% endblock %}
 {% block overlay_form %}
   {% set should_warn = false %}
-  <fieldset>
-    {% include "pg/name_authorisations/components/legal_name_field.html" %}
-    <h3>{{ "political_group.authorised_agent_data"|trans }}</h3>
-    {% include "pg/common/components/name_fields.html" %}
-  </fieldset>
+  {% include "pg/name_authorisations/components/form_fields.html" %}
 {% endblock %}
 {% block overlay_actions %}
-  {% let mut submit_label = "action.save_and_close"|trans %}
-  {% if overlay.redirects_to(crate::finalise::FinalisePath) %}
-    {% mut submit_label = "action.save"|trans %}
-  {% endif %}
-  {% include "pg/common/components/submit.html" %}
+  {% include "pg/common/components/overlay_submit.html" %}
 {% endblock %}

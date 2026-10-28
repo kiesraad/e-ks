@@ -1,0 +1,6 @@
+{# submit.html, labelled "Save" when the overlay returns to the finalise page #}
+{% let mut submit_label = submit_label|default("action.save_and_close"|trans) %}
+{% if overlay.redirects_to(crate::finalise::FinalisePath) %}
+  {% mut submit_label = "action.save"|trans %}
+{% endif %}
+{% include "pg/common/components/submit.html" %}

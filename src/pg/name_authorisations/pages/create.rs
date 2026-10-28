@@ -94,6 +94,37 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn submit_label_is_save_when_returning_to_finalise() -> Result<(), AppError> {
+        async fn submit_label(query: QueryParamState) -> String {
+            let response = create_name_authorisation(
+                NameAuthorisationCreatePath {},
+                Context::new_test_without_db(),
+                Query(query),
+            )
+            .await
+            .unwrap()
+            .into_response();
+            let body = response_body_string(response).await;
+            let button = body.split(r#"value="save">"#).nth(1).unwrap();
+            button.split("</button>").next().unwrap().trim().to_string()
+        }
+
+        assert_eq!(
+            submit_label(QueryParamState::default()).await,
+            "Save and close"
+        );
+        assert_eq!(
+            submit_label(QueryParamState::redirect_to(
+                crate::finalise::FinalisePath.to_string()
+            ))
+            .await,
+            "Save"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn create_name_authorisation_persists_and_redirects() -> Result<(), AppError> {
         let store = PgStore::new_for_test();
 
