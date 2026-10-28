@@ -19,17 +19,21 @@
         </div>
         <div class="checklist" id="omission_candidate_list">
           {% for option in available_candidate_lists %}
-            <div class="checkbox">
+            <div class="checkbox {% if !option.applicable %}disabled{% endif %}">
               <input type="checkbox"
                      name="candidate_lists"
                      id="omission_candidate_list_{{ option.id }}"
                      value="{{ option.id }}"
-                     {% if form.data.candidate_lists.contains(&option.id) %}checked{% endif %} />
+                     {% if form.data.candidate_lists.contains(&option.id) %}checked{% endif %}
+                     {% if !option.applicable %}disabled{% endif %} />
               <label for="omission_candidate_list_{{ option.id }}">{{ option.label }}</label>
             </div>
           {% endfor %}
         </div>
         {% for error in form|error("candidate_lists") %}<span class="error">{{ error }}</span>{% endfor %}
+        {% if !all_candidate_lists_apply() %}
+          <div class="alert alert-info">{{ "csb.omission.form.different_position_hint"|trans }}</div>
+        {% endif %}
       </div>
     {% endif %}
     {% if !available_districts.is_empty() %}

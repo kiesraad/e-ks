@@ -224,6 +224,7 @@ omission:
   form:
     applies_to: "This omission applies to:"
     description_label: Add I\u00A01 omission
+    different_position_hint: "This candidate holds a different position on some lists. If necessary, add an omission separately for the relevant list(s)."
     edit_heading: Type or edit the omission here
     help_text_hint: Only for a recoverable omission. Irreparable omissions do not go into the omission letter.
     help_text_label: Add omission letter note
