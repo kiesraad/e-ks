@@ -189,7 +189,7 @@ impl AllProblems {
             .filter(|id| seen.insert(*id))
             .filter_map(|id| data.get_person(*id).ok())
             .filter_map(|person| {
-                let problems = person.get_problems(election);
+                let problems = data.get_person_problems(person, election);
                 info_problems.extend(
                     problems
                         .info_problems

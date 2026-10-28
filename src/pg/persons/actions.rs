@@ -4,7 +4,7 @@ use crate::{
     AppError, PgEvent, PgStore,
     pagination::SortDirection,
     structs::{
-        common::{DutchAddress, FullName, Problematic},
+        common::{DutchAddress, FullName},
         persons::{
             Person, PersonId, PersonSort, PersonWithProblems, PersonalData, Representative,
             compare_persons,
@@ -129,7 +129,7 @@ impl Person {
             .skip(offset)
             .take(limit)
             .map(|person| PersonWithProblems {
-                problems: person.get_problems(store.election),
+                problems: data.get_person_problems(person, store.election),
                 data: person.clone(),
             })
             .collect())

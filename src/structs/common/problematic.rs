@@ -120,6 +120,7 @@ pub enum PotentialProblems {
     NoDateOfBirth,
     NoRepresentative,
     TooYoungDateOfBirth,
+    PossibleDuplicatePerson,
 
     // name related
     NoInitials(Severity),
@@ -239,6 +240,9 @@ impl PotentialProblems {
             PotentialProblems::TooYoungDateOfBirth => {
                 trans!("problems.candidate_too_young", *locale)
             }
+            PotentialProblems::PossibleDuplicatePerson => {
+                trans!("problems.possible_duplicate_person", *locale)
+            }
 
             // name related
             PotentialProblems::NoInitials(..) => trans!("problems.no_initials", *locale),
@@ -281,6 +285,7 @@ impl PotentialProblems {
             PotentialProblems::NoCountryOfResidence => Severity::Error,
             PotentialProblems::NoDateOfBirth => Severity::Error,
             PotentialProblems::NoRepresentative => Severity::Warn,
+            PotentialProblems::PossibleDuplicatePerson => Severity::Warn,
 
             // name related
             PotentialProblems::NoInitials(severity) => *severity,

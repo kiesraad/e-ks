@@ -38,6 +38,16 @@ audit_fields!(Person {
 
 pub type PersonWithProblems = WithProblems<Person>;
 
+/// How likely two records describe the same natural person.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IdentityMatch {
+    /// Same BSN, or the same name and date of birth without a BSN on either side
+    Same,
+    /// Same name, but a BSN or date of birth needed to tell them apart is missing
+    Possible,
+    Different,
+}
+
 impl Problematic<ElectionConfig> for Person {
     fn get_problems(&self, election: ElectionConfig) -> Problems {
         Problems::merge(vec![
@@ -96,6 +106,32 @@ impl Problematic<&Person> for Option<Box<Representative>> {
 }
 
 impl Person {
+    /// Compares the identifying fields: the BSN when both have one, otherwise
+    /// initials, prefix, last name and date of birth.
+    pub fn identity_match(&self, other: &Person) -> IdentityMatch {
+        let bsns = (self.personal_data.bsn(), other.personal_data.bsn());
+        if let (Some(bsn), Some(other_bsn)) = bsns {
+            return if bsn == other_bsn {
+                IdentityMatch::Same
+            } else {
+                IdentityMatch::Different
+            };
+        }
+
+        if !self.name.same_person_name(&other.name) {
+            return IdentityMatch::Different;
+        }
+
+        match (
+            &self.personal_data.date_of_birth,
+            &other.personal_data.date_of_birth,
+        ) {
+            (Some(dob), Some(other_dob)) if dob != other_dob => IdentityMatch::Different,
+            (Some(_), Some(_)) if bsns == (None, None) => IdentityMatch::Same,
+            _ => IdentityMatch::Possible,
+        }
+    }
+
     /// Returns the initials as printed on the candidate list,
     /// i.e., optionally with the first name and gender.
     ///
@@ -197,6 +233,56 @@ mod tests {
             sample_person_with_last_name,
         },
     };
+
+    fn bsn(value: &str) -> Option<BsnOrNoneConfirmed> {
+        Some(BsnOrNoneConfirmed::Bsn(value.parse().expect("bsn")))
+    }
+
+    #[test]
+    fn identity_match_compares_bsns_when_both_are_known() {
+        let mut person = sample_person(PersonId::new());
+        person.personal_data.bsn = bsn("123456782");
+        let mut other = sample_person_with_last_name(PersonId::new(), "Other");
+        other.personal_data.bsn = bsn("123456782");
+
+        assert_eq!(person.identity_match(&other), IdentityMatch::Same);
+
+        other.name = person.name.clone();
+        other.personal_data.bsn = bsn("111222333");
+        assert_eq!(person.identity_match(&other), IdentityMatch::Different);
+    }
+
+    #[test]
+    fn identity_match_without_bsn_needs_name_and_date_of_birth() {
+        let person = sample_person(PersonId::new());
+        let mut other = sample_person(PersonId::new());
+        assert_eq!(person.identity_match(&other), IdentityMatch::Same);
+
+        other.personal_data.date_of_birth = Some("02-02-1990".parse().expect("date"));
+        assert_eq!(person.identity_match(&other), IdentityMatch::Different);
+
+        other.personal_data.date_of_birth = None;
+        assert_eq!(person.identity_match(&other), IdentityMatch::Possible);
+
+        other.personal_data.date_of_birth = person.personal_data.date_of_birth.clone();
+        other.name.last_name_prefix = Some(parse_last_name_prefix("van"));
+        assert_eq!(person.identity_match(&other), IdentityMatch::Different);
+
+        other.name = person.name.clone();
+        other.name.first_name = Some("Piet".parse().expect("first name"));
+        assert_eq!(person.identity_match(&other), IdentityMatch::Same);
+    }
+
+    #[test]
+    fn identity_match_with_bsn_on_one_side_is_at_most_possible() {
+        let person = sample_person(PersonId::new());
+        let mut other = sample_person(PersonId::new());
+        other.personal_data.bsn = bsn("123456782");
+        assert_eq!(person.identity_match(&other), IdentityMatch::Possible);
+
+        other.personal_data.date_of_birth = Some("02-02-1990".parse().expect("date"));
+        assert_eq!(person.identity_match(&other), IdentityMatch::Different);
+    }
 
     #[test]
     fn a_person_without_initials_is_printed_without_them() {

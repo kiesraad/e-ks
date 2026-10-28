@@ -9,7 +9,7 @@ invalid_email: Invalid email address.
 invalid_place_of_residence: "This place of residence was not found in the \"Basisregistratie Adressen en Gebouwen\" (BAG)."
 invalid_postal_code: "The postal code is not valid, use the format 1234AB."
 invalid_value: The provided value is not valid.
-name_already_exists: A person with this name already exists.
+name_already_exists: A person with this name and date of birth already exists.
 starts_with_last_name_prefix: Please put the prefix in the correct field.
 too_many_initials: "There are too many initials ({}), maximum {} initials allowed."
 value_should_not_be_empty: This field must not be empty.

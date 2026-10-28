@@ -182,30 +182,26 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn update_person_too_young_renders_error() -> Result<(), AppError> {
+    async fn update_person_too_young_renders_warning() -> Result<(), AppError> {
         let store = PgStore::new_for_test();
         let person_id = PersonId::new();
-        let person = sample_person(person_id);
+        let context = Context::new_test_without_db();
+        let mut person = sample_person(person_id);
+        person.personal_data.date_of_birth = Some(DateOfBirth::from(
+            context.election.eligible_date_of_birth() + Duration::days(1),
+        ));
 
         person.create(&store).await?;
 
-        let context = Context::new_test_without_db();
-        let mut form = sample_person_form();
-        form.personal_data.date_of_birth =
-            DateOfBirth::from(context.election.eligible_date_of_birth() + Duration::days(1))
-                .format(crate::core::constants::DEFAULT_DATE_FORMAT)
-                .to_string();
-
-        let response = update_person_submit(
+        let response = update_person(
             UpdatePersonPath { person_id },
             context,
-            store,
             person,
             Query(QueryParamState::default()),
-            Form(form),
         )
         .await
-        .unwrap();
+        .unwrap()
+        .into_response();
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
@@ -218,24 +214,20 @@ mod tests {
     async fn unknown_bag_locality_renders_warning() -> Result<(), AppError> {
         let store = PgStore::new_for_test();
         let person_id = PersonId::new();
-        let person = sample_person(person_id);
+        let mut person = sample_person(person_id);
+        person.personal_data.place_of_residence = Some("Fantasy City".parse().unwrap());
 
         person.create(&store).await?;
 
-        let context = Context::new_test_without_db();
-        let mut form = sample_person_form();
-        form.personal_data.place_of_residence = "Fantasy City".to_string();
-
-        let response = update_person_submit(
+        let response = update_person(
             UpdatePersonPath { person_id },
-            context,
-            store,
+            Context::new_test_without_db(),
             person,
             Query(QueryParamState::default()),
-            Form(form),
         )
         .await
-        .unwrap();
+        .unwrap()
+        .into_response();
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;

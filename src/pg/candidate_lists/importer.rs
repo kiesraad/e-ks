@@ -9,8 +9,7 @@ use crate::{
     form::FieldErrors,
     structs::{
         candidate_lists::CandidateList,
-        common::{Bsn, BsnOrNoneConfirmed},
-        persons::{Person, PersonId},
+        persons::{IdentityMatch, Person, PersonId},
     },
     trans,
 };
@@ -280,13 +279,6 @@ fn find_prepared_person<'a>(
         .find(|prepared| same_import_identity(person, &prepared.person))
 }
 
-fn person_bsn(person: &Person) -> Option<&Bsn> {
-    match &person.personal_data.bsn {
-        Some(BsnOrNoneConfirmed::Bsn(bsn)) => Some(bsn),
-        _ => None,
-    }
-}
-
 fn update_prepared_person(prepared: &mut PreparedPerson, person: Person) {
     prepared.person = Person {
         id: prepared.person.id,
@@ -295,16 +287,7 @@ fn update_prepared_person(prepared: &mut PreparedPerson, person: Person) {
 }
 
 fn same_import_identity(person: &Person, existing_person: &Person) -> bool {
-    match (person_bsn(person), person_bsn(existing_person)) {
-        (Some(person_bsn), Some(existing_bsn)) => person_bsn == existing_bsn,
-        (None, None) => same_initials_and_last_name(person, existing_person),
-        _ => false,
-    }
-}
-
-fn same_initials_and_last_name(person: &Person, existing_person: &Person) -> bool {
-    person.name.initials == existing_person.name.initials
-        && person.name.last_name == existing_person.name.last_name
+    person.identity_match(existing_person) == IdentityMatch::Same
 }
 
 fn find_matching_person<'a>(person: &Person, existing_persons: &'a [Person]) -> Option<&'a Person> {
@@ -393,7 +376,9 @@ mod tests {
 
     use crate::{
         MAX_CANDIDATES,
-        structs::{candidate_lists::CandidateListId, persons::PersonId},
+        structs::{
+            candidate_lists::CandidateListId, common::BsnOrNoneConfirmed, persons::PersonId,
+        },
         test_utils::{sample_candidate_list, sample_person, sample_person_with},
     };
 
@@ -438,7 +423,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn reuses_no_bsn_match_by_initials_and_last_name() -> Result<(), AppError> {
+    async fn reuses_no_bsn_match_by_name_and_date_of_birth() -> Result<(), AppError> {
         let store = PgStore::new_for_test();
         let list_id = CandidateListId::new();
         let mut list = sample_candidate_list(list_id);
@@ -465,6 +450,39 @@ mod tests {
             store.snapshot().get_candidate_list(list_id)?.candidates,
             vec![existing_person.id]
         );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn does_not_reuse_no_bsn_match_with_other_date_of_birth() -> Result<(), AppError> {
+        let store = PgStore::new_for_test();
+        let list_id = CandidateListId::new();
+        let mut list = sample_candidate_list(list_id);
+        let mut existing_person =
+            sample_person_with(PersonId::new(), Some("Hendrik"), "Jansen", None, "H.A.H.A.");
+        existing_person.personal_data.bsn = None;
+        existing_person.personal_data.date_of_birth = Some("02-02-1990".parse().expect("date"));
+
+        existing_person.create(&store).await?;
+        list.create(&store).await?;
+
+        import_candidate_list_csv(
+            &mut list,
+            &store,
+            Bytes::from(no_bsn_csv_with_different_first_name()),
+            Locale::En,
+            "test.csv".to_string(),
+            0,
+        )
+        .await
+        .expect("import should succeed");
+
+        let data = store.snapshot();
+        let candidates = &data.get_candidate_list(list_id)?.candidates;
+        assert_eq!(data.get_person_count(), 2);
+        assert_eq!(candidates.len(), 1);
+        assert_ne!(candidates[0], existing_person.id);
 
         Ok(())
     }
@@ -542,7 +560,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn merges_no_bsn_duplicates_by_initials_and_last_name() -> Result<(), AppError> {
+    async fn merges_no_bsn_duplicates_by_name_and_date_of_birth() -> Result<(), AppError> {
         let store = PgStore::new_for_test();
         let list_id = CandidateListId::new();
         let mut list = sample_candidate_list(list_id);

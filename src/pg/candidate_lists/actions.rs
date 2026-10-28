@@ -217,7 +217,7 @@ impl CandidateList {
             .map(|(index, person_id)| {
                 let person = data.get_person(*person_id)?.clone();
                 Ok(CandidateWithProblems {
-                    problems: person.get_problems(election),
+                    problems: data.get_person_problems(&person, election),
                     data: Candidate {
                         list_id: list.id,
                         position: index + 1,
@@ -253,8 +253,7 @@ impl CandidateListSummary {
                 .has_severity_or_higher(Severity::Error)
             && !self.list.candidates.iter().any(|id| {
                 data.get_person(*id).is_ok_and(|person| {
-                    person
-                        .get_problems(election)
+                    data.get_person_problems(person, election)
                         .has_severity_or_higher(Severity::Error)
                 })
             })

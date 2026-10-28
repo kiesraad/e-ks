@@ -3,13 +3,13 @@
 //! an audit-log replay or a test fixture.
 
 use crate::{
-    AppError, ElectoralDistrict, PgStoreData,
+    AppError, ElectionConfig, ElectoralDistrict, PgStoreData,
     structs::{
         candidate_lists::{CandidateList, CandidateListId},
-        common::FullName,
+        common::{FullName, PotentialProblems, Problematic, Problems},
         list_submitters::{ListSubmitter, ListSubmitterId},
         name_authorisations::{NameAuthorisation, NameAuthorisationId},
-        persons::{Person, PersonId},
+        persons::{IdentityMatch, Person, PersonId},
         political_groups::PoliticalGroup,
     },
 };
@@ -27,6 +27,23 @@ impl PgStoreData {
         let mut persons = self.get_persons();
         persons.sort();
         persons
+    }
+
+    /// The person's own problems, plus a warning when another person in the
+    /// projection may be the same natural person.
+    pub fn get_person_problems(&self, person: &Person, election: ElectionConfig) -> Problems {
+        let mut problems = person.get_problems(election);
+        let possible_duplicate = self
+            .persons
+            .values()
+            .filter(|other| other.id != person.id)
+            .any(|other| person.identity_match(other) == IdentityMatch::Possible);
+        if possible_duplicate {
+            problems
+                .potential_problems
+                .push(PotentialProblems::PossibleDuplicatePerson);
+        }
+        problems
     }
 
     pub fn get_person(&self, person_id: PersonId) -> Result<&Person, AppError> {
@@ -171,9 +188,42 @@ impl PgStoreData {
 #[cfg(test)]
 mod tests {
     use crate::{
-        PgEvent, PgStore, structs::list_submitters::ListSubmitterId,
-        test_utils::sample_list_submitter,
+        PgEvent, PgStore,
+        structs::{
+            common::PotentialProblems,
+            list_submitters::ListSubmitterId,
+            persons::{Person, PersonId},
+        },
+        test_utils::{sample_list_submitter, sample_person},
     };
+
+    fn has_possible_duplicate(store: &PgStore, person: &Person) -> bool {
+        store
+            .snapshot()
+            .get_person_problems(person, store.election)
+            .potential_problems
+            .contains(&PotentialProblems::PossibleDuplicatePerson)
+    }
+
+    #[tokio::test]
+    async fn get_person_problems_warns_about_a_possible_duplicate() {
+        let store = PgStore::new_for_test();
+        let person = sample_person(PersonId::new());
+        let mut other = sample_person(PersonId::new());
+        other.personal_data.date_of_birth = Some("02-02-1990".parse().unwrap());
+        person.create(&store).await.unwrap();
+        other.create(&store).await.unwrap();
+
+        assert!(!has_possible_duplicate(&store, &person));
+        assert!(!has_possible_duplicate(&store, &other));
+
+        let mut namesake = sample_person(PersonId::new());
+        namesake.personal_data.date_of_birth = None;
+        namesake.create(&store).await.unwrap();
+
+        assert!(has_possible_duplicate(&store, &person));
+        assert!(has_possible_duplicate(&store, &namesake));
+    }
 
     #[tokio::test]
     async fn substitute_submitters_remain_in_order() {

@@ -127,7 +127,7 @@ mod tests {
         );
         assert_eq!(
             ValidationError::NameAlreadyExists.message(Locale::En),
-            "A person with this name already exists."
+            "A person with this name and date of birth already exists."
         );
         assert_eq!(
             ValidationError::BsnAlreadyExists.message(Locale::En),
