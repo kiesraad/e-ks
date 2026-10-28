@@ -1,36 +1,30 @@
 {% extends "pg/common/components/layout.html" %}
 {% import "pg/common/components/macros.html" as macros %}
 {% block page_title %}
-  {% if "multiple_candidate_lists"|value_true %}
-    {{ "candidate_list.title_plural"|trans }}
-  {% else %}
-    {{ "candidate_list.title_single"|trans }}
-  {% endif %}
+  {{ "candidate_list.title_plural"|trans }}
 {% endblock %}
 {% block candidate_lists_nav_class %}active{% endblock %}
 {% block header_action %}<a href="/" class="button secondary">{{ "action.back"|trans }}</a>{% endblock %}
 {% block content %}
   <section class="candidate-lists">
-    {% if total_persons > 0 %}
-      <div class="candidates">
-        <a href="{{ Person::list_path() }}" class="card card-persons">
-          <div class="card-header">
-            <div class="badge badge-candidates {{ person_problem_severity }}"></div>
-            <div>
-              <h3 class="h4">{{ "candidate_list.all_candidates"|trans }}</h3>
-              {% if persons_with_problems > 0 %}
-                <p class="{{ person_problem_severity }}">{{ "person.with_problems"|trans(&persons_with_problems.to_string() ) }}</p>
-              {% endif %}
-            </div>
+    <div class="candidates">
+      <a href="{{ Person::list_path() }}" class="card card-persons">
+        <div class="card-header">
+          <div class="badge badge-candidates {{ person_problem_severity }}"></div>
+          <div>
+            <h3 class="h4">{{ "candidate_list.all_candidates"|trans }}</h3>
+            {% if persons_with_problems > 0 %}
+              <p class="{{ person_problem_severity }}">{{ "person.with_problems"|trans(&persons_with_problems.to_string() ) }}</p>
+            {% endif %}
           </div>
-          <div class="card-content">
-            <p>{{ "person.total"|trans(&total_persons.to_string() )|safe }}</p>
-            <p>{{ "candidate_list.all_candidates_note"|trans }}</p>
-          </div>
-          <div class="card-footer">{{ "action.manage_candidates"|trans }}</div>
-        </a>
-      </div>
-    {% endif %}
+        </div>
+        <div class="card-content">
+          <p>{{ "person.total"|trans(&total_persons.to_string() )|safe }}</p>
+          <p>{{ "candidate_list.all_candidates_note"|trans }}</p>
+        </div>
+        <div class="card-footer">{{ "action.manage_candidates"|trans }}</div>
+      </a>
+    </div>
     <div class="cards cards-candidate-lists">
       {% let election = "election"|election_value %}
       {% let max_candidates = "max_candidates"|integer_value %}
@@ -83,27 +77,39 @@
           <a class="card-footer" href="{{ candidate_list.data.list.view_path() }}">{{ "action.manage_candidate_list"|trans }}</a>
         </div>
       {% endfor %}
+      {% let has_list = candidate_lists.len() > 0 %}
       {# add new candidate list card #}
-      {% if election.has_only_one_district() && candidate_lists.len() > 0 %}
+      {% if election.has_only_one_district() && has_list %}
         {# do not show the add button #}
-      {% else %}
-        <div class="card card-add-list">
-          <div>
-            {% if election.has_only_one_district() %}
-              {# creating the one list is a state change, so it takes a POST #}
-              <form method="post" action="{{ CandidateList::create_path() }}">
-                {{ macros::csrf_field() }}
-                <button type="submit" class="button secondary icon-plus">{{ "candidate_list.actions.add"|trans }}</button>
-              </form>
-            {% else %}
-              <a href="{{ CandidateList::create_path() }}"
-                 class="button secondary icon-plus">{{
-              "candidate_list.actions.add"|trans }}</a>
-            {% endif %}
-            {% if !candidate_lists.is_empty() %}
-              <p>{{ "candidate_list.add_list_note"|trans(&election|election_type_title) }}</p>
-            {% endif %}
+      {% else if election.has_only_one_district() %}
+        {# creating the one list is a state change, so it takes a POST #}
+        <form class="card card-add-list card-form"
+              method="post"
+              action="{{ CandidateList::create_path() }}">
+          {{ macros::csrf_field() }}
+          <div class="card-header">
+            <h3 class="h4">{{ "candidate_list.actions.add_first"|trans }}</h3>
           </div>
+          <button type="submit"
+                  class="button circular-button icon-plus"
+                  aria-label="{{ "candidate_list.actions.add_first"|trans }}"></button>
+        </form>
+      {% else %}
+        <div class="card card-add-list"
+             data-href="{{ CandidateList::create_path() }}">
+          <div class="card-header">
+            <h3 class="h4">
+              {% if has_list %}
+                {{ "candidate_list.actions.add_more"|trans() }}
+              {% else %}
+                {{ "candidate_list.actions.add_first"|trans() }}
+              {% endif %}
+            </h3>
+          </div>
+          <a href="{{ CandidateList::create_path() }}"
+             class="button {% if has_list %}secondary{% endif %} circular-button icon-plus"
+             aria-label="{% if has_list %}{{ "candidate_list.actions.add_more"|trans }}{% else %}{{ "candidate_list.actions.add_first"|trans }}{% endif %}"></a>
+          <p>{{ "candidate_list.add_list_note"|trans(&election|election_type_title) }}</p>
         </div>
       {% endif %}
     </div>

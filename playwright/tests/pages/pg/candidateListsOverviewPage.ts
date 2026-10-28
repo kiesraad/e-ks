@@ -9,9 +9,10 @@ export class CandidateListsOverviewPage {
   constructor(protected readonly page: Page) {
     // a link that opens the district form, or a submit button on
     // single-district elections where the one list is created directly
+    const addListName = /(Kandidatenlijst|Nog een lijst) toevoegen/;
     this.buttonAddList = this.page
-      .getByRole("link", { name: "Lijst toevoegen" })
-      .or(this.page.getByRole("button", { name: "Lijst toevoegen" }));
+      .getByRole("link", { name: addListName })
+      .or(this.page.getByRole("button", { name: addListName }));
     this.linkCandidateList = this.page.getByRole("link", {
       name: "Kandidatenlijst beheren",
     });

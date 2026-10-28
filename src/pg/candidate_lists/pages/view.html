@@ -53,8 +53,8 @@
         {% if !("paper_correction_mode"|value_true) %}
           <p>{{ "candidate_list.actions.import_export"|trans }}:</p>
           <a href="{{ full_list.list.import_path() }}"
-             class="button secondary icon-download"
-             title="{{ "candidate_list.actions.import_export"|trans }}">{{ "candidate_list.actions.import"|trans }}</a>
+             class="button secondary icon-upload"
+             title="{{ "candidate_list.actions.import_export"|trans }}"></a>
         {% endif %}
       </div>
       {% if full_list.candidates.len() < candidate_limit %}

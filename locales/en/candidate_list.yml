@@ -1,20 +1,20 @@
 actions:
-  add: Add list
   add_candidates: Add candidates to the list
   add_existing: Existing
+  add_first: Add candidate list
+  add_more: Add another list
   add_new: New
   back_to_list: Back
   delete_list: Delete candidate list
   export_csv: Download CSV file
   export_csv_template: Download CSV template
-  import: Import
   import_csv: Upload CSV file
   import_export: Import and export candidate list
   select_all_candidate_lists: Select all candidate lists
   select_all_districts: Select all electoral districts
 add_all: Add all candidates
 add_candidate: Add candidate
-add_list_note: "Multiple lists can be created for the {}. Note that the electoral districts must be unique per list."
+add_list_note: "Multiple lists can be created for the {}."
 all_candidates: All candidates
 all_candidates_note: All created candidates can be found here
 candidate:
@@ -78,7 +78,7 @@ import_export:
   import_title: Import
   overwrite_title: Warning
 import_warning: This list already contains candidates. The import action will overwrite the current candidates. Are you sure you want to continue?
-not_found: "Candidate {} not found."
+not_found: "Candidate list {} not found."
 remove_all_added_candidates: Remove all added candidates
 remove_candidate: Remove from this list
 search_existing_person: Search existing person

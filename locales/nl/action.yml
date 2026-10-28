@@ -15,12 +15,12 @@ manage_candidate_list: Kandidatenlijst beheren
 manage_candidate_lists: Kandidatenlijsten beheren
 manage_candidates: Kandidaten beheren
 manage_data: Basisgegevens beheren
-next: Volgende
 read_less: Lees minder
 read_more: Lees meer
 remove: Verwijderen
 review_and_download: Controleren en downloaden
 save: Opslaan
+save_and_close: Opslaan en sluiten
 save_and_continue: Opslaan en volgende
 show: Bekijk
 signout: Afmelden

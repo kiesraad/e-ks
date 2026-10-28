@@ -15,10 +15,5 @@
   </fieldset>
 {% endblock %}
 {% block overlay_actions %}
-  {% if !should_warn %}
-    {% set submit_label = "action.add"|trans %}
-    {% include "pg/common/components/submit.html" %}
-  {% else %}
-    {% include "pg/common/components/submit.html" %}
-  {% endif %}
+  {% include "pg/common/components/submit.html" %}
 {% endblock %}

@@ -153,3 +153,8 @@ a.disabled {
 .float-right {
   float: right;
 }
+
+.text-body-width {
+  max-width: var(--text-body-width);
+  text-wrap: balance;
+}

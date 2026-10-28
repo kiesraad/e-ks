@@ -1,5 +1,4 @@
 candidates: Candidates
-continue_to_home: Continue to home
 date_field:
   date: Date
   day_placeholder: dd
@@ -57,6 +56,7 @@ request_error:
   too_large_title: Upload too large
   unreadable_message: The request was not received completely. Please try again.
   unreadable_title: Request not processed
+save_and_go_home: Save and go home
 save_success: Saved
 select_election:
   description: Select the election you want to work on to continue.
@@ -76,5 +76,6 @@ switch_election:
   submit: Switch election
   water_council: Water authority
 title: Kiesraad - Kandidaatstelling
+to_home: Go to the homepage
 version: Version
 warning_prefix: Warning

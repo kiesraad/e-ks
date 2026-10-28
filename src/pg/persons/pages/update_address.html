@@ -17,10 +17,10 @@
   </fieldset>
 {% endblock %}
 {% block overlay_actions %}
+  {% set submit_label = "action.save_and_close"|trans %}
   {% if should_warn %}
     {% include "pg/common/components/submit.html" %}
   {% else %}
-    {% set submit_label = "action.add"|trans %}
     {% include "pg/common/components/submit.html" %}
   {% endif %}
 {% endblock %}

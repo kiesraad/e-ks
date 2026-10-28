@@ -18,11 +18,7 @@
           </li>
           <li>
             <a href="{{ crate::structs::candidate_lists::CandidateList::list_path() }}">
-              {% if "multiple_candidate_lists"|value_true %}
-                {{ "candidate_list.title_plural"|trans }}
-              {% else %}
-                {{ "candidate_list.title_single"|trans }}
-              {% endif %}
+              {{ "candidate_list.title_plural"|trans }}
             </a>
           </li>
           {% if !("paper_correction_mode"|value_true) %}

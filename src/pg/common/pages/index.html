@@ -58,13 +58,7 @@
         </div>
       </div>
       <div class="card-content">
-        <h2 class="card-title">
-          {% if "multiple_candidate_lists"|value_true %}
-            {{ "candidate_list.title_plural"|trans }}
-          {% else %}
-            {{ "candidate_list.title_single"|trans }}
-          {% endif %}
-        </h2>
+        <h2 class="card-title">{{ "candidate_list.title_plural"|trans }}</h2>
         <ul class="card-instruction">
           <li>{{ "candidate_list.candidate_list_description.add_candidate"|trans }}</li>
           <li>{{ "candidate_list.candidate_list_description.add_candidate_list"|trans }}</li>

@@ -302,17 +302,38 @@ span.button {
   }
 
   &.icon-upload {
-    background-image: url("../icons/upload.svg");
-    background-repeat: no-repeat;
-    background-position: left var(--space-md) center;
-    padding-left: 2.6rem;
-    background-size: 18px;
+    padding-inline-end: var(--space-4);
+
+    &::before {
+      content: "";
+      mask-image: url("../icons/upload.svg");
+      mask-size: contain;
+      width: var(--space-4);
+      height: var(--space-4);
+      background-color: currentColor;
+    }
   }
 
   &.no-text {
     padding-left: 1rem;
     padding-right: 2rem;
     padding-bottom: 2rem;
+  }
+
+  &.circular-button {
+    width: var(--space-16);
+    height: var(--space-16);
+    border-radius: 50%;
+    padding: 0;
+
+    &.icon-plus::before {
+      height: var(--space-7);
+      width: var(--space-7);
+    }
+
+    &.secondary:not(:hover, :focus, :active) {
+      background: transparent;
+    }
   }
 }
 

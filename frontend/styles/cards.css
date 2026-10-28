@@ -14,6 +14,7 @@
   --card-min-width: 18.875rem;
   --card-padding: var(--space-6);
   --card-min-height: 18.875rem;
+  grid-template-columns: repeat(auto-fill, minmax(var(--card-min-width), 1fr));
 }
 
 .card {
@@ -52,17 +53,37 @@
   }
 
   &:is(.card-add-list) {
-    --card-min-height: 18.875rem;
-    align-items: center;
-    justify-content: center;
+    --card-min-height: 24.875rem;
+    --card-bg: transparent;
+    display: grid;
+    grid-template-rows: 1fr auto 1fr;
+    justify-items: center;
     text-align: center;
 
+    .card-header {
+      align-self: start;
+    }
+
+    /* the page is gray-25: the card goes one shade darker, the button one more */
+    &:has(> a):hover,
+    &.card-form:hover {
+      --card-bg: var(--gray-50);
+
+      .button.secondary:not(:focus, :active) {
+        background: var(--gray-100);
+      }
+
+      .button.secondary:active {
+        background: var(--gray-300);
+      }
+    }
+
     p {
+      align-self: end;
       color: var(--gray-500);
-      font-size: var(--font-size-sm);
+      font-size: var(--font-size-xs);
       font-weight: 300;
       line-height: var(--leading-sm);
-      margin-top: var(--space-6);
     }
 
     /* all districts are taken; adding a list is still allowed */

@@ -1,20 +1,20 @@
 actions:
-  add: Lijst toevoegen
   add_candidates: Kandidaten toevoegen
   add_existing: Bestaand
+  add_first: Kandidatenlijst toevoegen
+  add_more: Nog een lijst toevoegen
   add_new: Nieuw
   back_to_list: Terug
   delete_list: Kandidatenlijst verwijderen
   export_csv: Download CSV bestand
   export_csv_template: Download CSV sjabloon
-  import: Importeren
   import_csv: Upload CSV bestand
   import_export: Import en export kandidatenlijst
   select_all_candidate_lists: Selecteer alle kandidatenlijsten
   select_all_districts: Selecteer alle kieskringen
 add_all: Alle kandidaten toevoegen
 add_candidate: Kandidaat toevoegen
-add_list_note: "Bij de {} is het mogelijk om in verschillende kieskringen met verschillende kandidatenlijsten mee te doen. Let op, de kieskringen moeten per lijst uniek zijn."
+add_list_note: "Bij de {} is het mogelijk om in verschillende kieskringen met verschillende kandidatenlijsten mee te doen."
 all_candidates: Adresboek
 all_candidates_note: Kandidaten die u heeft aangemaakt vindt u hier terug
 candidate:

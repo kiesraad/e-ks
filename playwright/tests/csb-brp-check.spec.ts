@@ -57,6 +57,8 @@ test.describe("check for BRP errors", async () => {
   });
 
   test("flow with BRP errors", async ({ csbImport }) => {
+    // paced BRP check plus ~30 navigations for the 9 errors
+    test.slow();
     const { page } = csbImport;
     const groupPage = new CsbPoliticalGroupPage(page);
     const examinationPage = new CsbExaminationPage(page);

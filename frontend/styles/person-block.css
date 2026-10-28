@@ -45,31 +45,41 @@ a.person-block {
   }
 }
 
-/* The submitter blocks sit in a white frame, with the add button on its right */
+/* The submitter blocks sit in a white frame, with the add button below them */
 .submitters-card {
   --card-padding: var(--space-6);
+  --card-gap: var(--space-6);
   border: none;
-  align-items: flex-start;
-  flex-direction: row;
-  gap: var(--space-6);
-  justify-content: space-between;
+  border-radius: 0;
   margin-bottom: var(--space-10);
 
   .submitters {
     display: flex;
     flex-direction: column;
-    flex: 1;
     gap: var(--space-4);
   }
 
   a.person-block {
     margin-bottom: 0;
+    max-width: none;
+  }
+
+  /* while empty, the add button sits on the left of the text */
+  &:has(.submitters-empty) {
+    flex-direction: row;
+    align-items: center;
+
+    .submitters {
+      flex: 1;
+    }
+
+    .button {
+      order: -1;
+    }
   }
 
   .submitters-empty {
     color: var(--gray-400);
-    margin: 0;
-    /* centers the single line against the button next to it */
-    padding-block: var(--space-3);
+    text-align: right;
   }
 }
