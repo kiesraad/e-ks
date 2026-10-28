@@ -257,7 +257,9 @@ mod tests {
     async fn a_candidate_with_findings_and_problems_is_listed_once() {
         let store = PreSubmissionStore(CsbStore::new_for_test());
         let mut person = sample_person_with_last_name(PersonId::new(), "Kandidaat");
-        person.personal_data.bsn = None;
+        person.personal_data.place_of_residence = Some(
+            crate::structs::common::PlaceOfResidence::Unknown("Nergenshuizen".into()),
+        );
         let person_id = person.id;
         let mut list = sample_candidate_list(CandidateListId::new());
         list.candidates = vec![person_id];
@@ -273,7 +275,7 @@ mod tests {
             "{body}"
         );
         assert!(body.contains("no Dutch nationality"));
-        assert!(body.contains(">BSN</span>"));
+        assert!(body.contains(">Place of residence not found in the BAG</span>"));
     }
 
     #[tokio::test]
@@ -413,7 +415,9 @@ mod tests {
         person.name.first_name = None;
         person.name.initials = Some("A.".parse().expect("parse initials"));
         person.name.last_name = "Nagelhout IV".parse().expect("parse last name");
-        person.personal_data.bsn = None;
+        person.personal_data.place_of_residence = Some(
+            crate::structs::common::PlaceOfResidence::Unknown("Nergenshuizen".into()),
+        );
 
         let mut list = sample_candidate_list(list_id);
         list.candidates.push(person_id);
@@ -425,6 +429,6 @@ mod tests {
 
         assert!(body.contains("Candidates</h4>"));
         assert!(body.contains("Nagelhout IV, A.</h3>"));
-        assert!(body.contains(">BSN</span>"));
+        assert!(body.contains(">Place of residence not found in the BAG</span>"));
     }
 }

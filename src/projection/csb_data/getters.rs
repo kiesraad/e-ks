@@ -11,7 +11,7 @@ use crate::{
     structs::{
         brp::{BrpFinding, BrpStatus},
         candidate_lists::CandidateListId,
-        common::{Appellation, FullName},
+        common::{Appellation, FullName, PotentialProblems},
         csb::{
             Omission, OmissionCategory, OmissionId, OmissionTitle, PersonCorrection,
             PersonCorrectionDelta, RecoveryProgress,
@@ -175,13 +175,16 @@ impl CsbStoreData {
         usize::from(self.csb_corrected_appellation.is_some())
     }
 
-    /// The candidate's omissions in title order.
+    /// The candidate's omissions in title order, only those on `list_id` when
+    /// given.
     pub fn get_candidate_omissions(
         &self,
         person_id: PersonId,
+        list_id: Option<CandidateListId>,
         election: ElectionConfig,
     ) -> Vec<Omission> {
-        let mut omissions = self.omissions_where(|o| o.category.is_for_candidate(person_id, None));
+        let mut omissions =
+            self.omissions_where(|o| o.category.is_for_candidate(person_id, list_id));
         omissions.sort_by_cached_key(|omission| self.title_order(omission, election));
         omissions
     }
@@ -395,10 +398,18 @@ impl CsbStoreData {
     }
 
     /// Collect all problems of the fully corrected data, excluding info
-    /// problems.
+    /// problems and candidate problems the CSB does not act on.
     pub fn get_all_problems(&self, election: ElectionConfig) -> Result<AllProblems, AppError> {
         AllProblems::find_all(&self.csb_corrected_data, election).map(|mut problems| {
             problems.info_problems = Vec::new();
+            for candidate in &mut problems.candidates {
+                candidate
+                    .problems
+                    .retain(PotentialProblems::is_relevant_for_csb);
+            }
+            problems
+                .candidates
+                .retain(|candidate| !candidate.problems.is_empty());
             problems
         })
     }
@@ -639,11 +650,44 @@ mod tests {
         insert(&store, OmissionCategory::PoliticalGroup);
 
         let data = store.snapshot();
-        let result = data.get_candidate_omissions(person_a, store.election);
+        let result = data.get_candidate_omissions(person_a, None, store.election);
 
         assert_eq!(result.len(), 1);
         assert!(
             matches!(result[0].category, OmissionCategory::Candidate { person, .. } if person == person_a)
+        );
+    }
+
+    #[test]
+    fn get_candidate_omissions_filters_on_the_given_list() {
+        let person = PersonId::new();
+        let list_a = CandidateListId::new();
+        let list_b = CandidateListId::new();
+        let store = CsbStore::new_for_test();
+        insert(
+            &store,
+            OmissionCategory::Candidate {
+                person,
+                lists: vec![list_a],
+            },
+        );
+        insert(
+            &store,
+            OmissionCategory::Candidate {
+                person,
+                lists: vec![list_b],
+            },
+        );
+
+        let data = store.snapshot();
+        let result = data.get_candidate_omissions(person, Some(list_a), store.election);
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].candidate_lists(), &[list_a]);
+        assert_eq!(
+            data.get_candidate_omissions(person, None, store.election)
+                .len(),
+            2
         );
     }
 
@@ -661,7 +705,7 @@ mod tests {
         assert!(
             store
                 .snapshot()
-                .get_candidate_omissions(PersonId::new(), store.election)
+                .get_candidate_omissions(PersonId::new(), None, store.election)
                 .is_empty()
         );
     }
@@ -920,5 +964,33 @@ mod tests {
         // The imported data is untouched.
         let imported = data.pg(WithCorrections::None).get_persons();
         assert_eq!(imported[0].name.last_name.to_string(), "Jansen");
+    }
+
+    #[test]
+    fn get_all_problems_skips_the_bsn_and_initials_of_candidates() {
+        let store = CsbStore::new_for_test();
+        let mut only_bsn = sample_person(PersonId::new());
+        only_bsn.personal_data.bsn = None;
+        let mut also_dob = sample_person(PersonId::new());
+        also_dob.personal_data.bsn = None;
+        also_dob.name.initials = None;
+        also_dob.personal_data.date_of_birth = None;
+        let mut list = sample_candidate_list(CandidateListId::new());
+        list.candidates = vec![only_bsn.id, also_dob.id];
+        store.add_person(only_bsn);
+        store.add_person(also_dob.clone());
+        store.add_candidate_list(list);
+
+        let problems = store
+            .snapshot()
+            .get_all_problems(store.election)
+            .expect("problems");
+
+        assert_eq!(problems.candidates.len(), 1);
+        assert_eq!(problems.candidates[0].entity.id, also_dob.id);
+        assert_eq!(
+            problems.candidates[0].problems,
+            vec![PotentialProblems::NoDateOfBirth]
+        );
     }
 }

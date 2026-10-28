@@ -185,7 +185,8 @@ pub(in crate::csb) async fn render(
         .get_candidate_list(list_id)?
         .electoral_districts
         .clone();
-    let candidate_omissions = data.get_candidate_omissions(person_id, context.election);
+    let candidate_omissions =
+        data.get_candidate_omissions(person_id, Some(list_id), context.election);
     let brp =
         CandidateBrp::for_candidate(&data, store.stream_id, person_id, context.session.locale);
     let scrapped = &political_group.scrapped;
@@ -789,6 +790,50 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn hides_candidate_omissions_for_other_lists() {
+        let store = CsbStore::new_for_test();
+        let stream_id = store.stream_id;
+
+        let person = sample_person(PersonId::new());
+        let person_id = person.id;
+        let list_id = CandidateListId::new();
+        let other_list_id = CandidateListId::new();
+        store.add_person(person);
+        store.add_candidate_list(sample_candidate_list(list_id));
+        store.add_candidate_list(sample_candidate_list(other_list_id));
+
+        Omission::new(
+            OmissionCategory::Candidate {
+                person: person_id,
+                lists: vec![other_list_id],
+            },
+            "Missing consent".parse().unwrap(),
+            "The declaration of consent is missing.".parse().unwrap(),
+            None,
+        )
+        .create(&store)
+        .await
+        .unwrap();
+
+        let response = overview(
+            CsbCandidatePath {
+                stream_id,
+                list_id,
+                person_id,
+            },
+            CsbContext::new_test(),
+            store,
+        )
+        .await
+        .unwrap()
+        .into_response();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response_body_string(response).await;
+        assert!(!body.contains("Missing consent"));
+    }
+
+    #[tokio::test]
     async fn returns_not_found_for_unknown_candidate() {
         let store = CsbStore::new_for_test();
         let stream_id = store.stream_id;
@@ -840,7 +885,9 @@ mod tests {
         let person_id = PersonId::new();
 
         let mut person = sample_person(person_id);
-        person.personal_data.bsn = None;
+        person.personal_data.place_of_residence = Some(
+            crate::structs::common::PlaceOfResidence::Unknown("Nergenshuizen".into()),
+        );
 
         let mut list = sample_candidate_list(list_id);
         list.candidates.push(person_id);
@@ -861,7 +908,7 @@ mod tests {
         .expect("candidate page response");
         let body = response_body_string(response).await;
 
-        assert!(body.contains(">BSN</span>"));
+        assert!(body.contains(">Place of residence not found in the BAG</span>"));
     }
 
     /// The store of [`store_with_candidate`], with the candidate checked and two

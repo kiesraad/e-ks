@@ -80,9 +80,32 @@ pub fn parse(xml: &str) -> Result<Document<'_>, XmlError> {
         nodes_limit: NODE_LIMIT,
         ..Default::default()
     };
-    roxmltree::Document::parse_with_options(xml, opts)
-        .map(|inner| Document { inner })
-        .map_err(|e| XmlError(e.to_string()))
+    let inner =
+        roxmltree::Document::parse_with_options(xml, opts).map_err(|e| XmlError(e.to_string()))?;
+    if inner.descendants().any(has_leading_colon_name) {
+        return Err(XmlError("name starts with a colon".to_string()));
+    }
+    Ok(Document { inner })
+}
+
+/// roxmltree accepts `<:a>` and `<e :a="">` (an empty prefix), which is not
+/// well-formed XML; reject it.
+fn has_leading_colon_name(node: roxmltree::Node<'_, '_>) -> bool {
+    if !node.is_element() {
+        return false;
+    }
+    let input = node.document().input_text();
+    let Some(source) = input.get(node.range()) else {
+        return false;
+    };
+    let end_tag = source
+        .rsplit_once("</")
+        .is_some_and(|(_, end)| end.starts_with(':'));
+    source.as_bytes().get(1) == Some(&b':')
+        || end_tag
+        || node
+            .attributes()
+            .any(|a| input.as_bytes().get(a.range().start) == Some(&b':'))
 }
 
 fn node_matches(node: roxmltree::Node<'_, '_>, ns: &str, local: &str) -> bool {
@@ -209,6 +232,19 @@ impl<'a> Document<'a> {
             .children()
             .find(roxmltree::Node::is_element)
             .map(|c| c.id())
+    }
+
+    /// All child elements of `id` (skipping text/comment nodes), in document
+    /// order; empty for a non-element.
+    pub fn element_children(&self, id: NodeId) -> Vec<NodeId> {
+        self.node(id)
+            .map(|n| {
+                n.children()
+                    .filter(roxmltree::Node::is_element)
+                    .map(|c| c.id())
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 }
 
@@ -521,6 +557,14 @@ mod tests {
         // an error (the validators always navigate a single, fully-declared tree
         // rather than re-parsing namespace-incomplete subtrees).
         assert!(parse(r#"<saml:Assertion>x</saml:Assertion>"#).is_err());
+    }
+
+    #[test]
+    fn leading_colon_names_are_rejected() {
+        for xml in ["<:a/>", "<a></:a>", r#"<a :b=""/>"#, "<a><:b/></a>"] {
+            assert!(parse(xml).is_err(), "{xml}");
+        }
+        assert!(parse("<a><b c=\"\"/></a>").is_ok());
     }
 
     #[test]

@@ -2,7 +2,7 @@
 
 use axum::{
     extract::{Request, State},
-    http::HeaderMap,
+    http::{HeaderMap, HeaderValue, header::SET_COOKIE},
     middleware::Next,
     response::{IntoResponse, Redirect, Response},
 };
@@ -16,7 +16,10 @@ use serde::{Serialize, de::DeserializeOwned};
 use super::{csb_access::PublicListener, maintenance::handle_db_error};
 use crate::{
     AppError, AppState, CsbStore, PgStore, SESSION_COOKIE_NAME, Session, SessionUser,
-    auth::{csrf_guard::enforce_csrf, session_extractor::user_agent_hash},
+    auth::{
+        csrf_guard::enforce_csrf,
+        session_extractor::{build_strict_session_cookie, user_agent_hash},
+    },
     common::{LoginStartPath, PgIndexPath, SelectElectionPath, SessionExpiryPath},
     csb::{import::is_brp_status_poll, index::CsbIndexPath},
     csrf_rejection_response,
@@ -69,6 +72,10 @@ pub async fn session_middleware(
         Err(rejection) => return csrf_rejection_response(rejection, session.locale),
     };
 
+    // A cross-site (SAML) login hands over a `Lax` cookie, see
+    // `LoginOrigin`; the first request replaces it with the `Strict` twin.
+    let harden_cookie = session.is_unused();
+
     // Every request is activity, except the scripts polling on the user's
     // behalf (the expiry warning, the end of a BRP sweep): those must not
     // keep an idle session alive.
@@ -80,7 +87,24 @@ pub async fn session_middleware(
     super::csb_access::report_alert_hours_activity(&state, &session, &request);
     request.extensions_mut().insert(session);
 
-    next.run(request).await
+    let mut response = next.run(request).await;
+    if harden_cookie
+        && let Some(token) = token
+        && !sets_session_cookie(response.headers())
+        && let Ok(cookie) = HeaderValue::from_str(&build_strict_session_cookie(token).to_string())
+    {
+        response.headers_mut().append(SET_COOKIE, cookie);
+    }
+    response
+}
+
+/// Whether the handler already set (or cleared) the session cookie itself.
+fn sets_session_cookie(headers: &HeaderMap) -> bool {
+    let prefix = format!("{SESSION_COOKIE_NAME}=");
+    headers
+        .get_all(SET_COOKIE)
+        .iter()
+        .any(|value| value.as_bytes().starts_with(prefix.as_bytes()))
 }
 
 /// The checks a loaded session must pass before it serves the request:
@@ -325,7 +349,8 @@ mod tests {
             ))
             .with_state(state.clone());
 
-        let session = Session::new_test();
+        let mut session = Session::new_test();
+        session.last_activity = session.created_at + chrono::Duration::seconds(1);
         let token = session.token_string();
         state.sessions.insert(session).await;
         let cookie_value = format!("{SESSION_COOKIE_NAME}={token}");
@@ -348,6 +373,87 @@ mod tests {
         assert!(!sets_cookie);
         // Session reused: the handler saw it, keyed by the cookie token's hash.
         assert_eq!(returned_hash, hash_token(&token));
+    }
+
+    /// A SAML login hands over a `Lax` cookie; the first request replaces it
+    /// with a `Strict` one carrying the same token, and only the first.
+    #[tokio::test]
+    async fn middleware_hardens_the_cookie_on_the_first_request() {
+        let state = AppState::new_for_tests().await;
+        let app = Router::new()
+            .route("/", get(|_: Session| async { "ok" }))
+            .layer(middleware::from_fn_with_state(
+                state.clone(),
+                session_middleware,
+            ))
+            .with_state(state.clone());
+
+        let session = Session::new_test();
+        let token = session.token_string();
+        state.sessions.insert(session).await;
+        let request = || {
+            HttpRequest::builder()
+                .uri("/")
+                .header(header::COOKIE, format!("{SESSION_COOKIE_NAME}={token}"))
+                .body(Body::empty())
+                .unwrap()
+        };
+
+        let response = app.clone().oneshot(request()).await.expect("response");
+        assert_eq!(response.status(), StatusCode::OK);
+        let set_cookie = response
+            .headers()
+            .get(header::SET_COOKIE)
+            .expect("hardened cookie")
+            .to_str()
+            .unwrap();
+        assert!(set_cookie.starts_with(&format!("{SESSION_COOKIE_NAME}={token};")));
+        assert!(set_cookie.contains("SameSite=Strict"), "{set_cookie}");
+
+        let response = app.oneshot(request()).await.expect("response");
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(response.headers().get(header::SET_COOKIE).is_none());
+    }
+
+    /// A handler that replaces or clears the session cookie on the first
+    /// request wins: hardening must not resurrect the cookie behind it.
+    #[tokio::test]
+    async fn middleware_does_not_harden_over_a_cookie_the_handler_set() {
+        let state = AppState::new_for_tests().await;
+        let app = Router::new()
+            .route(
+                "/",
+                get(|jar: CookieJar, _: Session| async move {
+                    jar.remove(crate::auth::session_extractor::build_removal_cookie())
+                }),
+            )
+            .layer(middleware::from_fn_with_state(
+                state.clone(),
+                session_middleware,
+            ))
+            .with_state(state.clone());
+
+        let session = Session::new_test();
+        let token = session.token_string();
+        state.sessions.insert(session).await;
+        let response = app
+            .oneshot(
+                HttpRequest::builder()
+                    .uri("/")
+                    .header(header::COOKIE, format!("{SESSION_COOKIE_NAME}={token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .expect("response");
+
+        let set_cookies: Vec<_> = response
+            .headers()
+            .get_all(header::SET_COOKIE)
+            .iter()
+            .collect();
+        assert_eq!(set_cookies.len(), 1);
+        assert!(!set_cookies[0].to_str().unwrap().contains(&token));
     }
 
     /// Inserts a session that has been idle for `idle_minutes` and returns its

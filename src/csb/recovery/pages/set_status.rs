@@ -760,7 +760,7 @@ mod tests {
         for list_id in [lists[0], lists[1]] {
             let data = store.snapshot();
             let omission = data
-                .get_candidate_omissions(person, store.election)
+                .get_candidate_omissions(person, None, store.election)
                 .into_iter()
                 .find(|o| o.candidate_lists().contains(&list_id))
                 .expect("every list stays covered by one of the parts");
@@ -779,7 +779,7 @@ mod tests {
         }
 
         let data = store.snapshot();
-        let all = data.get_candidate_omissions(person, store.election);
+        let all = data.get_candidate_omissions(person, None, store.election);
         assert_eq!(all.len(), 1);
         assert_eq!(
             all[0].category,
@@ -844,7 +844,7 @@ mod tests {
 
         // The Utrecht list is split off with the decision.
         let data = store.snapshot();
-        let all = data.get_candidate_omissions(person, store.election);
+        let all = data.get_candidate_omissions(person, None, store.election);
         assert_eq!(all.len(), 2);
         // Ordered by their list's first district: Groningen (1) before Utrecht (7).
         assert_eq!(all[0].id, omission.id);

@@ -15,6 +15,14 @@ use crate::{AppError, Locale, OptionStringExt, trans, utils::no_cache_headers};
 /// would amplify a few megabytes into hundreds.
 const MAX_ERRORS: usize = 50;
 
+/// Longest header line accepted, in bytes. The header is a handful of short
+/// known names, so this is generous; without a bound, a line of millions of
+/// separators is materialised field by field before any name is checked.
+pub const MAX_HEADER_LINE_BYTES: usize = 4 * 1024;
+
+/// Most fields accepted on the header line, counted as separators.
+pub const MAX_HEADER_FIELDS: usize = 64;
+
 pub enum CsvError {
     FormatError {
         line_number: usize,
@@ -27,6 +35,8 @@ pub enum CsvError {
     },
     /// Parsing stopped after [`MAX_ERRORS`]; more rows may be wrong.
     TooManyErrors { reported: usize },
+    /// The header line exceeds [`MAX_HEADER_LINE_BYTES`] or [`MAX_HEADER_FIELDS`].
+    HeaderTooLarge,
 }
 
 impl Display for CsvError {
@@ -63,6 +73,9 @@ impl CsvError {
                 locale,
                 reported
             ),
+            CsvError::HeaderTooLarge => {
+                trans!("candidate_list.import_errors.invalid_headers", locale)
+            }
         }
     }
 }
@@ -252,40 +265,76 @@ where
 }
 
 /// Prefix a single quote to any cell whose first byte is one of the
-/// spreadsheet-formula trigger characters. ASCII-only matching is sufficient
-/// since none of the trigger characters are multi-byte UTF-8.
+/// spreadsheet-formula trigger characters.
 fn escape_csv_formula(cell: &str) -> Cow<'_, str> {
-    match cell.as_bytes().first() {
-        Some(b'=' | b'+' | b'-' | b'@' | b'\t' | b'\r') => {
-            let mut out = String::with_capacity(cell.len() + 1);
-            out.push('\'');
-            out.push_str(cell);
-            Cow::Owned(out)
-        }
-        _ => Cow::Borrowed(cell),
+    if starts_with_formula_trigger(cell) {
+        let mut out = String::with_capacity(cell.len() + 1);
+        out.push('\'');
+        out.push_str(cell);
+        Cow::Owned(out)
+    } else {
+        Cow::Borrowed(cell)
     }
 }
 
-/// UTF-8 byte-order mark. Prepended to exported CSVs so Excel reads them as
-/// UTF-8, and stripped on import so our own exports round-trip.
+/// Undo [`escape_csv_formula`] on import. Only a quote that precedes a trigger
+/// character is stripped, so a hand-written cell such as `'s-Gravenhage` keeps
+/// its apostrophe while our own exports round-trip exactly.
+fn unescape_csv_formula(cell: &str) -> &str {
+    match cell.strip_prefix('\'') {
+        Some(rest) if starts_with_formula_trigger(rest) => rest,
+        _ => cell,
+    }
+}
+
+/// ASCII-only matching is sufficient since none of the trigger characters are
+/// multi-byte UTF-8. A leading `'` is included so an exported cell that already
+/// starts with one survives the quote-stripping on import.
+fn starts_with_formula_trigger(cell: &str) -> bool {
+    matches!(
+        cell.as_bytes().first(),
+        Some(b'=' | b'+' | b'-' | b'@' | b'\'' | b'\t' | b'\r')
+    )
+}
+
+/// UTF-8 byte-order mark, prepended to exported CSVs so Excel reads them as
+/// UTF-8. The `csv` crate strips it again on import.
 const UTF8_BOM: &[u8] = &[0xEF, 0xBB, 0xBF];
 
-/// Build a CSV reader that tolerates the variations spreadsheets emit across
-/// locales: a leading UTF-8 BOM (Excel writes one) and either `,` or `;` as the
-/// field separator (Dutch/European Excel uses `;`). A BOM, if present, is
-/// stripped first, then the delimiter is sniffed from the header line. Cells
-/// are trimmed and column names normalised so records deserialize by name.
-pub fn reader_from_bytes(data: &[u8]) -> Reader<&[u8]> {
-    let data = data.strip_prefix(UTF8_BOM).unwrap_or(data);
+/// Build a CSV reader that tolerates either `,` or `;` as the field separator
+/// (Dutch/European Excel uses `;`), sniffed from the header line. Cells are
+/// trimmed and column names normalised so records deserialize by name.
+///
+/// The header line is bounded before any of its fields is materialised, see
+/// [`MAX_HEADER_LINE_BYTES`] and [`MAX_HEADER_FIELDS`].
+pub fn reader_from_bytes(data: &[u8]) -> Result<Reader<&[u8]>, CsvError> {
+    let delimiter = detect_delimiter(data);
+    if !header_line_within_bounds(data, delimiter) {
+        return Err(CsvError::HeaderTooLarge);
+    }
     let mut reader = ReaderBuilder::new()
-        .delimiter(detect_delimiter(data))
+        .delimiter(delimiter)
         .trim(Trim::All)
         .from_reader(data);
     if let Ok(headers) = reader.headers() {
         let normalized: StringRecord = headers.iter().map(normalize_column_name).collect();
         reader.set_headers(normalized);
     }
-    reader
+    Ok(reader)
+}
+
+/// The first line of the data, up to a line feed.
+fn first_line(data: &[u8]) -> &[u8] {
+    data.split(|&byte| byte == b'\n').next().unwrap_or(data)
+}
+
+/// Whether the header line is short enough to parse: at most
+/// [`MAX_HEADER_LINE_BYTES`] long with at most [`MAX_HEADER_FIELDS`] fields,
+/// counted as raw `delimiter` bytes since header names are never quoted.
+fn header_line_within_bounds(data: &[u8], delimiter: u8) -> bool {
+    let line = first_line(data);
+    line.len() <= MAX_HEADER_LINE_BYTES
+        && line.iter().filter(|&&byte| byte == delimiter).count() < MAX_HEADER_FIELDS
 }
 
 /// Tolerates padding, capitals, and spaces or hyphens for underscores.
@@ -297,7 +346,7 @@ pub fn normalize_column_name(name: &str) -> String {
 /// header row is a fixed set of unquoted identifiers, so a raw byte count is
 /// unambiguous; ties fall back to `,` (the RFC-4180 default).
 fn detect_delimiter(data: &[u8]) -> u8 {
-    let first_line = data.split(|&byte| byte == b'\n').next().unwrap_or(data);
+    let first_line = first_line(data);
     let count = |needle: u8| first_line.iter().filter(|&&byte| byte == needle).count();
     if count(b';') > count(b',') {
         b';'
@@ -315,11 +364,16 @@ impl<T: DeserializeOwned> Csv<T> {
         let mut records = vec![];
         let mut errors = vec![];
 
-        let mut reader = reader_from_bytes(data);
-        let mut rows = reader.deserialize::<T>().enumerate();
+        let mut reader = reader_from_bytes(data).map_err(|err| vec![err])?;
+        let headers = reader.headers().cloned();
+        let mut rows = reader.records().enumerate();
         while records.len() < max_records
             && let Some((index, res)) = rows.next()
         {
+            let res = res.and_then(|row| {
+                let row: StringRecord = row.iter().map(unescape_csv_formula).collect();
+                row.deserialize::<T>(headers.as_ref().ok())
+            });
             match res {
                 Ok(record) => records.push(record),
                 Err(error) => {
@@ -610,6 +664,41 @@ mod tests {
         );
     }
 
+    /// A header line of millions of separators used to be materialised field
+    /// by field before any name was checked.
+    #[test]
+    fn reader_from_bytes_rejects_an_oversized_header_line() {
+        let wide = ",".repeat(MAX_HEADER_FIELDS) + "\n1\n";
+        assert!(matches!(
+            reader_from_bytes(wide.as_bytes()),
+            Err(CsvError::HeaderTooLarge)
+        ));
+
+        let long = "x".repeat(MAX_HEADER_LINE_BYTES + 1) + "\n1\n";
+        assert!(matches!(
+            reader_from_bytes(long.as_bytes()),
+            Err(CsvError::HeaderTooLarge)
+        ));
+
+        let errors = Csv::<TestRecord>::from_bytes(wide.as_bytes(), 10).unwrap_err();
+        assert!(matches!(errors.as_slice(), [CsvError::HeaderTooLarge]));
+    }
+
+    #[test]
+    fn reader_from_bytes_accepts_a_header_line_at_the_bounds() {
+        let widest = "value".to_string() + &",".repeat(MAX_HEADER_FIELDS - 1) + "\n1\n";
+        let Ok(mut reader) = reader_from_bytes(widest.as_bytes()) else {
+            panic!("widest header line rejected");
+        };
+        assert_eq!(reader.headers().unwrap().len(), MAX_HEADER_FIELDS);
+
+        let longest = "x".repeat(MAX_HEADER_LINE_BYTES) + "\n1\n";
+        let Ok(mut reader) = reader_from_bytes(longest.as_bytes()) else {
+            panic!("longest header line rejected");
+        };
+        assert_eq!(reader.headers().unwrap()[0].len(), MAX_HEADER_LINE_BYTES);
+    }
+
     #[test]
     fn detect_delimiter_prefers_semicolon_only_when_more_frequent() {
         assert_eq!(detect_delimiter(b"a;b;c\n1;2;3"), b';');
@@ -627,8 +716,8 @@ mod tests {
             filename: "out.csv".to_string(),
             headers: Some(vec!["voorletters", "achternaam"]),
             records: vec![Person {
-                voorletters: "H.".to_string(),
-                achternaam: "Jansen".to_string(),
+                voorletters: "'=H.".to_string(),
+                achternaam: "-Jansen".to_string(),
             }],
         };
 
@@ -653,7 +742,7 @@ mod tests {
 
     #[test]
     fn escape_csv_formula_neutralises_leading_special_characters() {
-        for trigger in ["=", "+", "-", "@", "\t", "\r"] {
+        for trigger in ["=", "+", "-", "@", "'", "\t", "\r"] {
             let cell = format!("{trigger}HYPERLINK(\"x\")");
             let escaped = escape_csv_formula(&cell);
             assert!(
@@ -662,6 +751,24 @@ mod tests {
             );
             assert!(escaped.ends_with(&cell));
         }
+    }
+
+    #[test]
+    fn unescape_csv_formula_only_strips_a_quote_before_a_trigger() {
+        for escaped in ["'=H.", "'-Jansen", "''s-Gravenhage", "'@SUM(1)"] {
+            assert_eq!(unescape_csv_formula(escaped), &escaped[1..]);
+        }
+        for untouched in ["'s-Gravenhage", "'t Harde", "'", "Henk", "=H."] {
+            assert_eq!(unescape_csv_formula(untouched), untouched);
+        }
+    }
+
+    #[test]
+    fn from_bytes_keeps_apostrophe_in_place_names() {
+        let data = b"voorletters,achternaam\nO.,'s-Gravenhage\n";
+        let rows =
+            Csv::<Person>::from_bytes(data, usize::MAX).unwrap_or_else(|e| panic!("{}", e[0]));
+        assert_eq!(rows[0].achternaam, "'s-Gravenhage");
     }
 
     #[test]

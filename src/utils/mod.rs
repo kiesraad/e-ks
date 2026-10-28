@@ -28,6 +28,7 @@ pub use option_string_ext::{OptionAsStrExt, OptionStringExt};
 pub use overlay::Overlay;
 pub use peer_ip_label::peer_ip_label;
 pub use query_param_state::QueryParamState;
+pub(crate) use query_param_state::is_local_path;
 pub use query_suffix::filter_query_suffix;
 pub use redirect::{redirect_success, redirect_to_referer};
 pub use request_flags::{overlay_active, success_alert_requested};

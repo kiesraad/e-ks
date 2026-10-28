@@ -518,7 +518,7 @@ mod tests {
             .create(&store)
             .await
             .unwrap();
-        // Reported on the other list only; the page says so.
+        // Reported on the other list only; that list's page shows it.
         candidate_omission("Missing identity document", vec![lists[1]])
             .create(&store)
             .await
@@ -539,17 +539,15 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
-        // The candidate's omissions on every list, each naming its list: one
-        // decision per list for the shared one...
+        // The shared omission, with one decision per list it is reported on...
         assert!(body.contains("Missing consent"));
         assert_eq!(body.matches(r#"name="candidate_list""#).count(), 2);
         assert!(body.contains(&format!(r#"value="{}""#, lists[0])));
         assert!(body.contains(&format!(r#"value="{}""#, lists[1])));
         assert!(body.contains("1. Groningen"));
-        // ...and the other list's own omission decided as a whole, but named.
-        assert!(body.contains("Missing identity document"));
-        assert!(body.contains("Candidate list"));
-        assert_eq!(body.matches("7. Utrecht").count(), 2);
+        assert!(body.contains("7. Utrecht"));
+        // ...but not the omission reported on the other list only.
+        assert!(!body.contains("Missing identity document"));
     }
 
     #[tokio::test]

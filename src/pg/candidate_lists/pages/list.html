@@ -1,4 +1,5 @@
 {% extends "pg/common/components/layout.html" %}
+{% import "pg/common/components/macros.html" as macros %}
 {% block page_title %}
   {% if "multiple_candidate_lists"|value_true %}
     {{ "candidate_list.title_plural"|trans }}
@@ -84,6 +85,19 @@
       {# add new candidate list card #}
       {% if election.has_only_one_district() && has_list %}
         {# do not show the add button #}
+      {% else if election.has_only_one_district() %}
+        {# creating the one list is a state change, so it takes a POST #}
+        <form class="card card-add-list card-form"
+              method="post"
+              action="{{ CandidateList::create_path() }}">
+          {{ macros::csrf_field() }}
+          <div class="card-header">
+            <h3 class="h4">{{ "candidate_list.actions.add_first"|trans }}</h3>
+          </div>
+          <button type="submit"
+                  class="button circular-button icon-plus"
+                  aria-label="{{ "candidate_list.actions.add_first"|trans }}"></button>
+        </form>
       {% else %}
         <div class="card card-add-list"
              data-href="{{ CandidateList::create_path() }}">

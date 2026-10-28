@@ -63,7 +63,7 @@ pub async fn list_candidate_lists(
 mod tests {
     use super::*;
     use crate::{
-        Context, PgStore,
+        Context, ElectionConfig, Locale, PgStore, Session, WaterCouncil,
         structs::{candidate_lists::CandidateListId, persons::PersonId},
         test_utils::{response_body_string, sample_candidate_list, sample_person},
     };
@@ -105,6 +105,46 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
         assert!(body.contains("Utrecht"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn multi_district_add_card_links_to_create_form() -> Result<(), AppError> {
+        let store = PgStore::new_for_test();
+
+        let response =
+            list_candidate_lists(CandidateListsPath {}, Context::new_test_without_db(), store)
+                .await?
+                .into_response();
+        let body = response_body_string(response).await;
+
+        let create_path = CandidateList::create_path().to_string();
+        assert!(body.contains(&format!(r#"data-href="{create_path}""#)));
+        assert!(body.contains("Multiple lists can be created"));
+
+        Ok(())
+    }
+
+    /// The one list is created by a POST, so the card must not link to a GET.
+    #[tokio::test]
+    async fn single_district_add_card_posts_without_note() -> Result<(), AppError> {
+        let election = ElectionConfig::WS27(WaterCouncil::AaEnMaas);
+        let store = PgStore::new_for_test_with_election(election);
+        let mut context = Context::new(&store, Session::new_test_with_locale(Locale::En));
+        context.election = election;
+
+        let response = list_candidate_lists(CandidateListsPath {}, context, store)
+            .await?
+            .into_response();
+        let body = response_body_string(response).await;
+
+        let create_path = CandidateList::create_path().to_string();
+        assert!(body.contains(&format!(r#"action="{create_path}""#)));
+        assert!(body.contains(r#"input type="hidden" name="csrf_token""#));
+        // also covers data-href
+        assert!(!body.contains(&format!(r#"href="{create_path}""#)));
+        assert!(!body.contains("Multiple lists can be created"));
 
         Ok(())
     }

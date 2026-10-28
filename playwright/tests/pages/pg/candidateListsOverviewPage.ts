@@ -7,9 +7,12 @@ export class CandidateListsOverviewPage {
   readonly linkFinalize: Locator;
 
   constructor(protected readonly page: Page) {
-    this.buttonAddList = this.page.getByRole("link", {
-      name: /(Kandidatenlijst|Nog een lijst) toevoegen/,
-    });
+    // a link that opens the district form, or a submit button on
+    // single-district elections where the one list is created directly
+    const addListName = /(Kandidatenlijst|Nog een lijst) toevoegen/;
+    this.buttonAddList = this.page
+      .getByRole("link", { name: addListName })
+      .or(this.page.getByRole("button", { name: addListName }));
     this.linkCandidateList = this.page.getByRole("link", {
       name: "Kandidatenlijst beheren",
     });

@@ -65,7 +65,8 @@
     }
 
     /* the page is gray-25: the card goes one shade darker, the button one more */
-    &:has(> a):hover {
+    &:has(> a):hover,
+    &.card-form:hover {
       --card-bg: var(--gray-50);
 
       .button.secondary:not(:focus, :active) {
