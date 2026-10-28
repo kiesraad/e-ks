@@ -36,7 +36,7 @@ hints:
   gender: Alleen invullen als dit op de kandidatenlijst moet worden weergegeven.
   optional: optioneel
 list:
-  empty: Geen kandidaten gevonden.
+  empty: "Er zijn nog geen kandidaten aangemaakt, doe dit in een kandidatenlijst."
   subtitle: Hier worden alle toegevoegde kandidaten opgeslagen.
 no_bsn_confirm: Ik bevestig dat deze persoon geen BSN heeft.
 not_found: "Persoon {} niet gevonden."
@@ -45,7 +45,9 @@ personal_details: Persoonlijke gegevens
 representative: Gemachtigde van kandidaat
 representative_info: "Omdat de kandidaat in het buitenland woont, is een gemachtigde nodig. De gemachtigde zal de benoemingsbrief voor u ontvangen."
 title: Adresboek
-total: "<strong>{}</strong> kandidaten toegevoegd"
+total:
+  plural: "<strong>{}</strong> kandidaten toegevoegd"
+  single: "<strong>{}</strong> kandidaat toegevoegd"
 view:
   empty: Geen kandidaten beschikbaar.
 with_problems: "{} met problemen"

@@ -1,4 +1,4 @@
-use crate::structs::persons::{Person, PersonPagination, PersonSort};
+use crate::structs::persons::{PersonPagination, PersonSort};
 use askama::Template;
 use axum::response::IntoResponse;
 

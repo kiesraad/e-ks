@@ -63,11 +63,11 @@
           <div class="buttons">
             {% if has_persons %}
               {% if all_persons_added %}
-                <span class="button secondary icon-plus disabled" aria-disabled="true">{{ "candidate_list.actions.add_existing"|trans }}</span>
+                <span class="button secondary icon-plus disabled" aria-disabled="true">{{ "candidate_list.actions.from_candidate_register"|trans }}</span>
               {% else %}
                 <a href="{{ full_list.list.add_candidate_path() }}"
                    class="button secondary icon-plus open-modal"
-                   type="button">{{ "candidate_list.actions.add_existing"|trans }}</a>
+                   type="button">{{ "candidate_list.actions.from_candidate_register"|trans }}</a>
               {% endif %}
             {% endif %}
             <a href="{{ full_list.list.create_candidate_path() }}"
