@@ -166,6 +166,8 @@ mod tests {
         assert!(!body.contains(&failed_message));
         assert!(!body.contains("data-webauthn-autostart"));
         assert!(!body.contains("name=\"election\""));
+        let start = crate::trans!("csb.auth.ceremony.start", Locale::default());
+        assert!(body.contains(&start));
 
         let (options, challenge) = ceremony_options(&body);
         assert_eq!(options["publicKey"]["rpId"], "csb.example.nl");
@@ -231,6 +233,8 @@ mod tests {
         let failed_message = crate::trans!("csb.auth.error.message", Locale::default());
         assert!(body.contains(&failed_message));
         assert!(body.contains("data-webauthn-autostart=\"false\""));
+        let retry = crate::trans!("csb.auth.ceremony.retry", Locale::default());
+        assert!(body.contains(&retry));
     }
 
     #[tokio::test]
