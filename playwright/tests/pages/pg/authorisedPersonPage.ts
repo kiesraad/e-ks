@@ -10,7 +10,7 @@ export class AuthorisedPersonPage {
   readonly textfieldHouseNumberAddition: Locator;
   readonly textfieldStreetName: Locator;
   readonly selectLocality: Locator;
-  readonly buttonAdd: Locator;
+  readonly buttonSaveAndClose: Locator;
 
   constructor(protected readonly page: Page) {
     this.textfieldInitials = this.page.getByLabel("Voorletters");
@@ -33,7 +33,9 @@ export class AuthorisedPersonPage {
     this.selectLocality = this.page.getByRole("textbox", {
       name: "Woonplaats",
     });
-    this.buttonAdd = this.page.getByRole("button", { name: "Toevoegen" });
+    this.buttonSaveAndClose = this.page.getByRole("button", {
+      name: "Opslaan en sluiten",
+    });
   }
 
   async setAuthorisedPerson(authorisedPerson: AuthorisedPerson) {
@@ -51,6 +53,6 @@ export class AuthorisedPersonPage {
     await expect(this.selectLocality).toHaveValue(
       authorisedPerson.locality ?? "",
     );
-    await this.buttonAdd.click();
+    await this.buttonSaveAndClose.click();
   }
 }

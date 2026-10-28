@@ -7,7 +7,7 @@ export class CorrespondenceAddressPage {
   readonly textfieldHouseNumberAddition: Locator;
   readonly textfieldStreetName: Locator;
   readonly selectLocality: Locator;
-  readonly buttonAdd: Locator;
+  readonly buttonCloseAndSave: Locator;
 
   constructor(protected readonly page: Page) {
     this.textfieldPostalCode = this.page.getByRole("textbox", {
@@ -27,7 +27,9 @@ export class CorrespondenceAddressPage {
     this.selectLocality = this.page.getByRole("textbox", {
       name: "Woonplaats",
     });
-    this.buttonAdd = this.page.getByRole("button", { name: "Toevoegen" });
+    this.buttonCloseAndSave = this.page.getByRole("button", {
+      name: "Opslaan en sluiten",
+    });
   }
 
   async setCorrespondenceAddress(candidate: Candidate) {
@@ -43,6 +45,6 @@ export class CorrespondenceAddressPage {
     );
     await expect(this.selectLocality).toHaveValue(candidate.locality ?? "");
 
-    await this.buttonAdd.click();
+    await this.buttonCloseAndSave.click();
   }
 }

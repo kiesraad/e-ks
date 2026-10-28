@@ -20,7 +20,7 @@ export class ManageCandidateListPage {
   readonly textfieldHouseNumber: Locator;
   readonly textfieldHouseNumberAddition: Locator;
   readonly textfieldStreetName: Locator;
-  readonly buttonAdd: Locator;
+  readonly closeAndSave: Locator;
   readonly buttonEditList: Locator;
   readonly buttonRemoveList: Locator;
   readonly buttonConfirmRemoveList: Locator;
@@ -67,7 +67,9 @@ export class ManageCandidateListPage {
       "Huisnummer toevoeging",
     );
     this.textfieldStreetName = this.page.getByLabel("Straatnaam");
-    this.buttonAdd = this.page.getByRole("button", { name: "Toevoegen" });
+    this.closeAndSave = this.page.getByRole("button", {
+      name: "Opslaan en sluiten",
+    });
     this.buttonEditList = this.page.getByRole("link", {
       name: "Kieskringen beheren",
     });
@@ -148,7 +150,7 @@ export class ManageCandidateListPage {
       await this.textfieldStreetName.fill(candidate.streetName ?? "");
       // Step 2 "Woonplaats" is the address locality (correspondence address).
       await this.textfieldLocality.fill(candidate.locality ?? "");
-      await this.buttonAdd.click();
+      await this.closeAndSave.click();
       await this.headingCandidateList.waitFor();
     }
   }
