@@ -1,0 +1,13 @@
+{% extends "csb/components/overlay.html" %}
+{% block overlay_title %}{{ "action.delete"|trans }} {{ political_group.appellation }}{% endblock %}
+{% block overlay_form %}
+  <fieldset>
+    <p>{{ "csb.group.confirm_delete"|trans(political_group.appellation) }}</p>
+    <p>{{  "csb.group.delete_note_pre_submission"|trans }}</p>
+  </fieldset>
+{% endblock %}
+{% block overlay_actions %}
+  <div class="form-actions">
+    <button type="submit" class="button tertiary-destructive icon-trash">{{ "action.delete"|trans }}</button>
+  </div>
+{% endblock %}

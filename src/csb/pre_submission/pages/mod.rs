@@ -11,6 +11,7 @@ pub(in crate::csb) use super::paths::{
 };
 
 pub(in crate::csb) mod brp_overview;
+mod delete;
 mod group;
 mod import;
 mod overview;
@@ -26,6 +27,8 @@ pub fn router<S: AppRequestState>() -> Router<S> {
         .typed_get(brp_overview::gen_brp_overview)
         .typed_get(brp_overview::gen_brp_overview_docx)
         .typed_get(brp_overview::gen_brp_overview_markdown)
+        .typed_get(delete::delete)
+        .typed_post(delete::submit_delete)
 }
 
 #[cfg(test)]

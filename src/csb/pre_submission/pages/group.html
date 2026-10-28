@@ -18,6 +18,10 @@
   </div>
 {% endblock %}
 {% block content %}
+  <div class="examination-controls">
+    <a class="button tertiary-destructive icon-trash-end"
+       href="{{ group.delete_path() }}">{{ "action.delete"|trans }}</a>
+  </div>
   <div class="examination-panels">
     {% if group.brp.is_checked() || group.brp.is_incomplete() %}
       <div class="examination-panel">

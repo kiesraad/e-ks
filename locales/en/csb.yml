@@ -138,6 +138,7 @@ group:
   candidate_count: "<strong>{}</strong> candidates"
   confirm_delete: "Are you sure you want to delete the political group “{}“?"
   delete_note: "It is always possible to re-import a political group but any created (paper) corrections, and omissions will be lost!"
+  delete_note_pre_submission: The political group will only be deleted from the pre-submission step.
   deleted_label: deleted
   discovered_errors: Errors found
   discovered_errors_note: All errors are collectively listed here
