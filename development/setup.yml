@@ -61,6 +61,4 @@ commands:
       - cargo-dylint
       - dylint-link
       - --version
-      # Must match `dylint_linting` in the lint libraries listed in
-      # dylint.toml, see https://github.com/tweedegolf/dylint-module-cycles.
-      - "6.0.3"
+      - "6.3.0"
