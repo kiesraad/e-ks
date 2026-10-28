@@ -328,14 +328,19 @@ jobs:
           -T ./target/release/eks \
           https://eks-test.nl/etes/api/v1/executable/${SHA_PR}/${SHA_GH}
 
-  playwright:
-    name: Playwright tests
+  # One runner per browser: the suite is CPU-bound on a 4-vCPU runner.
+  playwright-browser:
+    name: Playwright tests (${{ matrix.project }})
     permissions:
       contents: read
     if: ${{ needs.changes.outputs.code_changed == 'true' }}
     needs: changes
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [chromium, firefox, webkit]
     env:
       CARGO_TERM_COLOR: always
     steps:
@@ -353,18 +358,36 @@ jobs:
           shared-key: eks-playwright
 
       - *tools-cache
-      - *setup-project
+
+      # bin/test only needs esbuild, not the full dev setup.
+      - name: Install esbuild
+        run: bin/init esbuild
 
       - name: Run playwright tests
-        run: bin/test
+        env:
+          PROJECT: ${{ matrix.project }}
+        run: bin/test --project="$PROJECT"
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.project }}
           path: playwright/playwright-report/
           retention-days: 30
+
+  # Keeps the required "Playwright tests" check over the per-browser jobs.
+  playwright:
+    name: Playwright tests
+    permissions: {}
+    if: ${{ always() }}
+    needs: playwright-browser
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check per-browser results
+        env:
+          RESULT: ${{ needs.playwright-browser.result }}
+        run: '[[ "$RESULT" == "success" || "$RESULT" == "skipped" ]]'
 
   audit-dependencies:
     name: Audit dependencies
