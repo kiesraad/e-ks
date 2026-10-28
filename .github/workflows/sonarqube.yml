@@ -50,14 +50,30 @@ jobs:
         with:
           tool: cargo-llvm-cov
 
-      - name: Tools cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: bin
-          key: tools-cache-v1-${{ runner.os }}-${{ hashFiles('development/Cargo.toml', 'development/src/**/*.rs', 'development/*.yml') }}
+      # Only esbuild and Postgres are needed, as in build-lint-test.yml.
+      # Keep the esbuild version in sync with development/setup.yml.
+      - name: Install esbuild
+        run: |
+          curl -fsSo esbuild.tgz "https://registry.npmjs.org/@esbuild/linux-x64/-/linux-x64-0.28.2.tgz"
+          tar -xzf esbuild.tgz --strip-components=2 -C bin package/bin/esbuild
+          rm esbuild.tgz
+          bin/esbuild --version
 
-      - name: Setup project
-        run: bin/init
+      - name: Bundle frontend assets
+        run: >
+          bin/esbuild --bundle frontend/index.ts --outdir=frontend/static
+          --minify --sourcemap --define:IS_PRODUCTION=true
+          --loader:.woff2=file --loader:.svg=file --public-path=/static/
+
+      # The sqlx tests connect to the dev Postgres from compose.yml.
+      - name: Start Postgres
+        run: |
+          docker compose up --quiet-pull --detach psql
+          for _ in $(seq 20); do
+            docker compose exec -T psql pg_isready -U eks && exit 0
+            sleep 1
+          done
+          exit 1
 
       - name: Generate code coverage
         run: cargo llvm-cov --locked --all-features --workspace --lcov --output-path lcov.info

@@ -90,31 +90,15 @@ jobs:
     steps:
       - *checkout
 
-      - &setup-stable-rust
-        name: Setup Rust
-        shell: bash
-        run: >
-          rustup update stable &&
-          rustup default stable &&
-          rustup component add --toolchain stable clippy
+      # Keep the biome version in sync with development/setup.yml.
+      - name: Install biome
+        run: |
+          curl -fsSLo bin/biome "https://github.com/biomejs/biome/releases/download/@biomejs/biome@2.5.12/biome-linux-x64-musl"
+          chmod +x bin/biome
+          bin/biome --version
 
-      - &cargo-cache-restore
-        name: Cargo cache
-        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          shared-key: eks-lint
-          save-if: false
-
-      - &tools-cache
-        name: Tools cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: bin
-          key: tools-cache-v1-${{ runner.os }}-${{ hashFiles('development/Cargo.toml', 'development/src/**/*.rs', 'development/*.yml') }}
-
-      - &setup-project
-        name: Setup project
-        run: bin/init
+      - name: Build djlint image
+        run: docker build --build-arg "UID=$(id -u)" --build-arg "GID=$(id -g)" -f development/djlint.Dockerfile -t djlint .
 
       - name: Lint Typescript, CSS and playwright tests using Biome
         run: ./bin/biome ci --error-on-warnings ./frontend/scripts ./frontend/styles ./playwright/tests
@@ -122,7 +106,7 @@ jobs:
       - name: Lint HTML with djlint
         run: |
           docker run --rm \
-          -v ./templates:/work/templates \
+          -v ./src:/work/templates \
           -v ./djlint.toml:/work/djlint.toml \
           djlint \
           djlint --lint --check --configuration=djlint.toml templates
@@ -136,7 +120,14 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - *checkout
-      - *setup-stable-rust
+
+      - &setup-stable-rust
+        name: Setup Rust
+        shell: bash
+        run: >
+          rustup update stable &&
+          rustup default stable &&
+          rustup component add --toolchain stable clippy
 
       - name: Check Cargo.lock against Cargo.toml
         run: cargo tree --locked --depth 0 > /dev/null
@@ -160,8 +151,32 @@ jobs:
         with:
           shared-key: eks-lint
 
-      - *tools-cache
-      - *setup-project
+      # Only esbuild and Postgres are needed here; bin/init would also build
+      # the eks-development crate and install dylint, djlint and cargo-watch.
+      # Keep the esbuild version in sync with development/setup.yml.
+      - &install-esbuild
+        name: Install esbuild
+        run: |
+          curl -fsSo esbuild.tgz "https://registry.npmjs.org/@esbuild/linux-x64/-/linux-x64-0.28.2.tgz"
+          tar -xzf esbuild.tgz --strip-components=2 -C bin package/bin/esbuild
+          rm esbuild.tgz
+          bin/esbuild --version
+
+      - name: Bundle frontend assets
+        run: >
+          bin/esbuild --bundle frontend/index.ts --outdir=frontend/static
+          --minify --sourcemap --define:IS_PRODUCTION=true
+          --loader:.woff2=file --loader:.svg=file --public-path=/static/
+
+      # The sqlx tests connect to the dev Postgres from compose.yml.
+      - name: Start Postgres
+        run: |
+          docker compose up --quiet-pull --detach psql
+          for _ in $(seq 20); do
+            docker compose exec -T psql pg_isready -U eks && exit 0
+            sleep 1
+          done
+          exit 1
 
       - name: Check Clippy with all features
         run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
@@ -203,9 +218,21 @@ jobs:
         with:
           shared-key: eks-dylint
 
-      # `bin/init` runs `bin/setup`, which installs cargo-dylint and dylint-link.
-      - *tools-cache
-      - *setup-project
+      # Prebuilt binaries; keep the version in sync with development/setup.yml.
+      - name: Install cargo-dylint
+        run: |
+          for tool in cargo-dylint dylint-link; do
+            curl -fsSL "https://github.com/trailofbits/dylint/releases/download/v6.3.0/${tool}-x86_64-unknown-linux-gnu-v6.3.0.tar.gz" |
+              tar -xz --strip-components=1 -C ~/.cargo/bin "${tool}-x86_64-unknown-linux-gnu-v6.3.0/${tool}"
+          done
+          cargo dylint --version
+
+      # Without this the driver for the libraries' nightly is rebuilt every run.
+      - name: Dylint driver cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.dylint_drivers
+          key: dylint-drivers-v1-6.3.0-${{ hashFiles('dylint.toml') }}
 
       # Builds the lint libraries in dylint.toml with their pinned nightly,
       # then type-checks the crate with them enabled.
@@ -245,7 +272,12 @@ jobs:
       # so it needs history.
       - *checkout-with-history
       - *setup-stable-rust
-      - *cargo-cache-restore
+
+      # Own key: release builds, which the dev-profile lint cache does not hold.
+      - name: Cargo cache
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: eks-pdf-diff
 
       - name: Install diff-pdf
         run: sudo apt-get update && sudo apt-get install -y diff-pdf-wx
@@ -299,8 +331,8 @@ jobs:
         with:
           shared-key: eks-build
 
-      - *tools-cache
-      - *setup-project
+      # bin/build bundles the frontend itself.
+      - *install-esbuild
 
       - name: Build
         env:
@@ -357,11 +389,8 @@ jobs:
         with:
           shared-key: eks-playwright
 
-      - *tools-cache
-
-      # bin/test only needs esbuild, not the full dev setup.
-      - name: Install esbuild
-        run: bin/init esbuild
+      # bin/test bundles the frontend itself.
+      - *install-esbuild
 
       - name: Run playwright tests
         env:
@@ -471,11 +500,13 @@ jobs:
         with:
           shared-key: eks-release
 
-      - *tools-cache
-
-      - name: Setup project
+      # Same as install-esbuild; bin/build bundles the frontend itself.
+      - name: Install esbuild
         if: steps.release_check.outputs.release_exists == 'false'
-        run: bin/init
+        run: |
+          curl -fsSo esbuild.tgz "https://registry.npmjs.org/@esbuild/linux-x64/-/linux-x64-0.28.2.tgz"
+          tar -xzf esbuild.tgz --strip-components=2 -C bin package/bin/esbuild
+          rm esbuild.tgz
 
       - name: Build production binary
         if: steps.release_check.outputs.release_exists == 'false'
