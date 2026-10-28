@@ -1,12 +1,12 @@
 tools:
   - name: esbuild
     # https://github.com/evanw/esbuild/releases
-    # Also update the pinned versions in .github/workflows/*.yml
+    # Also pinned in .github/workflows/*.yml
     version: "0.28.2"
     base_url: "https://registry.npmjs.org/@esbuild"
   - name: biome
     # https://github.com/biomejs/biome/releases
-    # Also update the pinned version in .github/workflows/build-lint-test.yml
+    # Also pinned in .github/workflows/build-lint-test.yml
     version: "2.5.12"
     base_url: "https://github.com/biomejs/biome/releases/download/@biomejs/biome@"
 commands:
@@ -63,5 +63,5 @@ commands:
       - cargo-dylint
       - dylint-link
       - --version
-      # Also update the pinned version in .github/workflows/build-lint-test.yml
+      # Also pinned in .github/workflows/build-lint-test.yml
       - "6.3.0"

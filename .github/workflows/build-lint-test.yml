@@ -90,10 +90,10 @@ jobs:
     steps:
       - *checkout
 
-      # Keep the biome version in sync with development/setup.yml.
+      # Keep in sync with development/setup.yml
       - name: Install biome
         run: |
-          curl -fsSLo bin/biome "https://github.com/biomejs/biome/releases/download/@biomejs/biome@2.5.12/biome-linux-x64-musl"
+          curl --proto '=https' -fsSLo bin/biome "https://github.com/biomejs/biome/releases/download/@biomejs/biome@2.5.12/biome-linux-x64-musl"
           chmod +x bin/biome
           bin/biome --version
 
@@ -142,6 +142,16 @@ jobs:
     env: &rust-check-env
       CARGO_TERM_COLOR: always
       RUSTDOCFLAGS: "-D warnings"
+    # For the sqlx tests; mirrors compose.yml
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: eks
+          POSTGRES_DB: eks
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U eks" --health-interval 1s --health-timeout 5s --health-retries 30
     steps:
       - *checkout
       - *setup-stable-rust
@@ -151,9 +161,7 @@ jobs:
         with:
           shared-key: eks-lint
 
-      # Only esbuild and Postgres are needed here; bin/init would also build
-      # the eks-development crate and install dylint, djlint and cargo-watch.
-      # Keep the esbuild version in sync with development/setup.yml.
+      # Keep in sync with development/setup.yml
       - &install-esbuild
         name: Install esbuild
         run: |
@@ -167,16 +175,6 @@ jobs:
           bin/esbuild --bundle frontend/index.ts --outdir=frontend/static
           --minify --sourcemap --define:IS_PRODUCTION=true
           --loader:.woff2=file --loader:.svg=file --public-path=/static/
-
-      # The sqlx tests connect to the dev Postgres from compose.yml.
-      - name: Start Postgres
-        run: |
-          docker compose up --quiet-pull --detach psql
-          for _ in $(seq 20); do
-            docker compose exec -T psql pg_isready -U eks && exit 0
-            sleep 1
-          done
-          exit 1
 
       - name: Check Clippy with all features
         run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
@@ -218,16 +216,15 @@ jobs:
         with:
           shared-key: eks-dylint
 
-      # Prebuilt binaries; keep the version in sync with development/setup.yml.
+      # Keep in sync with development/setup.yml
       - name: Install cargo-dylint
         run: |
           for tool in cargo-dylint dylint-link; do
-            curl -fsSL "https://github.com/trailofbits/dylint/releases/download/v6.3.0/${tool}-x86_64-unknown-linux-gnu-v6.3.0.tar.gz" |
+            curl --proto '=https' -fsSL "https://github.com/trailofbits/dylint/releases/download/v6.3.0/${tool}-x86_64-unknown-linux-gnu-v6.3.0.tar.gz" |
               tar -xz --strip-components=1 -C ~/.cargo/bin "${tool}-x86_64-unknown-linux-gnu-v6.3.0/${tool}"
           done
           cargo dylint --version
 
-      # Without this the driver for the libraries' nightly is rebuilt every run.
       - name: Dylint driver cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -273,7 +270,6 @@ jobs:
       - *checkout-with-history
       - *setup-stable-rust
 
-      # Own key: release builds, which the dev-profile lint cache does not hold.
       - name: Cargo cache
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
@@ -331,7 +327,6 @@ jobs:
         with:
           shared-key: eks-build
 
-      # bin/build bundles the frontend itself.
       - *install-esbuild
 
       - name: Build
@@ -389,7 +384,6 @@ jobs:
         with:
           shared-key: eks-playwright
 
-      # bin/test bundles the frontend itself.
       - *install-esbuild
 
       - name: Run playwright tests
@@ -500,7 +494,6 @@ jobs:
         with:
           shared-key: eks-release
 
-      # Same as install-esbuild; bin/build bundles the frontend itself.
       - name: Install esbuild
         if: steps.release_check.outputs.release_exists == 'false'
         run: |
