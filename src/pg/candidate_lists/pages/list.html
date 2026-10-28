@@ -1,11 +1,7 @@
 {% extends "pg/common/components/layout.html" %}
 {% import "pg/common/components/macros.html" as macros %}
 {% block page_title %}
-  {% if "multiple_candidate_lists"|value_true %}
-    {{ "candidate_list.title_plural"|trans }}
-  {% else %}
-    {{ "candidate_list.title_single"|trans }}
-  {% endif %}
+  {{ "candidate_list.title_plural"|trans }}
 {% endblock %}
 {% block candidate_lists_nav_class %}active{% endblock %}
 {% block header_action %}<a href="/" class="button secondary">{{ "action.back"|trans }}</a>{% endblock %}
