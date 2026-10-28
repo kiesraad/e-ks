@@ -19,10 +19,8 @@
 {% endblock %}
 {% block content %}
   <div class="examination-controls">
-    <div class="switch-group">
-      <a class="button tertiary-destructive icon-trash-end"
-         href="{{ group.delete_path() }}">{{ "action.delete"|trans }}</a>
-    </div>
+    <a class="button tertiary-destructive icon-trash-end"
+       href="{{ group.delete_path() }}">{{ "action.delete"|trans }}</a>
   </div>
   <div class="examination-panels">
     {% if group.brp.is_checked() || group.brp.is_incomplete() %}

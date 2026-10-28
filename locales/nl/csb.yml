@@ -138,7 +138,7 @@ group:
   candidate_count: "<strong>{}</strong> kandidaten"
   confirm_delete: "Weet u zeker dat u de politieke groepering “{}“ wilt verwijderen?"
   delete_note: "Het is altijd mogelijk om een politieke groepering te herimporteren maar aangemaakte papieren- en ambtshalve correcties, en verzuimen zullen verloren gaan!"
-  delete_note_pre_submission: De partij wordt alleen verwijderd uit de voorinlevering stap.
+  delete_note_pre_submission: De politieke groepering wordt alleen verwijderd uit de voorinlevering stap.
   deleted_label: verwijderd
   discovered_errors: Ontdekte fouten
   discovered_errors_note: Hier vindt u alle fouten verzameld terug
