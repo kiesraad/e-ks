@@ -284,7 +284,7 @@ mod tests {
         ];
         for (designation, expected_label) in cases {
             let mut pg = sample_political_group();
-            pg.list_designation = designation.map(ListDesignation::from_kind);
+            pg.list_designation = designation.map(ListDesignation::from);
             store.set_political_group(pg);
 
             let response = overview(

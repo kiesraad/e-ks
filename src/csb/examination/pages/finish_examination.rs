@@ -71,7 +71,7 @@ mod tests {
             first_non_scrapped_candidate_name: None,
             legal_names: Vec::new(),
             previously_seated: false,
-            is_unregistered: false,
+            is_registered: false,
             unregistered_legal_names: Vec::new(),
             candidate_list_districts: Default::default(),
         }

@@ -75,20 +75,20 @@ impl From<ListDesignationRepr> for ListDesignation {
                 ListDesignation::Combined { registrations }
             }
             ListDesignationRepr::Tagged(ListDesignationTagged::Blank) => ListDesignation::Blank,
-            ListDesignationRepr::Bare(kind) => ListDesignation::from_kind(kind),
+            ListDesignationRepr::Bare(kind) => kind.into(),
         }
     }
 }
 
 impl Default for ListDesignation {
     fn default() -> Self {
-        Self::from_kind(ListDesignationKind::default())
+        ListDesignationKind::default().into()
     }
 }
 
-impl ListDesignation {
-    /// The list type without any registration bound to it.
-    pub fn from_kind(kind: ListDesignationKind) -> Self {
+/// The list type without any registration bound to it.
+impl From<ListDesignationKind> for ListDesignation {
+    fn from(kind: ListDesignationKind) -> Self {
         match kind {
             ListDesignationKind::Standalone => ListDesignation::Standalone { registration: None },
             ListDesignationKind::Combined => ListDesignation::Combined {
@@ -97,7 +97,9 @@ impl ListDesignation {
             ListDesignationKind::Blank => ListDesignation::Blank,
         }
     }
+}
 
+impl ListDesignation {
     pub fn kind(&self) -> ListDesignationKind {
         match self {
             ListDesignation::Standalone { .. } => ListDesignationKind::Standalone,
@@ -200,7 +202,7 @@ mod tests {
             ListDesignationKind::Blank,
             ListDesignationKind::Combined,
         ] {
-            let designation = ListDesignation::from_kind(kind);
+            let designation = ListDesignation::from(kind);
             assert_eq!(designation.kind(), kind);
             assert!(designation.registrations().is_empty());
             assert_eq!(kind.to_string().parse::<ListDesignationKind>(), Ok(kind));
@@ -210,7 +212,7 @@ mod tests {
             ListDesignationKind::Standalone
         );
         assert!(ListDesignation::Blank.is_blank());
-        assert!(ListDesignation::from_kind(ListDesignationKind::Combined).is_combined());
+        assert!(ListDesignation::from(ListDesignationKind::Combined).is_combined());
     }
 
     #[test]
@@ -272,9 +274,9 @@ mod tests {
             ("combined", ListDesignationKind::Combined),
         ] {
             let from_json: ListDesignation = serde_json::from_value(json!(text)).unwrap();
-            assert_eq!(from_json, ListDesignation::from_kind(kind));
+            assert_eq!(from_json, ListDesignation::from(kind));
             let from_cbor: ListDesignation = decode(&encode(&kind).unwrap()).unwrap();
-            assert_eq!(from_cbor, ListDesignation::from_kind(kind));
+            assert_eq!(from_cbor, ListDesignation::from(kind));
         }
     }
 

@@ -306,6 +306,8 @@ mod tests {
 
         let body = single_spaced(response_body_string(response).await);
         assert!(!body.contains("selected"));
+        assert!(!body.contains("readonly"));
+        assert!(!body.contains("disabled"));
         assert!(body.contains("value=\"Kiesraad Demo\" id=\"appellation\" />"));
 
         Ok(())

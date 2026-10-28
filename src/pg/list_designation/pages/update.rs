@@ -74,7 +74,7 @@ pub async fn update_list_designation_submit(
             political_group.list_designation =
                 Some(match political_group.list_designation.take() {
                     Some(current) if current.kind() == kind => current,
-                    _ => ListDesignation::from_kind(kind),
+                    _ => kind.into(),
                 });
             political_group.update(&store).await?;
 

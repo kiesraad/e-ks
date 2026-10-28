@@ -43,10 +43,10 @@ pub struct CsbPoliticalGroup {
     /// its registration; such a group needs no declarations of support
     /// (Kieswet Art. H 4). Set by [`Self::with_registrations`].
     pub previously_seated: bool,
-    /// Whether the group carries an appellation that matches none of the
-    /// committee's registrations, or for a combined list whether one of its
-    /// parties is not registered. Set by [`Self::with_registrations`].
-    pub is_unregistered: bool,
+    /// Whether the group matches one of the committee's registrations, or for
+    /// a combined list whether all of its parties are registered. Never for a
+    /// blank list. Set by [`Self::with_registrations`].
+    pub is_registered: bool,
     /// The statutory names of a combined list that match no registration.
     /// Set by [`Self::with_registrations`].
     pub unregistered_legal_names: Vec<LegalName>,
@@ -90,7 +90,7 @@ impl CsbPoliticalGroup {
                 .filter(|legal_name| !legal_name.is_empty())
                 .collect(),
             previously_seated: false,
-            is_unregistered: false,
+            is_registered: false,
             unregistered_legal_names: Vec::new(),
             scrapped,
             candidate_list_districts: corrected
@@ -119,12 +119,8 @@ impl CsbPoliticalGroup {
                 .filter(|name| !registered.iter().any(|r| r.has_legal_name(name)))
                 .cloned()
                 .collect();
-            self.is_unregistered =
-                registration.is_none() || !self.unregistered_legal_names.is_empty();
-        } else {
-            self.is_unregistered =
-                registration.is_none() && self.registered_appellation().is_some();
         }
+        self.is_registered = registration.is_some() && self.unregistered_legal_names.is_empty();
         self
     }
 
@@ -275,7 +271,7 @@ impl CsbPoliticalGroup {
             first_non_scrapped_candidate_name: None,
             legal_names: Vec::new(),
             previously_seated: false,
-            is_unregistered: false,
+            is_registered: false,
             unregistered_legal_names: Vec::new(),
             candidate_list_districts: HashMap::from([(
                 CandidateListId::new(),
@@ -479,13 +475,13 @@ mod tests {
         assert_eq!(group.registration(&registered), Some(&b));
         let group = group.with_registrations(&registered);
         assert!(group.previously_seated);
-        assert!(!group.is_unregistered);
+        assert!(group.is_registered);
 
         // One party unregistered: still matched on the other, with a warning
         // naming the unregistered one.
         let group = combined(&["Vereniging A", "Vereniging C"]).with_registrations(&registered);
         assert!(!group.previously_seated);
-        assert!(group.is_unregistered);
+        assert!(!group.is_registered);
         assert_eq!(
             group.unregistered_legal_names,
             ["Vereniging C".parse::<LegalName>().unwrap()]
@@ -494,7 +490,7 @@ mod tests {
         // Without name authorisations nothing matches.
         let group = combined(&[]).with_registrations(&registered);
         assert_eq!(group.registration(&registered), None);
-        assert!(group.is_unregistered);
+        assert!(!group.is_registered);
         assert!(group.unregistered_legal_names.is_empty());
     }
 

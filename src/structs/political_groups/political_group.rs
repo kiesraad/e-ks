@@ -242,7 +242,7 @@ mod tests {
         // Blank and combined lists are left alone.
         for designation in [
             ListDesignation::Blank,
-            ListDesignation::from_kind(ListDesignationKind::Combined),
+            ListDesignation::from(ListDesignationKind::Combined),
         ] {
             let mut group = PoliticalGroup {
                 list_designation: Some(designation.clone()),
@@ -296,7 +296,7 @@ mod tests {
         ) in cases
         {
             pg.appellation = Appellation::from_str("Test Partij").ok();
-            pg.list_designation = designation.map(ListDesignation::from_kind);
+            pg.list_designation = designation.map(ListDesignation::from);
             assert_eq!(
                 expected_with_candidate,
                 pg.csb_appellation(Some(&first_candidate_name))
