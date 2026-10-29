@@ -66,7 +66,8 @@ mod tests {
         // The progress column shows assessed vs. assessable omissions.
         assert!(body.contains("2 of 3 assessed"));
         // The page leads back to the CSB overview.
-        assert!(body.contains(r#"href="/csb" class="button secondary">Back<"#));
+        assert!(body.contains(r#"href="/csb""#));
+        assert!(body.contains(">to home<"));
     }
 
     async fn render(groups: Vec<CsbPoliticalGroup>) -> String {

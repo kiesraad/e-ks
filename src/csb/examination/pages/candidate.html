@@ -53,10 +53,8 @@
     {% endif %}
   </div>
 {% endblock %}
-{% block back_navigation %}{{ macros::back_link(political_group.candidate_list_path(list_id), "common.page_names.candidate_list"|trans) }}{% endblock %}
-{% block header_action %}
-  {{ header::header_actions(political_group) }}
-{% endblock %}
+{% block back_navigation %}{{ macros::back_link(political_group.candidate_list_path(list_id) , "common.page_names.candidate_list"|trans) }}{% endblock %}
+{% block header_action %}{{ header::header_actions(political_group) }}{% endblock %}
 {% block content %}
   <section class="general-information">
     {% if political_group.mode.is_examination() %}

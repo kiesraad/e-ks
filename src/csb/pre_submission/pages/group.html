@@ -53,9 +53,7 @@
           </div>
         {% endif %}
       </div>
-      {% if brp_running %}
-        {{ restorations::brp_finished_notice(group.brp_check_status_path() ) }}
-      {% endif %}
+      {% if brp_running %}{{ restorations::brp_finished_notice(group.brp_check_status_path() ) }}{% endif %}
       <div class="mb-lg">{{ restorations::brp_strip(group.brp, brp_badges, brp_incomplete.as_deref() , all_problems) }}</div>
       {% if !(candidates.is_empty() && all_problems.is_all_good()) %}
         {% if !all_problems.general.flatten().is_empty() %}

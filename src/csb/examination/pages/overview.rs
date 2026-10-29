@@ -79,7 +79,8 @@ mod tests {
         let body = response_body_string(response).await;
         assert!(body.contains("Kiesraad Demo"));
         // The page leads back to the CSB overview.
-        assert!(body.contains(r#"href="/csb" class="button secondary">Back<"#));
+        assert!(body.contains(r#"href="/csb""#));
+        assert!(body.contains(">to home<"));
     }
 
     #[tokio::test]

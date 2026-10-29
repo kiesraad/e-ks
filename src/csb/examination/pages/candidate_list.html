@@ -47,7 +47,7 @@
     {% endif %}
   </div>
 {% endblock %}
-{% block back_navigation %}{{ macros::back_link(political_group.group_path(), political_group.csb_appellation()) }}{% endblock %}
+{% block back_navigation %}{{ macros::back_link(political_group.group_path() , political_group.csb_appellation()) }}{% endblock %}
 {% block header_action %}
   {{ header::header_actions(political_group) }}
 {% endblock %}
@@ -67,9 +67,7 @@
             <th scope="col">{{ "candidate_list.fields.position"|trans }}</th>
             <th scope="col">{{ "person.fields.name"|trans }}</th>
             <th scope="col">{{ "person.fields.place_of_residence"|trans }}</th>
-            {% if political_group.mode.is_examination() %}
-              <th scope="col">{{ "csb.list.brp_check"|trans }}</th>
-            {% endif %}
+            {% if political_group.mode.is_examination() %}<th scope="col">{{ "csb.list.brp_check"|trans }}</th>{% endif %}
             <th scope="col"></th>
             <th scope="col"></th>
           </tr>
@@ -87,9 +85,7 @@
                 {% endif %}
               </td>
               <td>
-                {% if political_group.mode.is_recovery() && candidate.is_scrapped %}
-                  <s class="imported-value">
-                  {% endif %}
+                {% if political_group.mode.is_recovery() && candidate.is_scrapped %}<s class="imported-value">{% endif %}
                   {% if candidate.name.differs() || candidate.name.csb_corrected.is_some() %}
                     {{ paper_corrected::value(candidate.name) }}
                   {% else %}

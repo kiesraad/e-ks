@@ -1,7 +1,5 @@
 add: Add
 back: Back
-to: to
-back_candidate_list: Back to candidate list
 back_home: Back to home
 cancel: Cancel
 close: Close
@@ -25,3 +23,4 @@ save_and_close: Save and close
 save_and_continue: Save and continue
 show: Show
 signout: Sign out
+to: to

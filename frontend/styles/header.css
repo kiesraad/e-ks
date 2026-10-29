@@ -22,7 +22,7 @@ header {
     z-index: 400;
     transition: box-shadow 200ms;
 
-    >div {
+    > div {
       margin-inline: auto;
       max-width: var(--container-size);
       width: 100%;
@@ -148,7 +148,7 @@ header {
     margin-bottom: var(--space-sm);
     color: var(--gray-600);
 
-    >* {
+    > * {
       vertical-align: middle;
     }
     &:hover {
@@ -171,7 +171,6 @@ header {
       font-weight: 600;
     }
   }
-
 
   .header-content {
     align-items: center;

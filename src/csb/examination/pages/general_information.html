@@ -10,10 +10,8 @@
 {% block page_title %}
   {{ "common.general_information"|trans }}
 {% endblock %}
-{% block back_navigation %}{{ macros::back_link(political_group.group_path(), political_group.csb_appellation()) }}{% endblock %}
-{% block header_action %}
-  {{ header::header_actions(political_group, include_all_restorations=true ) }}
-{% endblock %}
+{% block back_navigation %}{{ macros::back_link(political_group.group_path() , political_group.csb_appellation()) }}{% endblock %}
+{% block header_action %}{{ header::header_actions(political_group, include_all_restorations=true) }}{% endblock %}
 {% macro submitter_tables(submitter) %}
   <table class="detail-table">
     {{ paper_corrected::columns_head("csb.general.personalia"|trans) }}

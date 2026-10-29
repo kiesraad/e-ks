@@ -13,10 +13,8 @@
 {% block page_sub_title %}
   <span class="subtitle">{{ "csb.all_findings.explanation"|trans }}</span>
 {% endblock %}
-{% block back_navigation %}{{ macros::back_link(political_group.group_path(), political_group.csb_appellation()) }}{% endblock %}
-{% block header_action %}
-  {{ header::header_actions(political_group, include_all_restorations=true) }}
-{% endblock %}
+{% block back_navigation %}{{ macros::back_link(political_group.group_path() , political_group.csb_appellation()) }}{% endblock %}
+{% block header_action %}{{ header::header_actions(political_group, include_all_restorations=true) }}{% endblock %}
 {% block content %}
   {% set toggle_redirect_url = political_group.all_brp_findings_path() %}
   {% include "csb/components/examination_controls.html" %}
@@ -40,9 +38,7 @@
           </div>
         {% endif %}
       </div>
-      {% if brp_running %}
-        {{ restorations::brp_finished_notice(political_group.brp_check_status_path() ) }}
-      {% endif %}
+      {% if brp_running %}{{ restorations::brp_finished_notice(political_group.brp_check_status_path() ) }}{% endif %}
       {{ restorations::brp_strip(brp, brp_badges, brp_incomplete.as_deref() , all_problems) }}
       {% if !(candidates.is_empty() && all_problems.is_all_good()) %}
         {% if !all_problems.general.flatten().is_empty() %}
