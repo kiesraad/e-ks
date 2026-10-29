@@ -10,7 +10,7 @@ use crate::{
     structs::{
         candidate_lists::CandidateListId,
         common::{Appellation, FullName, LegalName},
-        csb::{CsbPhase, RecoveryProgress, RegisteredPoliticalGroup},
+        csb::{CsbPhase, PreviousResult, RecoveryProgress, RegisteredPoliticalGroup},
         list_designation::ListDesignation,
         political_groups::PoliticalGroup,
     },
@@ -40,8 +40,9 @@ pub struct CsbPoliticalGroup {
     /// behind a combined list, which is matched to its registrations on them.
     pub legal_names: Vec<LegalName>,
     /// Whether the group obtained a seat at the previous election according to
-    /// its registration; such a group needs no declarations of support
-    /// (Kieswet Art. H 4). Set by [`Self::with_registrations`].
+    /// its registrations (see [`Self::previous_result`]); such a group needs
+    /// no declarations of support (Kieswet Art. H 4, achtste lid). Set by
+    /// [`Self::with_registrations`].
     pub previously_seated: bool,
     /// Whether the group matches one of the committee's registrations, or for
     /// a combined list whether all of its parties are registered. Never for a
@@ -109,9 +110,8 @@ impl CsbPoliticalGroup {
     /// Look the group up among the committee's registrations, which decide
     /// whether it was previously seated.
     pub fn with_registrations(mut self, registered: &[RegisteredPoliticalGroup]) -> Self {
-        let registration = self.registration(registered);
-        self.previously_seated =
-            registration.is_some_and(RegisteredPoliticalGroup::was_previously_seated);
+        let result = self.previous_result(registered);
+        self.previously_seated = result.is_some_and(PreviousResult::is_seated);
         if self.registered_appellation().is_some() && self.political_group.is_combined() {
             self.unregistered_legal_names = self
                 .legal_names
@@ -120,7 +120,7 @@ impl CsbPoliticalGroup {
                 .cloned()
                 .collect();
         }
-        self.is_registered = registration.is_some() && self.unregistered_legal_names.is_empty();
+        self.is_registered = result.is_some() && self.unregistered_legal_names.is_empty();
         self
     }
 
@@ -214,16 +214,15 @@ impl CsbPoliticalGroup {
             .collect()
     }
 
-    /// The registration the group is numbered and exempted on: for a combined
-    /// list the one of its parties with the most votes, as their results are
-    /// not added up.
-    pub fn registration<'a>(
+    /// The result the group is numbered and exempted on: that of its
+    /// registration, or for a combined list that of the registrations of its
+    /// parties together (Kieswet Art. I 14, tweede lid, and Art. H 4, achtste
+    /// lid, onderdeel a). `None` for an unregistered group.
+    pub fn previous_result(
         &self,
-        registered: &'a [RegisteredPoliticalGroup],
-    ) -> Option<&'a RegisteredPoliticalGroup> {
-        self.registrations(registered)
-            .into_iter()
-            .min_by(|a, b| a.numbering_order(b))
+        registered: &[RegisteredPoliticalGroup],
+    ) -> Option<PreviousResult> {
+        PreviousResult::combined(self.registrations(registered))
     }
 
     /// The districts in which the group still has a valid list.
@@ -414,12 +413,18 @@ mod tests {
             },
             ..CsbPoliticalGroup::sample("Kiesraad Demo")
         };
-        assert_eq!(group.registration(&registered), Some(&bound));
+        assert_eq!(
+            group.previous_result(&registered),
+            Some(PreviousResult::from(&bound))
+        );
 
         // Imported before the binding existed, or bound to a registration
         // the committee deleted since: matched on appellation.
         let unbound = CsbPoliticalGroup::sample("kiesraad demo");
-        assert_eq!(unbound.registration(&registered), Some(&by_name));
+        assert_eq!(
+            unbound.previous_result(&registered),
+            Some(PreviousResult::from(&by_name))
+        );
         let dangling = CsbPoliticalGroup {
             political_group: PoliticalGroup {
                 list_designation: Some(ListDesignation::Standalone {
@@ -429,7 +434,10 @@ mod tests {
             },
             ..CsbPoliticalGroup::sample("Kiesraad Demo")
         };
-        assert_eq!(dangling.registration(&registered), Some(&by_name));
+        assert_eq!(
+            dangling.previous_result(&registered),
+            Some(PreviousResult::from(&by_name))
+        );
 
         // A blank list has no registration, however it is bound.
         let blank = CsbPoliticalGroup {
@@ -439,7 +447,7 @@ mod tests {
             },
             ..CsbPoliticalGroup::sample("Kiesraad Demo")
         };
-        assert_eq!(blank.registration(&registered), None);
+        assert_eq!(blank.previous_result(&registered), None);
     }
 
     /// A combined list named `A/B` whose name authorisations carry
@@ -468,11 +476,17 @@ mod tests {
         let other = sample_registered_political_group("A/B", 500, 3);
         let registered = [a.clone(), b.clone(), other];
 
-        // Matched on statutory name, not on the combined appellation; the
-        // party with the most votes stands for the combination.
+        // Matched on statutory name, not on the combined appellation. The
+        // combination is seated on B; A's votes do not count without a seat.
         let group = combined(&["vereniging a", "Vereniging B"]);
         assert_eq!(group.registrations(&registered), [&a, &b]);
-        assert_eq!(group.registration(&registered), Some(&b));
+        assert_eq!(
+            group.previous_result(&registered),
+            Some(PreviousResult {
+                votes: 300.into(),
+                seats: 2.into()
+            })
+        );
         let group = group.with_registrations(&registered);
         assert!(group.previously_seated);
         assert!(group.is_registered);
@@ -489,7 +503,7 @@ mod tests {
 
         // Without name authorisations nothing matches.
         let group = combined(&[]).with_registrations(&registered);
-        assert_eq!(group.registration(&registered), None);
+        assert_eq!(group.previous_result(&registered), None);
         assert!(!group.is_registered);
         assert!(group.unregistered_legal_names.is_empty());
     }
