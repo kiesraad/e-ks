@@ -2,7 +2,7 @@ import type { Locator, Page } from "@playwright/test";
 import type { Candidate } from "../../models/candidate";
 
 export class ManageCandidateListPage {
-  readonly buttonAddExistingCandidate: Locator;
+  readonly buttonFromCandidateRegister: Locator;
   readonly buttonAddNewCandidate: Locator;
   readonly buttonSearchExistingCandidate: Locator;
   readonly textfieldInitials: Locator;
@@ -32,8 +32,8 @@ export class ManageCandidateListPage {
   readonly buttonOverviewPage: Locator;
 
   constructor(protected readonly page: Page) {
-    this.buttonAddExistingCandidate = this.page.getByRole("link", {
-      name: "Bestaand",
+    this.buttonFromCandidateRegister = this.page.getByRole("link", {
+      name: "Uit adresboek",
     });
     this.buttonAddNewCandidate = this.page.getByRole("link", {
       name: "Nieuw",
@@ -110,7 +110,7 @@ export class ManageCandidateListPage {
 
   async addExistingCandidates(candidates: string[]) {
     for (const candidate of candidates) {
-      await this.buttonAddExistingCandidate.click();
+      await this.buttonFromCandidateRegister.click();
 
       // search first part of the name
       await this.buttonSearchExistingCandidate.pressSequentially(

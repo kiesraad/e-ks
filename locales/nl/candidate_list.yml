@@ -1,6 +1,5 @@
 actions:
   add_candidates: Kandidaten toevoegen
-  add_existing: Bestaand
   add_first: Kandidatenlijst toevoegen
   add_more: Nog een lijst toevoegen
   add_new: Nieuw
@@ -8,6 +7,7 @@ actions:
   delete_list: Kandidatenlijst verwijderen
   export_csv: Download CSV bestand
   export_csv_template: Download CSV sjabloon
+  from_candidate_register: Uit adresboek
   import_csv: Upload CSV bestand
   import_export: Import en export kandidatenlijst
   select_all_candidate_lists: Selecteer alle kandidatenlijsten
@@ -15,14 +15,14 @@ actions:
 add_all: Alle kandidaten toevoegen
 add_candidate: Kandidaat toevoegen
 add_list_note: "Bij de {} is het mogelijk om in verschillende kieskringen met verschillende kandidatenlijsten mee te doen."
-all_candidates: Adresboek
-all_candidates_note: Kandidaten die u heeft aangemaakt vindt u hier terug
 candidate:
   delete_warning_text: "Deze persoon staat op {} kandidatenlijst(en). Weet je zeker dat je deze persoon definitief wilt verwijderen?"
 candidate_count: "<strong>{}</strong> / {} kandidaten"
 candidate_list_description:
   add_candidate: Voeg kandidaten toe
   add_candidate_list: Maak kandidatenlijst(en) aan
+candidate_register: Adresboek
+candidate_register_note: Kandidaten die u heeft aangemaakt vindt u hier terug
 districts:
   all: Alle
   duplicate_warning: U heeft kieskring(en) in meerdere kandidatenlijsten geselecteerd

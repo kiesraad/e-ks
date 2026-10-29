@@ -3,7 +3,7 @@ import type { Locator, Page } from "@playwright/test";
 export class CandidateListsOverviewPage {
   readonly buttonAddList: Locator;
   readonly linkCandidateList: Locator;
-  readonly headingAllCandidates: Locator;
+  readonly headingCandidateRegister: Locator;
   readonly linkFinalize: Locator;
 
   constructor(protected readonly page: Page) {
@@ -16,7 +16,7 @@ export class CandidateListsOverviewPage {
     this.linkCandidateList = this.page.getByRole("link", {
       name: "Kandidatenlijst beheren",
     });
-    this.headingAllCandidates = this.page.getByRole("heading", {
+    this.headingCandidateRegister = this.page.getByRole("heading", {
       name: "Adresboek",
     });
     this.linkFinalize = this.page.getByRole("link", {

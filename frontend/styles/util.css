@@ -158,3 +158,9 @@ a.disabled {
   max-width: var(--text-body-width);
   text-wrap: balance;
 }
+
+.centered {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}

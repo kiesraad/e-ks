@@ -1,6 +1,5 @@
 actions:
   add_candidates: Add candidates to the list
-  add_existing: Existing
   add_first: Add candidate list
   add_more: Add another list
   add_new: New
@@ -8,21 +7,22 @@ actions:
   delete_list: Delete candidate list
   export_csv: Download CSV file
   export_csv_template: Download CSV template
+  from_candidate_register: From register
   import_csv: Upload CSV file
   import_export: Import and export candidate list
   select_all_candidate_lists: Select all candidate lists
   select_all_districts: Select all electoral districts
 add_all: Add all candidates
 add_candidate: Add candidate
-add_list_note: "Multiple lists can be created for the {}."
-all_candidates: All candidates
-all_candidates_note: All created candidates can be found here
+add_list_note: "For the {} it is possible to create different lists for different electoral districts."
 candidate:
   delete_warning_text: "This person is on {} candidate list(s). Are you sure you want to permanently delete this person?"
 candidate_count: "<strong>{}</strong> / {} candidates"
 candidate_list_description:
   add_candidate: Add candidates
   add_candidate_list: Create candidate list(s)
+candidate_register: Candidate register
+candidate_register_note: All created candidates can be found here
 districts:
   all: All
   duplicate_warning: You have selected electoral district(s) that are on multiple candidate lists
