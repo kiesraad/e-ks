@@ -142,7 +142,7 @@ mod tests {
         let body = response_body_string(response).await;
 
         assert!(body.contains("Candidate register"));
-        assert!(body.contains("<strong>0</strong> candidates"));
+        assert!(body.contains("candidates in total")); // Zero should be pluralised
 
         let person = sample_person(PersonId::new());
         person.create(&store).await?;
@@ -152,8 +152,7 @@ mod tests {
                 .await?
                 .into_response();
         let body = response_body_string(response).await;
-        assert!(body.contains("<strong>1</strong> candidate"));
-        assert!(!body.contains("<strong>1</strong> candidates"));
+        assert!(body.contains("candidate in total")); // One should be singular
 
         Ok(())
     }

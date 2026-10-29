@@ -46,8 +46,8 @@ representative: Gemachtigde van kandidaat
 representative_info: "Omdat de kandidaat in het buitenland woont, is een gemachtigde nodig. De gemachtigde zal de benoemingsbrief voor u ontvangen."
 title: Adresboek
 total:
-  plural: "<strong>{}</strong> kandidaten toegevoegd"
-  single: "<strong>{}</strong> kandidaat toegevoegd"
+  plural: kandidaten toegevoegd
+  single: kandidaat toegevoegd
 view:
   empty: Geen kandidaten beschikbaar.
 with_problems: "{} met problemen"

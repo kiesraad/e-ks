@@ -20,11 +20,12 @@
         </div>
         <div class="card-content">
           <p>
-            {%- if total_persons == 1 -%}
-              {{ "person.total.single"|trans(&total_persons.to_string() )|safe }}
-            {%- else -%}
-              {{ "person.total.plural"|trans(&total_persons.to_string() )|safe }}
-            {%- endif -%}
+            <strong>{{ total_persons }}</strong>
+            {% if total_persons == 1 %}
+              {{ "person.total.single"|trans }}
+            {% else %}
+              {{ "person.total.plural"|trans }}
+            {% endif %}
           </p>
           <p>{{ "candidate_list.candidate_register_note"|trans }}</p>
         </div>

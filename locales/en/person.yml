@@ -46,8 +46,8 @@ representative: Authorised person
 representative_info: "Due to this candidate living abroad, an authorised agent is required. The authorised agent will receive the letter of appointment for you."
 title: Candidate register
 total:
-  plural: "<strong>{}</strong> candidates in total"
-  single: "<strong>{}</strong> candidate in total"
+  plural: candidates in total
+  single: candidate in total
 view:
   empty: No candidates available.
 with_problems: "{} with problems"
