@@ -15,7 +15,7 @@ use crate::{
     filters,
     structs::{
         csb::{CsbPhase, Omission, RegisteredPoliticalGroup},
-        problems::GeneralProblems,
+        problems::AllProblems,
     },
 };
 
@@ -23,7 +23,7 @@ use crate::{
 #[template(path = "csb/examination/pages/general_information.html")]
 struct CsbGeneralInformationTemplate {
     political_group: CsbPoliticalGroup,
-    general_problems: GeneralProblems,
+    all_problems: AllProblems,
     group_info: PaperCorrectedPoliticalGroupInfo,
     /// The committee's registrations behind the group: the one a standalone
     /// list is bound to, or those of the parties behind a combined list.
@@ -71,7 +71,7 @@ pub(in crate::csb) async fn render(
             substitute_submitters: paper_corrected_substitute_submitters(&data),
             political_group_omissions: data.get_political_group_omissions(),
             appellation_omissions: data.get_appellation_omissions(),
-            general_problems: data.get_all_problems(context.election)?.general,
+            all_problems: data.get_all_problems(context.election)?,
         },
         context,
     )

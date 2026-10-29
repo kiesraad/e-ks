@@ -84,8 +84,6 @@
     </td>
   </tr>
 {% endmacro %}
-{# The BRP check and its corrections both belong to the examination, so
-   outside it the row is plain. #}
 {% macro maybe_brp_editable_data_row(label, value, findings, edit_url, examining) %}
   {% if examining %}
     {{ brp_editable_data_row(label, value, findings, edit_url) }}

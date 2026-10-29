@@ -27,7 +27,7 @@ export class CsbPoliticalGroupPage {
       name: "Terug",
     });
     this.linkAllErrors = this.page.getByRole("link", {
-      name: "Naar alle fouten",
+      name: "Alle BRP fouten",
     });
     this.buttonPaperCorrections = this.page.getByRole("button", {
       name: "Ga naar gegevens",

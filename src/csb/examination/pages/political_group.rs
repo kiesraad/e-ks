@@ -295,12 +295,18 @@ mod tests {
             .update(CsbAction::SetBrpStatus(BrpStatus::Finished))
             .await
             .unwrap();
-        let handled = r#"restoration-tag restoration-tag-handled">Handled<"#;
+        let stream_id = store.stream_id;
 
         let body = examination_body(store.clone()).await;
-        assert!(body.contains("1 BRP error"), "{body}");
+        // The count leads to the list of findings.
+        assert!(
+            body.contains(&format!(
+                r#"href="/csb/examination/{stream_id}/brp-errors">1 BRP error<"#
+            )),
+            "{body}"
+        );
         assert!(body.contains("restoration-strip-error"));
-        assert!(!body.contains(handled));
+        assert!(!body.contains("restoration-tag-handled"));
 
         store
             .update(CsbAction::SetBrpFindingHandled {
@@ -314,7 +320,8 @@ mod tests {
         // Both the group strip and the list tile turn grey. The general
         // information stays red over the problems of the sample group.
         let body = examination_body(store).await;
-        assert_eq!(body.matches(handled).count(), 2, "{body}");
+        assert_eq!(body.matches("restoration-tag-handled").count(), 2, "{body}");
+        assert_eq!(body.matches(">Ignored<").count(), 2, "{body}");
         assert!(!body.contains("1 BRP error"));
         assert!(!body.contains(r#"restoration-tag-error">Errors<"#));
         assert_eq!(body.matches("restoration-strip-error").count(), 1, "{body}");

@@ -8,7 +8,7 @@ detail:
     error: Error
     fields: Fields requested
     finding: Finding
-    handled: Handled
+    handled: Ignored
     include_deceased: Including deceased persons
     list_value: Value on the list
     query: Request
@@ -136,7 +136,7 @@ event:
   logout: Signed out
   paper_correction: Paper corrections
   remove_candidate_from_list: Removed candidate from list
-  set_brp_finding_handled: Set BRP finding handled
+  set_brp_finding_handled: Recorded whether a BRP finding is ignored
   set_brp_status: Set BRP check status
   set_finished: Set finished state
   set_omission_part_status: Set omission status per electoral district or list

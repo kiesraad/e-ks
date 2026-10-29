@@ -125,7 +125,7 @@ test.describe("check for BRP errors", async () => {
     await expect(page.getByText("9 BRP fouten")).toBeVisible();
     await groupPage.linkAllErrors.click();
 
-    // check that all expected errors are present and mark as handled
+    // check that all expected errors are present and ignore them
     for (const error of expectedErrors) {
       await expect(page.getByText(error)).toBeVisible();
       await expect(page.getByText(error)).toHaveCSS(
@@ -136,9 +136,9 @@ test.describe("check for BRP errors", async () => {
       await page
         .getByRole("row")
         .filter({ hasText: error })
-        .getByRole("button", { name: "Afgehandeld", exact: true })
+        .getByRole("button", { name: "Negeren", exact: true })
         .click();
-      await page.getByRole("link", { name: "Naar alle fouten" }).click();
+      await page.getByRole("link", { name: "Alle BRP fouten" }).click();
       await expect(page.getByText(error)).toHaveCSS(
         "color",
         "rgb(102, 112, 133)",

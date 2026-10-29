@@ -51,15 +51,16 @@ brp:
     unparsable: "The BRP value for {} could not be interpreted, so it was not compared: {}"
   finished: "The check against the BRP has finished. Use 'Refresh this page' to see the results."
   handled:
-    badge: Handled
+    badge: Ignored
     candidate: Candidate
-    count: "{} of {} handled"
-    done: Handled
-    explanation: "Mark a BRP error as handled once it turns out not to be a problem, or once an omission was added for it."
+    count: "{} of {} ignored"
+    explanation: "Ignore a BRP error once it turns out not to be a problem, or once an omission was added for it."
     finding: Error
-    not_done: Not handled
-    title: BRP errors
+    ignore: Ignore
+    title: BRP check
+    unignore: Undo ignore
   incomplete: Check not finished
+  none_found: No BRP errors found
   not_checked: Not checked
   refresh: Refresh this page
   start_check: Check against the BRP
@@ -143,7 +144,7 @@ group:
   deleted_label: deleted
   discovered_errors: Errors found
   discovered_errors_note: All errors are collectively listed here
-  examine_all: To all errors
+  examine_all: All BRP errors
   examine_general: Examine general information
   examine_list: Examine candidate list
   finished: Examination finished
