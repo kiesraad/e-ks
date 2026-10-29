@@ -105,14 +105,8 @@ body.overlay-open {
 }
 
 .overlay-csv {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: var(--space-8);
-
-  .column:first-child {
-    border-inline-end: 1px solid var(--border-color-default);
-    padding-inline-end: var(--space-8);
-  }
+  max-width: 42em;
+  margin: auto;
 }
 
 body.overlay-skip-anim .overlay {
