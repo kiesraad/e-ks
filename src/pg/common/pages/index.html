@@ -92,7 +92,7 @@
           {{ "common.finalise_instruction"|trans }}:
           <strong>
             {% let election = "election"|election_value %}
-            {{ election.nomination_day_date()|long_date }}
+            {{ election.nomination_day_date() |long_date }}
           </strong>
         </div>
         <p class="card-footer">{{ "action.review_and_download"|trans }}</p>

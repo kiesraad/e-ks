@@ -127,7 +127,7 @@ mod tests {
         );
         assert_eq!(
             model.election_date,
-            chrono::NaiveDate::from_ymd_opt(2027, 5, 27).unwrap()
+            chrono::NaiveDate::from_ymd_opt(2027, 5, 24).unwrap()
         );
 
         Ok(())

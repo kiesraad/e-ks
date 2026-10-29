@@ -12,6 +12,7 @@ macro_rules! define_elections {
                 electoral_districts: $electoral_districts:expr,
                 number_of_seats: $number_of_seats:expr,
                 eligible_date_of_birth: $eligible_date_of_birth:expr,
+                presubmission_end_date: $presubmission_end_date:expr,
                 nomination_day_date: $nomination_day_date:expr,
                 document_review_date: $document_review_date:expr,
                 omission_period_end_date: $omission_period_end_date:expr,
@@ -159,6 +160,15 @@ macro_rules! define_elections {
                             $( result = $binding.frisian_export_allowed(); )?
                             result
                         },
+                    )*
+                }
+            }
+
+            pub fn presubmission_end_date(&self) -> NaiveDate {
+                #[allow(unused)]
+                match self {
+                    $(
+                        Self::$name $(($binding))? => $presubmission_end_date,
                     )*
                 }
             }

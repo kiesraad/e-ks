@@ -34,17 +34,17 @@ super::define_elections! {
         electoral_districts: ElectoralDistrict::ek_districts(),
         number_of_seats: 75,
         eligible_date_of_birth: const { date(2013, 6, 9) },
+        presubmission_end_date: const { date(2027, 4, 16) },
         nomination_day_date: const { date(2027, 4, 20) },
-        // Estimated from EK 2023 planning (official 2027 planning not yet published)
-        document_review_date: const { date(2027, 4, 25) },
-        omission_period_end_date: const { date(2027, 4, 29) },
+        document_review_date: const { date(2027, 4, 21) },
+        omission_period_end_date: const { date(2027, 4, 26) },
         public_session: PublicSession {
             location: "'s-Gravenhage",
-            datetime: const { at(date(2027, 5, 3), 17, 0) },
+            datetime: const { at(date(2027, 4, 29), 11, 0) },
             chair: "",
             members: &["", "", "", "", ""],
         },
-        election_date: const { date(2027, 5, 27) }
+        election_date: const { date(2027, 5, 24) }
     },
 
     PS27(province: Province) {
@@ -70,6 +70,7 @@ super::define_elections! {
             Province::Limburg => 47,
         },
         eligible_date_of_birth: const { date(2014, 2, 1) }, // TODO: determine definitive date
+        presubmission_end_date: const { date(2027, 1, 28) },
         nomination_day_date: const { date(2027, 2, 1) },
         document_review_date: const { date(2027, 2, 2) },
         omission_period_end_date: const { date(2027, 2, 4) },
@@ -114,6 +115,7 @@ super::define_elections! {
             WaterCouncil::Zuiderzeeland => 21,
         },
         eligible_date_of_birth: const { date(2014, 2, 1) }, // TODO: determine definitive date
+        presubmission_end_date: const { date(2027, 1, 28) },
         nomination_day_date: const { date(2027, 2, 1) },
         document_review_date: const { date(2027, 2, 2) },
         omission_period_end_date: const { date(2027, 2, 4) },

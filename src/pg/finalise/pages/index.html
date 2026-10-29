@@ -250,7 +250,7 @@
         </div>
         <div class="step-content less-wide">
           <p class="alert alert-info">
-            {{ "finalise.delivery.only_on"|trans(&(election.nomination_day_date()|long_date))|safe }}
+            {{ "finalise.delivery.only_on"|trans(&(election.nomination_day_date() |long_date))|safe }}
           </p>
           <p>{{ "finalise.delivery.description"|trans |safe }}</p>
           <p>{{ "finalise.delivery.appointment"|trans }}</p>
@@ -271,7 +271,7 @@
         </div>
         <div class="step-content less-wide">
           <p class="alert alert-info">
-            {{ "finalise.verification.until"|trans(&(election.document_review_date()|long_date))|safe }}
+            {{ "finalise.verification.until"|trans(&(election.document_review_date() |long_date))|safe }}
           </p>
           <p>{{ "finalise.verification.description"|trans }}</p>
           <p>{{ "finalise.verification.correction_notice"|trans }}</p>
@@ -285,12 +285,10 @@
         </div>
         <div class="step-content less-wide">
           <p class="alert alert-info">
-            {{ "finalise.correction.until"|trans(&(election.omission_period_end_date()|long_date))|safe }}
+            {{ "finalise.correction.until"|trans(&(election.omission_period_end_date() |long_date))|safe }}
           </p>
           <p>{{ "finalise.correction.description"|trans }}</p>
-          <p>
-            {{ "finalise.correction.deadline"|trans(&(election.omission_period_end_date()|long_date))|safe }}
-          </p>
+          <p>{{ "finalise.correction.deadline"|trans(&(election.omission_period_end_date() |long_date))|safe }}</p>
         </div>
       </div>
     </div>
