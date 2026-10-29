@@ -262,7 +262,8 @@ or mixed-role session cannot be represented. A **`PoliticalGroup`** session
 holds its own stream id, its SAML NameID, and the election it picked (if
 any); it only ever reaches that one stream. A **`CentralElectoralCommittee`**
 session holds the acting `CsbUser` (recorded on every CSB event for the audit
-log), its election (fixed at login from `DEFAULT_ELECTION`), and, while in
+log), its election (fixed at login: `DEFAULT_ELECTION`, or the one picked on
+the login page), and, while in
 paper-corrections mode, the imported stream being corrected. All CSB routes
 sit behind `csb_store_middleware`, which rejects any session that is not a
 committee session. Every login flow establishes a session through one shared
@@ -369,11 +370,22 @@ The CSB section has two projections of its own on the shared store machinery
   candidate's values against the BRP's and names the committee member, by
   GitHub login and id, who started the check.
 - **`registered_political_groups`**: administration of the political groups
-  registered for the election with their result at the previous election of
-  the same body (appellation, votes, seats), kept on the CSB main stream. The
-  lists of groups that obtained one or more seats are numbered first on model
-  I 4, in the order of their votes (Kieswet Art. I 14); the remaining list order
-  is decided by lot (Art. I 15).
+  registered for the election with their statutory name and their result at
+  the previous election of the same body (appellation, legal name, votes,
+  seats), kept on the CSB main stream. A political group picks its
+  registration on its general information page, which takes over the
+  appellation and previous election result and binds the group to the
+  registration by id in its `ListDesignation` (a standalone list carries one
+  registration, a combined list several, a blank list none). The committee
+  matches an imported group on that id, falling back to the appellation for
+  groups imported before the binding existed. A combined list is matched on
+  the statutory names of its name authorisations, one per party; the party
+  with the most votes stands for the combination in the numbering and the
+  exemption from declarations of support, as the parties' results are not
+  added up. The lists of groups that
+  obtained one or more seats are numbered first on model I 4, in the order of
+  their votes (Kieswet Art. I 14); the remaining list order is decided by lot
+  (Art. I 15).
 - **`common`**: the not-found page for paths under `/csb` that no CSB route
   claims. The error pages for the CSB routes (`csb/error_response.rs`) render
   the page an `AppError` carries in the CSB layout, the counterpart of the
@@ -618,7 +630,7 @@ the variable in lowercase, so an error names that field (e.g. ``missing field
 | `EKS_KEY` | Optional shared secret for the `x-eks-key` request gate. |
 | `CSB_WEBAUTHN_ORIGIN` | Enable the CSB security-key (WebAuthn) login (`/csb/login`): the origin the CSB section is served on, e.g. `https://csb.example.nl` (`http://localhost:3000` in development). Its host is the WebAuthn relying-party id, so keys enrolled for one host only work there. Outside `dev-features` builds it requires `CSB_BIND_ADDRESS` (startup fails without it), so the login is never served on the main listener. |
 | `CSB_WEBAUTHN_USERS` | Comma-separated `username:credential-id:public-key` entries (blobs base64url without padding), one per committee member allowed to log in, as printed by `bin/enrol_csb_user` (see [docs/csb-enrolment.md](csb-enrolment.md)). Requires `CSB_WEBAUTHN_ORIGIN`. One malformed entry, a duplicate username, or a key listed for two users refuses the whole configuration. The entries are public keys, not secrets. |
-| `DEFAULT_ELECTION` | Election a login lands on when the flow has no election selection of its own (CSB logins, dev logins): the election code, with the election domain appended after a colon where the type needs one (e.g. `EK27`, `PS27:prov1`). Dev builds default to `EK27`. |
+| `DEFAULT_ELECTION` | Pins the application to one election: the election code, with the election domain appended after a colon where the type needs one (e.g. `EK27`, `PS27:prov1`). A political group's first login then gets a stream for that election without the `/select-election` page, `/switch-election` answers 404, and CSB and dev logins land on it. Unset, a political group picks its election at login and can switch later, the CSB login page asks which election to sign in to, and the dev login lands on `EK27`. |
 | `BIND_ADDRESS` | Address the server binds to (default `0.0.0.0:3000`; the first CLI argument overrides it). |
 | `LOG_FORMAT` | `json` for one JSON object per log event on stdout (for ingestion by a Loki agent); unset keeps the human-readable format. The filter itself comes from `RUST_LOG`. |
 | `DISABLE_AUTH_SERVICE` | `true` boots without the live auth-service (no startup IdP-metadata fetch), for environments that only use the `/dev/login` bypass, e.g. the Playwright container. The four variables below are then not needed. |
@@ -951,7 +963,10 @@ existing log:
 What CBOR does not cover: a field added to an existing event still needs
 `#[serde(default)]` to read events written before it existed, and removing or
 renaming a variant or field still needs an explicit migration or a new frame
-version.
+version. A value that changed shape keeps reading its old form through an
+untagged repr it is deserialised `from`: `BrpFinding` (once a bare kind, now
+a kind with a flag) and `ListDesignation` (once a bare kind, now the kind with
+the registrations it is bound to).
 
 Raw byte fields (the chain `hash` and `encrypted_payload` of a frame) carry
 `#[serde(with = "serde_bytes")]` so they encode as CBOR byte strings rather

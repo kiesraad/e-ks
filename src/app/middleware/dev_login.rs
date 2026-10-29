@@ -12,6 +12,7 @@ use crate::{
     Session, SessionUser, StreamId,
     auth::session_extractor::{LoginOrigin, establish_session, user_agent_hash},
     common::{PgIndexPath, SelectElectionPath},
+    constants::DEV_LOGIN_ELECTION,
     csb::index::CsbIndexPath,
     store::{Store, StoreData},
     structs::{common::Appellation, political_groups::PoliticalGroup},
@@ -86,9 +87,11 @@ impl<'a> DevLogin<'a> {
             // Committee members share the CSB main stream, and dev logins are
             // not told apart in the audit log, so no BSN-derived stream is
             // involved.
-            Some(true) => {
-                Session::for_committee(CsbUser::Developer, state.config.default_election, locale)
-            }
+            Some(true) => Session::for_committee(
+                CsbUser::Developer,
+                state.config.default_election.unwrap_or(DEV_LOGIN_ELECTION),
+                locale,
+            ),
             _ => Session::for_political_group(
                 derive_dev_stream_id(state, query.bsn.as_deref()),
                 DEV_LOGIN_NAME_ID.to_string(),
@@ -159,7 +162,11 @@ impl<'a> DevLogin<'a> {
             return Ok((SelectElectionPath.to_string(), None));
         }
 
-        let election = self.state.config.default_election;
+        let election = self
+            .state
+            .config
+            .default_election
+            .unwrap_or(DEV_LOGIN_ELECTION);
         let (store, was_new) = self.ensure_store(stream_id, fixture_name, election).await?;
 
         if was_new {

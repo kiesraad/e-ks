@@ -33,6 +33,9 @@ no_legal_names: Nog geen statutaire naam toegevoegd
 no_list_submitter: Geen lijstinleveraar
 no_substitute_submitters: Geen vervangers voor het herstel van verzuimen
 previous_election_results: "Bij de vorige {} had uw partij:"
+registered_political_group: Geregistreerde politieke groepering
+registered_political_group_hint: Kies de politieke groepering zoals die is geregistreerd bij het centraal stembureau. De geregistreerde aanduiding en het aantal zetels bij de vorige verkiezing worden dan overgenomen en kunnen niet worden aangepast.
+registered_political_group_none: "Niet in de lijst, zelf invullen"
 substitute_submitter: Vervanger voor het herstel van verzuimen
 substitute_submitter_data: Gegevens vervanger
 substitute_submitters_data: Gegevens vervangers voor het herstel van verzuimen

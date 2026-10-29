@@ -27,7 +27,7 @@ use crate::{
 
 /// Development defaults for the variables that have none otherwise.
 #[cfg(feature = "dev-features")]
-const DEV_DEFAULTS: [(&str, &str); 5] = [
+const DEV_DEFAULTS: [(&str, &str); 4] = [
     (
         "storage_url",
         if cfg!(feature = "database") {
@@ -48,7 +48,6 @@ const DEV_DEFAULTS: [(&str, &str); 5] = [
         "brp_url",
         "http://localhost:5010/haalcentraal/api/brp/personen",
     ),
-    ("default_election", "EK27"),
 ];
 
 /// Defaults for the shared online TVS mock.
@@ -140,11 +139,15 @@ pub struct Config {
     /// `CSB_WEBAUTHN_USERS`. Requires `csb_bind_address` outside
     /// development builds.
     pub csb_webauthn: Option<CsbWebauthnConfig>,
-    /// Election a login lands on when the flow has no election selection of
-    /// its own (CSB logins, dev logins). Set via `DEFAULT_ELECTION` as the
-    /// election code, with the election domain appended after a colon where
-    /// the type needs one (e.g. `EK27`, `PS27:prov1`).
-    pub default_election: ElectionConfig,
+    /// Pins the application to one election: a political group's first login
+    /// gets this election without the selection page, `/switch-election` is
+    /// disabled, and the CSB login page offers no election to pick. Unset, a
+    /// political group picks its election at login and can switch later, and
+    /// a committee member picks it on the login page. Set via
+    /// `DEFAULT_ELECTION` as the election code, with the election domain
+    /// appended after a colon where the type needs one (e.g. `EK27`,
+    /// `PS27:prov1`). The dev login lands on `EK27` when it is unset.
+    pub default_election: Option<ElectionConfig>,
     /// Per-stream rate limits guarding against denial of service through the
     /// regular interface; see [`RateLimits`].
     pub rate_limits: RateLimits,
@@ -200,8 +203,8 @@ struct Env {
     brp_request_interval_ms: Option<u64>,
     brp_client_cert_path: Option<PathBuf>,
     brp_client_key_path: Option<PathBuf>,
-    #[serde(deserialize_with = "election")]
-    default_election: ElectionConfig,
+    #[serde(default, deserialize_with = "election")]
+    default_election: Option<ElectionConfig>,
     rate_limit_downloads: Option<usize>,
     rate_limit_downloads_window_secs: Option<u64>,
     rate_limit_events: Option<usize>,
@@ -253,16 +256,20 @@ fn bind_address<'de, D: Deserializer<'de>>(
 
 /// `DEFAULT_ELECTION`: the election code, with the election domain appended
 /// after a colon where the election type needs one (e.g. `EK27`, `PS27:prov1`).
-fn election<'de, D: Deserializer<'de>>(deserializer: D) -> Result<ElectionConfig, D::Error> {
+fn election<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<ElectionConfig>, D::Error> {
     let raw = String::deserialize(deserializer)?;
     let (code, domain) = raw
         .split_once(':')
         .map_or((raw.as_str(), None), |(code, domain)| (code, Some(domain)));
-    ElectionConfig::from_code_and_domain(code.trim(), domain.map(str::trim)).ok_or_else(|| {
-        D::Error::custom(format!(
-            "{raw:?} is not a known election (expected e.g. EK27 or PS27:prov1)"
-        ))
-    })
+    ElectionConfig::from_code_and_domain(code.trim(), domain.map(str::trim))
+        .map(Some)
+        .ok_or_else(|| {
+            D::Error::custom(format!(
+                "{raw:?} is not a known election (expected e.g. EK27 or PS27:prov1)"
+            ))
+        })
 }
 
 /// A configuration error with `message`.
@@ -561,7 +568,7 @@ impl Config {
                 client_cert: None,
             },
             csb_webauthn: None,
-            default_election: ElectionConfig::EK27,
+            default_election: None,
             rate_limits: RateLimits::default(),
             store_cache_idle_timeout: Duration::from_secs(STORE_CACHE_IDLE_MINUTES.get() * 60),
             log_format: LogFormat::default(),
@@ -576,7 +583,7 @@ mod tests {
 
     /// The variables with no default outside `dev-features` and `tvs-mock`,
     /// so a test about any other setting passes with the features off.
-    const REQUIRED: [(&str, &str); 8] = [
+    const REQUIRED: [(&str, &str); 7] = [
         ("STORAGE_URL", "memory://test"),
         ("ID_DERIVATION_KEY", "id-derivation-key-123"),
         ("MASTER_ENCRYPTION_KEY", "master-encryption-key-123"),
@@ -584,7 +591,6 @@ mod tests {
             "BRP_URL",
             "http://localhost:5010/haalcentraal/api/brp/personen",
         ),
-        ("DEFAULT_ELECTION", "EK27"),
         ("TVS_ENV", "test"),
         ("CERTS_DIR", "/tmp/certs"),
         ("BASE_URL", "http://localhost:3000"),
@@ -839,13 +845,16 @@ mod tests {
 
     #[test]
     fn from_env_reads_default_election_code_and_optional_domain() {
+        let config = config_from(&[]).expect("unset");
+        assert_eq!(config.default_election, None);
+
         let config = config_from(&[("DEFAULT_ELECTION", "EK27")]).expect("EK27");
-        assert_eq!(config.default_election, ElectionConfig::EK27);
+        assert_eq!(config.default_election, Some(ElectionConfig::EK27));
 
         let config = config_from(&[("DEFAULT_ELECTION", "PS27:prov1")]).expect("PS27:prov1");
         assert_eq!(
             config.default_election,
-            ElectionConfig::PS27(crate::Province::Groningen)
+            Some(ElectionConfig::PS27(crate::Province::Groningen))
         );
     }
 

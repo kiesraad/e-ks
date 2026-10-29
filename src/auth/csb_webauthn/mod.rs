@@ -60,6 +60,8 @@ pub(crate) enum LoginFailure {
     ChallengeNotPending,
     /// `credential.rawId` is not among the configured credentials (step 5).
     UnknownKey,
+    /// No `DEFAULT_ELECTION`, and the form named no election to log in to.
+    NoElection,
     /// A check on the assertion itself failed (steps 6 to 23).
     Rejected {
         username: CsbUsername,
@@ -84,6 +86,7 @@ impl Display for LoginFailure {
             Self::ChallengeMalformed => f.write_str("challenge is not 32 bytes base64url"),
             Self::ChallengeNotPending => f.write_str("challenge is unknown, expired, or replayed"),
             Self::UnknownKey => f.write_str("assertion is for an unknown security key"),
+            Self::NoElection => f.write_str("no election was picked"),
             Self::Rejected { error, .. } => write!(f, "assertion rejected: {error}"),
         }
     }
@@ -178,6 +181,7 @@ pub(crate) mod test_support {
         let users = format!("{}:{}", alice(), test_credential_encoded());
         config.csb_webauthn =
             Some(CsbWebauthnConfig::parse(TEST_ORIGIN, Some(&users)).expect("valid config"));
+        config.default_election = Some(crate::ElectionConfig::EK27);
         config
     }
 

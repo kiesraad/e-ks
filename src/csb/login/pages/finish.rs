@@ -16,7 +16,8 @@ use serde::Deserialize;
 use tracing::{info, warn};
 
 use crate::{
-    AppError, AppRequestState, CsbMainStore, CsbUser, CsbUsername, Form, Locale, Session,
+    AppError, AppRequestState, CsbMainStore, CsbUser, CsbUsername, ElectionConfig, Form, Locale,
+    Session, SwitchElectionForm,
     auth::{
         csb_webauthn::{AssertionError, LoginFailure, VerifiedLogin, verify_login},
         session_extractor::{LoginOrigin, establish_session, user_agent_hash},
@@ -28,10 +29,13 @@ use crate::{
     utils::peer_ip_label,
 };
 
-/// The ceremony result, as the browser script serialises it.
+/// The ceremony result, as the browser script serialises it, with the
+/// election picked on the page unless `DEFAULT_ELECTION` pins it.
 #[derive(Debug, Deserialize)]
 pub struct CredentialForm {
     credential: String,
+    #[serde(flatten)]
+    election: Option<SwitchElectionForm>,
 }
 
 /// Alerting matches failed attempts on `event = "csb.login_failed"`.
@@ -44,13 +48,18 @@ pub async fn login_finish<S: AppRequestState>(
     Form(form): Form<CredentialForm>,
 ) -> Result<Response, AppError> {
     let config = require_webauthn(state.config())?;
-    let store = state
-        .csb_main_store(state.config().default_election)
-        .await?;
+    let peer = connect_info.map(|Extension(ConnectInfo(addr))| addr.ip());
+    let election = state.config().default_election.or_else(|| {
+        form.election
+            .and_then(SwitchElectionForm::into_election_config)
+    });
+    let Some(election) = election else {
+        return Ok(login_failed_with(LoginFailure::NoElection, peer));
+    };
+    let store = state.csb_main_store(election).await?;
     // This route sits outside `csb_store_middleware`, which would otherwise
     // catch the cached projection up with logins recorded elsewhere.
     store.load().await?;
-    let peer = connect_info.map(|Extension(ConnectInfo(addr))| addr.ip());
 
     let verified = verify_login(
         state.pending_requests(),
@@ -60,7 +69,9 @@ pub async fn login_finish<S: AppRequestState>(
     )
     .await;
     match verified {
-        Ok(login) => establish_committee_session(&state, &store, login, jar, &headers, peer).await,
+        Ok(login) => {
+            establish_committee_session(&state, &store, election, login, jar, &headers, peer).await
+        }
         Err(failure) => Ok(login_failed_with(failure, peer)),
     }
 }
@@ -83,6 +94,7 @@ fn login_failed_with(failure: LoginFailure, peer: Option<IpAddr>) -> Response {
 async fn establish_committee_session<S: AppRequestState>(
     state: &S,
     store: &CsbMainStore,
+    election: ElectionConfig,
     login: VerifiedLogin,
     jar: CookieJar,
     headers: &HeaderMap,
@@ -96,7 +108,6 @@ async fn establish_committee_session<S: AppRequestState>(
     let user = CsbUser::SecurityKey {
         username: username.clone(),
     };
-    let election = state.config().default_election;
 
     let mut session = Session::for_committee(user.clone(), election, Locale::default());
     session.set_user_agent_hash(user_agent_hash(headers));
@@ -162,10 +173,10 @@ mod tests {
             .expect("load session")
             .expect("session");
         assert_eq!(session.scope(), crate::Scope::CentralElectoralCommittee);
-        assert_eq!(session.user.election(), Some(state.config.default_election));
+        assert_eq!(session.user.election(), Some(ElectionConfig::EK27));
 
         let store = state
-            .csb_main_store(state.config.default_election)
+            .csb_main_store(ElectionConfig::EK27)
             .await
             .expect("main store");
         assert!(matches!(
@@ -178,6 +189,44 @@ mod tests {
                 ..
             }]
         ));
+        assert_eq!(
+            store.last_sign_count(&test_support::test_credential_id()),
+            7
+        );
+    }
+
+    /// Without `DEFAULT_ELECTION` the login is to the election picked on the
+    /// page, and fails without one.
+    #[tokio::test]
+    async fn election_comes_from_the_form_when_not_pinned() {
+        let mut config = test_support::webauthn_test_config();
+        config.default_election = None;
+        let state = AppState::new_for_tests_with_config(config).await;
+        let app = crate::app::router::create(state.clone()).with_state(state.clone());
+        let election = ElectionConfig::PS27(crate::Province::Groningen);
+
+        let challenge = start_login(&app).await;
+        let assertion = test_support::signed_assertion(&challenge);
+        assert_login_failed(&finish_login(&app, &assertion).await);
+
+        let challenge = start_login(&app).await;
+        let assertion = test_support::signed_assertion(&challenge);
+        let request = form_post(
+            "/csb/login/finish",
+            &[
+                ("credential", assertion.as_str()),
+                ("election", "PS27"),
+                ("domain_province", "prov1"),
+                ("domain_water_council", ""),
+            ],
+        );
+        let response = app.clone().oneshot(request).await.expect("response");
+
+        assert_eq!(location(&response), "/csb");
+        let token = cookie_value(&response, crate::SESSION_COOKIE_NAME).expect("session cookie");
+        let session = state.sessions.get(&token).await.unwrap().unwrap();
+        assert_eq!(session.user.election(), Some(election));
+        let store = state.csb_main_store(election).await.expect("main store");
         assert_eq!(
             store.last_sign_count(&test_support::test_credential_id()),
             7
@@ -203,7 +252,7 @@ mod tests {
         assert_eq!(location(&login(8).await), "/csb");
 
         let store = state
-            .csb_main_store(state.config.default_election)
+            .csb_main_store(ElectionConfig::EK27)
             .await
             .expect("main store");
         assert_eq!(
@@ -328,12 +377,13 @@ mod tests {
         ));
 
         let store = state
-            .csb_main_store(state.config.default_election)
+            .csb_main_store(ElectionConfig::EK27)
             .await
             .expect("main store");
         let _ = establish_committee_session(
             &state,
             &store,
+            ElectionConfig::EK27,
             test_support::alice_login(),
             jar,
             &HeaderMap::new(),
@@ -361,12 +411,13 @@ mod tests {
         let state = AppState::new_for_tests_with_config(test_support::webauthn_test_config()).await;
 
         let store = state
-            .csb_main_store(state.config.default_election)
+            .csb_main_store(ElectionConfig::EK27)
             .await
             .expect("main store");
         let response = establish_committee_session(
             &state,
             &store,
+            ElectionConfig::EK27,
             test_support::alice_login(),
             CookieJar::new(),
             &HeaderMap::new(),
@@ -383,7 +434,7 @@ mod tests {
         let _ = state.logout_session(jar).await.expect("logout session");
 
         let store = state
-            .csb_main_store(state.config.default_election)
+            .csb_main_store(ElectionConfig::EK27)
             .await
             .expect("main store");
         assert!(

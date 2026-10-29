@@ -64,6 +64,7 @@ detail:
     previous_seats: Zetels vorige verkiezing
     previous_votes: Stemmen vorige verkiezing
     recoverable: Herstelbaar
+    registered_political_group: Registratie
     representative: Gemachtigde
     state_or_province: Staat / provincie
     stream_id: Stream-ID

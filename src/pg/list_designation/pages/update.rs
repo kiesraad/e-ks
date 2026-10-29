@@ -11,7 +11,7 @@ use crate::{
     list_designation::{
         ListDesignationUpdatePath, forms::list_designation_form::ListDesignationForm,
     },
-    political_groups::PoliticalGroupSteps,
+    political_groups::{PoliticalGroupStep, PoliticalGroupSteps},
     structs::{list_submitters::ListSubmitter, name_authorisations::NameAuthorisation},
 };
 
@@ -29,11 +29,15 @@ pub async fn update_list_designation(
     political_group: PoliticalGroup,
     Query(query): Query<QueryParamState>,
 ) -> Result<Response, AppError> {
-    let steps = PoliticalGroupSteps::new(&store, query.is_initial())?;
+    let steps = PoliticalGroupSteps::new(
+        &store,
+        query.is_initial(),
+        PoliticalGroupStep::ListDesignation,
+    )?;
     Ok(HtmlTemplate(
         ListDesignationUpdateTemplate {
             steps,
-            form: FormData::new_with_data(political_group.list_designation.into()),
+            form: FormData::new_with_data(political_group.list_designation_kind().into()),
         },
         context,
     )
@@ -48,9 +52,13 @@ pub async fn update_list_designation_submit(
     Query(query): Query<QueryParamState>,
     Form(form): Form<ListDesignationForm>,
 ) -> Result<Response, AppError> {
-    let steps = PoliticalGroupSteps::new(&store, query.is_initial())?;
+    let steps = PoliticalGroupSteps::new(
+        &store,
+        query.is_initial(),
+        PoliticalGroupStep::ListDesignation,
+    )?;
 
-    match form.validate_update(&political_group.list_designation.into()) {
+    match form.validate_update(&political_group.list_designation_kind().into()) {
         Err(form_data) => Ok(HtmlTemplate(
             ListDesignationUpdateTemplate {
                 form: form_data,
@@ -59,11 +67,18 @@ pub async fn update_list_designation_submit(
             context,
         )
         .into_response()),
-        Ok(list_designation) => {
-            political_group.list_designation = Some(list_designation.list_designation_type);
+        Ok(target) => {
+            let kind = target.list_designation_type;
+            // The same list type keeps its registrations; another type starts
+            // unbound.
+            political_group.list_designation =
+                Some(match political_group.list_designation.take() {
+                    Some(current) if current.kind() == kind => current,
+                    _ => kind.into(),
+                });
             political_group.update(&store).await?;
 
-            if political_group.list_designation == Some(ListDesignation::Blank) {
+            if political_group.is_blank() {
                 Ok(query.redirect_or_preserving_initial(ListSubmitter::view_path()))
             } else {
                 Ok(query.redirect_or_preserving_initial(PoliticalGroup::update_path()))
@@ -76,7 +91,8 @@ pub async fn update_list_designation_submit(
 mod tests {
     use super::*;
     use crate::{
-        AppError, Context, Form, PgStore, QueryParamState, test_utils::response_body_string,
+        AppError, Context, Form, PgStore, QueryParamState,
+        structs::csb::RegisteredPoliticalGroupId, test_utils::response_body_string,
     };
     use axum::{
         http::{StatusCode, header},
@@ -145,7 +161,74 @@ mod tests {
         );
         assert_eq!(
             store.snapshot().get_political_group().list_designation,
-            Some(ListDesignation::Standalone)
+            Some(ListDesignation::default())
+        );
+
+        Ok(())
+    }
+
+    async fn submit_kind(store: &PgStore, kind: &str) -> Result<(), AppError> {
+        let response = update_list_designation_submit(
+            ListDesignationUpdatePath {},
+            Context::new_test_without_db(),
+            store.clone(),
+            store.snapshot().get_political_group().clone(),
+            Query(QueryParamState::default()),
+            Form(ListDesignationForm {
+                list_designation_type: kind.to_string(),
+            }),
+        )
+        .await?;
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn resubmitting_the_same_kind_keeps_the_binding() -> Result<(), AppError> {
+        let store = PgStore::new_for_test();
+        let bound = ListDesignation::Standalone {
+            registration: Some(RegisteredPoliticalGroupId::new()),
+        };
+        PoliticalGroup {
+            list_designation: Some(bound.clone()),
+            ..store.snapshot().get_political_group().clone()
+        }
+        .update(&store)
+        .await?;
+
+        submit_kind(&store, "standalone").await?;
+        assert_eq!(
+            store.snapshot().get_political_group().list_designation,
+            Some(bound)
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn changing_the_kind_drops_the_binding() -> Result<(), AppError> {
+        let store = PgStore::new_for_test();
+        PoliticalGroup {
+            list_designation: Some(ListDesignation::Standalone {
+                registration: Some(RegisteredPoliticalGroupId::new()),
+            }),
+            ..store.snapshot().get_political_group().clone()
+        }
+        .update(&store)
+        .await?;
+
+        submit_kind(&store, "combined").await?;
+        assert_eq!(
+            store.snapshot().get_political_group().list_designation,
+            Some(ListDesignation::Combined {
+                registrations: Vec::new()
+            })
+        );
+
+        submit_kind(&store, "standalone").await?;
+        assert_eq!(
+            store.snapshot().get_political_group().list_designation,
+            Some(ListDesignation::Standalone { registration: None })
         );
 
         Ok(())

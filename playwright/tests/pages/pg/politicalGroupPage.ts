@@ -5,7 +5,9 @@ export class PoliticalGroupPage {
   readonly selectMoreThan16Seats: Locator;
   readonly selectLessThan16Seats: Locator;
   readonly selectNoSeats: Locator;
+  readonly selectRegisteredPoliticalGroup: Locator;
   readonly textfieldRegisteredDesignation: Locator;
+  readonly textfieldLegalName: Locator;
   readonly textfieldCombinedDesignation: Locator;
   readonly buttonSaveAndNext: Locator;
   readonly linkCandidateLists: Locator;
@@ -26,8 +28,14 @@ export class PoliticalGroupPage {
     this.selectNoSeats = this.page.getByRole("radio", {
       name: "0 zetels",
     });
+    this.selectRegisteredPoliticalGroup = this.page.getByRole("combobox", {
+      name: "Geregistreerde politieke groepering",
+    });
     this.textfieldRegisteredDesignation = this.page.getByRole("textbox", {
       name: "Geregistreerde aanduiding",
+    });
+    this.textfieldLegalName = this.page.getByRole("textbox", {
+      name: "Volledige statutaire naam",
     });
     this.textfieldCombinedDesignation = this.page.getByRole("textbox", {
       name: "Samengevoegde aanduiding",
@@ -52,6 +60,20 @@ export class PoliticalGroupPage {
    */
   async selectHasMoreThan16Seats(input: string) {
     await this.page.getByRole("radio", { name: input }).check();
+  }
+
+  /**
+   * Picks a committee registration by its appellation, which fills and locks
+   * the designation, legal name and previous election result.
+   */
+  async selectRegisteredPoliticalGroupNamed(appellation: string) {
+    await this.selectRegisteredPoliticalGroup.selectOption({
+      label: appellation,
+    });
+  }
+
+  async setLegalName(legalName: string) {
+    await this.textfieldLegalName.fill(legalName);
   }
 
   async setRegisteredDesignation(registeredDesignation: string) {

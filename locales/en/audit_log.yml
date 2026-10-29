@@ -64,6 +64,7 @@ detail:
     previous_seats: Seats at the previous election
     previous_votes: Votes at the previous election
     recoverable: Recoverable
+    registered_political_group: Registration
     representative: Authorised person
     state_or_province: State / province
     stream_id: Stream ID

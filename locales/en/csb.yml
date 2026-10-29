@@ -19,6 +19,7 @@ auth:
     failed: "The security key did not confirm. Check that the key is inserted and that you entered the correct PIN, then try again."
     intro: "Insert your security key, enter its PIN and touch the key when it blinks."
     retry: Try again
+    start: Sign in with your security key
     unsupported: "This browser does not support security keys, or JavaScript is disabled."
   error:
     message: Signing in did not succeed. Check that your security key has been registered and try again.
@@ -152,6 +153,8 @@ group:
   problems_present: Problems
   toggle: Finish or reopen examination
   unfinished: Finish examination
+  unregistered_combined_warning: "Not all statutory names of the parties behind this combined list match a registered political group. Check the registrations: only registered parties count towards the numbering and the exemption from declarations of support."
+  unregistered_warning: "The appellation of this political group matches none of the registered political groups. Check the registration: without one the list is numbered by lot and declarations of support are required."
 hearing:
   chair_name: Chair name
   date: Date of hearing

@@ -49,7 +49,7 @@ pub fn fixture_group(appellation: Option<Appellation>) -> PoliticalGroup {
         appellation: Some(
             appellation.unwrap_or_else(|| "Kiesraad Demo".parse().expect("appellation")),
         ),
-        list_designation: Some(ListDesignation::Standalone),
+        list_designation: Some(ListDesignation::Standalone { registration: None }),
         previous_election_results: None,
     }
 }

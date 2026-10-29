@@ -126,6 +126,20 @@ mod tests {
         assert!(body.contains(ElectionConfig::EK27.title(AnyLocale::En)));
     }
 
+    /// The switch-election link only shows when the context allows it.
+    #[tokio::test]
+    async fn index_links_switch_election_only_when_allowed() {
+        let link = r#"href="/switch-election""#;
+        for can_switch_election in [false, true] {
+            let store = PgStore::new_for_test();
+            let mut context = Context::new_test_from_store(&store);
+            context.can_switch_election = can_switch_election;
+            let response = index(PgIndexPath, context, store).await.into_response();
+            let body = response_body_string(response).await;
+            assert_eq!(body.contains(link), can_switch_election, "{body}");
+        }
+    }
+
     /// The layout carries the session-expiry warning with the remaining
     /// lifetime for the script that opens it.
     #[tokio::test]

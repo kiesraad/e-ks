@@ -18,7 +18,7 @@ use crate::{
             BsnOrNoneConfirmed, DateOfBirth, Gender, PlaceOfResidence, PreviousElectionResults,
         },
         csb::OmissionStatus,
-        list_designation::ListDesignation,
+        list_designation::ListDesignationKind,
     },
     trans,
 };
@@ -77,7 +77,7 @@ impl AuditValue {
 #[derive(Debug, Clone, PartialEq)]
 pub enum EnumValue {
     Gender(Gender),
-    ListDesignation(ListDesignation),
+    ListDesignation(ListDesignationKind),
     PreviousElectionResults(PreviousElectionResults),
     BsnNoneConfirmed,
     OmissionStatus(OmissionStatus),
@@ -89,13 +89,13 @@ impl EnumValue {
         match self {
             EnumValue::Gender(Gender::Female) => trans!("common.gender.female", locale),
             EnumValue::Gender(Gender::Male) => trans!("common.gender.male", locale),
-            EnumValue::ListDesignation(ListDesignation::Standalone) => {
+            EnumValue::ListDesignation(ListDesignationKind::Standalone) => {
                 trans!("political_group.type.registered_name", locale)
             }
-            EnumValue::ListDesignation(ListDesignation::Blank) => {
+            EnumValue::ListDesignation(ListDesignationKind::Blank) => {
                 trans!("political_group.type.blank_name", locale)
             }
-            EnumValue::ListDesignation(ListDesignation::Combined) => {
+            EnumValue::ListDesignation(ListDesignationKind::Combined) => {
                 trans!("political_group.type.name_combination", locale)
             }
             EnumValue::PreviousElectionResults(PreviousElectionResults::ZeroSeats) => {
@@ -208,7 +208,7 @@ impl AuditLeaf for Gender {
     }
 }
 
-impl AuditLeaf for ListDesignation {
+impl AuditLeaf for ListDesignationKind {
     fn audit_value(&self) -> AuditValue {
         AuditValue::Enum(EnumValue::ListDesignation(*self))
     }

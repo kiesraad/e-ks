@@ -1,4 +1,10 @@
 {% extends "pg/common/components/layout.html" %}
+{% block header_action %}
+  {% if "can_switch_election"|value_true %}
+    <a href="{{ crate::common::SwitchElectionPath.to_string() }}"
+       class="button secondary">{{ "common.switch_election.label"|trans }}</a>
+  {% endif %}
+{% endblock %}
 {% block page_title %}
   {% let election = "election"|election_value %}
   {{ (&election)|election_title }}

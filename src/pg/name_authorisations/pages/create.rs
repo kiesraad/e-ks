@@ -7,8 +7,8 @@ use axum::{
 
 use super::NameAuthorisationCreatePath;
 use crate::{
-    AppError, Context, Form, HtmlTemplate, Overlay, PgStore, QueryParamState, filters,
-    form::FormData, name_authorisations::NameAuthorisationForm,
+    AppError, Context, CsbMainStore, Form, HtmlTemplate, Overlay, PgStore, QueryParamState,
+    filters, form::FormData, name_authorisations::NameAuthorisationForm,
 };
 
 #[derive(Template)]
@@ -21,11 +21,24 @@ struct NameAuthorisationCreateTemplate {
 pub async fn create_name_authorisation(
     _: NameAuthorisationCreatePath,
     context: Context,
+    store: PgStore,
+    main_store: CsbMainStore,
     Query(query): Query<QueryParamState>,
 ) -> Result<impl IntoResponse, AppError> {
+    // Start from the statutory name of the registration the group is bound to.
+    let legal_name = store
+        .snapshot()
+        .get_political_group()
+        .registration_id()
+        .and_then(|id| main_store.get_registered_political_group(id).ok())
+        .map(|registration| registration.legal_name.to_string())
+        .unwrap_or_default();
     Ok(HtmlTemplate(
         NameAuthorisationCreateTemplate {
-            form: FormData::new(),
+            form: FormData::new_with_data(NameAuthorisationForm {
+                legal_name,
+                ..Default::default()
+            }),
             overlay: Overlay::new_create(&query),
         },
         context,
@@ -60,7 +73,11 @@ pub async fn create_name_authorisation_submit(
 mod tests {
     use super::*;
     use crate::{
-        AppError, Context, Form, PgStore, QueryParamState,
+        AppError, Context, CsbMainAction, CsbUser, Form, PgStore, QueryParamState,
+        structs::{
+            csb::sample_registered_political_group, list_designation::ListDesignation,
+            political_groups::PoliticalGroup,
+        },
         test_utils::{response_body_string, sample_name_authorisation_form},
     };
     use axum::{
@@ -70,11 +87,18 @@ mod tests {
     };
     use axum_extra::routing::TypedPath;
 
+    /// `body` with the line breaks between attributes collapsed to one space.
+    fn single_spaced(body: &str) -> String {
+        body.split_whitespace().collect::<Vec<_>>().join(" ")
+    }
+
     #[tokio::test]
     async fn create_name_authorisation_renders_csrf_field() -> Result<(), AppError> {
         let response = create_name_authorisation(
             NameAuthorisationCreatePath {},
             Context::new_test_without_db(),
+            PgStore::new_for_test(),
+            CsbMainStore::new_for_test(),
             Query(QueryParamState::default()),
         )
         .await
@@ -89,6 +113,48 @@ mod tests {
                 .count(),
             4,
         );
+        // Not registered: the statutory name starts empty.
+        assert!(single_spaced(&body).contains("name=\"legal_name\" value=\"\""));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn create_name_authorisation_starts_from_the_registered_legal_name()
+    -> Result<(), AppError> {
+        let registration = sample_registered_political_group("De Partij", 100, 3);
+        let main_store = CsbMainStore::new_for_test();
+        main_store
+            .update(
+                CsbMainAction::CreateRegisteredPoliticalGroup(registration.clone())
+                    .by(CsbUser::new_test()),
+            )
+            .await?;
+        let store = PgStore::new_for_test();
+        PoliticalGroup {
+            list_designation: Some(ListDesignation::Standalone {
+                registration: Some(registration.id),
+            }),
+            ..store.snapshot().get_political_group().clone()
+        }
+        .update(&store)
+        .await?;
+
+        let response = create_name_authorisation(
+            NameAuthorisationCreatePath {},
+            Context::new_test_without_db(),
+            store,
+            main_store,
+            Query(QueryParamState::default()),
+        )
+        .await
+        .unwrap()
+        .into_response();
+
+        let body = response_body_string(response).await;
+        assert!(
+            single_spaced(&body).contains("name=\"legal_name\" value=\"Vereniging De Partij\"")
+        );
 
         Ok(())
     }
@@ -99,6 +165,8 @@ mod tests {
             let response = create_name_authorisation(
                 NameAuthorisationCreatePath {},
                 Context::new_test_without_db(),
+                PgStore::new_for_test(),
+                CsbMainStore::new_for_test(),
                 Query(query),
             )
             .await

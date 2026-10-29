@@ -25,8 +25,9 @@ pushd playwright
 
     # The playwright service waits for the application's healthcheck, so a
     # failure here is either a broken app or a failing test; either way the
-    # application log is what explains it.
-    if ! docker compose run --rm --quiet-pull --quiet-build playwright; then
+    # application log is what explains it. Arguments go to `playwright test`,
+    # e.g. `bin/test --project=firefox tests/csb-brp-check.spec.ts`.
+    if ! docker compose run --rm --quiet-pull --quiet-build playwright "$@"; then
         docker compose logs --no-color application
         docker compose down --remove-orphans --volumes
         exit 1

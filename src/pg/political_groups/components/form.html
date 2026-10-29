@@ -5,7 +5,28 @@
     <div class="alert alert-warning">{{ "political_group.blank_list_warning"|trans }}</div>
   {% endif %}
   <h3 class="mb-6">{{ "common.political_group"|trans }}</h3>
+  {% let locked = registration.is_some() %}
   <fieldset>
+    {% if !steps.is_combined() && !steps.is_blank() && !registered_political_groups.is_empty() %}
+      <div class="form-row">
+        <div class="form-field">
+          <label for="registered_political_group">{{ "political_group.registered_political_group"|trans }}</label>
+          <select name="registered_political_group" id="registered_political_group">
+            <option value="">{{ "political_group.registered_political_group_none"|trans }}</option>
+            {% for group in registered_political_groups %}
+              <option value="{{ group.id }}"
+                      data-appellation="{{ group.appellation }}"
+                      data-previous-election-results="{{ group.previous_election_results() }}"
+                      {% if form.data.registered_political_group == group.id.to_string() %}selected{% endif %}>
+                {{ group.appellation }}
+              </option>
+            {% endfor %}
+          </select>
+          {% for error in form|error("registered_political_group") %}<span class="error">{{ error }}</span>{% endfor %}
+          <span class="hint">{{ "political_group.registered_political_group_hint"|trans }}</span>
+        </div>
+      </div>
+    {% endif %}
     <div class="form-row">
       <fieldset class="checklist w-full">
         {% let election = "election"|election_value %}
@@ -22,7 +43,8 @@
                    name="previous_election_results"
                    value="zero_seats"
                    id="previous_election_results_0"
-                   {% if form.data.previous_election_results=="zero_seats" %}checked{% endif %} />
+                   {% if form.data.previous_election_results=="zero_seats" %}checked{% endif %}
+                   {% if locked %}disabled{% endif %} />
             <label for="previous_election_results_0">{{ "political_group.type.zero_seats"|trans }}</label>
           </div>
           <div class="checkbox">
@@ -30,7 +52,8 @@
                    name="previous_election_results"
                    value="one_to_fifteen_seats"
                    id="previous_election_results_1_15"
-                   {% if form.data.previous_election_results=="one_to_fifteen_seats" %}checked{% endif %} />
+                   {% if form.data.previous_election_results=="one_to_fifteen_seats" %}checked{% endif %}
+                   {% if locked %}disabled{% endif %} />
             <label for="previous_election_results_1_15">{{ "political_group.type.one_to_fifteen_seats"|trans }}</label>
           </div>
           <div class="checkbox">
@@ -38,7 +61,8 @@
                    name="previous_election_results"
                    value="sixteen_or_more_seats"
                    id="previous_election_results_16"
-                   {% if form.data.previous_election_results=="sixteen_or_more_seats" %}checked{% endif %} />
+                   {% if form.data.previous_election_results=="sixteen_or_more_seats" %}checked{% endif %}
+                   {% if locked %}disabled{% endif %} />
             <label for="previous_election_results_16">{{ "political_group.type.sixteen_or_more_seats"|trans }}</label>
           </div>
         </div>
@@ -69,7 +93,8 @@
         <input type="text"
                name="appellation"
                value="{{ form.data.appellation }}"
-               id="appellation" />
+               id="appellation"
+               {% if locked %}readonly{% endif %} />
         {% for error in form|error("appellation") %}<span class="error">{{ error }}</span>{% endfor %}
         {% if !steps.is_combined() %}<span class="hint">{{ "political_group.type.appellation_hint"|trans }}</span>{% endif %}
       </div>

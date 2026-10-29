@@ -90,31 +90,16 @@ jobs:
     steps:
       - *checkout
 
-      - &setup-stable-rust
-        name: Setup Rust
-        shell: bash
-        run: >
-          rustup update stable &&
-          rustup default stable &&
-          rustup component add --toolchain stable clippy
+      # Version is read from development/setup.yml
+      - name: Install biome
+        run: |
+          version=$(yq '.tools[] | select(.name == "biome") | .version' development/setup.yml)
+          curl --proto '=https' -fsSLo bin/biome "https://github.com/biomejs/biome/releases/download/@biomejs/biome@${version}/biome-linux-x64-musl"
+          chmod +x bin/biome
+          bin/biome --version
 
-      - &cargo-cache-restore
-        name: Cargo cache
-        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          shared-key: eks-lint
-          save-if: false
-
-      - &tools-cache
-        name: Tools cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: bin
-          key: tools-cache-v1-${{ runner.os }}-${{ hashFiles('development/Cargo.toml', 'development/src/**/*.rs', 'development/*.yml') }}
-
-      - &setup-project
-        name: Setup project
-        run: bin/init
+      - name: Build djlint image
+        run: docker build --build-arg "UID=$(id -u)" --build-arg "GID=$(id -g)" -f development/djlint.Dockerfile -t djlint .
 
       - name: Lint Typescript, CSS and playwright tests using Biome
         run: ./bin/biome ci --error-on-warnings ./frontend/scripts ./frontend/styles ./playwright/tests
@@ -122,7 +107,7 @@ jobs:
       - name: Lint HTML with djlint
         run: |
           docker run --rm \
-          -v ./templates:/work/templates \
+          -v ./src:/work/templates \
           -v ./djlint.toml:/work/djlint.toml \
           djlint \
           djlint --lint --check --configuration=djlint.toml templates
@@ -136,7 +121,14 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - *checkout
-      - *setup-stable-rust
+
+      - &setup-stable-rust
+        name: Setup Rust
+        shell: bash
+        run: >
+          rustup update stable &&
+          rustup default stable &&
+          rustup component add --toolchain stable clippy
 
       - name: Check Cargo.lock against Cargo.toml
         run: cargo tree --locked --depth 0 > /dev/null
@@ -151,6 +143,16 @@ jobs:
     env: &rust-check-env
       CARGO_TERM_COLOR: always
       RUSTDOCFLAGS: "-D warnings"
+    # For the sqlx tests; mirrors compose.yml
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: eks
+          POSTGRES_DB: eks
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U eks" --health-interval 1s --health-timeout 5s --health-retries 30
     steps:
       - *checkout
       - *setup-stable-rust
@@ -160,8 +162,21 @@ jobs:
         with:
           shared-key: eks-lint
 
-      - *tools-cache
-      - *setup-project
+      # Version is read from development/setup.yml
+      - &install-esbuild
+        name: Install esbuild
+        run: |
+          version=$(yq '.tools[] | select(.name == "esbuild") | .version' development/setup.yml)
+          curl -fsSo esbuild.tgz "https://registry.npmjs.org/@esbuild/linux-x64/-/linux-x64-${version}.tgz"
+          tar -xzf esbuild.tgz --strip-components=2 -C bin package/bin/esbuild
+          rm esbuild.tgz
+          bin/esbuild --version
+
+      - name: Bundle frontend assets
+        run: >
+          bin/esbuild --bundle frontend/index.ts --outdir=frontend/static
+          --minify --sourcemap --define:IS_PRODUCTION=true
+          --loader:.woff2=file --loader:.svg=file --public-path=/static/
 
       - name: Check Clippy with all features
         run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
@@ -203,9 +218,28 @@ jobs:
         with:
           shared-key: eks-dylint
 
-      # `bin/init` runs `bin/setup`, which installs cargo-dylint and dylint-link.
-      - *tools-cache
-      - *setup-project
+      # The version is the last argument of the install_dylint command in development/setup.yml
+      - name: Read dylint version
+        id: dylint_version
+        run: |
+          version=$(yq '.commands.install_dylint.args[-1]' development/setup.yml)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Install cargo-dylint
+        env:
+          VERSION: ${{ steps.dylint_version.outputs.version }}
+        run: |
+          for tool in cargo-dylint dylint-link; do
+            curl --proto '=https' -fsSL "https://github.com/trailofbits/dylint/releases/download/v${VERSION}/${tool}-x86_64-unknown-linux-gnu-v${VERSION}.tar.gz" |
+              tar -xz --strip-components=1 -C ~/.cargo/bin "${tool}-x86_64-unknown-linux-gnu-v${VERSION}/${tool}"
+          done
+          cargo dylint --version
+
+      - name: Dylint driver cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.dylint_drivers
+          key: dylint-drivers-v1-${{ steps.dylint_version.outputs.version }}-${{ hashFiles('dylint.toml') }}
 
       # Builds the lint libraries in dylint.toml with their pinned nightly,
       # then type-checks the crate with them enabled.
@@ -245,7 +279,11 @@ jobs:
       # so it needs history.
       - *checkout-with-history
       - *setup-stable-rust
-      - *cargo-cache-restore
+
+      - name: Cargo cache
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: eks-pdf-diff
 
       - name: Install diff-pdf
         run: sudo apt-get update && sudo apt-get install -y diff-pdf-wx
@@ -299,8 +337,7 @@ jobs:
         with:
           shared-key: eks-build
 
-      - *tools-cache
-      - *setup-project
+      - *install-esbuild
 
       - name: Build
         env:
@@ -328,14 +365,19 @@ jobs:
           -T ./target/release/eks \
           https://eks-test.nl/etes/api/v1/executable/${SHA_PR}/${SHA_GH}
 
-  playwright:
-    name: Playwright tests
+  # One runner per browser: the suite is CPU-bound on a 4-vCPU runner.
+  playwright-browser:
+    name: Playwright tests (${{ matrix.project }})
     permissions:
       contents: read
     if: ${{ needs.changes.outputs.code_changed == 'true' }}
     needs: changes
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [chromium, firefox, webkit]
     env:
       CARGO_TERM_COLOR: always
     steps:
@@ -352,19 +394,33 @@ jobs:
         with:
           shared-key: eks-playwright
 
-      - *tools-cache
-      - *setup-project
+      - *install-esbuild
 
       - name: Run playwright tests
-        run: bin/test
+        env:
+          PROJECT: ${{ matrix.project }}
+        run: bin/test --project="$PROJECT"
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.project }}
           path: playwright/playwright-report/
           retention-days: 30
+
+  # Keeps the required "Playwright tests" check over the per-browser jobs.
+  playwright:
+    name: Playwright tests
+    permissions: {}
+    if: ${{ always() }}
+    needs: playwright-browser
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check per-browser results
+        env:
+          RESULT: ${{ needs.playwright-browser.result }}
+        run: '[[ "$RESULT" == "success" || "$RESULT" == "skipped" ]]'
 
   audit-dependencies:
     name: Audit dependencies
@@ -448,11 +504,13 @@ jobs:
         with:
           shared-key: eks-release
 
-      - *tools-cache
-
-      - name: Setup project
+      - name: Install esbuild
         if: steps.release_check.outputs.release_exists == 'false'
-        run: bin/init
+        run: |
+          version=$(yq '.tools[] | select(.name == "esbuild") | .version' development/setup.yml)
+          curl -fsSo esbuild.tgz "https://registry.npmjs.org/@esbuild/linux-x64/-/linux-x64-${version}.tgz"
+          tar -xzf esbuild.tgz --strip-components=2 -C bin package/bin/esbuild
+          rm esbuild.tgz
 
       - name: Build production binary
         if: steps.release_check.outputs.release_exists == 'false'

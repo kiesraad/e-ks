@@ -265,7 +265,7 @@ mod tests {
         let store = CsbStream::new_for_test_with_election(election);
         store.set_political_group(PoliticalGroup {
             appellation: Some(appellation.parse().unwrap()),
-            list_designation: Some(ListDesignation::Standalone),
+            list_designation: Some(ListDesignation::Standalone { registration: None }),
             ..Default::default()
         });
         for (districts, candidates) in lists {

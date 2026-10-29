@@ -54,7 +54,7 @@ pub fn h1_example_1() -> H1 {
         ),
         electoral_districts: standard_districts(),
         previously_seated: true,
-        list_designation: ListDesignation::Standalone,
+        list_designation: ListDesignation::default(),
         list_submitter: van_smit_with_address(),
         substitute_submitters: vec![
             bronwasser(),
@@ -78,7 +78,9 @@ pub fn h1_example_2() -> H1 {
         ),
         electoral_districts: ElectoralDistricts::All,
         previously_seated: false,
-        list_designation: ListDesignation::Combined,
+        list_designation: ListDesignation::Combined {
+            registrations: Vec::new(),
+        },
         list_submitter: van_smit_with_address(),
         substitute_submitters: vec![bronwasser()],
     }

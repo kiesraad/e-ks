@@ -4,7 +4,7 @@ use crate::ElectionConfig;
 
 /// Separate fields per election domain type so the form deserializes cleanly even when
 /// JavaScript is disabled and every election domain picker submits a value.
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct SwitchElectionForm {
     election: String,
     domain_province: Option<String>,

@@ -7,6 +7,7 @@ export class CsbRegisteredPoliticalGroupsPage {
   readonly headerAdd: Locator;
   readonly headerEdit: Locator;
   readonly textfieldAppellation: Locator;
+  readonly textfieldLegalName: Locator;
   readonly textfieldVotes: Locator;
   readonly textfieldSeats: Locator;
   readonly buttonSave: Locator;
@@ -32,6 +33,7 @@ export class CsbRegisteredPoliticalGroupsPage {
     this.textfieldAppellation = this.page.getByLabel(
       "Geregistreerde aanduiding",
     );
+    this.textfieldLegalName = this.page.getByLabel("Volledige statutaire naam");
     this.textfieldVotes = this.page.getByLabel(
       "Stemmen bij de laatstgehouden verkiezing",
     );
@@ -52,8 +54,14 @@ export class CsbRegisteredPoliticalGroupsPage {
     });
   }
 
-  async fillForm(appellation: string, votes: string, seats: string) {
+  async fillForm(
+    appellation: string,
+    legalName: string,
+    votes: string,
+    seats: string,
+  ) {
     await this.textfieldAppellation.fill(appellation);
+    await this.textfieldLegalName.fill(legalName);
     await this.textfieldVotes.fill(votes);
     await this.textfieldSeats.fill(seats);
   }

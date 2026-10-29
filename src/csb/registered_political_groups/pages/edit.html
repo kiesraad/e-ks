@@ -20,6 +20,18 @@
       </p>
     </div>
     <div class="form-row">
+      <p class="form-field form-field-lg">
+        <label for="legal_name">{{ "political_group.legal_name"|trans }}</label>
+        <input type="text"
+               name="legal_name"
+               id="legal_name"
+               value="{{ form.data.legal_name }}"
+               autocomplete="off" />
+        {% for error in form|error("legal_name") %}<span class="error">{{ error }}</span>{% endfor %}
+        <span class="hint">{{ "political_group.type.legal_name_hint"|trans }}</span>
+      </p>
+    </div>
+    <div class="form-row">
       <p class="form-field form-field-sm">
         <label for="previous_votes">{{ "csb.registered_political_groups.previous_votes"|trans }}</label>
         <input type="number"
