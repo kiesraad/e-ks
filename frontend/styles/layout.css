@@ -20,8 +20,8 @@ main {
     min-height: var(--space-xxl);
   }
 
-  & > .steps,
-  & > form > .steps {
+  &>.steps,
+  &>form>.steps {
     display: flex;
     justify-content: stretch;
     gap: var(--space-lg);
@@ -33,7 +33,7 @@ main {
     display: flex;
     flex-direction: column;
 
-    & > .container {
+    &>.container {
       display: flex;
       flex: 1;
       flex-direction: column;
@@ -89,11 +89,11 @@ footer {
   display: flex;
 }
 
-.columns > .column:not(:last-child) {
+.columns>.column:not(:last-child) {
   border-right: 1px solid var(--border-color-default);
 }
 
-.columns > .column {
+.columns>.column {
   flex: 1;
   margin: var(--space-md);
 }

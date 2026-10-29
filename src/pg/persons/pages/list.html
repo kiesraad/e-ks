@@ -3,10 +3,7 @@
 {% block page_sub_title %}
   <span class="subtitle">{{ "person.list.subtitle"|trans }}</span>
 {% endblock %}
-{% block header_action %}
-  <a href="{{ crate::structs::candidate_lists::CandidateList::list_path() }}"
-     class="button secondary">{{ "candidate_list.actions.back_to_list"|trans }}</a>
-{% endblock %}
+{% block back_navigation %}{{ macros::back_link(crate::structs::candidate_lists::CandidateList::list_path() , "common.page_names.candidate_lists"|trans) }}{% endblock %}
 {% block content %}
   <nav class="sticky-nav form">
     <div class="sticky-nav-bar">

@@ -11,11 +11,7 @@
 {% block page_sub_title %}
   <span class="subtitle">{{ "csb.omission_letter.explanation"|trans }}</span>
 {% endblock %}
-{% block header_action %}
-  <div class="header-buttons">
-    <a href="{{ CsbFinishExaminationPath }}" class="button secondary">{{ "action.back"|trans }}</a>
-  </div>
-{% endblock %}
+{% block back_navigation %}{{ macros::back_link(CsbFinishExaminationPath, "csb.finish_examination.title"|trans) }}{% endblock %}
 {% block content %}
   <div class="examination-panels">
     <div class="examination-panel">

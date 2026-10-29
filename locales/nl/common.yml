@@ -79,3 +79,7 @@ title: Kiesraad - Kandidaatstelling
 to_home: Naar het startscherm
 version: Versie
 warning_prefix: Let op
+page_names:
+  home: startscherm
+  candidate_lists: kandidatenlijsten
+  candidate_list: kandidatenlijst

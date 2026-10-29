@@ -11,12 +11,7 @@
 {% block page_sub_title %}
   <span class="subtitle">{{ "csb.pre_submission.group_explanation"|trans }}</span>
 {% endblock %}
-{% block header_action %}
-  <div class="header-buttons">
-    <a href="{{ crate::csb::pre_submission::CsbPreSubmissionOverviewPath }}"
-       class="button secondary">{{ "action.back"|trans }}</a>
-  </div>
-{% endblock %}
+{% block back_navigation %}{{ macros::back_link(crate::csb::pre_submission::CsbPreSubmissionOverviewPath, "csb.pre_submission.title"|trans|lower) }}{% endblock %}
 {% block content %}
   <div class="examination-controls">
     <a class="button tertiary-destructive icon-trash-end"

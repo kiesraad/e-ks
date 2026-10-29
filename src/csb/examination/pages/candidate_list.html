@@ -47,8 +47,9 @@
     {% endif %}
   </div>
 {% endblock %}
+{% block back_navigation %}{{ macros::back_link(political_group.group_path(), political_group.csb_appellation()) }}{% endblock %}
 {% block header_action %}
-  {{ header::header_actions(political_group, political_group.group_path() ) }}
+  {{ header::header_actions(political_group) }}
 {% endblock %}
 {% block content %}
   <section class="general-information candidate-list">

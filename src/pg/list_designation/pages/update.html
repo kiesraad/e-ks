@@ -1,6 +1,6 @@
 {% extends "pg/common/components/layout.html" %}
 {% block page_title %}{{ "common.general_information"|trans }}{% endblock %}
-{% block header_action %}<a href="/" class="button secondary">{{ "action.back"|trans }}</a>{% endblock %}
+{% block back_navigation %}{{ macros::back_link("/", "common.page_names.home"|trans) }}{% endblock %}
 {% block content %}
   <form method="post" class="page-form form">
     <div class="steps">

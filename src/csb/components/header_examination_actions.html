@@ -1,4 +1,4 @@
-{% macro header_actions(political_group, back_url, include_all_restorations=false, back_text="action.back"|trans) %}
+{% macro header_actions(political_group, include_all_restorations=false) %}
   <div class="header-buttons">
     {% if include_all_restorations %}
       <a class="button secondary icon-restoration"
@@ -16,6 +16,5 @@
         {% endif %}
       </a>
     {% endif %}
-    <a href="{{ back_url }}" class="button secondary">{{ back_text }}</a>
   </div>
 {% endmacro header_actions %}

@@ -8,11 +8,8 @@
 {% block page_sub_title %}
   <span class="subtitle">{{ "csb.pre_submission.explanation"|trans }}</span>
 {% endblock %}
-{% block header_action %}
-  <div class="header-buttons">
-    <a href="{{ crate::csb::index::CsbIndexPath }}" class="button secondary">{{ "action.back"|trans }}</a>
-  </div>
-{% endblock %}
+{% block back_navigation %}{{ macros::back_link(crate::csb::index::CsbIndexPath, "common.page_names.home"|trans|lower) }}{% endblock %}
+
 {% block content %}
   <div class="examination-main card card-plain">
     <a href="{{ crate::csb::pre_submission::CsbPreSubmissionImportPath }}"

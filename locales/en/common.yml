@@ -79,3 +79,7 @@ title: Kiesraad - Kandidaatstelling
 to_home: Go to the homepage
 version: Version
 warning_prefix: Warning
+page_names:
+  home: home
+  candidate_lists: candidate lists
+  candidate_list: candidate list

@@ -5,9 +5,7 @@
   {{ breadcrumb(crate::csb::import::CsbImportPath, "csb.form.import_political_group") }}
 {% endblock %}
 {% block page_title %}{{ "csb.form.import_political_group"|trans }}{% endblock %}
-{% block header_action %}
-  <a href="{{ CsbExaminationOverviewPath }}" class="button secondary">{{ "action.back"|trans }}</a>
-{% endblock %}
+{% block back_navigation %}{{ macros::back_link(CsbExaminationOverviewPath, "csb.examination"|trans|lower) }}{% endblock %}
 {% block content %}
   {% set import_action = CsbImportPath{}.to_string() %}
   {% include "csb/components/import_hash_form.html" %}

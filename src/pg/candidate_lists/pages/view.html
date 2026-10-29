@@ -22,13 +22,7 @@
     </div>
   {% endif %}
 {% endblock %}
-{% block header_action %}
-  <div class="buttons">
-    <a href="{{ CandidateList::list_path() }}" class="button secondary">
-      {{ "candidate_list.actions.back_to_list"|trans }}
-    </a>
-  </div>
-{% endblock %}
+{% block back_navigation %}{{ macros::back_link(CandidateList::list_path() , "common.page_names.candidate_lists"|trans) }}{% endblock %}
 {% block content %}
   {% if max_candidates_reached %}
     <div class="alert alert-warning alert-floating">
