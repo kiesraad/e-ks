@@ -4,31 +4,25 @@
   <span class="subtitle">{{ "person.list.subtitle"|trans }}</span>
 {% endblock %}
 {% block back_navigation %}{{ macros::back_link(crate::structs::candidate_lists::CandidateList::list_path() , "common.page_names.candidate_lists"|trans) }}{% endblock %}
+{% block main_class %}
+  {%- if person_pagination.persons.is_empty() %}centered{% endif -%}
+{% endblock %}
 {% block content %}
-  <nav class="sticky-nav form">
-    <div class="sticky-nav-bar">
-      <div class="form-field">
-        <label for="search">{{ "candidate_list.search_existing_person"|trans }}</label>
-        <input type="text"
-               name="search"
-               placeholder="{{ "candidate_list.search_placeholder"|trans }}"
-               class="form-control"
-               id="search" />
-      </div>
-      <div>
-        <div class="buttons">
-          <a href="{{ Person::create_path() }}"
-             class="button secondary icon-plus"
-             type="button">{{ "person.actions.add"|trans }}</a>
+  {% if person_pagination.persons.is_empty() %}
+    <p class="help-text">{{ "person.list.empty"|trans }}</p>
+  {% else %}
+    <nav class="sticky-nav form">
+      <div class="sticky-nav-bar">
+        <div class="form-field">
+          <label for="search">{{ "candidate_list.search_existing_person"|trans }}</label>
+          <input type="text"
+                 name="search"
+                 placeholder="{{ "candidate_list.search_placeholder"|trans }}"
+                 class="form-control"
+                 id="search" />
         </div>
       </div>
-    </div>
-  </nav>
-  {% if person_pagination.persons.is_empty() %}
-    <section>
-      <p>{{ "person.list.empty"|trans }}</p>
-    </section>
-  {% else %}
+    </nav>
     <section>
       {% include "pg/persons/components/person_table.html" %}
     </section>

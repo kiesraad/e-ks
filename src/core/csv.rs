@@ -20,7 +20,8 @@ const MAX_ERRORS: usize = 50;
 /// separators is materialised field by field before any name is checked.
 pub const MAX_HEADER_LINE_BYTES: usize = 4 * 1024;
 
-/// Most fields accepted on the header line, counted as separators.
+/// Most fields accepted on the header line, counted as separators. A row can
+/// never be wider than its header, so every row is held to the same bound.
 pub const MAX_HEADER_FIELDS: usize = 64;
 
 pub enum CsvError {
@@ -37,6 +38,8 @@ pub enum CsvError {
     TooManyErrors { reported: usize },
     /// The header line exceeds [`MAX_HEADER_LINE_BYTES`] or [`MAX_HEADER_FIELDS`].
     HeaderTooLarge,
+    /// A row has [`MAX_HEADER_FIELDS`] fields or more.
+    RecordTooWide { line_number: usize },
 }
 
 impl Display for CsvError {
@@ -76,6 +79,11 @@ impl CsvError {
             CsvError::HeaderTooLarge => {
                 trans!("candidate_list.import_errors.invalid_headers", locale)
             }
+            CsvError::RecordTooWide { line_number } => trans!(
+                "candidate_list.import_errors.record_too_wide",
+                locale,
+                line_number
+            ),
         }
     }
 }
@@ -305,13 +313,11 @@ const UTF8_BOM: &[u8] = &[0xEF, 0xBB, 0xBF];
 /// (Dutch/European Excel uses `;`), sniffed from the header line. Cells are
 /// trimmed and column names normalised so records deserialize by name.
 ///
-/// The header line is bounded before any of its fields is materialised, see
+/// Every record is bounded before any of its fields is materialised, see
 /// [`MAX_HEADER_LINE_BYTES`] and [`MAX_HEADER_FIELDS`].
 pub fn reader_from_bytes(data: &[u8]) -> Result<Reader<&[u8]>, CsvError> {
     let delimiter = detect_delimiter(data);
-    if !header_line_within_bounds(data, delimiter) {
-        return Err(CsvError::HeaderTooLarge);
-    }
+    check_record_bounds(data, delimiter)?;
     let mut reader = ReaderBuilder::new()
         .delimiter(delimiter)
         .trim(Trim::All)
@@ -328,13 +334,86 @@ fn first_line(data: &[u8]) -> &[u8] {
     data.split(|&byte| byte == b'\n').next().unwrap_or(data)
 }
 
-/// Whether the header line is short enough to parse: at most
-/// [`MAX_HEADER_LINE_BYTES`] long with at most [`MAX_HEADER_FIELDS`] fields,
-/// counted as raw `delimiter` bytes since header names are never quoted.
-fn header_line_within_bounds(data: &[u8], delimiter: u8) -> bool {
-    let line = first_line(data);
-    line.len() <= MAX_HEADER_LINE_BYTES
-        && line.iter().filter(|&&byte| byte == delimiter).count() < MAX_HEADER_FIELDS
+/// Bound every logical record before the reader materialises it: the header
+/// to [`MAX_HEADER_LINE_BYTES`] and each record to [`MAX_HEADER_FIELDS`]
+/// fields. Without this, a record of millions of separators is materialised
+/// field by field, and a row is only found too wide once it is complete.
+///
+/// Records are delimited the way the `csv` crate delimits them, so a quoted
+/// prefix or a leading blank line cannot hide a record from the check: a field
+/// opened by a quote runs to the next lone quote (a doubled quote is an escaped
+/// one), with separators and line breaks inside it counting for nothing, a
+/// `\r` or `\n` outside quotes ends the record, and empty lines are skipped,
+/// so the first record is the header.
+fn check_record_bounds(data: &[u8], delimiter: u8) -> Result<(), CsvError> {
+    let data = data.strip_prefix(UTF8_BOM).unwrap_or(data);
+    let mut is_header = true;
+    let mut line_number = 1;
+    let mut record_line = 1;
+    let mut record_start = 0;
+    let mut separators = 0;
+    let mut quoted = false;
+    let mut at_field_start = true;
+
+    let mut index = 0;
+    while index < data.len() {
+        let byte = data[index];
+        index += 1;
+        if byte == b'\n' {
+            line_number += 1;
+        }
+        if quoted {
+            if byte == b'"' {
+                if data.get(index) == Some(&b'"') {
+                    index += 1;
+                } else {
+                    quoted = false;
+                }
+            }
+            continue;
+        }
+        let index = index - 1;
+        match byte {
+            b'"' if at_field_start => {
+                quoted = true;
+                at_field_start = false;
+            }
+            b'\n' | b'\r' => {
+                let empty = index == record_start;
+                if is_header && !empty {
+                    if index - record_start > MAX_HEADER_LINE_BYTES {
+                        return Err(CsvError::HeaderTooLarge);
+                    }
+                    is_header = false;
+                }
+                record_line = line_number;
+                record_start = index + 1;
+                separators = 0;
+                at_field_start = true;
+            }
+            _ if byte == delimiter => {
+                separators += 1;
+                if separators >= MAX_HEADER_FIELDS {
+                    return Err(too_wide(is_header, record_line));
+                }
+                at_field_start = true;
+            }
+            _ => at_field_start = false,
+        }
+    }
+    if is_header && data.len() - record_start > MAX_HEADER_LINE_BYTES {
+        return Err(CsvError::HeaderTooLarge);
+    }
+    Ok(())
+}
+
+/// The error for a record with [`MAX_HEADER_FIELDS`] fields or more.
+fn too_wide(is_header: bool, line_number: usize) -> CsvError {
+    if is_header {
+        CsvError::HeaderTooLarge
+    } else {
+        CsvError::RecordTooWide { line_number }
+    }
 }
 
 /// Tolerates padding, capitals, and spaces or hyphens for underscores.
@@ -697,6 +776,48 @@ mod tests {
             panic!("longest header line rejected");
         };
         assert_eq!(reader.headers().unwrap()[0].len(), MAX_HEADER_LINE_BYTES);
+    }
+
+    /// The bound follows the csv crate's record grammar: the header behind a
+    /// blank line or an opening quoted field is still the header.
+    #[test]
+    fn reader_from_bytes_bounds_the_logical_header() {
+        let wide = ",".repeat(MAX_HEADER_FIELDS);
+        for data in [
+            format!("\n{wide}\n1\n"),
+            format!("\r\n\r\n{wide}\n1\n"),
+            format!("\"a\nb\",{wide}\n1\n"),
+            format!("\"a\"\"\n\",{wide}\n1\n"),
+            format!("\u{FEFF}\"a\nb\",{wide}\n1\n"),
+        ] {
+            assert!(
+                matches!(
+                    reader_from_bytes(data.as_bytes()),
+                    Err(CsvError::HeaderTooLarge)
+                ),
+                "{data:?}"
+            );
+        }
+    }
+
+    /// A row wider than any header may be is refused before it is read.
+    #[test]
+    fn reader_from_bytes_rejects_an_oversized_row() {
+        let data = format!("value\n1\n\"x\ny\"{}\n", ",".repeat(MAX_HEADER_FIELDS));
+        assert!(matches!(
+            reader_from_bytes(data.as_bytes()),
+            Err(CsvError::RecordTooWide { line_number: 3 })
+        ));
+    }
+
+    #[test]
+    fn reader_from_bytes_keeps_quoted_separators_and_line_breaks() {
+        let data = "value,name\n1,\"a,b\nc\"\"d\"\n";
+        let Ok(mut reader) = reader_from_bytes(data.as_bytes()) else {
+            panic!("quoted row rejected");
+        };
+        let rows: Vec<StringRecord> = reader.records().map(Result::unwrap).collect();
+        assert_eq!(rows, vec![StringRecord::from(vec!["1", "a,b\nc\"d"])]);
     }
 
     #[test]

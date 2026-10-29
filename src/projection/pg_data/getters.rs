@@ -188,7 +188,7 @@ impl PgStoreData {
 #[cfg(test)]
 mod tests {
     use crate::{
-        PgEvent, PgStore,
+        MAX_SUBSTITUTE_SUBMITTERS, PgEvent, PgStore,
         structs::{
             common::PotentialProblems,
             list_submitters::ListSubmitterId,
@@ -229,7 +229,7 @@ mod tests {
     async fn substitute_submitters_remain_in_order() {
         let store = PgStore::new_for_test();
 
-        for i in 0..100 {
+        for i in 0..MAX_SUBSTITUTE_SUBMITTERS {
             let mut sub_submitter = sample_list_submitter(ListSubmitterId::new());
             sub_submitter.name.last_name = i.to_string().parse().unwrap();
             sub_submitter.create_substitute(&store).await.unwrap();

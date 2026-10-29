@@ -29,7 +29,6 @@ where
                 form.file_name = sanitize_file_name(field.file_name());
                 let bytes = field.bytes().await?;
                 tracing::info!(
-                    file_name = form.file_name.as_deref().unwrap_or(""),
                     content_type = content_type.as_deref().unwrap_or(""),
                     size_bytes = bytes.len(),
                     "file upload received",

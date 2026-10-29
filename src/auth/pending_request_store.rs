@@ -1,6 +1,7 @@
 //! Storage for outstanding AuthnRequest IDs (`InResponseTo` replay check,
-//! eID §9.7). Mirrors [`crate::SessionStore`]: in-memory by default, Postgres
-//! when `STORAGE_URL` is `postgres://` (required for multi-instance deploys).
+//! eID §9.7). Mirrors [`crate::SessionStore`]: Postgres when `STORAGE_URL` is
+//! `postgres://`, which every production deployment uses, and in-memory for
+//! `memory://`, which only test setups use.
 
 use auth_service::PendingRequests;
 
@@ -14,7 +15,8 @@ use tracing::error;
 /// Pending-request storage backend.
 #[derive(Clone)]
 pub enum PendingRequestStore {
-    /// Process-local, in-memory storage. Cleared on restart.
+    /// Process-local, in-memory storage for test setups: cleared on restart
+    /// and not shared between instances.
     InMemory(PendingRequests),
     /// Postgres-backed storage, shared across instances.
     #[cfg(feature = "database")]

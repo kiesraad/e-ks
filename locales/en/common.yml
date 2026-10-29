@@ -45,11 +45,15 @@ political_group: Political group
 possible_problems: "{} possible problems"
 possible_problems_one: 1 possible problem
 rate_limit:
+  candidate_lists_message: "This account already holds the maximum of {} candidate lists. Remove lists you no longer need before adding new ones."
+  candidate_lists_title: Maximum number of candidate lists reached
   cap_message: "The maximum number of changes for this account has been reached. You can still view everything you entered, but no new changes can be saved."
   downloads_message: Too many downloads in a short time. Please wait a while before trying again.
   events_message: Too many changes in a short time. Please wait a while before trying again.
   persons_message: "This account already holds the maximum of {} persons. Remove persons you no longer need before adding new ones."
   persons_title: Maximum number of persons reached
+  substitute_submitters_message: "This account already holds the maximum of {} substitute submitters. Remove substitutes you no longer need before adding new ones."
+  substitute_submitters_title: Maximum number of substitute submitters reached
   title: Too many requests
 request_error:
   conflict_message: "The data was changed while your request was being processed, possibly in another tab. Refresh the page and try again."

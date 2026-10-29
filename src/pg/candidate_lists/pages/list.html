@@ -12,15 +12,22 @@
         <div class="card-header">
           <div class="badge badge-candidates {{ person_problem_severity }}"></div>
           <div>
-            <h3 class="h4">{{ "candidate_list.all_candidates"|trans }}</h3>
+            <h3 class="h4">{{ "candidate_list.candidate_register"|trans }}</h3>
             {% if persons_with_problems > 0 %}
               <p class="{{ person_problem_severity }}">{{ "person.with_problems"|trans(&persons_with_problems.to_string() ) }}</p>
             {% endif %}
           </div>
         </div>
         <div class="card-content">
-          <p>{{ "person.total"|trans(&total_persons.to_string() )|safe }}</p>
-          <p>{{ "candidate_list.all_candidates_note"|trans }}</p>
+          <p>
+            <strong>{{ total_persons }}</strong>
+            {% if total_persons == 1 %}
+              {{ "person.total.single"|trans }}
+            {% else %}
+              {{ "person.total.plural"|trans }}
+            {% endif %}
+          </p>
+          <p>{{ "candidate_list.candidate_register_note"|trans }}</p>
         </div>
         <div class="card-footer">{{ "action.manage_candidates"|trans }}</div>
       </a>

@@ -67,6 +67,18 @@ pub enum AppError {
         max: usize,
     },
 
+    /// A list-creating write would take the stream past the maximum number of
+    /// candidate lists it may hold. Carries the limit that was exceeded.
+    TooManyCandidateLists {
+        max: usize,
+    },
+
+    /// A write would take the stream past the maximum number of substitute
+    /// submitters it may hold. Carries the limit that was exceeded.
+    TooManySubstituteSubmitters {
+        max: usize,
+    },
+
     /// A person appears more than once on a candidate list.
     DuplicateCandidate,
 
@@ -121,13 +133,15 @@ impl Display for AppError {
             AppError::FormRejection(err) => write!(f, "Form error: {err}"),
             AppError::GenericNotFound => write!(f, "Page not found"),
             AppError::IntegrityViolation => write!(f, "Data integrity violation"),
-            AppError::TooManyPersons { max } => {
-                write!(f, "Cannot hold more than {max} persons in one account")
-            }
+            AppError::TooManyPersons { max } => held_at_most(f, *max, "persons"),
             AppError::TooManyCandidates { max } => write!(
                 f,
                 "Cannot add more than {max} candidates to a candidate list"
             ),
+            AppError::TooManyCandidateLists { max } => held_at_most(f, *max, "candidate lists"),
+            AppError::TooManySubstituteSubmitters { max } => {
+                held_at_most(f, *max, "substitute submitters")
+            }
             AppError::DuplicateCandidate => write!(f, "Person appears twice on a candidate list"),
             AppError::CandidateSetChanged => write!(f, "Reorder changed the set of candidates"),
             AppError::NotDownloadable => write!(f, "Submission has errors, documents withheld"),
@@ -172,6 +186,11 @@ impl Display for AppError {
             AppError::BrpError(err) => write!(f, "BRP error: {err}"),
         }
     }
+}
+
+/// The message of a cap on what one account may hold.
+fn held_at_most(f: &mut Formatter<'_>, max: usize, what: &str) -> std::fmt::Result {
+    write!(f, "Cannot hold more than {max} {what} in one account")
 }
 
 impl std::error::Error for AppError {}

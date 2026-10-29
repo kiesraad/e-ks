@@ -36,7 +36,7 @@ hints:
   gender: Only fill in if this should be displayed on the candidate list.
   optional: optional
 list:
-  empty: No candidates found.
+  empty: "No candidates have been created yet, you can do this in a candidate list."
   subtitle: All added candidates are stored here.
 no_bsn_confirm: I confirm this person does not have a BSN.
 not_found: "Person {} not found."
@@ -44,8 +44,10 @@ not_found_in_candidate_list: Candidate not found in candidate list.
 personal_details: Personal details
 representative: Authorised person
 representative_info: "Due to this candidate living abroad, an authorised agent is required. The authorised agent will receive the letter of appointment for you."
-title: All candidates
-total: "<strong>{}</strong> candidates in total"
+title: Candidate register
+total:
+  plural: candidates in total
+  single: candidate in total
 view:
   empty: No candidates available.
 with_problems: "{} with problems"

@@ -151,3 +151,9 @@ a {
 strong {
   font-weight: var(--font-weight-bold);
 }
+
+.help-text {
+  font-weight: var(--font-weight-light);
+  color: var(--color-help-text);
+  font-size: var(--font-size-md);
+}

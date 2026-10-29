@@ -10,8 +10,8 @@ use chrono::Utc;
 use tracing::warn;
 
 use crate::{
-    AppError, CsbAction, CsbStore, MAX_CANDIDATES, MAX_PERSONS, PgEvent, PgStoreData, RateLimit,
-    RateLimits,
+    AppError, CsbAction, CsbStore, MAX_CANDIDATE_LISTS, MAX_CANDIDATES, MAX_PERSONS,
+    MAX_SUBSTITUTE_SUBMITTERS, PgEvent, PgStoreData, RateLimit, RateLimits,
     store::{Store, StoreData},
 };
 
@@ -105,7 +105,7 @@ impl PgStore {
             WriteTarget::Own => {
                 let expected = self.seen_event_id.load(Ordering::Acquire);
                 self.check_rate_limits(&event)?;
-                self.check_person_limit(&event)?;
+                self.check_collection_limits(&event)?;
                 self.projection.update_if_unchanged(event, expected).await?;
                 self.seen_event_id.store(expected + 1, Ordering::Release);
                 Ok(())
@@ -195,14 +195,36 @@ impl PgStore {
         Ok(())
     }
 
-    /// Refuse a write that would take the stream past [`MAX_PERSONS`]. Only
-    /// events that insert persons count, so a stream already over the cap
-    /// stays editable. Like [`Self::candidate_limit`] this guards a political
-    /// group's own data only: paper corrections record what was handed in.
-    fn check_person_limit(&self, event: &PgEvent) -> Result<(), AppError> {
+    /// Refuse a write that would take the stream past [`MAX_PERSONS`],
+    /// [`MAX_CANDIDATE_LISTS`] or [`MAX_SUBSTITUTE_SUBMITTERS`]. Only events
+    /// that insert count, so a stream already over a cap stays editable. Like
+    /// [`Self::candidate_limit`] this guards a political group's own data only:
+    /// paper corrections record what was handed in.
+    fn check_collection_limits(&self, event: &PgEvent) -> Result<(), AppError> {
+        let data = self.projection.snapshot();
         let created = event.created_person_count();
-        if created > 0 && self.projection.snapshot().get_person_count() + created > MAX_PERSONS {
+        if created > 0 && data.get_person_count() + created > MAX_PERSONS {
             return Err(self.limit_hit("persons", AppError::TooManyPersons { max: MAX_PERSONS }));
+        }
+        if matches!(event, PgEvent::CreateCandidateList(_))
+            && data.get_candidate_lists().len() >= MAX_CANDIDATE_LISTS
+        {
+            return Err(self.limit_hit(
+                "candidate_lists",
+                AppError::TooManyCandidateLists {
+                    max: MAX_CANDIDATE_LISTS,
+                },
+            ));
+        }
+        if matches!(event, PgEvent::CreateSubstituteSubmitter(_))
+            && data.get_substitute_submitters().len() >= MAX_SUBSTITUTE_SUBMITTERS
+        {
+            return Err(self.limit_hit(
+                "substitute_submitters",
+                AppError::TooManySubstituteSubmitters {
+                    max: MAX_SUBSTITUTE_SUBMITTERS,
+                },
+            ));
         }
         Ok(())
     }
@@ -487,6 +509,59 @@ mod tests {
             usize::MAX
         );
 
+        Ok(())
+    }
+
+    /// Lists and substitute submitters are capped at the write boundary; only
+    /// inserts count, so a stream at a cap stays editable.
+    #[tokio::test]
+    async fn collection_caps_refuse_further_inserts() -> Result<(), AppError> {
+        use crate::structs::{
+            candidate_lists::CandidateList,
+            list_submitters::{ListSubmitter, ListSubmitterId},
+        };
+
+        let store = PgStore::new_for_test();
+        let list = || CandidateList {
+            id: CandidateListId::new(),
+            ..Default::default()
+        };
+        for _ in 0..MAX_CANDIDATE_LISTS {
+            list().create(&store).await?;
+        }
+        let err = list().create(&store).await.unwrap_err();
+        assert!(
+            matches!(
+                err,
+                AppError::TooManyCandidateLists {
+                    max: MAX_CANDIDATE_LISTS
+                }
+            ),
+            "got {err:?}"
+        );
+
+        let substitute = || ListSubmitter {
+            id: ListSubmitterId::new(),
+            ..Default::default()
+        };
+        for _ in 0..MAX_SUBSTITUTE_SUBMITTERS {
+            substitute().create_substitute(&store).await?;
+        }
+        let err = substitute().create_substitute(&store).await.unwrap_err();
+        assert!(
+            matches!(
+                err,
+                AppError::TooManySubstituteSubmitters {
+                    max: MAX_SUBSTITUTE_SUBMITTERS
+                }
+            ),
+            "got {err:?}"
+        );
+
+        store
+            .update(data_event())
+            .await
+            .expect("other changes are unaffected");
         Ok(())
     }
 }
