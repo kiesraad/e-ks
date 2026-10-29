@@ -25,9 +25,9 @@ wildcard_imports = "warn"
 tvs-mock = []
 
 [dependencies]
-bergshamra-dsig = "0.9"
-bergshamra-enc  = "0.9"
-bergshamra-keys = "0.9"
+bergshamra-dsig = "0.11"
+bergshamra-enc  = "0.11"
+bergshamra-keys = "0.11"
 cookie = "0.18"
 base64 = "0.23"
 sha1 = "0.11"
