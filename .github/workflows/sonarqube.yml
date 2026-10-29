@@ -60,10 +60,11 @@ jobs:
         with:
           tool: cargo-llvm-cov
 
-      # Keep in sync with development/setup.yml
+      # Version is read from development/setup.yml
       - name: Install esbuild
         run: |
-          curl -fsSo esbuild.tgz "https://registry.npmjs.org/@esbuild/linux-x64/-/linux-x64-0.28.2.tgz"
+          version=$(yq '.tools[] | select(.name == "esbuild") | .version' development/setup.yml)
+          curl -fsSo esbuild.tgz "https://registry.npmjs.org/@esbuild/linux-x64/-/linux-x64-${version}.tgz"
           tar -xzf esbuild.tgz --strip-components=2 -C bin package/bin/esbuild
           rm esbuild.tgz
           bin/esbuild --version

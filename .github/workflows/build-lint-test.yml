@@ -90,10 +90,11 @@ jobs:
     steps:
       - *checkout
 
-      # Keep in sync with development/setup.yml
+      # Version is read from development/setup.yml
       - name: Install biome
         run: |
-          curl --proto '=https' -fsSLo bin/biome "https://github.com/biomejs/biome/releases/download/@biomejs/biome@2.5.12/biome-linux-x64-musl"
+          version=$(yq '.tools[] | select(.name == "biome") | .version' development/setup.yml)
+          curl --proto '=https' -fsSLo bin/biome "https://github.com/biomejs/biome/releases/download/@biomejs/biome@${version}/biome-linux-x64-musl"
           chmod +x bin/biome
           bin/biome --version
 
@@ -161,11 +162,12 @@ jobs:
         with:
           shared-key: eks-lint
 
-      # Keep in sync with development/setup.yml
+      # Version is read from development/setup.yml
       - &install-esbuild
         name: Install esbuild
         run: |
-          curl -fsSo esbuild.tgz "https://registry.npmjs.org/@esbuild/linux-x64/-/linux-x64-0.28.2.tgz"
+          version=$(yq '.tools[] | select(.name == "esbuild") | .version' development/setup.yml)
+          curl -fsSo esbuild.tgz "https://registry.npmjs.org/@esbuild/linux-x64/-/linux-x64-${version}.tgz"
           tar -xzf esbuild.tgz --strip-components=2 -C bin package/bin/esbuild
           rm esbuild.tgz
           bin/esbuild --version
@@ -497,7 +499,8 @@ jobs:
       - name: Install esbuild
         if: steps.release_check.outputs.release_exists == 'false'
         run: |
-          curl -fsSo esbuild.tgz "https://registry.npmjs.org/@esbuild/linux-x64/-/linux-x64-0.28.2.tgz"
+          version=$(yq '.tools[] | select(.name == "esbuild") | .version' development/setup.yml)
+          curl -fsSo esbuild.tgz "https://registry.npmjs.org/@esbuild/linux-x64/-/linux-x64-${version}.tgz"
           tar -xzf esbuild.tgz --strip-components=2 -C bin package/bin/esbuild
           rm esbuild.tgz
 
