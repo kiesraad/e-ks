@@ -63,5 +63,6 @@ commands:
       - cargo-dylint
       - dylint-link
       - --version
-      # Also pinned in .github/workflows/build-lint-test.yml
+      # The dylint job in .github/workflows/build-lint-test.yml reads this version,
+      # so keep it as the last argument
       - "6.3.0"

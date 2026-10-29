@@ -218,12 +218,20 @@ jobs:
         with:
           shared-key: eks-dylint
 
-      # Keep in sync with development/setup.yml
+      # The version is the last argument of the install_dylint command in development/setup.yml
+      - name: Read dylint version
+        id: dylint_version
+        run: |
+          version=$(yq '.commands.install_dylint.args[-1]' development/setup.yml)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - name: Install cargo-dylint
+        env:
+          VERSION: ${{ steps.dylint_version.outputs.version }}
         run: |
           for tool in cargo-dylint dylint-link; do
-            curl --proto '=https' -fsSL "https://github.com/trailofbits/dylint/releases/download/v6.3.0/${tool}-x86_64-unknown-linux-gnu-v6.3.0.tar.gz" |
-              tar -xz --strip-components=1 -C ~/.cargo/bin "${tool}-x86_64-unknown-linux-gnu-v6.3.0/${tool}"
+            curl --proto '=https' -fsSL "https://github.com/trailofbits/dylint/releases/download/v${VERSION}/${tool}-x86_64-unknown-linux-gnu-v${VERSION}.tar.gz" |
+              tar -xz --strip-components=1 -C ~/.cargo/bin "${tool}-x86_64-unknown-linux-gnu-v${VERSION}/${tool}"
           done
           cargo dylint --version
 
@@ -231,7 +239,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.dylint_drivers
-          key: dylint-drivers-v1-6.3.0-${{ hashFiles('dylint.toml') }}
+          key: dylint-drivers-v1-${{ steps.dylint_version.outputs.version }}-${{ hashFiles('dylint.toml') }}
 
       # Builds the lint libraries in dylint.toml with their pinned nightly,
       # then type-checks the crate with them enabled.
