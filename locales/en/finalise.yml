@@ -45,4 +45,4 @@ verification:
   correction_notice: "If anything is missing, you will receive a letter from us listing the omissions."
   description: The central electoral committee reviews the submitted documents for completeness and correctness.
   title: Review of documents
-  until: "The review runs until <strong>{}</strong>"
+  until: "The review ends on <strong>{}</strong>"
