@@ -4,4 +4,6 @@ COPY package*.json /app/
 COPY playwright.config.ts /app/playwright.config.ts
 RUN npm ci
 
-CMD ["npx", "playwright", "test", "--project=chromium", "--project=firefox", "--project=webkit", "--workers=3"]
+# Arguments to `docker compose run playwright` replace the default projects.
+ENTRYPOINT ["npx", "playwright", "test", "--workers=3"]
+CMD ["--project=chromium", "--project=firefox", "--project=webkit"]

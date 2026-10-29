@@ -26,6 +26,16 @@ jobs:
     env:
       CARGO_TERM_COLOR: always
       TZ: "Europe/Amsterdam"
+    # For the sqlx tests; mirrors compose.yml
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: eks
+          POSTGRES_DB: eks
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U eks" --health-interval 1s --health-timeout 5s --health-retries 30
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -50,14 +60,20 @@ jobs:
         with:
           tool: cargo-llvm-cov
 
-      - name: Tools cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: bin
-          key: tools-cache-v1-${{ runner.os }}-${{ hashFiles('development/Cargo.toml', 'development/src/**/*.rs', 'development/*.yml') }}
+      # Version is read from development/setup.yml
+      - name: Install esbuild
+        run: |
+          version=$(yq '.tools[] | select(.name == "esbuild") | .version' development/setup.yml)
+          curl -fsSo esbuild.tgz "https://registry.npmjs.org/@esbuild/linux-x64/-/linux-x64-${version}.tgz"
+          tar -xzf esbuild.tgz --strip-components=2 -C bin package/bin/esbuild
+          rm esbuild.tgz
+          bin/esbuild --version
 
-      - name: Setup project
-        run: bin/init
+      - name: Bundle frontend assets
+        run: >
+          bin/esbuild --bundle frontend/index.ts --outdir=frontend/static
+          --minify --sourcemap --define:IS_PRODUCTION=true
+          --loader:.woff2=file --loader:.svg=file --public-path=/static/
 
       - name: Generate code coverage
         run: cargo llvm-cov --locked --all-features --workspace --lcov --output-path lcov.info

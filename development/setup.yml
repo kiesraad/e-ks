@@ -1,10 +1,12 @@
 tools:
   - name: esbuild
     # https://github.com/evanw/esbuild/releases
+    # The workflows in .github/workflows read this version
     version: "0.28.2"
     base_url: "https://registry.npmjs.org/@esbuild"
   - name: biome
     # https://github.com/biomejs/biome/releases
+    # The workflows in .github/workflows read this version
     version: "2.5.12"
     base_url: "https://github.com/biomejs/biome/releases/download/@biomejs/biome@"
 commands:
@@ -61,4 +63,6 @@ commands:
       - cargo-dylint
       - dylint-link
       - --version
+      # The dylint job in .github/workflows/build-lint-test.yml reads this version,
+      # so keep it as the last argument
       - "6.3.0"
