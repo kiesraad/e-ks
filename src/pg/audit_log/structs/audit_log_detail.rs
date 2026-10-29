@@ -165,6 +165,38 @@ mod tests {
         );
     }
 
+    /// Rebinding a standalone list to another registration is a change of
+    /// its own row, while the unchanged list type stays out of the diff.
+    #[test]
+    fn compute_political_group_update_shows_a_rebinding() {
+        use crate::structs::{
+            csb::RegisteredPoliticalGroupId, list_designation::ListDesignation,
+            political_groups::PoliticalGroup,
+        };
+        let bound = |id| {
+            Some(ListDesignation::Standalone {
+                registration: Some(id),
+            })
+        };
+        let before = PoliticalGroup {
+            list_designation: bound(RegisteredPoliticalGroupId::new()),
+            ..sample_political_group()
+        };
+        let mut after = before.clone();
+        after.list_designation = bound(RegisteredPoliticalGroupId::new());
+
+        let events = vec![
+            StoreEvent::new(1, PgEvent::UpdatePoliticalGroup(before)),
+            StoreEvent::new(2, PgEvent::UpdatePoliticalGroup(after)),
+        ];
+
+        let detail = AuditLogDetail::compute(&events, 2, EN).unwrap();
+        assert_eq!(rows(&detail).len(), 1);
+        let (removed, added) = texts(row(&detail, "Registration"));
+        assert_eq!(removed.len(), 1);
+        assert_eq!(added.len(), 1);
+    }
+
     /// Regression test for issue #1157: the diff used to show the field name
     /// `personal_data.place_of_residence.Known`, leaking the enum variant that
     /// records whether the locality is known in the BAG.

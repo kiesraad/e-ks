@@ -5,7 +5,7 @@ use crate::{
     structs::{
         candidate_lists::CandidateListSummary,
         common::{InfoProblems, PotentialProblems, Problematic},
-        list_designation::ListDesignation,
+        list_designation::ListDesignationKind,
         list_submitters::{ListSubmitter, SubmitterRole},
         name_authorisations::NameAuthorisation,
         problems::{
@@ -62,8 +62,8 @@ impl AllProblems {
         general.extend(pg_problems.potential_problems);
 
         let name_authorisations = data.get_name_authorisations();
-        let name_authorisations = match political_group.list_designation {
-            Some(ListDesignation::Blank) => Vec::new(),
+        let name_authorisations = match political_group.list_designation_kind() {
+            Some(ListDesignationKind::Blank) => Vec::new(),
             list_designation => {
                 general.extend(NameAuthorisation::get_size_problems(
                     list_designation,
@@ -253,6 +253,8 @@ impl AllProblems {
 mod tests {
     use std::collections::BTreeSet;
 
+    use crate::structs::list_designation::ListDesignation;
+
     use super::*;
     use crate::{
         ElectoralDistrict, PgStore,
@@ -340,7 +342,7 @@ mod tests {
 
         // make political group standalone
         let mut group = store.snapshot().get_political_group().clone();
-        group.list_designation = Some(ListDesignation::Standalone);
+        group.list_designation = Some(ListDesignation::Standalone { registration: None });
         group.update(&store).await?;
 
         let (problems, _) = AllProblems::find_general_problems(&store.snapshot());
@@ -363,7 +365,7 @@ mod tests {
 
         // make political group standalone
         let mut group = store.snapshot().get_political_group().clone();
-        group.list_designation = Some(ListDesignation::Standalone);
+        group.list_designation = Some(ListDesignation::Standalone { registration: None });
         group.update(&store).await?;
 
         add_name_authorisations(&store, 2).await?;
@@ -388,7 +390,9 @@ mod tests {
 
         // make political group standalone
         let mut group = store.snapshot().get_political_group().clone();
-        group.list_designation = Some(ListDesignation::Combined);
+        group.list_designation = Some(ListDesignation::Combined {
+            registrations: Vec::new(),
+        });
         group.update(&store).await?;
 
         add_name_authorisations(&store, 1).await?;

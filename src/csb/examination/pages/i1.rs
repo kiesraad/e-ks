@@ -205,7 +205,7 @@ mod tests {
         let snapshot = PgStoreData::from_events([
             PgEvent::UpdatePoliticalGroup(PoliticalGroup {
                 appellation: Some("Kiesraad Demo".parse().unwrap()),
-                list_designation: Some(ListDesignation::Standalone),
+                list_designation: Some(ListDesignation::Standalone { registration: None }),
                 ..Default::default()
             }),
             PgEvent::CreatePerson(Box::new(person)),

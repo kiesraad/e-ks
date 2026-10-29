@@ -105,8 +105,11 @@ mod tests {
             setup_documents_test_state(1, 1, true, true, ElectionConfig::EK27).await?;
 
         let mut political_group = store.snapshot().get_political_group().clone();
-        political_group.list_designation =
-            Some(crate::structs::list_designation::ListDesignation::Combined);
+        political_group.list_designation = Some(
+            crate::structs::list_designation::ListDesignation::Combined {
+                registrations: Vec::new(),
+            },
+        );
         political_group.update(&store).await?;
 
         let response = gen_documents(

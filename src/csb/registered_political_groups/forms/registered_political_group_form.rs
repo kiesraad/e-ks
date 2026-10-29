@@ -2,7 +2,7 @@ use serde::Deserialize;
 use validate::Validate;
 
 use crate::structs::{
-    common::Appellation,
+    common::{Appellation, LegalName},
     csb::{RegisteredPoliticalGroup, SeatCount, VoteCount},
 };
 
@@ -13,6 +13,8 @@ use crate::structs::{
 pub struct RegisteredPoliticalGroupForm {
     #[validate(parse = "Appellation")]
     pub appellation: String,
+    #[validate(parse = "LegalName")]
+    pub legal_name: String,
     #[validate(parse = "VoteCount")]
     pub previous_votes: String,
     #[validate(parse = "SeatCount")]
@@ -23,6 +25,7 @@ impl From<RegisteredPoliticalGroup> for RegisteredPoliticalGroupForm {
     fn from(group: RegisteredPoliticalGroup) -> Self {
         RegisteredPoliticalGroupForm {
             appellation: group.appellation.to_string(),
+            legal_name: group.legal_name.to_string(),
             previous_votes: group.previous_votes.to_string(),
             previous_seats: group.previous_seats.to_string(),
         }
@@ -37,6 +40,7 @@ mod tests {
     fn form(appellation: &str, votes: &str, seats: &str) -> RegisteredPoliticalGroupForm {
         RegisteredPoliticalGroupForm {
             appellation: appellation.to_string(),
+            legal_name: format!("Vereniging {}", appellation.trim()),
             previous_votes: votes.to_string(),
             previous_seats: seats.to_string(),
         }
@@ -48,6 +52,7 @@ mod tests {
             .validate_create()
             .expect("valid form");
         assert_eq!(group.appellation.to_string(), "De Partij");
+        assert_eq!(group.legal_name.to_string(), "Vereniging De Partij");
         assert_eq!(group.previous_votes.value(), 12345);
         assert_eq!(group.previous_seats.value(), 3);
     }
@@ -65,12 +70,19 @@ mod tests {
 
     #[test]
     fn every_invalid_field_is_reported() {
-        let errors = form("", "twaalf", "-1")
-            .validate_create()
-            .expect_err("invalid form")
-            .errors();
+        let mut form = form("", "twaalf", "-1");
+        form.legal_name = " ".to_string();
+        let errors = form.validate_create().expect_err("invalid form").errors();
         let fields: Vec<_> = errors.iter().map(|(field, _)| field.as_str()).collect();
-        assert_eq!(fields, ["appellation", "previous_votes", "previous_seats"]);
+        assert_eq!(
+            fields,
+            [
+                "appellation",
+                "legal_name",
+                "previous_votes",
+                "previous_seats"
+            ]
+        );
     }
 
     #[test]
@@ -78,6 +90,7 @@ mod tests {
         let group = sample_registered_political_group("Partij", 98765, 4);
         let form = RegisteredPoliticalGroupForm::from(group);
         assert_eq!(form.appellation, "Partij");
+        assert_eq!(form.legal_name, "Vereniging Partij");
         assert_eq!(form.previous_votes, "98765");
         assert_eq!(form.previous_seats, "4");
     }

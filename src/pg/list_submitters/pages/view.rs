@@ -4,7 +4,7 @@ use axum::{extract::Query, response::IntoResponse};
 
 use crate::{
     AppError, Context, HtmlTemplate, PgStore, QueryParamState, filters,
-    political_groups::PoliticalGroupSteps,
+    political_groups::{PoliticalGroupStep, PoliticalGroupSteps},
     structs::{
         common::HasSeverity, list_submitters::ListSubmitter, name_authorisations::NameAuthorisation,
     },
@@ -26,7 +26,11 @@ pub async fn view_list_submitter(
     store: PgStore,
     Query(query): Query<QueryParamState>,
 ) -> Result<impl IntoResponse, AppError> {
-    let steps = PoliticalGroupSteps::new(&store, query.is_initial())?;
+    let steps = PoliticalGroupSteps::new(
+        &store,
+        query.is_initial(),
+        PoliticalGroupStep::ListSubmitter,
+    )?;
     let list_submitter = steps.list_submitter.clone();
     let substitute_submitters = steps.substitute_submitters.clone();
     Ok(HtmlTemplate(

@@ -28,7 +28,7 @@ pub fn h3_1_example_1() -> H3 {
             ModelLocale::Nl,
         ),
         electoral_districts: standard_districts(),
-        list_designation: ListDesignation::Standalone,
+        list_designation: ListDesignation::default(),
         list_submitter: van_smit(),
         name_authorisations: vec![name_authorisation("EEN ANDERE PARTIJ", "Altena", "J.K.S.")],
     }
@@ -44,7 +44,7 @@ pub fn h3_1_example_2() -> H3 {
             ModelLocale::Fry,
         ),
         electoral_districts: ElectoralDistricts::All,
-        list_designation: ListDesignation::Standalone,
+        list_designation: ListDesignation::default(),
         list_submitter: van_smit(),
         name_authorisations: vec![name_authorisation("TEST PARTIJ", "Akwasi", "O.")],
     }
@@ -60,7 +60,7 @@ pub fn h3_1_example_3() -> H3 {
             ModelLocale::Nl,
         ),
         electoral_districts: ElectoralDistricts::OnlyOne,
-        list_designation: ListDesignation::Standalone,
+        list_designation: ListDesignation::default(),
         list_submitter: van_smit(),
         name_authorisations: vec![name_authorisation("", "", "")],
     }
@@ -76,7 +76,9 @@ pub fn h3_2_example_1() -> H3 {
             ModelLocale::Nl,
         ),
         electoral_districts: standard_districts(),
-        list_designation: ListDesignation::Combined,
+        list_designation: ListDesignation::Combined {
+            registrations: Vec::new(),
+        },
         list_submitter: van_smit(),
         name_authorisations: vec![
             name_authorisation("EEN ANDERE PARTIJ", "Altena", "J.K.S."),
@@ -95,7 +97,9 @@ pub fn h3_2_example_2() -> H3 {
             ModelLocale::Fry,
         ),
         electoral_districts: ElectoralDistricts::All,
-        list_designation: ListDesignation::Combined,
+        list_designation: ListDesignation::Combined {
+            registrations: Vec::new(),
+        },
         list_submitter: van_smit(),
         name_authorisations: vec![
             name_authorisation("EEN ANDERE PARTIJ", "Altena", "J.K.S."),
@@ -114,7 +118,9 @@ pub fn h3_2_example_3() -> H3 {
             ModelLocale::Nl,
         ),
         electoral_districts: ElectoralDistricts::OnlyOne,
-        list_designation: ListDesignation::Combined,
+        list_designation: ListDesignation::Combined {
+            registrations: Vec::new(),
+        },
         list_submitter: van_smit(),
         name_authorisations: vec![
             name_authorisation("", "", ""),

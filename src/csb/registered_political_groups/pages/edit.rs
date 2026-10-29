@@ -164,6 +164,7 @@ mod tests {
     fn form(appellation: &str, votes: &str, seats: &str) -> Form<RegisteredPoliticalGroupForm> {
         Form(RegisteredPoliticalGroupForm {
             appellation: appellation.to_string(),
+            legal_name: format!("Vereniging {appellation}"),
             previous_votes: votes.to_string(),
             previous_seats: seats.to_string(),
         })
@@ -187,6 +188,7 @@ mod tests {
         let body = response_body_string(response).await;
         assert!(body.contains("Add political group"));
         assert!(body.contains("name=\"appellation\""));
+        assert!(body.contains("name=\"legal_name\""));
         assert!(body.contains("name=\"previous_votes\""));
         assert!(body.contains("name=\"previous_seats\""));
         // Nothing to delete yet.
@@ -212,6 +214,7 @@ mod tests {
         let groups = store.registered_political_groups();
         assert_eq!(groups.len(), 1);
         assert_eq!(groups[0].appellation.to_string(), "Nieuwe Partij");
+        assert_eq!(groups[0].legal_name.to_string(), "Vereniging Nieuwe Partij");
         assert_eq!(groups[0].previous_votes.value(), 4321);
         assert_eq!(groups[0].previous_seats.value(), 2);
     }
@@ -277,6 +280,7 @@ mod tests {
         let body = response_body_string(response).await;
         assert!(body.contains("Edit political group"));
         assert!(body.contains("value=\"Bestaande Partij\""));
+        assert!(body.contains("value=\"Vereniging Bestaande Partij\""));
         assert!(body.contains("value=\"777\""));
         assert!(body.contains("value=\"3\""));
         assert!(body.contains(&format!(

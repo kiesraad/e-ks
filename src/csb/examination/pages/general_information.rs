@@ -69,7 +69,7 @@ pub(in crate::csb) async fn render(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::projection::WithCorrections;
+    use crate::{projection::WithCorrections, structs::list_designation::ListDesignationKind};
 
     use axum::http::StatusCode;
 
@@ -278,13 +278,13 @@ mod tests {
 
         let cases = [
             (None, Some(single_label)),
-            (Some(ListDesignation::Blank), None),
-            (Some(ListDesignation::Combined), Some(combined_label)),
-            (Some(ListDesignation::Standalone), Some(single_label)),
+            (Some(ListDesignationKind::Blank), None),
+            (Some(ListDesignationKind::Combined), Some(combined_label)),
+            (Some(ListDesignationKind::Standalone), Some(single_label)),
         ];
         for (designation, expected_label) in cases {
             let mut pg = sample_political_group();
-            pg.list_designation = designation;
+            pg.list_designation = designation.map(ListDesignation::from);
             store.set_political_group(pg);
 
             let response = overview(
@@ -384,7 +384,7 @@ mod tests {
         let store = CsbStore::new_for_test();
         store.set_political_group(PoliticalGroup {
             appellation: None,
-            list_designation: Some(ListDesignation::Standalone),
+            list_designation: Some(ListDesignation::Standalone { registration: None }),
             previous_election_results: Some(PreviousElectionResults::ZeroSeats),
         });
 

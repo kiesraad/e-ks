@@ -23,7 +23,7 @@ use crate::{
     structs::{
         candidate_lists::{CandidateListId, FullCandidateList},
         common::{HasSeverity, Severity},
-        list_designation::ListDesignation,
+        list_designation::{ListDesignation, ListDesignationKind},
     },
     utils::{format_hash, no_cache_headers},
 };
@@ -89,9 +89,9 @@ impl DocumentData {
     ) -> Result<Vec<NameAuthorisation>, AppError> {
         let name_authorisations = data.get_name_authorisations();
 
-        match data.get_political_group().list_designation {
-            Some(ListDesignation::Blank) => Ok(Vec::new()),
-            Some(ListDesignation::Combined) => {
+        match data.get_political_group().list_designation_kind() {
+            Some(ListDesignationKind::Blank) => Ok(Vec::new()),
+            Some(ListDesignationKind::Combined) => {
                 let mut auths: Vec<NameAuthorisation> = name_authorisations
                     .iter()
                     .copied()
@@ -192,7 +192,7 @@ impl DocumentData {
             electoral_districts,
             detailed_candidates,
             previously_seated: group.was_previously_seated(),
-            list_designation: group.list_designation.unwrap_or_default(),
+            list_designation: group.list_designation.clone().unwrap_or_default(),
             list_submitter,
             substitute_submitters,
             name_authorisations: Self::name_authorisations_with_fill_ins(data)?,
@@ -327,7 +327,7 @@ impl DocumentData {
             common: self.model_data.clone(),
             electoral_districts: self.electoral_districts.clone(),
             previously_seated: self.previously_seated,
-            list_designation: self.list_designation,
+            list_designation: self.list_designation.clone(),
             list_submitter: self.list_submitter.clone(),
             substitute_submitters: self.substitute_submitters.clone(),
         };
@@ -337,7 +337,7 @@ impl DocumentData {
             let h3 = H3 {
                 common: self.model_data.clone(),
                 electoral_districts: self.electoral_districts.clone(),
-                list_designation: self.list_designation,
+                list_designation: self.list_designation.clone(),
                 list_submitter: self.list_submitter.clone(),
                 name_authorisations: self.name_authorisations.clone(),
             };

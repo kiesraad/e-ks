@@ -153,6 +153,8 @@ group:
   problems_present: Problemen
   toggle: Onderzoek afronden of heropenen
   unfinished: Onderzoek afronden
+  unregistered_combined_warning: "Niet alle statutaire namen van de partijen achter deze samengevoegde lijst komen overeen met een geregistreerde politieke groepering. Controleer de registraties: alleen geregistreerde partijen tellen mee voor de nummering en de vrijstelling van ondersteunings\u00ADverklaringen."
+  unregistered_warning: "De aanduiding van deze politieke groepering komt met geen enkele geregistreerde politieke groepering overeen. Controleer de registratie: zonder registratie wordt de lijst door loting genummerd en moeten ondersteunings\u00ADverklaringen worden ingeleverd."
 hearing:
   chair_name: Naam voorzitter
   date: Datum zitting

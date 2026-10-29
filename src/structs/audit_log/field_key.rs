@@ -55,6 +55,7 @@ field_keys! {
     ListDesignation => "audit_log.detail.fields.list_designation",
     PreviousElectionResults => "audit_log.detail.fields.previous_election_results",
     LegalName => "audit_log.detail.fields.legal_name",
+    RegisteredPoliticalGroup => "audit_log.detail.fields.registered_political_group",
     // Candidate list
     ElectoralDistricts => "audit_log.detail.fields.electoral_districts",
     Candidates => "audit_log.detail.fields.candidates",

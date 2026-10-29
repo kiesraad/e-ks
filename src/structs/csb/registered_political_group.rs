@@ -15,7 +15,7 @@ use crate::{
     id_newtype,
     structs::{
         audit_log::{AuditLeaf, AuditValue, audit_fields},
-        common::Appellation,
+        common::{Appellation, LegalName, PreviousElectionResults},
     },
 };
 
@@ -93,6 +93,10 @@ pub struct RegisteredPoliticalGroup {
     pub id: RegisteredPoliticalGroupId,
     /// The appellation registered with the central electoral committee.
     pub appellation: Appellation,
+    /// The group's statutory name, as recorded in its articles of association
+    /// and at the chamber of commerce (Kieswet Art. G 1, eerste lid).
+    #[serde(default)]
+    pub legal_name: LegalName,
     /// Votes cast on the group's lists at the previous election.
     pub previous_votes: VoteCount,
     /// Seats the group obtained at the previous election.
@@ -102,6 +106,7 @@ pub struct RegisteredPoliticalGroup {
 audit_fields!(RegisteredPoliticalGroup {
     id: skip,
     appellation: leaf(Appellation),
+    legal_name: leaf(LegalName),
     previous_votes: leaf(PreviousVotes),
     previous_seats: leaf(PreviousSeats),
 });
@@ -118,9 +123,25 @@ impl RegisteredPoliticalGroup {
         self.was_previously_seated()
     }
 
+    /// The previous election result as the political group answers it on its
+    /// general information: the bracket its seat count falls in.
+    pub fn previous_election_results(&self) -> PreviousElectionResults {
+        match self.previous_seats.value() {
+            0 => PreviousElectionResults::ZeroSeats,
+            1..=15 => PreviousElectionResults::OneToFifteenSeats,
+            _ => PreviousElectionResults::SixteenOrMoreSeats,
+        }
+    }
+
     /// Whether `appellation` is this group's, ignoring case.
     pub fn has_appellation(&self, appellation: &Appellation) -> bool {
         self.appellation.to_lowercase() == appellation.to_lowercase()
+    }
+
+    /// Whether `legal_name` is this group's statutory name, ignoring case. A
+    /// registration without a legal name matches none.
+    pub fn has_legal_name(&self, legal_name: &LegalName) -> bool {
+        !self.legal_name.is_empty() && self.legal_name.to_lowercase() == legal_name.to_lowercase()
     }
 
     /// The order the lists are numbered in on votes: most votes first, ties
@@ -145,6 +166,9 @@ pub mod tests {
         RegisteredPoliticalGroup {
             id: RegisteredPoliticalGroupId::new(),
             appellation: appellation.parse().expect("valid appellation"),
+            legal_name: format!("Vereniging {appellation}")
+                .parse()
+                .expect("valid legal name"),
             previous_votes: VoteCount::from(votes),
             previous_seats: SeatCount::from(seats),
         }
@@ -201,10 +225,45 @@ pub mod tests {
     }
 
     #[test]
+    fn previous_election_results_follow_the_seat_brackets() {
+        let results =
+            |seats| sample_registered_political_group("A", 1, seats).previous_election_results();
+        assert_eq!(results(0), PreviousElectionResults::ZeroSeats);
+        assert_eq!(results(1), PreviousElectionResults::OneToFifteenSeats);
+        assert_eq!(results(15), PreviousElectionResults::OneToFifteenSeats);
+        assert_eq!(results(16), PreviousElectionResults::SixteenOrMoreSeats);
+    }
+
+    #[test]
+    fn a_registration_without_a_legal_name_still_deserialises() {
+        let group: RegisteredPoliticalGroup = serde_json::from_value(serde_json::json!({
+            "id": uuid::Uuid::nil(),
+            "appellation": "Partij",
+            "previous_votes": 1,
+            "previous_seats": 1,
+        }))
+        .unwrap();
+        assert_eq!(group.legal_name.to_string(), "");
+    }
+
+    #[test]
     fn appellations_match_ignoring_case() {
         let group = sample_registered_political_group("De Tegen Partij", 1, 1);
         assert!(group.has_appellation(&"de tegen partij".parse().unwrap()));
         assert!(!group.has_appellation(&"De Voor Partij".parse().unwrap()));
+    }
+
+    #[test]
+    fn legal_names_match_ignoring_case() {
+        let group = sample_registered_political_group("De Tegen Partij", 1, 1);
+        assert!(group.has_legal_name(&"vereniging de tegen partij".parse().unwrap()));
+        assert!(!group.has_legal_name(&"Vereniging De Voor Partij".parse().unwrap()));
+
+        let without = RegisteredPoliticalGroup {
+            legal_name: LegalName::default(),
+            ..group
+        };
+        assert!(!without.has_legal_name(&"Vereniging De Tegen Partij".parse().unwrap()));
     }
 
     #[test]

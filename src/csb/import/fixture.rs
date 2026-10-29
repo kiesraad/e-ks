@@ -40,6 +40,8 @@ enum Handling {
 /// and what happened to its lists.
 struct FixtureGroup {
     appellation: &'static str,
+    /// The statutory name of the group's registration.
+    legal_name: &'static str,
     /// Votes and seats at the previous election, when the group is registered
     /// with the committee.
     registration: Option<(u64, u32)>,
@@ -54,31 +56,37 @@ struct FixtureGroup {
 const FIXTURE_GROUPS: [FixtureGroup; 6] = [
     FixtureGroup {
         appellation: "Beweging Losse Eindjes",
+        legal_name: "Vereniging Beweging Losse Eindjes",
         registration: Some((1_234_567, 12)),
         handling: Handling::WithOmissions,
     },
     FixtureGroup {
         appellation: "De Stille Meerderheid",
+        legal_name: "Vereniging De Stille Meerderheid",
         registration: Some((612_340, 3)),
         handling: Handling::Imported,
     },
     FixtureGroup {
         appellation: "Partij Puntkomma",
+        legal_name: "Kiesvereniging Puntkomma",
         registration: Some((456_789, 4)),
         handling: Handling::WithPaperCorrections,
     },
     FixtureGroup {
         appellation: "Uitgeslapen Nederland",
+        legal_name: "Vereniging Uitgeslapen Nederland",
         registration: Some((210_543, 2)),
         handling: Handling::NotHandedIn,
     },
     FixtureGroup {
         appellation: "Kiesvereniging Bijna Gekozen",
+        legal_name: "Kiesvereniging Bijna Gekozen",
         registration: Some((98_765, 0)),
         handling: Handling::WithBrpFindings,
     },
     FixtureGroup {
         appellation: "Actiegroep Laatste Moment",
+        legal_name: "Vereniging Actiegroep Laatste Moment",
         registration: None,
         handling: Handling::Imported,
     },
@@ -99,6 +107,7 @@ impl FixtureGroup {
         Some(RegisteredPoliticalGroup {
             id: Uuid::new_v5(&Uuid::NAMESPACE_OID, self.appellation.as_bytes()).into(),
             appellation: self.appellation.parse().expect("fixture appellation"),
+            legal_name: self.legal_name.parse().expect("fixture legal name"),
             previous_votes: votes.into(),
             previous_seats: seats.into(),
         })
@@ -114,7 +123,9 @@ impl FixtureGroup {
         };
         PoliticalGroup {
             appellation: Some(self.appellation.parse().expect("fixture appellation")),
-            list_designation: Some(ListDesignation::Standalone),
+            list_designation: Some(ListDesignation::Standalone {
+                registration: self.registered_political_group().map(|r| r.id),
+            }),
             previous_election_results: Some(previous_election_results),
         }
     }
@@ -1006,6 +1017,16 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn fixture_groups_are_bound_to_their_registrations() {
+        for group in &FIXTURE_GROUPS {
+            assert_eq!(
+                group.political_group().registration_id(),
+                group.registered_political_group().map(|r| r.id)
+            );
+        }
+    }
+
     #[tokio::test]
     async fn a_registration_made_by_hand_is_kept() -> Result<(), AppError> {
         let state = AppState::new_for_tests().await;
@@ -1014,6 +1035,7 @@ mod tests {
         let by_hand = RegisteredPoliticalGroup {
             id: crate::structs::csb::RegisteredPoliticalGroupId::new(),
             appellation: "beweging losse eindjes".parse().unwrap(),
+            legal_name: "Vereniging Beweging Losse Eindjes".parse().unwrap(),
             previous_votes: 1.into(),
             previous_seats: 1.into(),
         };

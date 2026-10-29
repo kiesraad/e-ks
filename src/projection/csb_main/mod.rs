@@ -59,6 +59,27 @@ impl CsbMainStore {
         })
         .await
     }
+
+    /// Drops a deleted political group's stream from the recorded list
+    /// order. `false` means the stream was not in the order.
+    pub async fn remove_from_list_order(
+        &self,
+        user: CsbUser,
+        stream_id: StreamId,
+    ) -> Result<bool, AppError> {
+        self.update_when(|data| {
+            data.list_order.contains(&stream_id).then(|| {
+                let order = data
+                    .list_order
+                    .iter()
+                    .copied()
+                    .filter(|id| *id != stream_id)
+                    .collect();
+                CsbMainAction::UpdateListOrder(order).by(user.clone())
+            })
+        })
+        .await
+    }
 }
 
 impl StoreData for CsbMainStoreData {

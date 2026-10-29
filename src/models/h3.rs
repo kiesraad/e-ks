@@ -29,7 +29,7 @@ model_template!(H32Fy, H3, "models/templates/h3-2.fy.md");
 
 impl Pdf for H3 {
     fn document(&self) -> Result<Textris, AppError> {
-        let combined = self.list_designation == ListDesignation::Combined;
+        let combined = self.list_designation.is_combined();
         match (self.common.locale, combined) {
             (ModelLocale::Nl, false) => h_document(&self.common, H31Nl(self)),
             (ModelLocale::Fry, false) => h_document(&self.common, H31Fy(self)),
@@ -39,9 +39,13 @@ impl Pdf for H3 {
     }
 
     fn filename(&self) -> String {
-        match (self.common.locale, self.list_designation) {
-            (ModelLocale::Nl, ListDesignation::Combined) => "h3-2-samengevoegde-aanduiding.pdf",
-            (ModelLocale::Fry, ListDesignation::Combined) => "h3-2-gearfoege-oantsjutting.pdf",
+        match (self.common.locale, &self.list_designation) {
+            (ModelLocale::Nl, ListDesignation::Combined { .. }) => {
+                "h3-2-samengevoegde-aanduiding.pdf"
+            }
+            (ModelLocale::Fry, ListDesignation::Combined { .. }) => {
+                "h3-2-gearfoege-oantsjutting.pdf"
+            }
             (ModelLocale::Nl, _) => "h3-1-aanduiding.pdf",
             (ModelLocale::Fry, _) => "h3-1-oantsjutting.pdf",
         }

@@ -20,7 +20,7 @@ use crate::{
     structs::{
         candidate_lists::CandidateListId,
         csb::{OmissionCategory, OmissionType},
-        list_designation::ListDesignation,
+        list_designation::ListDesignationKind,
         persons::PersonId,
     },
     trans,
@@ -61,8 +61,7 @@ impl OmissionTarget {
         let is_blank = data
             .pg(WithCorrections::All)
             .get_political_group()
-            .list_designation
-            == Some(ListDesignation::Blank);
+            .is_blank();
         if self.omission_type == OmissionType::Appellation && is_blank {
             return Err(AppError::GenericNotFound);
         }
@@ -175,15 +174,15 @@ impl OmissionTarget {
                 match data
                     .pg(WithCorrections::All)
                     .get_political_group()
-                    .list_designation
+                    .list_designation_kind()
                 {
-                    Some(ListDesignation::Standalone) | None => {
+                    Some(ListDesignationKind::Standalone) | None => {
                         trans!("political_group.appellation", locale)
                     }
-                    Some(ListDesignation::Combined) => {
+                    Some(ListDesignationKind::Combined) => {
                         trans!("political_group.appellation_combined", locale)
                     }
-                    Some(ListDesignation::Blank) => {
+                    Some(ListDesignationKind::Blank) => {
                         // the user can still get to the add/overview omission page via
                         // all restorations. Users shouldn't apply paper corrections
                         // after adding omissions, but we cannot guarantee this.
@@ -373,6 +372,7 @@ pub async fn delete_omission(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::structs::list_designation::ListDesignation;
     use std::collections::BTreeSet;
 
     use axum::http::StatusCode;
