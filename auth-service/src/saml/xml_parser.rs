@@ -323,6 +323,20 @@ pub fn find_descendant(doc: &Document, id: NodeId, ns: &str, local_name: &str) -
         .map(|n| n.id())
 }
 
+/// All descendant elements of `id` (excluding `id` itself) in document order,
+/// whatever their namespace.
+pub fn element_descendants(doc: &Document, id: NodeId) -> Vec<NodeId> {
+    match doc.node(id) {
+        Some(n) => n
+            .descendants()
+            .skip(1)
+            .filter(roxmltree::Node::is_element)
+            .map(|d| d.id())
+            .collect(),
+        None => Vec::new(),
+    }
+}
+
 /// Find all descendant elements (excluding `id` itself) matching `(ns, local_name)`.
 pub fn descendants_by_tag(doc: &Document, id: NodeId, ns: &str, local_name: &str) -> Vec<NodeId> {
     match doc.node(id) {

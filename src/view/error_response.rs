@@ -62,6 +62,8 @@ enum LocalisedMessage {
     Events,
     Cap,
     Persons { max: usize },
+    CandidateLists { max: usize },
+    SubstituteSubmitters { max: usize },
     DuplicateCandidate,
     CandidateSetChanged,
     NotDownloadable,
@@ -75,6 +77,10 @@ impl LocalisedMessage {
             AppError::TooManyEvents { .. } => Some(Self::Events),
             AppError::EventLimitReached { .. } => Some(Self::Cap),
             AppError::TooManyPersons { max } => Some(Self::Persons { max: *max }),
+            AppError::TooManyCandidateLists { max } => Some(Self::CandidateLists { max: *max }),
+            AppError::TooManySubstituteSubmitters { max } => {
+                Some(Self::SubstituteSubmitters { max: *max })
+            }
             AppError::DuplicateCandidate => Some(Self::DuplicateCandidate),
             AppError::CandidateSetChanged => Some(Self::CandidateSetChanged),
             AppError::NotDownloadable => Some(Self::NotDownloadable),
@@ -90,6 +96,13 @@ impl LocalisedMessage {
                 Some(trans!("common.rate_limit.title", locale))
             }
             Self::Persons { .. } => Some(trans!("common.rate_limit.persons_title", locale)),
+            Self::CandidateLists { .. } => {
+                Some(trans!("common.rate_limit.candidate_lists_title", locale))
+            }
+            Self::SubstituteSubmitters { .. } => Some(trans!(
+                "common.rate_limit.substitute_submitters_title",
+                locale
+            )),
             Self::Conflict => Some(trans!("common.request_error.conflict_title", locale)),
             Self::DuplicateCandidate | Self::CandidateSetChanged | Self::NotDownloadable => None,
         }
@@ -101,6 +114,14 @@ impl LocalisedMessage {
             Self::Events => trans!("common.rate_limit.events_message", locale),
             Self::Cap => trans!("common.rate_limit.cap_message", locale),
             Self::Persons { max } => trans!("common.rate_limit.persons_message", locale, max),
+            Self::CandidateLists { max } => {
+                trans!("common.rate_limit.candidate_lists_message", locale, max)
+            }
+            Self::SubstituteSubmitters { max } => trans!(
+                "common.rate_limit.substitute_submitters_message",
+                locale,
+                max
+            ),
             Self::Conflict => trans!("common.request_error.conflict_message", locale),
             Self::DuplicateCandidate => {
                 trans!("candidate_list.errors.duplicate_candidate", locale)
@@ -235,6 +256,8 @@ impl ErrorResponse {
             | AppError::UserError(_)
             | AppError::TooManyCandidates { .. }
             | AppError::TooManyPersons { .. }
+            | AppError::TooManyCandidateLists { .. }
+            | AppError::TooManySubstituteSubmitters { .. }
             | AppError::DuplicateCandidate
             | AppError::CandidateSetChanged
             | AppError::NotDownloadable
@@ -329,6 +352,8 @@ fn message_is_safe_to_log(err: &AppError) -> bool {
             | AppError::TooManyEvents { .. }
             | AppError::EventLimitReached { .. }
             | AppError::TooManyPersons { .. }
+            | AppError::TooManyCandidateLists { .. }
+            | AppError::TooManySubstituteSubmitters { .. }
             | AppError::DuplicateCandidate
             | AppError::CandidateSetChanged
             | AppError::NotDownloadable
