@@ -100,7 +100,7 @@ jobs:
 
       - &cargo-cache-restore
         name: Cargo cache
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           shared-key: eks-lint
           save-if: false
@@ -156,7 +156,7 @@ jobs:
       - *setup-stable-rust
 
       - name: Cargo cache
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           shared-key: eks-lint
 
@@ -199,7 +199,7 @@ jobs:
       - *setup-stable-rust
 
       - name: Cargo cache
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           shared-key: eks-dylint
 
@@ -295,7 +295,7 @@ jobs:
       - *setup-stable-rust
 
       - name: Cargo cache
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           shared-key: eks-build
 
@@ -348,7 +348,7 @@ jobs:
 
       # Own key: builds eks with the dev feature set (incl. /dev/login).
       - name: Cargo cache
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           shared-key: eks-playwright
 
@@ -444,7 +444,7 @@ jobs:
 
       - name: Cargo cache
         if: steps.release_check.outputs.release_exists == 'false'
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           shared-key: eks-release
 
