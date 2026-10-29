@@ -8,7 +8,6 @@ actions:
   export_csv: Download CSV file
   export_csv_template: Download CSV template
   from_candidate_register: From register
-  import: Import
   import_csv: Upload CSV file
   import_export: Import and export candidate list
   select_all_candidate_lists: Select all candidate lists

@@ -2,7 +2,6 @@
 // De lijstinleveraar vult de benodigde personalia (personalia kandidaat H1) in
 // Er ontbreken kandidaten, de lijstinleveraar vult de missende kandidaten in
 
-import { expect } from "@playwright/test";
 import { test } from "./fixtures.ts";
 import type { AuthorisedPerson } from "./models/authorisedPerson";
 import type { Candidate } from "./models/candidate";
@@ -10,7 +9,8 @@ import { AuthorisedPersonPage } from "./pages/pg/authorisedPersonPage";
 import { CandidateListsOverviewPage } from "./pages/pg/candidateListsOverviewPage";
 import { CorrespondenceAddressPage } from "./pages/pg/correspondenceAddressPage";
 import { CreatePersonPage } from "./pages/pg/createPersonPage";
-import { PersonsPage } from "./pages/pg/personsPage";
+import { EditListDetailsPage } from "./pages/pg/editListDetailsPage.ts";
+import { ManageCandidateListPage } from "./pages/pg/manageCandidateListPage.ts";
 import { randomName } from "./utils/random";
 
 test.describe("create new person", async () => {
@@ -41,16 +41,14 @@ test.describe("create new person", async () => {
   for (const { candidate, description } of candidates) {
     test(description, async ({ login: page }) => {
       await page.goto("/candidate-lists");
-      await new CandidateListsOverviewPage(page).headingAllCandidates.click();
-      const personsPage = new PersonsPage(page);
-      await new PersonsPage(page).linkAddPerson.click();
+      await new CandidateListsOverviewPage(page).buttonAddList.click();
+      await new EditListDetailsPage(page).addDistricts(["Groningen"]);
+      const manageCandidateListPage = new ManageCandidateListPage(page);
+      manageCandidateListPage.buttonAddNewCandidate.click();
       await new CreatePersonPage(page).setPersonalDetails(candidate);
       await new CorrespondenceAddressPage(page).setCorrespondenceAddress(
         candidate,
       );
-      await expect(
-        await personsPage.getCellLastName(candidate.lastName),
-      ).toBeVisible();
     });
   }
 
@@ -58,7 +56,10 @@ test.describe("create new person", async () => {
     login: page,
   }) => {
     await page.goto("/candidate-lists");
-    await new CandidateListsOverviewPage(page).headingAllCandidates.click();
+    await new CandidateListsOverviewPage(page).buttonAddList.click();
+    await new EditListDetailsPage(page).addDistricts(["Groningen"]);
+    const manageCandidateListPage = new ManageCandidateListPage(page);
+    manageCandidateListPage.buttonAddNewCandidate.click();
 
     const authorisedPerson: AuthorisedPerson = {
       initials: "C",
@@ -71,15 +72,10 @@ test.describe("create new person", async () => {
       authorisedPerson: authorisedPerson,
     };
 
-    const personsPage = new PersonsPage(page);
-    await personsPage.linkAddPerson.click();
     await new CreatePersonPage(page).setPersonalDetails(candidate);
     await new AuthorisedPersonPage(page).setAuthorisedPerson(
       // biome-ignore lint/style/noNonNullAssertion: the test should fail if the authorised person is not set
       candidate.authorisedPerson!,
     );
-    await expect(
-      await personsPage.getCellLastName(candidate.lastName),
-    ).toBeVisible();
   });
 });

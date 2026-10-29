@@ -121,7 +121,39 @@ mod tests {
 
         let create_path = CandidateList::create_path().to_string();
         assert!(body.contains(&format!(r#"data-href="{create_path}""#)));
-        assert!(body.contains("Multiple lists can be created"));
+        assert!(body.contains(
+            "it is possible to create different lists for different electoral districts."
+        ));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn candidate_register_is_always_visible() -> Result<(), AppError> {
+        let store = PgStore::new_for_test();
+
+        let response = list_candidate_lists(
+            CandidateListsPath {},
+            Context::new_test_without_db(),
+            store.clone(),
+        )
+        .await?
+        .into_response();
+        let body = response_body_string(response).await;
+
+        assert!(body.contains("Candidate register"));
+        assert!(body.contains("<strong>0</strong> candidates"));
+
+        let person = sample_person(PersonId::new());
+        person.create(&store).await?;
+
+        let response =
+            list_candidate_lists(CandidateListsPath {}, Context::new_test_without_db(), store)
+                .await?
+                .into_response();
+        let body = response_body_string(response).await;
+        assert!(body.contains("<strong>1</strong> candidate"));
+        assert!(!body.contains("<strong>1</strong> candidates"));
 
         Ok(())
     }

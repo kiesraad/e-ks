@@ -8,15 +8,12 @@ actions:
   export_csv: Download CSV bestand
   export_csv_template: Download CSV sjabloon
   from_candidate_register: Uit adresboek
-  import: Importeren
   import_csv: Upload CSV bestand
   import_export: Import en export kandidatenlijst
   select_all_candidate_lists: Selecteer alle kandidatenlijsten
   select_all_districts: Selecteer alle kieskringen
 add_all: Alle kandidaten toevoegen
 add_candidate: Kandidaat toevoegen
-all_candidates: Adresboek
-all_candidates_note: Kandidaten die u heeft aangemaakt vindt u hier terug
 add_list_note: "Bij de {} is het mogelijk om in verschillende kieskringen met verschillende kandidatenlijsten mee te doen."
 candidate:
   delete_warning_text: "Deze persoon staat op {} kandidatenlijst(en). Weet je zeker dat je deze persoon definitief wilt verwijderen?"
