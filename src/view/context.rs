@@ -54,6 +54,9 @@ pub struct Context {
     pub general_information_path: String,
     /// Set when a CSB session is correcting a stream's paper documents.
     pub paper_correction_mode: Option<PaperCorrectionMode>,
+    /// Whether to offer `/switch-election`: no `DEFAULT_ELECTION` pins the
+    /// election, and not in paper-corrections mode.
+    pub can_switch_election: bool,
 }
 
 impl Context {
@@ -90,6 +93,7 @@ impl Context {
             server_name: None,
             general_information_path,
             paper_correction_mode,
+            can_switch_election: false,
         }
     }
 
@@ -142,6 +146,7 @@ impl askama::Values for Context {
                 .paper_correction_mode
                 .as_ref()
                 .map(|mode| &mode.group_name as &dyn std::any::Any),
+            "can_switch_election" => Some(&self.can_switch_election as &dyn std::any::Any),
             _ => None,
         }
     }
@@ -156,6 +161,8 @@ impl<S: AppRequestState> FromRequestParts<S> for Context {
         let mut context = Context::new(&store, session);
 
         context.server_name = state.config().server_name.as_deref();
+        context.can_switch_election =
+            state.config().default_election.is_none() && context.paper_correction_mode.is_none();
 
         let path = parts.uri.path();
         context.show_download_warning = store.snapshot().should_show_download_warning()
@@ -213,5 +220,51 @@ mod tests {
     #[test]
     fn livereload_flag_matches_feature() {
         assert_eq!(Context::livereload_enabled(), cfg!(feature = "livereload"));
+    }
+
+    /// A pinned `DEFAULT_ELECTION` hides the switch-election link.
+    #[tokio::test]
+    async fn can_switch_election_unless_pinned() {
+        use axum::{Router, body::Body, http::Request, middleware, routing::get};
+        use tower::ServiceExt;
+
+        use crate::{
+            AppState, Config, session_middleware, store_middleware,
+            test_utils::response_body_string,
+        };
+
+        for (default_election, expected) in [(None, "true"), (Some(ElectionConfig::EK27), "false")]
+        {
+            let mut config = Config::new_test();
+            config.default_election = default_election;
+            let state = AppState::new_for_tests_with_config(config).await;
+            let app = Router::new()
+                .route(
+                    "/",
+                    get(|context: Context| async move { context.can_switch_election.to_string() }),
+                )
+                .layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    store_middleware,
+                ))
+                .layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    session_middleware,
+                ))
+                .with_state(state.clone());
+
+            let mut session = Session::new_test_for_stream(crate::StreamId::new());
+            session.set_test_election(ElectionConfig::EK27);
+            let cookie = format!("{}={}", crate::SESSION_COOKIE_NAME, session.token_string());
+            state.sessions().insert(session).await;
+
+            let request = Request::builder()
+                .uri("/")
+                .header(axum::http::header::COOKIE, cookie)
+                .body(Body::empty())
+                .unwrap();
+            let response = app.oneshot(request).await.expect("response");
+            assert_eq!(response_body_string(response).await, expected);
+        }
     }
 }

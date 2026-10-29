@@ -4,6 +4,7 @@ mod form_data;
 mod id_newtype;
 mod merge_errors;
 mod string_validators;
+mod switch_election;
 mod validation_error;
 
 pub use csrf::{TokenValue, csrf_token_matches, generate_csrf_token};
@@ -13,6 +14,7 @@ pub use merge_errors::MergeErrors;
 pub use string_validators::{
     is_teletex_char, validate_length, validate_multi_line_teletex_chars, validate_teletex_chars,
 };
+pub use switch_election::SwitchElectionForm;
 pub use validation_error::ValidationError;
 
 use axum::extract::{FromRequest, Request};

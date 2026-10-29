@@ -9,7 +9,6 @@ mod paths;
 
 pub use forms::{
     DutchAddressForm, FullNameForm, InternationalAddressForm, MinimalNameForm, SelectElectionForm,
-    SwitchElectionForm,
 };
 
 pub use pages::{

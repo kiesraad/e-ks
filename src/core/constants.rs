@@ -24,6 +24,10 @@ pub const CSB_ALERT_HOURS_REPEAT_INTERVAL: Duration = Duration::from_mins(30);
 
 pub const MAX_CANDIDATES: usize = 80;
 
+/// Election the dev login lands on when `DEFAULT_ELECTION` is unset.
+#[cfg(feature = "dev-features")]
+pub(crate) const DEV_LOGIN_ELECTION: crate::ElectionConfig = crate::ElectionConfig::EK27;
+
 /// Hard cap on the persons one political group's stream may hold. Persons
 /// are held in memory, cloned by the list and audit-log pages and copied into
 /// the CSB import, so the count is bounded independently of the event caps.

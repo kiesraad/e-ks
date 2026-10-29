@@ -18,19 +18,23 @@ use crate::{
 };
 
 impl AppState {
-    /// If the stream already has data for some election, prime its store,
-    /// record the login, and return the election to attach to the session.
-    async fn existing_election_login(
+    /// The election to attach to the session: the pinned `DEFAULT_ELECTION`,
+    /// else the one the stream already has data for, else `None` (the user
+    /// picks one at `/select-election`). The store is primed and the login
+    /// recorded, which also persists the stream of a first login.
+    async fn login_election(
         &self,
         stream_id: StreamId,
     ) -> Result<Option<crate::ElectionConfig>, AppError> {
-        let Some(election) = self
-            .existing_elections_for_stream(stream_id)
-            .await
-            .ok()
-            .and_then(|list| list.into_iter().next())
-        else {
-            return Ok(None);
+        let election = match self.config.default_election {
+            Some(election) => election,
+            None => {
+                let existing = self.existing_elections_for_stream(stream_id).await.ok();
+                let Some(election) = existing.into_iter().flatten().next() else {
+                    return Ok(None);
+                };
+                election
+            }
         };
         let store = self.store_for_stream(stream_id, election, false).await?;
         // the cached store can lag other instances; catch up before snapshotting
@@ -138,7 +142,7 @@ impl AuthState for AppState {
         let id_code = subject_id.value;
         let stream_id = self.id_deriver.derive_stream_id(&id_code);
 
-        let (election, redirect_to) = match self.existing_election_login(stream_id).await {
+        let (election, redirect_to) = match self.login_election(stream_id).await {
             Ok(Some(election)) => (Some(election), PgIndexPath.to_string()),
             Ok(None) => (None, SelectElectionPath.to_string()),
             Err(err) => return err.into_response(),

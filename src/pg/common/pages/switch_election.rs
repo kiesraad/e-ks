@@ -6,9 +6,7 @@ use axum::{
 
 use crate::{
     AnyLocale, AppError, AppRequestState, Context, ElectionConfig, HtmlTemplate, Province, Session,
-    SessionUser, WaterCouncil,
-    common::{PgIndexPath, SwitchElectionForm},
-    csb::index::CsbIndexPath,
+    SessionUser, SwitchElectionForm, WaterCouncil, common::PgIndexPath, csb::index::CsbIndexPath,
     filters,
 };
 
@@ -32,6 +30,10 @@ pub async fn switch_election<S: AppRequestState>(
     State(state): State<S>,
     context: Context,
 ) -> Result<Response, AppError> {
+    if state.config().default_election.is_some() {
+        return Err(AppError::GenericNotFound);
+    }
+
     let existing_elections = existing_elections_for(&state, &context.session).await?;
 
     Ok(HtmlTemplate(
@@ -69,6 +71,10 @@ pub async fn switch_election_submit<S: AppRequestState>(
     session: Session,
     axum::Form(form): axum::Form<SwitchElectionForm>,
 ) -> Result<Response, AppError> {
+    if state.config().default_election.is_some() {
+        return Err(AppError::GenericNotFound);
+    }
+
     let Some(election) = form.into_election_config() else {
         return Ok(Redirect::to(&SwitchElectionPath.to_string()).into_response());
     };
@@ -115,6 +121,74 @@ mod tests {
     use crate::{AppState, ElectionConfig, Province, session_middleware, store_middleware};
 
     use super::*;
+
+    /// With `DEFAULT_ELECTION` pinned there is no switching, so the page
+    /// does not exist.
+    #[tokio::test]
+    async fn switch_election_is_not_found_when_pinned() {
+        let mut config = crate::Config::new_test();
+        config.default_election = Some(ElectionConfig::EK27);
+        let state = AppState::new_for_tests_with_config(config).await;
+        let app = Router::new()
+            .typed_get(switch_election::<crate::AppState>)
+            .typed_post(switch_election_submit::<crate::AppState>)
+            .layer(middleware::from_fn_with_state(
+                state.clone(),
+                store_middleware,
+            ))
+            .layer(middleware::from_fn_with_state(
+                state.clone(),
+                session_middleware,
+            ))
+            .with_state(state.clone());
+
+        let stream_id = crate::StreamId::new();
+        let mut session = crate::Session::new_test_for_stream(stream_id);
+        session.set_test_election(ElectionConfig::EK27);
+        let token_value = session.token_string();
+        let csrf_token = session.csrf_token().clone();
+        state.sessions().insert(session).await;
+        let cookie = format!("{}={}", crate::SESSION_COOKIE_NAME, token_value);
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/switch-election")
+                    .header(header::COOKIE, &cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .expect("response");
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+        let body = format!("csrf_token={csrf_token}&election=PS27&domain_province=prov1");
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/switch-election")
+                    .header(header::COOKIE, &cookie)
+                    .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+                    .body(Body::from(body))
+                    .unwrap(),
+            )
+            .await
+            .expect("response");
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            state
+                .sessions
+                .get(&token_value)
+                .await
+                .unwrap()
+                .unwrap()
+                .user
+                .election(),
+            Some(ElectionConfig::EK27)
+        );
+    }
 
     #[tokio::test]
     async fn switch_election_submit_changes_session_election() {
