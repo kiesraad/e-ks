@@ -54,7 +54,13 @@
     <p class="mb-xl">
       <a href="{{ export_path }}"
          class="button secondary icon-download"
-         type="button">{{ "candidate_list.actions.export_csv"|trans }}</a>
+         type="button">
+        {% if list.candidates.is_empty() %}
+          {{ "candidate_list.actions.export_csv_template"|trans }}
+        {% else %}
+          {{ "candidate_list.actions.export_csv"|trans }}
+        {% endif %}
+      </a>
     </p>
     <div class="alert alert-info flow-root mt-xl">
       <h4 class="mb-md font-bold">{{ "candidate_list.import_export.import_instructions_header"|trans }}</h4>
@@ -68,8 +74,6 @@
                  class="more-less close mt-md font-bold">{{ "action.read_less"|trans }}</label>
         </div>
       </div>
-      <a href="{{ CandidateList::import_template_path() }}"
-         class="button secondary icon-download float-right mt-md">{{ "candidate_list.actions.export_csv_template"|trans }}</a>
     </div>
   </div>
 {% endblock %}

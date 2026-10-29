@@ -8,11 +8,9 @@ use axum::{
 use crate::{
     AppError, Context, EventHashPrefix, HtmlTemplate, Locale, Overlay, PgStore, QueryParamState,
     candidate_lists::{
-        CSV_HEADERS, CandidateRecordCsv,
         importer::{ImportCandidateListError, import_candidate_list_csv},
-        pages::{CandidateListImportPath, CandidateListImportTemplatePath},
+        pages::CandidateListImportPath,
     },
-    core::Csv,
     filters,
     form::FileForm,
     redirect_success, trans,
@@ -158,27 +156,6 @@ fn upload_error_messages(err: &AppError, locale: Locale) -> Option<Vec<String>> 
         )]),
         _ => None,
     }
-}
-
-pub async fn download_import_template(
-    _: CandidateListImportTemplatePath,
-) -> Result<Response, AppError> {
-    let file_name = "kandidatenlijst-export-sjabloon.csv";
-    let (response, file_size) = Csv::<CandidateRecordCsv> {
-        filename: file_name.to_string(),
-        headers: Some(CSV_HEADERS.to_vec()),
-        records: vec![],
-    }
-    .generate_csv_response()?;
-
-    tracing::info!(
-        file_name,
-        content_type = "text/csv",
-        size_bytes = file_size,
-        "file download served",
-    );
-
-    Ok(response)
 }
 
 #[cfg(test)]
@@ -539,40 +516,6 @@ mod tests {
         assert!(body.contains("Import failed"));
         assert!(body.contains("Your file could not be uploaded. Please try again."));
         assert_eq!(body.matches("alert alert-warning").count(), 1);
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn download_csv_template() -> Result<(), AppError> {
-        let response = download_import_template(CandidateListImportTemplatePath {}).await?;
-
-        assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(
-            response
-                .headers()
-                .get("Content-Disposition")
-                .unwrap()
-                .to_str()
-                .unwrap(),
-            "attachment; filename=\"kandidatenlijst-export-sjabloon.csv\""
-        );
-
-        assert_eq!(
-            response
-                .headers()
-                .get("Content-Type")
-                .unwrap()
-                .to_str()
-                .unwrap(),
-            "text/csv"
-        );
-        // The template is exported with a UTF-8 BOM and `;` delimiter for Excel.
-        let body = response_body_string(response).await;
-        assert_eq!(
-            body.trim_end_matches('\n'),
-            format!("\u{feff}{}", csv_headers().replace(',', ";"))
-        );
 
         Ok(())
     }
