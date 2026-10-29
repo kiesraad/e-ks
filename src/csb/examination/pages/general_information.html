@@ -85,6 +85,33 @@
         {{ paper_corrected::data_row("problems.no_previous_election_results"|trans, group_info.previous_results) }}
       </tbody>
     </table>
+    {% for registration in registrations %}
+      <table class="detail-table">
+        {{ paper_corrected::columns_head("political_group.registered_political_group"|trans) }}
+        <tbody>
+          <tr>
+            <td>{{ "political_group.appellation"|trans }}: <strong>{{ registration.appellation }}</strong></td>
+            <td></td>
+            <td></td>
+          </tr>
+          <tr>
+            <td>{{ "political_group.legal_name"|trans }}: <strong>{{ registration.legal_name }}</strong></td>
+            <td></td>
+            <td></td>
+          </tr>
+          <tr>
+            <td>{{ "csb.registered_political_groups.previous_votes"|trans }}: <strong>{{ registration.previous_votes }}</strong></td>
+            <td></td>
+            <td></td>
+          </tr>
+          <tr>
+            <td>{{ "csb.registered_political_groups.previous_seats"|trans }}: <strong>{{ registration.previous_seats }}</strong></td>
+            <td></td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+    {% endfor %}
     {% if group_info.is_blank %}
       {# Blank lists shouldn't show/have any name authorisations #}
     {% else if name_authorisations.is_empty() %}
