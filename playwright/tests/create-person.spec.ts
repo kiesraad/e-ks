@@ -2,6 +2,7 @@
 // De lijstinleveraar vult de benodigde personalia (personalia kandidaat H1) in
 // Er ontbreken kandidaten, de lijstinleveraar vult de missende kandidaten in
 
+import { expect } from "@playwright/test";
 import { test } from "./fixtures.ts";
 import type { AuthorisedPerson } from "./models/authorisedPerson";
 import type { Candidate } from "./models/candidate";
@@ -44,11 +45,14 @@ test.describe("create new person", async () => {
       await new CandidateListsOverviewPage(page).buttonAddList.click();
       await new EditListDetailsPage(page).addDistricts(["Groningen"]);
       const manageCandidateListPage = new ManageCandidateListPage(page);
-      manageCandidateListPage.buttonAddNewCandidate.click();
+      await manageCandidateListPage.buttonAddNewCandidate.click();
       await new CreatePersonPage(page).setPersonalDetails(candidate);
       await new CorrespondenceAddressPage(page).setCorrespondenceAddress(
         candidate,
       );
+      await expect(
+        await manageCandidateListPage.getCandidateLocator(candidate.lastName),
+      ).toBeVisible();
     });
   }
 
@@ -59,7 +63,7 @@ test.describe("create new person", async () => {
     await new CandidateListsOverviewPage(page).buttonAddList.click();
     await new EditListDetailsPage(page).addDistricts(["Groningen"]);
     const manageCandidateListPage = new ManageCandidateListPage(page);
-    manageCandidateListPage.buttonAddNewCandidate.click();
+    await manageCandidateListPage.buttonAddNewCandidate.click();
 
     const authorisedPerson: AuthorisedPerson = {
       initials: "C",
@@ -77,5 +81,8 @@ test.describe("create new person", async () => {
       // biome-ignore lint/style/noNonNullAssertion: the test should fail if the authorised person is not set
       candidate.authorisedPerson!,
     );
+    await expect(
+      await manageCandidateListPage.getCandidateLocator(candidate.lastName),
+    ).toBeVisible();
   });
 });

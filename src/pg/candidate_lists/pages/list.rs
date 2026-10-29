@@ -129,7 +129,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn candidate_register_is_always_visible() -> Result<(), AppError> {
+    async fn candidate_register_total_is_pluralised() -> Result<(), AppError> {
         let store = PgStore::new_for_test();
 
         let response = list_candidate_lists(
