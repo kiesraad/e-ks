@@ -13,14 +13,14 @@ export class CsvImportExportPage {
 
   constructor(protected readonly page: Page) {
     this.buttonDownload = this.page.getByRole("link", {
-      name: "Download CSV bestand",
+      name: "Download kandidatenlijst",
     });
     // The file input's aria-label also has button role, so match the <button>.
     this.buttonUpload = this.page
-      .getByRole("button", { name: "Upload CSV bestand" })
+      .getByRole("button", { name: "Upload kandidatenlijst" })
       .and(this.page.locator("button"));
-    this.buttonDownloadTemplate = this.page.getByRole("button", {
-      name: "Download CSV sjabloon",
+    this.buttonDownloadTemplate = this.page.getByRole("link", {
+      name: "Download sjabloon",
     });
     this.buttonContinue = this.page.getByRole("button", { name: "Doorgaan" });
     this.buttonCancel = this.page.getByRole("button", { name: "Annuleren" });
