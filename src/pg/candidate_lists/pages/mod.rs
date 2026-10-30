@@ -5,8 +5,8 @@ use crate::AppRequestState;
 
 use super::paths::{
     CandidateListCreatePath, CandidateListExportPath, CandidateListImportPath,
-    CandidateListImportTemplatePath, CandidateListReorderPath, CandidateListUpdatePath,
-    CandidateListsDeletePath, CandidateListsPath, ViewCandidateListPath,
+    CandidateListReorderPath, CandidateListUpdatePath, CandidateListsDeletePath,
+    CandidateListsPath, ViewCandidateListPath,
 };
 
 mod create;
@@ -39,7 +39,6 @@ pub fn router<S: AppRequestState>() -> Router<S> {
                 .typed_post(import::import_candidate_list)
                 .layer(DefaultBodyLimit::max(import::MAX_IMPORT_SIZE_BYTES)),
         )
-        .typed_get(import::download_import_template)
 }
 
 #[cfg(test)]

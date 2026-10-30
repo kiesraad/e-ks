@@ -8,7 +8,7 @@ detail:
     error: Fout
     fields: Opgevraagde velden
     finding: Bevinding
-    handled: Afgehandeld
+    handled: Genegeerd
     include_deceased: Inclusief overleden personen
     list_value: Waarde op de lijst
     query: Verzoek
@@ -136,7 +136,7 @@ event:
   logout: Uitgelogd
   paper_correction: Papieren correcties
   remove_candidate_from_list: Kandidaat van lijst verwijderd
-  set_brp_finding_handled: BRP-fout afgehandeld gezet
+  set_brp_finding_handled: Negeren van BRP-fout vastgelegd
   set_brp_status: Status BRP-controle gezet
   set_finished: Afgerond gezet
   set_omission_part_status: Verzuimstatus per kieskring of lijst vastgelegd

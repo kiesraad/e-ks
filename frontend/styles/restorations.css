@@ -64,6 +64,11 @@
   > :last-child {
     flex-shrink: 0;
   }
+
+  /* A header holding nothing but actions keeps them on the right. */
+  > .examination-panel-actions:only-child {
+    margin-inline-start: auto;
+  }
 }
 
 /* The heading above a single strip, naming the part of the examination the

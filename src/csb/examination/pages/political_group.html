@@ -95,7 +95,7 @@
           </div>
         </div>
         {% if brp_running %}{{ restorations::brp_finished_notice(political_group.brp_check_status_path() ) }}{% endif %}
-        {{ restorations::brp_strip(brp, brp_badges, brp_incomplete.as_deref() , all_problems) }}
+        {{ restorations::brp_strip(brp, brp_badges, brp_incomplete.as_deref() , all_problems, Some(political_group.all_brp_findings_path() )) }}
       </div>
     {% endif %}
     {% if !political_group.previously_seated || !declarations_of_support_omissions.is_empty() %}

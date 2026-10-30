@@ -4,7 +4,9 @@
 //!
 //! The lists of political groups that obtained one or more seats at that
 //! election are numbered first, in the order of the number of votes cast on
-//! their lists. The remaining lists are numbered by lot (Art. I 15).
+//! their lists. The remaining lists are numbered by lot (Art. I 15). A
+//! combined list is numbered on the registrations of its parties together,
+//! see [`PreviousResult`].
 
 use std::str::FromStr;
 
@@ -154,6 +156,59 @@ impl RegisteredPoliticalGroup {
     }
 }
 
+/// The result at the previous election a candidate list is numbered on
+/// (Kieswet Art. I 14) and exempted from declarations of support on (Art. H 4,
+/// achtste lid): that of the list's registration, or for a combined list that
+/// of the registrations of its parties together.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct PreviousResult {
+    /// The votes the list is numbered on. For a combined list these are the
+    /// votes of the parties that obtained seats added up (Art. I 14, tweede
+    /// lid); a combination without a seat, numbered by lot, carries the votes
+    /// of all its parties for the record.
+    pub votes: VoteCount,
+    /// The seats the parties behind the list obtained together.
+    pub seats: SeatCount,
+}
+
+impl PreviousResult {
+    /// The result of the parties behind one list together; `None` without a
+    /// registration.
+    pub fn combined<'a>(
+        registrations: impl IntoIterator<Item = &'a RegisteredPoliticalGroup>,
+    ) -> Option<Self> {
+        let registrations: Vec<_> = registrations.into_iter().collect();
+        if registrations.is_empty() {
+            return None;
+        }
+        let seats: u32 = registrations.iter().map(|r| r.previous_seats.value()).sum();
+        let votes: u64 = registrations
+            .iter()
+            .filter(|r| seats == 0 || r.was_previously_seated())
+            .map(|r| r.previous_votes.value())
+            .sum();
+        Some(Self {
+            votes: VoteCount::from(votes),
+            seats: SeatCount::from(seats),
+        })
+    }
+
+    /// Whether the parties behind the list obtained one or more seats, which
+    /// numbers the list on votes and exempts it from declarations of support.
+    pub fn is_seated(self) -> bool {
+        self.seats.value() > 0
+    }
+}
+
+impl From<&RegisteredPoliticalGroup> for PreviousResult {
+    fn from(registration: &RegisteredPoliticalGroup) -> Self {
+        Self {
+            votes: registration.previous_votes,
+            seats: registration.previous_seats,
+        }
+    }
+}
+
 #[cfg(test)]
 pub mod tests {
     use super::*;
@@ -264,6 +319,54 @@ pub mod tests {
             ..group
         };
         assert!(!without.has_legal_name(&"Vereniging De Tegen Partij".parse().unwrap()));
+    }
+
+    #[test]
+    fn a_combined_result_counts_the_votes_of_the_seated_parties_only() {
+        let a = sample_registered_political_group("A", 100, 0);
+        let b = sample_registered_political_group("B", 50, 2);
+        let c = sample_registered_political_group("C", 30, 1);
+        let result = |registrations: &[&RegisteredPoliticalGroup]| {
+            PreviousResult::combined(registrations.iter().copied())
+        };
+
+        assert_eq!(result(&[]), None);
+        assert_eq!(result(&[&a]), Some(PreviousResult::from(&a)));
+        assert_eq!(
+            PreviousResult::from(&a),
+            PreviousResult {
+                votes: VoteCount(100),
+                seats: SeatCount(0)
+            }
+        );
+        // Both seated: votes added up.
+        assert_eq!(
+            result(&[&b, &c]),
+            Some(PreviousResult {
+                votes: VoteCount(80),
+                seats: SeatCount(3)
+            })
+        );
+        // The party with the most votes has no seat: its votes do not count,
+        // the combination is still seated.
+        assert_eq!(
+            result(&[&a, &b]),
+            Some(PreviousResult {
+                votes: VoteCount(50),
+                seats: SeatCount(2)
+            })
+        );
+        assert!(result(&[&a, &b]).unwrap().is_seated());
+        // No party seated: numbered by lot, all votes kept for the record.
+        let d = sample_registered_political_group("D", 10, 0);
+        assert_eq!(
+            result(&[&a, &d]),
+            Some(PreviousResult {
+                votes: VoteCount(110),
+                seats: SeatCount(0)
+            })
+        );
+        assert!(!result(&[&a, &d]).unwrap().is_seated());
     }
 
     #[test]

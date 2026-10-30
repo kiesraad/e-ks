@@ -23,7 +23,7 @@ fn group(number: usize, appellation: &str, batches: Vec<Vec<ElectoralDistrict>>)
 pub fn candidate_list_summary_example_1() -> CandidateListOverview {
     CandidateListOverview {
         election_name: "de Eerste Kamer der Staten-Generaal".to_string(),
-        election_date: "27-05-2027".to_string(),
+        election_date: super::date(2027, 5, 27),
         electoral_districts: ElectoralDistrict::ek_districts().to_vec(),
         groups: vec![
             group(

@@ -3,7 +3,7 @@ use std::str::FromStr;
 use chrono::{Local, NaiveDateTime};
 use serde::{Deserialize, Serialize, Serializer};
 
-use crate::form::ValidationError;
+use crate::{core::election::PublicSession, form::ValidationError};
 
 const I1: &str = "i1";
 const I4: &str = "i4";
@@ -83,6 +83,17 @@ crate::structs::audit_log::audit_fields!(HearingDetails {
     chair: leaf(Chair),
     members: leaf(Members),
 });
+
+/// The moment and signatories the election configuration gives the session
+impl From<PublicSession> for HearingDetails {
+    fn from(session: PublicSession) -> Self {
+        Self {
+            date_time: session.datetime,
+            chair: session.chair.to_string(),
+            members: session.members.iter().map(ToString::to_string).collect(),
+        }
+    }
+}
 
 impl Default for HearingDetails {
     fn default() -> Self {

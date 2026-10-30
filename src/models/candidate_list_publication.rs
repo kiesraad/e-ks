@@ -2,6 +2,7 @@
 //! text lives in the `templates/candidate-list-publication.md` Markdown
 //! template.
 
+use chrono::NaiveDate;
 use textris_pdf::build::Textris;
 
 use super::{
@@ -10,15 +11,21 @@ use super::{
     layout::markdown_document,
     markdown::{filters, model_template},
 };
-use crate::{AppError, core::AnyLocale, models::inputs::PublicSession, structs::persons::Person};
+use crate::{
+    AppError,
+    core::{AnyLocale, ModelLocale},
+    structs::{csb::HearingDetails, persons::Person},
+};
 
 #[derive(Debug)]
 pub struct CandidateListPublication {
     pub election_name: String,
-    pub election_date: String,
+    pub election_date: NaiveDate,
     /// Per district, the lists in list number order.
     pub valid_lists: Vec<DistrictLists<NumberedList>>,
-    pub public_session: PublicSession,
+    /// The configured location of the public session
+    pub session_location: String,
+    pub public_session: HearingDetails,
 }
 
 /// A valid list with its group's list number, the same in every district;
@@ -56,7 +63,7 @@ model_template!(
 
 impl Pdf for CandidateListPublication {
     fn document(&self) -> Result<Textris, AppError> {
-        markdown_document(CandidateListPublicationTemplate(self))
+        markdown_document(CandidateListPublicationTemplate(self), ModelLocale::Nl)
     }
 
     fn filename(&self) -> String {

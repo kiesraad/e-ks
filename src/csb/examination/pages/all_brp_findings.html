@@ -19,27 +19,45 @@
   {% set toggle_redirect_url = political_group.all_brp_findings_path() %}
   {% include "csb/components/examination_controls.html" %}
   <div class="examination-panels">
-    <div class="examination-panel">
-      <div class="examination-panel-header">
-        <div>
-          <h2 class="h3">{{ "csb.group.discovered_errors"|trans }}</h2>
+    {% if brp.is_checked() || brp.is_incomplete() %}
+      <div class="examination-panel">
+        <div class="examination-panel-header">
+          <div>
+            <h2 class="h3">{{ "csb.brp_errors.download_title"|trans }}</h2>
+          </div>
         </div>
-        {% if brp_running %}
+        <div class="examination-strip">
+          <a href="{{ political_group.brp_overview_pdf_path() }}"
+             class="button primary icon-download">{{ "csb.finish_examination.download_pdf"|trans }}</a>
+          <a href="{{ political_group.brp_overview_docx_path() }}"
+             class="button secondary icon-download">{{ "csb.finish_examination.download_word"|trans }}</a>
+          <a href="{{ political_group.brp_overview_markdown_path() }}"
+             class="button secondary icon-download">{{ "csb.finish_examination.download_markdown"|trans }}</a>
+        </div>
+      </div>
+    {% endif %}
+    <div class="examination-panel">
+      {% if brp_running %}
+        <div class="examination-panel-header">
           <div class="examination-panel-actions">
             <a class="button secondary"
                href="{{ political_group.all_brp_findings_path() }}">{{ "csb.brp.refresh"|trans }}</a>
           </div>
-        {% else if brp_incomplete.is_some() %}
+        </div>
+      {% else if brp_incomplete.is_some() %}
+        <div class="examination-panel-header">
           <div class="examination-panel-actions">
             <form method="post" action="{{ political_group.start_brp_check_path() }}">
               {{ macros::csrf_field() }}
               <button type="submit" class="button secondary">{{ "csb.brp.start_check"|trans }}</button>
             </form>
           </div>
-        {% endif %}
-      </div>
+        </div>
+      {% endif %}
       {% if brp_running %}{{ restorations::brp_finished_notice(political_group.brp_check_status_path() ) }}{% endif %}
-      {{ restorations::brp_strip(brp, brp_badges, brp_incomplete.as_deref() , all_problems) }}
+      {% if let Some(reason) = brp_incomplete %}
+        <div class="alert alert-warning" data-brp-strip>{{ reason }}</div>
+      {% endif %}
       {% if !(candidates.is_empty() && all_problems.is_all_good()) %}
         {% if !all_problems.general.flatten().is_empty() %}
           <h4 class="mt-md">{{ "common.general_information"|trans }}</h4>
@@ -75,22 +93,5 @@
         <p class="font-italic">{{ "csb.all_findings.none"|trans }}</p>
       {% endif %}
     </div>
-    {% if brp.is_checked() || brp.is_incomplete() %}
-      <div class="examination-panel">
-        <div class="examination-panel-header">
-          <div>
-            <h2 class="h3">{{ "csb.brp_errors.download_title"|trans }}</h2>
-          </div>
-        </div>
-        <div class="examination-strip">
-          <a href="{{ political_group.brp_overview_pdf_path() }}"
-             class="button primary icon-download">{{ "csb.finish_examination.download_pdf"|trans }}</a>
-          <a href="{{ political_group.brp_overview_docx_path() }}"
-             class="button secondary icon-download">{{ "csb.finish_examination.download_word"|trans }}</a>
-          <a href="{{ political_group.brp_overview_markdown_path() }}"
-             class="button secondary icon-download">{{ "csb.finish_examination.download_markdown"|trans }}</a>
-        </div>
-      </div>
-    {% endif %}
   </div>
 {% endblock %}

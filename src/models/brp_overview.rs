@@ -15,7 +15,7 @@ use super::{
     layout::markdown_document,
     markdown::{filters, model_template},
 };
-use crate::AppError;
+use crate::{AppError, core::ModelLocale};
 
 #[derive(Debug)]
 pub struct BrpOverview {
@@ -83,7 +83,7 @@ model_template!(
 
 impl Pdf for BrpOverview {
     fn document(&self) -> Result<Textris, AppError> {
-        markdown_document(BrpOverviewTemplate(self))
+        markdown_document(BrpOverviewTemplate(self), ModelLocale::Nl)
     }
 
     fn filename(&self) -> String {

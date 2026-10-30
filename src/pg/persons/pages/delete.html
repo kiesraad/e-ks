@@ -6,7 +6,6 @@
 {% endblock %}
 {% set close_action = person.highlight_path() %}
 {% block overlay_steps %}
-  {% set conditional_next_step = true %}
   {% include "pg/persons/components/update_steps.html" %}
 {% endblock %}
 {% block overlay_form %}

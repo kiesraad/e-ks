@@ -139,6 +139,11 @@ fn date(year: i32, month: u32, day: u32) -> chrono::NaiveDate {
     chrono::NaiveDate::from_ymd_opt(year, month, day).expect("valid example date")
 }
 
+fn date_time(date: chrono::NaiveDate, hour: u32, minute: u32) -> chrono::NaiveDateTime {
+    date.and_hms_opt(hour, minute, 0)
+        .expect("valid example time")
+}
+
 fn candidate(
     last_name: &str,
     initials: &str,

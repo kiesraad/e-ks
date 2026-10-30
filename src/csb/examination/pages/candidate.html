@@ -59,22 +59,46 @@
   <section class="general-information">
     {% if political_group.mode.is_examination() %}
       {{ restorations::omission_panel("csb.omission.title_for.candidate"|trans(&candidate.name.display() ) , "csb.candidate.add_candidate_text"|trans, political_group.add_candidate_omission_path(candidate.id, list_id) , political_group.manage_candidate_omissions_path(candidate.id, list_id) , candidate_omissions.as_slice()) }}
-      {% if !brp.rows.is_empty() %}
-        <div class="examination-panel">
-          <div class="examination-panel-header">
-            <div>
-              <h2 class="h3">{{ "csb.brp.handled.title"|trans }}</h2>
-              <p>{{ "csb.brp.handled.explanation"|trans }}</p>
-            </div>
-            <div class="examination-panel-actions">
+      <div class="examination-panel">
+        <div class="examination-panel-header">
+          <div>
+            <h2 class="h3">{{ "csb.brp.handled.title"|trans }}</h2>
+            {% if !brp.rows.is_empty() %}<p>{{ "csb.brp.handled.explanation"|trans }}</p>{% endif %}
+          </div>
+          <div class="examination-panel-actions">
+            {% if brp.state.is_not_checked() %}
+              {% if brp.running %}
+                <a class="button secondary"
+                   href="{{ political_group.candidate_path(list_id, candidate.id) }}">{{ "csb.brp.refresh"|trans }}</a>
+              {% else %}
+                <form method="post"
+                      action="{{ political_group.candidate_brp_check_path(list_id, candidate.id) }}">
+                  {{ macros::csrf_field() }}
+                  <button type="submit" class="button secondary">{{ "csb.brp.check_candidate"|trans }}</button>
+                </form>
+              {% endif %}
+            {% endif %}
+            {% if !brp.rows.is_empty() %}
               {% if brp.handled_count() == brp.rows.len() %}
                 <span class="restoration-tag restoration-tag-ok">{{ "csb.brp.handled.count"|trans(&brp.handled_count().to_string() , &brp.rows.len().to_string() ) }}</span>
               {% else %}
                 <span class="restoration-tag restoration-tag-error">{{ "csb.brp.handled.count"|trans(&brp.handled_count().to_string() , &brp.rows.len().to_string() ) }}</span>
               {% endif %}
-            </div>
+            {% endif %}
           </div>
-          <table class="detail-table brp-findings-table">
+        </div>
+        {% if brp.running %}{{ restorations::brp_finished_notice(political_group.brp_check_status_path() ) }}{% endif %}
+        {% if let Some(reason) = brp.incomplete %}
+          <div class="restoration-strip" data-brp-strip>
+            <ul class="restoration-tags">
+              <li>
+                <span class="restoration-tag {% if brp.running %}restoration-tag-running{% else %}restoration-tag-pending{% endif %}">{{ reason }}</span>
+              </li>
+            </ul>
+          </div>
+        {% endif %}
+        {% if !brp.rows.is_empty() %}
+          <table class="detail-table brp-findings-table {% if brp.incomplete.is_some() %}mt-md{% endif %}">
             <thead>
               <tr>
                 <th scope="col">{{ "person.personal_details"|trans }}</th>
@@ -102,30 +126,31 @@
                           data-keep-scroll
                           action="{{ political_group.candidate_brp_finding_handled_path(list_id, candidate.id, row.index) }}">
                       {{ macros::csrf_field() }}
-                      <button type="submit"
-                              name="handled"
-                              value="true"
-                              class="button xs {% if row.tag.handled %}selected{% else %}secondary{% endif %}">
-                        {{ "csb.brp.handled.done"|trans }}
-                      </button>
-                      <button type="submit"
-                              name="handled"
-                              value="false"
-                              class="button xs {% if !row.tag.handled %}primary-destructive selected{% else %}secondary{% endif %}">
-                        {{ "csb.brp.handled.not_done"|trans }}
-                      </button>
+                      {% if row.tag.handled %}
+                        <button type="submit" name="handled" value="false" class="button xs tertiary">{{ "csb.brp.handled.unignore"|trans }}</button>
+                      {% else %}
+                        <button type="submit" name="handled" value="true" class="button xs secondary">{{ "csb.brp.handled.ignore"|trans }}</button>
+                      {% endif %}
                     </form>
                   </td>
                 </tr>
               {% endfor %}
             </tbody>
           </table>
-          <div class="float-right mt-md">
-            <a class="button secondary icon-chevron-end"
-               href="{{ political_group.all_brp_findings_path() }}">{{ "csb.group.examine_all"|trans }}</a>
+        {% else if brp.state.is_correct() %}
+          <div class="restoration-strip">
+            <ul class="restoration-tags">
+              <li>
+                <span class="restoration-tag restoration-tag-ok">{{ "csb.brp.none_found"|trans }}</span>
+              </li>
+            </ul>
           </div>
+        {% endif %}
+        <div class="float-right mt-md">
+          <a class="button secondary icon-chevron-end"
+             href="{{ political_group.all_brp_findings_path() }}">{{ "csb.group.examine_all"|trans }}</a>
         </div>
-      {% endif %}
+      </div>
     {% else %}
       {{ restorations::status_panel(political_group, "csb.omission.title_for.candidate"|trans(&candidate.name.display() ) , "csb.recovery.omissions_explanation"|trans, candidate_omissions.as_slice() , political_group.candidate_path(list_id, candidate.id)) }}
     {% endif %}
@@ -139,32 +164,6 @@
       </div>
     </div>
     {% let examining = political_group.mode.is_examination() %}
-    {% if examining %}
-      {% if let Some(reason) = brp.incomplete %}
-        <div class="restoration-strip" data-brp-strip>
-          <ul class="restoration-tags">
-            <li>
-              <span class="restoration-tag {% if brp.running %}restoration-tag-running{% else %}restoration-tag-pending{% endif %}">{{ reason }}</span>
-            </li>
-          </ul>
-        </div>
-        {% if brp.running %}{{ restorations::brp_finished_notice(political_group.brp_check_status_path() ) }}{% endif %}
-        {% if brp.state.is_not_checked() %}
-          <div class="examination-panel-actions">
-            {% if brp.running %}
-              <a class="button secondary"
-                 href="{{ political_group.candidate_path(list_id, candidate.id) }}">{{ "csb.brp.refresh"|trans }}</a>
-            {% else %}
-              <form method="post"
-                    action="{{ political_group.candidate_brp_check_path(list_id, candidate.id) }}">
-                {{ macros::csrf_field() }}
-                <button type="submit" class="button secondary">{{ "csb.brp.check_candidate"|trans }}</button>
-              </form>
-            {% endif %}
-          </div>
-        {% endif %}
-      {% endif %}
-    {% endif %}
     <table class="detail-table">
       {{ paper_corrected::columns_head("person.personal_details"|trans) }}
       <tbody>

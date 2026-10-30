@@ -418,16 +418,18 @@
 
 .brp-findings-table {
   thead th:nth-child(3) {
-    width: 19rem;
+    width: 16rem;
   }
 
   td.actions {
     text-align: right;
 
-    /* The handled control reads like the omission status buttons. */
-    form {
-      display: inline-flex;
-      gap: var(--space-2);
+    /* The undo button carries a long label; keep it from dominating the row */
+    .button.tertiary {
+      font-size: var(--font-size-xs);
+      min-height: 2rem;
+      padding-block: calc(0.25rem - var(--button-border-width));
+      padding-inline: calc(0.625rem - var(--button-border-width));
     }
   }
 

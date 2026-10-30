@@ -49,7 +49,7 @@
       {% endif %}
     {% endif %}
     <h2>{{ "csb.general.group_info"|trans }}</h2>
-    {% set combined_problems = general_problems.get_general_name_authorisation_problems_combined() %}
+    {% set combined_problems = all_problems.general.get_general_name_authorisation_problems_combined() %}
     {% if political_group.mode.is_examination() && !combined_problems.is_empty() %}
       {{ restorations::problems(combined_problems) }}
     {% endif %}
@@ -84,6 +84,33 @@
         {{ paper_corrected::data_row("problems.no_previous_election_results"|trans, group_info.previous_results) }}
       </tbody>
     </table>
+    {% for registration in registrations %}
+      <table class="detail-table">
+        {{ paper_corrected::columns_head("political_group.registered_political_group"|trans) }}
+        <tbody>
+          <tr>
+            <td>{{ "political_group.appellation"|trans }}: <strong>{{ registration.appellation }}</strong></td>
+            <td></td>
+            <td></td>
+          </tr>
+          <tr>
+            <td>{{ "political_group.legal_name"|trans }}: <strong>{{ registration.legal_name }}</strong></td>
+            <td></td>
+            <td></td>
+          </tr>
+          <tr>
+            <td>{{ "csb.registered_political_groups.previous_votes"|trans }}: <strong>{{ registration.previous_votes }}</strong></td>
+            <td></td>
+            <td></td>
+          </tr>
+          <tr>
+            <td>{{ "csb.registered_political_groups.previous_seats"|trans }}: <strong>{{ registration.previous_seats }}</strong></td>
+            <td></td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+    {% endfor %}
     {% if group_info.is_blank %}
       {# Blank lists shouldn't show/have any name authorisations #}
     {% else if name_authorisations.is_empty() %}
@@ -113,7 +140,7 @@
       {% endfor %}
     {% endif %}
     <h2>{{ "political_group.list_submitter_data"|trans }}</h2>
-    {% if political_group.mode.is_examination() && let Some(ls) = general_problems.list_submitter && !ls.problems.is_empty() %}
+    {% if political_group.mode.is_examination() && let Some(ls) = all_problems.general.list_submitter && !ls.problems.is_empty() %}
       {{ restorations::problems(ls.problems.clone() ) }}
     {% endif %}
     {% if let Some(submitter) = list_submitter %}
@@ -127,7 +154,7 @@
     {% else %}
       {% for submitter in substitute_submitters %}
         <h3 class="mt-md">{{ submitter.heading }}</h3>
-        {% if political_group.mode.is_examination() && let Some(id) = submitter.id && let Some(problems) = general_problems.get_substitute_submitter_problems(**id) %}
+        {% if political_group.mode.is_examination() && let Some(id) = submitter.id && let Some(problems) = all_problems.general.get_substitute_submitter_problems(**id) %}
           {{ restorations::problems(problems) }}
         {% endif %}
         {{ submitter_tables(submitter) }}

@@ -51,15 +51,16 @@ brp:
     unparsable: "De waarde uit de BRP voor {} is niet te interpreteren en is daarom niet vergeleken: {}"
   finished: "De controle tegen de BRP is afgerond. Gebruik 'Pagina verversen' om de resultaten te bekijken."
   handled:
-    badge: Afgehandeld
+    badge: Genegeerd
     candidate: Kandidaat
-    count: "{} van {} afgehandeld"
-    done: Afgehandeld
-    explanation: "Markeer een BRP-fout als afgehandeld wanneer die geen probleem blijkt te zijn, of wanneer er een verzuim voor is toegevoegd."
+    count: "{} van {} genegeerd"
+    explanation: "Negeer een BRP-fout wanneer die geen probleem blijkt te zijn, of wanneer er een verzuim voor is toegevoegd."
     finding: Fout
-    not_done: Niet afgehandeld
-    title: BRP-fouten
+    ignore: Negeren
+    title: BRP-controle
+    unignore: Negeren ongedaan maken
   incomplete: Controle niet afgerond
+  none_found: Geen BRP fouten gevonden
   not_checked: Niet gecontroleerd
   refresh: Pagina verversen
   start_check: Controleren met de BRP
@@ -70,7 +71,7 @@ brp:
     interrupted: "De controle tegen de BRP is voortijdig gestopt, waardoor niet alle kandidaten zijn gecontroleerd. Start de controle opnieuw om de rest te controleren."
     not_started: De kandidaten zijn nog niet tegen de BRP gecontroleerd.
 brp_errors:
-  download_title: Dowload BRP fouten
+  download_title: Download BRP fouten
 candidate:
   add_candidate_text: Voeg verzuimen toe voor deze kandidaat
   personal_details: Persoonsgegevens
@@ -143,7 +144,7 @@ group:
   deleted_label: verwijderd
   discovered_errors: Ontdekte fouten
   discovered_errors_note: Hier vindt u alle fouten verzameld terug
-  examine_all: Naar alle fouten
+  examine_all: Alle BRP fouten
   examine_general: Basisgegevens controleren
   examine_list: Kandidatenlijst controleren
   finished: Onderzoek afgerond
@@ -172,7 +173,6 @@ import:
   warning:
     already_imported: "De politieke groepering “{}” is al geïmporteerd. Kies “Toch importeren” om deze opnieuw te importeren."
 index:
-  closes_on: Sluit op
   feature:
     add_omissions: Verzuimen en correcties toevoegen
     create_i1_letters: I\u00A01 en verzuimbrieven aanmaken
@@ -200,6 +200,8 @@ index:
     title: Herstelde lijsten
   phase_4:
     title: Vaststellen kandidatenlijsten
+  runs_through: Loopt t/m
+  session_on: Zitting is op
 list:
   add_text: Voeg verzuimen toe voor deze kandidatenlijst
   brp_check: BRP controle

@@ -2,7 +2,7 @@ use askama::Template;
 use axum::response::{IntoResponse, Response};
 
 use crate::{
-    AppError, Context, CsbContext, CsbStore, HtmlTemplate,
+    AppError, Context, CsbContext, CsbMainStore, CsbStore, HtmlTemplate,
     csb::examination::{
         extractors::CsbPoliticalGroup,
         pages::CsbGeneralInformationPath,
@@ -14,8 +14,8 @@ use crate::{
     },
     filters,
     structs::{
-        csb::{CsbPhase, Omission},
-        problems::GeneralProblems,
+        csb::{CsbPhase, Omission, RegisteredPoliticalGroup},
+        problems::AllProblems,
     },
 };
 
@@ -23,8 +23,11 @@ use crate::{
 #[template(path = "csb/examination/pages/general_information.html")]
 struct CsbGeneralInformationTemplate {
     political_group: CsbPoliticalGroup,
-    general_problems: GeneralProblems,
+    all_problems: AllProblems,
     group_info: PaperCorrectedPoliticalGroupInfo,
+    /// The committee's registrations behind the group: the one a standalone
+    /// list is bound to, or those of the parties behind a combined list.
+    registrations: Vec<RegisteredPoliticalGroup>,
     name_authorisations: Vec<PaperCorrectedNameAuthorisation>,
     list_submitter: Option<PaperCorrectedSubmitter>,
     substitute_submitters: Vec<PaperCorrectedSubmitter>,
@@ -38,8 +41,9 @@ pub async fn overview(
     _: CsbGeneralInformationPath,
     context: CsbContext,
     store: CsbStore,
+    main_store: CsbMainStore,
 ) -> Result<Response, AppError> {
-    render(context, store, CsbPhase::Examination).await
+    render(context, store, main_store, CsbPhase::Examination).await
 }
 
 /// The general information page, shared between the examination and the
@@ -47,19 +51,27 @@ pub async fn overview(
 pub(in crate::csb) async fn render(
     context: CsbContext,
     store: CsbStore,
+    main_store: CsbMainStore,
     mode: CsbPhase,
 ) -> Result<Response, AppError> {
     let data = store.snapshot();
+    let political_group = CsbPoliticalGroup::new_from_csb_store(&store).with_mode(mode);
+    let registrations = political_group
+        .registrations(&main_store.registered_political_groups())
+        .into_iter()
+        .cloned()
+        .collect();
     Ok(HtmlTemplate(
         CsbGeneralInformationTemplate {
-            political_group: CsbPoliticalGroup::new_from_csb_store(&store).with_mode(mode),
+            political_group,
+            registrations,
             group_info: PaperCorrectedPoliticalGroupInfo::new(&data, context.session.locale, mode),
             name_authorisations: paper_corrected_name_authorisations(&data),
             list_submitter: paper_corrected_list_submitter(&data),
             substitute_submitters: paper_corrected_substitute_submitters(&data),
             political_group_omissions: data.get_political_group_omissions(),
             appellation_omissions: data.get_appellation_omissions(),
-            general_problems: data.get_all_problems(context.election)?.general,
+            all_problems: data.get_all_problems(context.election)?,
         },
         context,
     )
@@ -74,10 +86,10 @@ mod tests {
     use axum::http::StatusCode;
 
     use crate::{
-        CsbAction, PgEvent,
+        CsbAction, CsbMainAction, CsbUser, PgEvent,
         structs::{
             common::{Address, PreviousElectionResults},
-            csb::{OmissionCategory, sample_omission},
+            csb::{OmissionCategory, sample_omission, sample_registered_political_group},
             list_designation::ListDesignation,
             list_submitters::ListSubmitterId,
             political_groups::PoliticalGroup,
@@ -86,6 +98,41 @@ mod tests {
             contains_word, response_body_string, sample_list_submitter, sample_political_group,
         },
     };
+
+    /// The registration a list is bound to is shown with its result at the
+    /// previous election, so the committee sees what the numbering and the
+    /// exemption from declarations of support rest on.
+    #[tokio::test]
+    async fn renders_the_bound_registration() -> Result<(), AppError> {
+        let registration = sample_registered_political_group("Kiesraad Demo", 12345, 3);
+        let main_store = CsbMainStore::new_for_test();
+        main_store
+            .update(
+                CsbMainAction::CreateRegisteredPoliticalGroup(registration.clone())
+                    .by(CsbUser::new_test()),
+            )
+            .await?;
+        let store = CsbStore::new_for_test();
+        let mut pg = sample_political_group();
+        pg.bind_registration(Some(registration.id));
+        store.set_political_group(pg);
+        let stream_id = store.stream_id;
+
+        let response = overview(
+            CsbGeneralInformationPath { stream_id },
+            CsbContext::new_test(),
+            store,
+            main_store,
+        )
+        .await?
+        .into_response();
+
+        let body = response_body_string(response).await;
+        assert!(body.contains("Registered political group"));
+        assert!(body.contains("Vereniging Kiesraad Demo"));
+        assert!(body.contains("12345"));
+        Ok(())
+    }
 
     #[tokio::test]
     async fn renders_section_headings_and_appellation() {
@@ -97,6 +144,7 @@ mod tests {
             CsbGeneralInformationPath { stream_id },
             CsbContext::new_test(),
             store,
+            CsbMainStore::new_for_test(),
         )
         .await
         .unwrap()
@@ -135,6 +183,7 @@ mod tests {
             CsbGeneralInformationPath { stream_id },
             CsbContext::new_test(),
             store,
+            CsbMainStore::new_for_test(),
         )
         .await
         .unwrap()
@@ -178,6 +227,7 @@ mod tests {
             CsbGeneralInformationPath { stream_id },
             CsbContext::new_test(),
             store,
+            CsbMainStore::new_for_test(),
         )
         .await
         .unwrap()
@@ -198,6 +248,7 @@ mod tests {
             CsbGeneralInformationPath { stream_id },
             CsbContext::new_test(),
             store,
+            CsbMainStore::new_for_test(),
         )
         .await
         .unwrap()
@@ -226,6 +277,7 @@ mod tests {
             CsbGeneralInformationPath { stream_id },
             CsbContext::new_test(),
             store,
+            CsbMainStore::new_for_test(),
         )
         .await
         .unwrap()
@@ -258,6 +310,7 @@ mod tests {
             CsbGeneralInformationPath { stream_id },
             CsbContext::new_test(),
             store,
+            CsbMainStore::new_for_test(),
         )
         .await
         .unwrap()
@@ -291,6 +344,7 @@ mod tests {
                 CsbGeneralInformationPath { stream_id },
                 CsbContext::new_test(),
                 store.clone(),
+                CsbMainStore::new_for_test(),
             )
             .await
             .unwrap()
@@ -318,6 +372,7 @@ mod tests {
             },
             CsbContext::new_test(),
             store,
+            CsbMainStore::new_for_test(),
         )
         .await
         .unwrap()
@@ -347,6 +402,7 @@ mod tests {
             CsbGeneralInformationPath { stream_id },
             CsbContext::new_test(),
             store,
+            CsbMainStore::new_for_test(),
         )
         .await
         .unwrap()
@@ -370,6 +426,7 @@ mod tests {
             },
             CsbContext::new_test(),
             store,
+            CsbMainStore::new_for_test(),
         )
         .await
         .unwrap()
@@ -394,6 +451,7 @@ mod tests {
             },
             CsbContext::new_test(),
             store,
+            CsbMainStore::new_for_test(),
         )
         .await
         .unwrap()
@@ -428,6 +486,7 @@ mod tests {
             },
             CsbContext::new_test(),
             store,
+            CsbMainStore::new_for_test(),
         )
         .await
         .unwrap()
@@ -463,6 +522,7 @@ mod tests {
             },
             CsbContext::new_test(),
             store,
+            CsbMainStore::new_for_test(),
         )
         .await
         .unwrap()

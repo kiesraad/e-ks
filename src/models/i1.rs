@@ -3,22 +3,25 @@
 //! per list, it does not reproduce the candidate lists themselves. The
 //! document text lives in the `templates/i1.md` Markdown template.
 
+use chrono::NaiveDate;
 use textris_pdf::build::Textris;
 
 use super::{
     Pdf,
-    inputs::{DistrictLists, OmissionGroup, PublicSession},
+    inputs::{DistrictLists, OmissionGroup},
     layout::markdown_document,
     markdown::{filters, model_template},
 };
-use crate::AppError;
+use crate::{AppError, core::ModelLocale, structs::csb::HearingDetails};
 
 #[derive(Debug)]
 pub struct I1 {
     pub election_name: String,
-    pub election_date: String,
+    pub election_date: NaiveDate,
+    /// The configured location of the session
+    pub session_location: String,
     /// The session in which the central voting bureau examined the lists.
-    pub session: PublicSession,
+    pub session: HearingDetails,
     /// The lists that were submitted, one table per electoral district.
     pub submitted_lists: Vec<DistrictLists<SubmittedList>>,
     /// Empty when the examination found no omissions.
@@ -42,7 +45,7 @@ model_template!(I1Template, I1, "models/templates/i1.md");
 
 impl Pdf for I1 {
     fn document(&self) -> Result<Textris, AppError> {
-        markdown_document(I1Template(self))
+        markdown_document(I1Template(self), ModelLocale::Nl)
     }
 
     fn filename(&self) -> String {

@@ -55,7 +55,10 @@ impl PoliticalGroupSteps {
 
         Ok(Self {
             initial,
-            list_designation_state: Self::list_designation_state(political_group),
+            list_designation_state: Self::list_designation_state(
+                fine_if_empty(PoliticalGroupStep::ListDesignation),
+                political_group,
+            ),
             basic_state: Self::basic_state(
                 fine_if_empty(PoliticalGroupStep::BasicInformation),
                 political_group,
@@ -77,11 +80,17 @@ impl PoliticalGroupSteps {
         })
     }
 
-    fn list_designation_state(political_group: &PoliticalGroup) -> &'static str {
-        if political_group.is_list_designation_type_empty() {
+    fn list_designation_state(
+        fine_if_empty: bool,
+        political_group: &PoliticalGroup,
+    ) -> &'static str {
+        if fine_if_empty && political_group.is_list_designation_type_empty() {
             "empty"
         } else {
-            "ok"
+            political_group
+                .list_designation
+                .get_problems(())
+                .highest_severity_class()
         }
     }
 
@@ -89,7 +98,9 @@ impl PoliticalGroupSteps {
         if fine_if_empty && political_group.is_group_information_empty() {
             "empty"
         } else {
-            political_group.get_problems(()).highest_severity_class()
+            political_group
+                .group_information_problems()
+                .highest_severity_class()
         }
     }
 
@@ -180,8 +191,9 @@ impl PoliticalGroupSteps {
 mod tests {
     use super::*;
     use crate::{
-        AppError, PgStore, structs::name_authorisations::NameAuthorisationId,
-        test_utils::sample_name_authorisation,
+        AppError, PgStore,
+        structs::name_authorisations::NameAuthorisationId,
+        test_utils::{sample_name_authorisation, sample_political_group},
     };
 
     #[tokio::test]
@@ -224,6 +236,45 @@ mod tests {
 
         // Past it, the skipped steps warn.
         let steps = PoliticalGroupSteps::new(&store, true, PoliticalGroupStep::ListSubmitter)?;
+        assert_eq!(steps.name_authorisations_state, "warning");
+        assert_eq!(steps.submitters_state, "empty");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn skipped_list_designation_shows_on_its_own_step() -> Result<(), AppError> {
+        let store = PgStore::new_for_test();
+        PoliticalGroup {
+            list_designation: None,
+            ..sample_political_group()
+        }
+        .update(&store)
+        .await?;
+
+        let steps = PoliticalGroupSteps::new(&store, true, PoliticalGroupStep::ListDesignation)?;
+        assert_eq!(steps.list_designation_state, "empty");
+        assert_eq!(steps.basic_state, "ok");
+
+        let steps = PoliticalGroupSteps::new(&store, true, PoliticalGroupStep::NameAuthorisations)?;
+        assert_eq!(steps.list_designation_state, "info");
+        assert_eq!(steps.basic_state, "ok");
+
+        let steps = PoliticalGroupSteps::new(&store, false, PoliticalGroupStep::ListDesignation)?;
+        assert_eq!(steps.list_designation_state, "info");
+        assert_eq!(steps.basic_state, "ok");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn nothing_filled_in_shows_a_problem_on_every_skipped_step() -> Result<(), AppError> {
+        let store = PgStore::new_for_test();
+        PoliticalGroup::default().update(&store).await?;
+
+        let steps = PoliticalGroupSteps::new(&store, true, PoliticalGroupStep::ListSubmitter)?;
+        assert_eq!(steps.list_designation_state, "info");
+        assert_eq!(steps.basic_state, "error");
         assert_eq!(steps.name_authorisations_state, "warning");
         assert_eq!(steps.submitters_state, "empty");
 

@@ -1,16 +1,17 @@
 //! Example inputs for model I 1.
 
 use super::strings;
-use crate::models::{
-    i1::{I1, SubmittedList},
-    inputs::{DistrictLists, OmissionGroup, PublicSession},
+use crate::{
+    models::{
+        i1::{I1, SubmittedList},
+        inputs::{DistrictLists, OmissionGroup},
+    },
+    structs::csb::HearingDetails,
 };
 
-fn i1_session() -> PublicSession {
-    PublicSession {
-        location: "'s-Gravenhage".to_string(),
-        date: "05-04-2027".to_string(),
-        time: "16:00 uur".to_string(),
+fn i1_session() -> HearingDetails {
+    HearingDetails {
+        date_time: super::date_time(super::date(2027, 4, 5), 16, 0),
         chair: "M.C. Voorzitter".to_string(),
         members: strings(&["A. Lid", "B. Lid", "C. Lid", "D. Lid", "E. Lid", "F. Lid"]),
     }
@@ -75,7 +76,8 @@ fn i1_found_omissions() -> Vec<OmissionGroup> {
 fn i1_example(found_omissions: Vec<OmissionGroup>) -> I1 {
     I1 {
         election_name: "de Eerste Kamer der Staten-Generaal".to_string(),
-        election_date: "27-05-2027".to_string(),
+        election_date: super::date(2027, 5, 27),
+        session_location: "'s-Gravenhage".to_string(),
         session: i1_session(),
         submitted_lists: i1_submitted_lists(),
         found_omissions,

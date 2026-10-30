@@ -8,7 +8,7 @@ footer_right = "Pagina {page} van {total}"
 
 Voor de verkiezing van: **{{ election_name|line }}**
 
-Dag van stemming: **{{ election_date|line }}**
+Dag van stemming: **{{ *election_date|long_date|line }}**
 
 Kieskring: **{{ electoral_district|line }}**
 
