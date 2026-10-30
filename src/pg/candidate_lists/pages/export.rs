@@ -25,6 +25,7 @@ pub async fn export_candidate_list(
         .into_iter()
         .map(|candidate| CandidateRecordCsv::from(candidate.data.person))
         .collect::<Vec<_>>();
+    let has_records = !records.is_empty();
 
     let csv = Csv {
         records,
@@ -41,13 +42,16 @@ pub async fn export_candidate_list(
         "file download served",
     );
 
-    store
-        .update(PgEvent::ExportCsv {
-            file_name,
-            file_size,
-            list_id,
-        })
-        .await?;
+    // a header-only template download is not a data export
+    if has_records {
+        store
+            .update(PgEvent::ExportCsv {
+                file_name,
+                file_size,
+                list_id,
+            })
+            .await?;
+    }
 
     Ok(response)
 }
@@ -199,9 +203,17 @@ mod tests {
         let full_list = FullCandidateList::get(&store.snapshot(), store.election, list_id)?;
 
         let response =
-            export_candidate_list(export_path(&store, list_id), full_list, store).await?;
+            export_candidate_list(export_path(&store, list_id), full_list, store.clone()).await?;
 
         assert_eq!(response.status(), StatusCode::OK);
+        assert!(
+            !store
+                .snapshot()
+                .events()
+                .iter()
+                .any(|e| matches!(e.payload, PgEvent::ExportCsv { .. })),
+            "a template download is not recorded as an export"
+        );
 
         let expected_csv = format!(
             "\u{feff}{}\n",

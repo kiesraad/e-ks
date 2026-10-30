@@ -4,7 +4,6 @@ import type { Locator, Page } from "@playwright/test";
 export class CsvImportExportPage {
   readonly buttonDownload: Locator;
   readonly buttonUpload: Locator;
-  readonly buttonDownloadTemplate: Locator;
   readonly buttonContinue: Locator;
   readonly buttonCancel: Locator;
   readonly buttonClose: Locator;
@@ -12,16 +11,14 @@ export class CsvImportExportPage {
   readonly textFailure: Locator;
 
   constructor(protected readonly page: Page) {
+    // the export link is named "Download sjabloon" while the list is empty
     this.buttonDownload = this.page.getByRole("link", {
-      name: "Download CSV bestand",
+      name: /^Download (kandidatenlijst|sjabloon)$/,
     });
     // The file input's aria-label also has button role, so match the <button>.
     this.buttonUpload = this.page
-      .getByRole("button", { name: "Upload CSV bestand" })
+      .getByRole("button", { name: "Upload kandidatenlijst" })
       .and(this.page.locator("button"));
-    this.buttonDownloadTemplate = this.page.getByRole("button", {
-      name: "Download CSV sjabloon",
-    });
     this.buttonContinue = this.page.getByRole("button", { name: "Doorgaan" });
     this.buttonCancel = this.page.getByRole("button", { name: "Annuleren" });
     this.buttonClose = this.page.getByRole("link", { name: "Sluiten" });
