@@ -151,6 +151,7 @@ header {
     > * {
       vertical-align: middle;
     }
+
     &:hover {
       color: var(--gray-800);
     }
@@ -178,7 +179,7 @@ header {
     justify-content: space-between;
     margin-inline: auto;
     min-height: 9rem;
-    padding-block: var(--space-11) var(--space-8);
+    padding-block: var(--space-8);
     width: var(--container-size);
 
     .tags {
