@@ -2,20 +2,25 @@
 //! This model is Dutch-only; the document text lives in the `templates/i4.md`
 //! Markdown template.
 
+use chrono::NaiveDate;
 use textris_pdf::build::Textris;
 
 use super::{
     Pdf,
-    inputs::{DistrictLists, OmissionGroup, PublicSession, ValidList},
+    inputs::{DistrictLists, OmissionGroup, ValidList},
     markdown::{filters, model_template},
 };
-use crate::{AppError, models::layout::eml_hash_document};
+use crate::{
+    AppError, core::ModelLocale, models::layout::eml_hash_document, structs::csb::HearingDetails,
+};
 
 #[derive(Debug, Default)]
 pub struct I4 {
     pub election_name: String,
-    pub election_date: String,
-    pub public_session: PublicSession,
+    pub election_date: NaiveDate,
+    /// The configured location of the public session
+    pub session_location: String,
+    pub public_session: HearingDetails,
     pub found_omissions: Vec<OmissionGroup>,
     pub recovered_omissions: Vec<OmissionGroup>,
     pub invalid_lists: Vec<OmissionGroup>,
@@ -107,7 +112,11 @@ model_template!(I4Template, I4, "models/templates/i4.md");
 
 impl Pdf for I4 {
     fn document(&self) -> Result<Textris, AppError> {
-        eml_hash_document(I4Template(self), self.document_status.hash())
+        eml_hash_document(
+            I4Template(self),
+            ModelLocale::Nl,
+            self.document_status.hash(),
+        )
     }
 
     fn filename(&self) -> String {

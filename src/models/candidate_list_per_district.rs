@@ -1,7 +1,9 @@
+use chrono::NaiveDate;
 use textris_pdf::build::Textris;
 
 use crate::{
     AppError,
+    core::ModelLocale,
     models::{
         Pdf,
         candidate_list_publication::NumberedList,
@@ -13,7 +15,7 @@ use crate::{
 #[derive(Debug)]
 pub struct CandidateListPerDistrict {
     pub election_name: String,
-    pub election_date: String,
+    pub election_date: NaiveDate,
     pub electoral_district: String,
     pub lists: Vec<NumberedList>,
     /// File name without extension, shared with the district's EML 230b, e.g.
@@ -31,7 +33,11 @@ model_template!(
 
 impl Pdf for CandidateListPerDistrict {
     fn document(&self) -> Result<Textris, AppError> {
-        eml_hash_document(CandidateListPerDistrictTemplate(self), self.hash.as_deref())
+        eml_hash_document(
+            CandidateListPerDistrictTemplate(self),
+            ModelLocale::Nl,
+            self.hash.as_deref(),
+        )
     }
 
     fn filename(&self) -> String {

@@ -10,7 +10,7 @@ footer_right = "Pagina {page} van {total}"
 { widths = "2 5" }
 | Verkiezing | {{ election_name|cell }} |
 | Aanduiding | {{ appellation|cell }} |
-| Datum | {{ date|long_date|cell }} |
+| Datum | {{ *date|long_date|cell }} |
 | Kandidaten zonder BRP fouten | {{ candidates_without_brp_errors }} |
 | Kandidaten met BRP fouten | {{ candidates_with_brp_errors }} |
 | Totaal aantal BRP fouten | {{ brp_error_count }} |

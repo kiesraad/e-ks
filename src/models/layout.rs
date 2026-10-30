@@ -27,14 +27,20 @@ fn theme() -> Theme {
 /// Build a model document from its Markdown template: the shared [`theme`]
 /// plus the rendered template as document body and chrome (the title,
 /// language, header and page counter come from the template's front matter).
-pub(super) fn markdown_document(template: impl Template) -> Result<Textris, AppError> {
+///
+/// The locale is used for date formatting.
+pub(super) fn markdown_document(
+    template: impl Template,
+    locale: ModelLocale,
+) -> Result<Textris, AppError> {
     let mut doc = Textris::with_theme(theme());
     let options = ParseOptions {
         // The models number their `###` sections.
         numbered_heading_levels: vec![3],
         ..ParseOptions::default()
     };
-    doc.push_markdown(&template.render()?, &options)?;
+    let values = ("locale", &locale as &dyn std::any::Any);
+    doc.push_markdown(&template.render_with_values(&values)?, &options)?;
     Ok(doc)
 }
 
@@ -42,9 +48,10 @@ pub(super) fn markdown_document(template: impl Template) -> Result<Textris, AppE
 /// accompanies, if any.
 pub(super) fn eml_hash_document(
     template: impl Template,
+    locale: ModelLocale,
     hash: Option<&str>,
 ) -> Result<Textris, AppError> {
-    let mut doc = markdown_document(template)?;
+    let mut doc = markdown_document(template, locale)?;
     if let Some(hash) = hash {
         hash_footer(&mut doc, hash);
     }
@@ -61,7 +68,7 @@ fn hash_footer(doc: &mut Textris, sha_hash: &str) {
 /// [`markdown_document`] plus the event version footer that all H models
 /// carry; I 1 and I 4 do not.
 pub(super) fn h_document(common: &ModelData, template: impl Template) -> Result<Textris, AppError> {
-    let mut doc = markdown_document(template)?;
+    let mut doc = markdown_document(template, common.locale)?;
     version_footer(&mut doc, common.locale, common.event_id, &common.sha_hash);
     Ok(doc)
 }

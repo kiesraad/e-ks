@@ -1,10 +1,9 @@
 use crate::{
     AppError, AppRequestState, CsbContext, CsbMainStore,
-    core::{ModelLocale, constants::DEFAULT_DATE_FORMAT},
+    core::ModelLocale,
     csb::finalise::numbering::list_numbering,
     models::{
         candidate_list_publication::CandidateListPublication, csb_model_inputs::published_lists,
-        inputs::PublicSession,
     },
     structs::csb::HearingModel,
 };
@@ -21,18 +20,16 @@ pub(super) async fn candidate_list_publication_model<S: AppRequestState>(
 
     numbering.record_if_incomplete(context, main_store).await?;
 
-    let mut public_session = PublicSession::from(election.public_session());
-    if let Some(hearing_details) = main_store.get_hearing_details(HearingModel::I4) {
-        public_session = public_session.with_hearing_details(hearing_details);
-    }
+    let configured_session = election.public_session();
+    let public_session = main_store
+        .get_hearing_details(HearingModel::I4)
+        .unwrap_or_else(|| configured_session.into());
 
     Ok(CandidateListPublication {
         election_name: election.formal_title(ModelLocale::Nl),
-        election_date: election
-            .election_date()
-            .format(DEFAULT_DATE_FORMAT)
-            .to_string(),
+        election_date: election.election_date(),
         valid_lists: published_lists(registry, &election, &numbering.stream_ids()).await?,
+        session_location: configured_session.location.to_string(),
         public_session,
     })
 }
@@ -128,7 +125,10 @@ mod tests {
                 ("Drenthe", vec![(2, "Overal")]),
             ]
         );
-        assert_eq!(model.election_date, "27-05-2027");
+        assert_eq!(
+            model.election_date,
+            chrono::NaiveDate::from_ymd_opt(2027, 5, 24).unwrap()
+        );
 
         Ok(())
     }

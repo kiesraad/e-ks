@@ -19,7 +19,7 @@ AANTEKENEN\
 
 @spacer(3em)
 
-{{ location }}, {{ date|long_date }}
+{{ location }}, {{ *date|long_date }}
 
 #### Onderwerp
 
@@ -54,7 +54,7 @@ Verzuim:
 {% if !omission_groups.is_empty() %}
 Deze verzuimen kunnen door de inleveraar van de kandidatenlijst of door één van
 de op de kandidatenlijst vermelde vervangers worden hersteld tot
-**{{ recovery_deadline_date|long_date }}, {{ recovery_deadline_time }} uur** op
+**{{ *recovery_deadline_date|long_date }}, {{ recovery_deadline_time }} uur** op
 {{ recovery_address }}.
 {% endif %}
 

@@ -1,6 +1,6 @@
 collection:
   gather_h9: Verzamel van alle kandidaten de handtekeningen op de H\u00A09 instemmings\u00ADverklaringen. Zorg ook dat alle kopieën van identiteitsbewijzen meegeleverd worden en leesbaar zijn.
-  pre_submission: "De 2 weken voor de dag van kandidaatstelling kunt u de documenten alvast laten controleren door het centraal stembureau, de zogeheten 'voorinlevering'. Maak hiervoor een afspraak."
+  pre_submission: "De week voor de dag van kandidaatstelling kunt u de documenten alvast laten controleren door het centraal stembureau, de zogeheten 'voorinlevering'. Maak hiervoor een afspraak."
   title: "Verzamelen, controleren en ondertekenen"
 complete_list:
   title: Maak uw lijst compleet
@@ -8,7 +8,7 @@ correction:
   deadline: "Uiterlijk <strong>{}</strong> om <strong>17:00</strong> dient het centraal stembureau de ontbrekende stukken te ontvangen."
   description: "Als u een verzuimbrief heeft ontvangen, heeft de politieke groepering vervolgens drie dagen de tijd om de stukken te corrigeren en opnieuw in te leveren."
   title: Verzuimperiode
-  until: "Verzuim kan hersteld worden tot <strong>{}</strong>"
+  until: "Verzuim kan hersteld worden tot en met <strong>{}</strong>"
 delivery:
   appointment: "Maak hiervoor een afspraak. Het adres is:"
   description: "Op de dag van kandidaatstelling dient u uw documenten in te leveren bij het centraal stembureau tussen <strong>09:00</strong> en <strong>17:00</strong> ."

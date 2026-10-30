@@ -13,7 +13,7 @@ use super::{
     layout::markdown_document,
     markdown::{filters, model_template},
 };
-use crate::AppError;
+use crate::{AppError, core::ModelLocale};
 
 #[derive(Debug)]
 pub struct OmissionLetter {
@@ -116,7 +116,7 @@ model_template!(
 
 impl Pdf for OmissionLetter {
     fn document(&self) -> Result<Textris, AppError> {
-        markdown_document(OmissionLetterTemplate(self))
+        markdown_document(OmissionLetterTemplate(self), ModelLocale::Nl)
     }
 
     fn filename(&self) -> String {
