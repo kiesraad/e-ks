@@ -17,8 +17,8 @@
       <h4 class="warning-text">{{ "candidate_list.import_export.import_failed"|trans }}</h4>
       {% for error in import_errors %}<div class="alert alert-warning">{{ error }}</div>{% endfor %}
     {% endif %}
-    <p class="mb-xl">
-      {% if list.candidates.len() > 0 %}
+    <div class="mb-xl">
+      {% if !list.candidates.is_empty() %}
         {# open a modal with overwrite confirmation; without JS the button submits directly #}
         <noscript>
           <div class="alert alert-warning mb-md">{{ "candidate_list.import_warning"|trans }}</div>
@@ -48,7 +48,7 @@
                 formaction="{{ list.import_path() }}?csrf_token={{ "csrf_token"|str_value }}"
                 formenctype="multipart/form-data">{{ "candidate_list.actions.import_csv"|trans }}</button>
       {% endif %}
-    </p>
+    </div>
     <h2 class="mb-sm">{{ "candidate_list.import_export.export_title"|trans }}</h2>
     <span class="hint mb-lg">{{ "candidate_list.import_export.export_intro"|trans }}</span>
     <p class="mb-xl">
