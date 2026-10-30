@@ -3,7 +3,6 @@ actions:
   add_first: Kandidatenlijst toevoegen
   add_more: Nog een lijst toevoegen
   add_new: Nieuw
-  back_to_list: Terug
   delete_list: Kandidatenlijst verwijderen
   export_csv: Download kandidatenlijst
   export_csv_template: Download sjabloon

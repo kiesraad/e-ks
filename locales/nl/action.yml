@@ -1,6 +1,5 @@
 add: Toevoegen
 back: Terug
-back_candidate_list: Terug naar kandidatenlijst
 back_home: Terug naar home
 cancel: Annuleren
 close: Sluiten
@@ -24,3 +23,4 @@ save_and_close: Opslaan en sluiten
 save_and_continue: Opslaan en volgende
 show: Bekijk
 signout: Afmelden
+to: naar

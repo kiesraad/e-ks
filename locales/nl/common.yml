@@ -37,6 +37,10 @@ maintenance:
   message: De applicatie is tijdelijk niet beschikbaar omdat een benodigde dienst niet bereikbaar is. Uw opgeslagen werk is niet verloren. Probeer het over enkele minuten opnieuw.
   retry: Opnieuw proberen
   title: Tijdelijk niet beschikbaar
+page_names:
+  candidate_list: kandidatenlijst
+  candidate_lists: kandidatenlijsten
+  home: startscherm
 political_group: Politieke groepering
 possible_problems: "{} mogelijke problemen"
 possible_problems_one: 1 mogelijk probleem

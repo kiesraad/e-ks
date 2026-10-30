@@ -4,7 +4,7 @@
   {{ "candidate_list.title_plural"|trans }}
 {% endblock %}
 {% block candidate_lists_nav_class %}active{% endblock %}
-{% block header_action %}<a href="/" class="button secondary">{{ "action.back"|trans }}</a>{% endblock %}
+{% block back_navigation %}{{ macros::back_link("/", "common.page_names.home"|trans) }}{% endblock %}
 {% block content %}
   <section class="candidate-lists">
     <div class="candidates">

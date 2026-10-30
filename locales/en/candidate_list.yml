@@ -3,7 +3,6 @@ actions:
   add_first: Add candidate list
   add_more: Add another list
   add_new: New
-  back_to_list: Back
   delete_list: Delete candidate list
   export_csv: Download candidate list
   export_csv_template: Download template

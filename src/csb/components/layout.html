@@ -88,6 +88,7 @@
     </nav>
     <div class="header-content">
       <div>
+        {% block back_navigation %}{% endblock %}
         <h1>{% block page_title %}{{ "common.title"|trans }}{% endblock %}</h1>
         {% block page_sub_title %}{% endblock %}
       </div>

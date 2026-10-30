@@ -9,9 +9,8 @@
 {% block page_title %}
   {{ political_group.csb_appellation() }}
 {% endblock %}
-{% block header_action %}
-  {{ header::header_actions(political_group, political_group.overview_path() , include_all_restorations=true) }}
-{% endblock %}
+{% block back_navigation %}{{ macros::back_link(political_group.overview_path() , political_group.overview_title_key()|trans|lower) }}{% endblock %}
+{% block header_action %}{{ header::header_actions(political_group, include_all_restorations=true) }}{% endblock %}
 {% block content %}
   {% let election = "election"|election_value %}
   {% if political_group.mode.is_examination() %}
@@ -25,9 +24,7 @@
         <p>{{ "csb.group.unregistered_combined_warning"|trans }}</p>
         {% if !political_group.unregistered_legal_names.is_empty() %}
           <ul>
-            {% for legal_name in political_group.unregistered_legal_names %}
-              <li>{{ legal_name }}</li>
-            {% endfor %}
+            {% for legal_name in political_group.unregistered_legal_names %}<li>{{ legal_name }}</li>{% endfor %}
           </ul>
         {% endif %}
       </div>

@@ -142,13 +142,44 @@ header {
     box-shadow: var(--shadow-md);
   }
 
+  a.back-nav {
+    display: block;
+    width: var(--container-size);
+    margin-bottom: var(--space-sm);
+    color: var(--gray-600);
+
+    > * {
+      vertical-align: middle;
+    }
+
+    &:hover {
+      color: var(--gray-800);
+    }
+
+    &::before {
+      display: inline-block;
+      background-color: currentColor;
+      content: "";
+      vertical-align: middle;
+      height: var(--space-5);
+      mask-image: url("../icons/arrowLeft.svg");
+      mask-size: contain;
+      width: var(--space-5);
+      margin-left: auto;
+    }
+
+    .back-keyword {
+      font-weight: 600;
+    }
+  }
+
   .header-content {
     align-items: center;
     display: flex;
     justify-content: space-between;
     margin-inline: auto;
     min-height: 9rem;
-    padding-block: var(--space-11) var(--space-8);
+    padding-block: var(--space-8);
     width: var(--container-size);
 
     .tags {

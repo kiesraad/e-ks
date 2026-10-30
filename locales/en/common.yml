@@ -37,6 +37,10 @@ maintenance:
   message: The application is temporarily unavailable because a required service cannot be reached. Your saved work is not lost. Please try again in a few minutes.
   retry: Try again
   title: Temporarily unavailable
+page_names:
+  candidate_list: candidate list
+  candidate_lists: candidate lists
+  home: home
 political_group: Political group
 possible_problems: "{} possible problems"
 possible_problems_one: 1 possible problem

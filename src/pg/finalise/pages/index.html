@@ -1,5 +1,6 @@
 {% extends "pg/common/components/layout.html" %}
 {% block page_title %}{{ "common.finalise"|trans }}{% endblock %}
+{% block back_navigation %}{{ macros::back_link("/", "common.page_names.home"|trans) }}{% endblock %}
 {% block overview_nav_class %}active{% endblock %}
 {% block content %}
   {% let max_candidates = "max_candidates"|integer_value %}

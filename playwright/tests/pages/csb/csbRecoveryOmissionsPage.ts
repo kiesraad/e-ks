@@ -10,10 +10,13 @@ export class CsbRecoveryOmissionsPage {
       level: 1,
       name: "Verzuimen herstellen",
     });
-    const headerButtons = this.page.locator(".header-buttons");
-    this.buttonBack = headerButtons.getByRole("link", { name: "Terug" });
-    this.buttonRecoverOmissions = headerButtons.getByRole("link", {
-      name: "Verzuimen herstellen",
-    });
+    this.buttonBack = this.page
+      .locator(".header-content")
+      .getByRole("link", { name: "Terug" });
+    this.buttonRecoverOmissions = this.page
+      .locator(".header-buttons")
+      .getByRole("link", {
+        name: "Verzuimen herstellen",
+      });
   }
 }

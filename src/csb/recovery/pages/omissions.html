@@ -11,11 +11,7 @@
 {% block page_sub_title %}
   <span class="subtitle">{{ "csb.recovery.omissions_explanation"|trans }}</span>
 {% endblock %}
-{% block header_action %}
-  <div class="header-buttons">
-    <a href="{{ political_group.group_path() }}" class="button secondary">{{ "action.back"|trans }}</a>
-  </div>
-{% endblock %}
+{% block back_navigation %}{{ macros::back_link(political_group.group_path() , political_group.csb_appellation()) }}{% endblock %}
 {% block content %}
   <div class="examination-panels">
     <div class="examination-panel">

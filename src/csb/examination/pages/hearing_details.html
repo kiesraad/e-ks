@@ -18,6 +18,13 @@
   {% endif %}
   {{ breadcrumb(crate::csb::examination::CsbHearingDetailsPath { model: *model }, "csb.finish_examination.hearing_details") }}
 {% endblock %}
+{% block back_navigation %}
+  {% if model.is_i1() %}
+    {{ macros::back_link(crate::csb::examination::CsbFinishExaminationPath, "csb.finish_examination.title"|trans|lower) }}
+  {% else %}
+    {{ macros::back_link(crate::csb::finalise::CsbFinalisePath, "csb.finalise.title"|trans|lower) }}
+  {% endif %}
+{% endblock %}
 {% block page_title %}{{ "csb.finish_examination.hearing_details"|trans }}{% endblock %}
 {% block content %}
   <form method="post" class="page-form form">
