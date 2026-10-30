@@ -4,6 +4,7 @@
   {{ breadcrumb(crate::csb::examination::CsbFinishExaminationPath, "csb.finish_examination.title") }}
 {% endblock %}
 {% block page_title %}{{ "csb.finish_examination.title"|trans }}{% endblock %}
+{% block back_navigation %}{{ macros::back_link(crate::csb::examination::CsbExaminationOverviewPath, "csb.examination"|trans|lower) }}{% endblock %}
 {% block content %}
   <div class="examination-panels">
     <div class="examination-panel">
