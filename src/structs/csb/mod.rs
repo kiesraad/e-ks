@@ -14,7 +14,7 @@ pub use omission::{
 };
 pub use phase::CsbPhase;
 pub use registered_political_group::{
-    RegisteredPoliticalGroup, RegisteredPoliticalGroupId, SeatCount, VoteCount,
+    PreviousResult, RegisteredPoliticalGroup, RegisteredPoliticalGroupId, SeatCount, VoteCount,
 };
 
 #[cfg(test)]

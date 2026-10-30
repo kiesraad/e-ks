@@ -47,9 +47,15 @@ async fn general_information(
     _: CsbRecoveryGeneralInformationPath,
     context: CsbContext,
     store: CsbStore,
+    main_store: CsbMainStore,
 ) -> Result<Response, AppError> {
-    crate::csb::examination::pages::general_information::render(context, store, CsbPhase::Recovery)
-        .await
+    crate::csb::examination::pages::general_information::render(
+        context,
+        store,
+        main_store,
+        CsbPhase::Recovery,
+    )
+    .await
 }
 
 async fn candidate_list(
@@ -560,6 +566,7 @@ mod tests {
             CsbRecoveryGeneralInformationPath { stream_id },
             CsbContext::new_test(),
             store,
+            CsbMainStore::new_for_test(),
         )
         .await
         .unwrap()
@@ -605,6 +612,7 @@ mod tests {
             },
             CsbContext::new_test(),
             store,
+            CsbMainStore::new_for_test(),
         )
         .await
         .unwrap()

@@ -1,13 +1,15 @@
 //! The numbering of the candidate lists (Kieswet Art. I 14). The lists of the
 //! political groups that obtained one or more seats at the previous election
-//! come first, in the order of their votes; the remaining lists follow in the
-//! order drawn by lot during the public session. That is the starting order
-//! on the finalise page, where the committee records the final order.
+//! come first, in the order of their votes, a combined list on the votes of
+//! its seated parties added up; the remaining lists follow in the order drawn
+//! by lot during the public session. That is the starting order on the
+//! finalise page, where the committee records the final order.
 
 use crate::{
     AppError, CsbContext, CsbMainAction, CsbMainStore, CsbStoreData, StreamId,
-    csb::examination::extractors::CsbPoliticalGroup, store::StoreRegistry,
-    structs::csb::RegisteredPoliticalGroup,
+    csb::examination::extractors::CsbPoliticalGroup,
+    store::StoreRegistry,
+    structs::csb::{PreviousResult, RegisteredPoliticalGroup},
 };
 
 /// One political group in the numbering.
@@ -21,7 +23,8 @@ pub struct NumberedGroup {
     /// Whether the group obtained a seat at the previous election, which
     /// numbers its lists on votes (the I 4's first numbering table).
     pub numbered_on_votes: bool,
-    /// Votes at the previous election; `None` for an unregistered group.
+    /// Votes at the previous election, for a combined list those of its
+    /// seated parties added up; `None` for an unregistered group.
     pub previous_votes: Option<u64>,
     /// Seats at the previous election; `None` for an unregistered group.
     pub previous_seats: Option<u32>,
@@ -45,7 +48,7 @@ impl ListNumbering {
         registered: &[RegisteredPoliticalGroup],
         list_order: &[StreamId],
     ) -> Self {
-        let mut numbered: Vec<(Option<&RegisteredPoliticalGroup>, NumberedGroup)> = groups
+        let mut remaining: Vec<NumberedGroup> = groups
             .iter()
             .filter(|group| !group.is_deleted)
             .filter_map(|group| {
@@ -53,36 +56,34 @@ impl ListNumbering {
                 if district_count == 0 {
                     return None;
                 }
-                let registration = group.registration(registered);
-                Some((
-                    registration,
-                    NumberedGroup {
-                        stream_id: group.stream_id,
-                        appellation: group.numbering_appellation(),
-                        position: None,
-                        numbered_on_votes: registration
-                            .is_some_and(RegisteredPoliticalGroup::is_numbered_on_votes),
-                        previous_votes: registration.map(|r| r.previous_votes.value()),
-                        previous_seats: registration.map(|r| r.previous_seats.value()),
-                        district_count,
-                    },
-                ))
+                let result = group.previous_result(registered);
+                Some(NumberedGroup {
+                    stream_id: group.stream_id,
+                    appellation: group.numbering_appellation(),
+                    position: None,
+                    numbered_on_votes: result.is_some_and(PreviousResult::is_seated),
+                    previous_votes: result.map(|r| r.votes.value()),
+                    previous_seats: result.map(|r| r.seats.value()),
+                    district_count,
+                })
             })
             .collect();
 
-        // The starting order: on votes first, then most districts first.
-        numbered.sort_by(|(reg_a, a), (reg_b, b)| {
-            b.numbered_on_votes.cmp(&a.numbered_on_votes).then_with(|| {
-                match (a.numbered_on_votes, reg_a, reg_b) {
-                    (true, Some(reg_a), Some(reg_b)) => reg_a.numbering_order(reg_b),
-                    _ => b
-                        .district_count
-                        .cmp(&a.district_count)
-                        .then_with(|| a.appellation.cmp(&b.appellation)),
-                }
-            })
+        // The starting order: on votes first (most votes first), then by lot
+        // (most districts first). Ties, decided by lot during the session,
+        // are listed alphabetically for a stable order.
+        remaining.sort_by(|a, b| {
+            b.numbered_on_votes
+                .cmp(&a.numbered_on_votes)
+                .then_with(|| {
+                    if a.numbered_on_votes {
+                        b.previous_votes.cmp(&a.previous_votes)
+                    } else {
+                        b.district_count.cmp(&a.district_count)
+                    }
+                })
+                .then_with(|| a.appellation.cmp(&b.appellation))
         });
-        let mut remaining: Vec<NumberedGroup> = numbered.into_iter().map(|(_, g)| g).collect();
 
         let mut ordered: Vec<NumberedGroup> = list_order
             .iter()
@@ -244,6 +245,75 @@ mod tests {
         );
         assert_eq!(numbering.on_votes().count(), 2);
         assert_eq!(numbering.by_lot().count(), 2);
+    }
+
+    /// A combined list named `appellation` whose name authorisations carry
+    /// `legal_names`, with one list in Groningen.
+    fn combined(appellation: &str, legal_names: &[&str]) -> CsbPoliticalGroup {
+        CsbPoliticalGroup {
+            political_group: PoliticalGroup {
+                list_designation: Some(ListDesignation::Combined {
+                    registrations: Vec::new(),
+                }),
+                ..group(appellation, vec![ElectoralDistrict::Groningen]).political_group
+            },
+            legal_names: legal_names
+                .iter()
+                .map(|name| name.parse().unwrap())
+                .collect(),
+            ..group(appellation, vec![ElectoralDistrict::Groningen])
+        }
+    }
+
+    /// A combined list is numbered on the votes of its seated parties added
+    /// up (Kieswet Art. I 14, tweede lid); the votes of a party without a
+    /// seat do not count, and a combination without any seat goes by lot.
+    #[test]
+    fn combined_lists_are_numbered_on_the_votes_of_their_seated_parties() {
+        let groups = [
+            group("Solo", vec![ElectoralDistrict::Groningen]),
+            // 300 + 100: more than Solo's 350.
+            combined("Beide/Zetels", &["Vereniging Beide", "Vereniging Zetels"]),
+            // Only Klein's 40 count: Groot's 500 came without a seat.
+            combined("Groot/Klein", &["Vereniging Groot", "Vereniging Klein"]),
+            // No seat at all: by lot, however many votes.
+            combined("Nieuw/Nieuwer", &["Vereniging Nieuw", "Vereniging Nieuwer"]),
+        ];
+        let registered = [
+            sample_registered_political_group("Solo", 350, 3),
+            sample_registered_political_group("Beide", 300, 2),
+            sample_registered_political_group("Zetels", 100, 1),
+            sample_registered_political_group("Groot", 500, 0),
+            sample_registered_political_group("Klein", 40, 1),
+            sample_registered_political_group("Nieuw", 600, 0),
+            sample_registered_political_group("Nieuwer", 200, 0),
+        ];
+
+        let numbering = ListNumbering::new(&groups, &registered, &[]);
+
+        assert_eq!(
+            names(&numbering.groups),
+            [
+                ("Beide/Zetels", Some(1)),
+                ("Solo", Some(2)),
+                ("Groot/Klein", Some(3)),
+                ("Nieuw/Nieuwer", None),
+            ]
+        );
+        let results: Vec<_> = numbering
+            .groups
+            .iter()
+            .map(|g| (g.previous_votes, g.previous_seats))
+            .collect();
+        assert_eq!(
+            results,
+            [
+                (Some(400), Some(3)),
+                (Some(350), Some(3)),
+                (Some(40), Some(1)),
+                (Some(800), Some(0)),
+            ]
+        );
     }
 
     #[test]

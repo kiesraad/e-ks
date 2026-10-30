@@ -25,15 +25,22 @@ audit_fields!(PoliticalGroup {
 impl Problematic<()> for PoliticalGroup {
     fn get_problems(&self, _: ()) -> Problems {
         Problems::merge(vec![
-            self.appellation.get_problems(self.list_designation.clone()),
             self.list_designation.get_problems(()),
-            self.previous_election_results
-                .get_problems(self.list_designation.clone()),
+            self.group_information_problems(),
         ])
     }
 }
 
 impl PoliticalGroup {
+    /// Problems of the appellation and previous election results only.
+    pub fn group_information_problems(&self) -> Problems {
+        Problems::merge(vec![
+            self.appellation.get_problems(self.list_designation.clone()),
+            self.previous_election_results
+                .get_problems(self.list_designation.clone()),
+        ])
+    }
+
     pub fn list_designation_kind(&self) -> Option<ListDesignationKind> {
         self.list_designation.as_ref().map(ListDesignation::kind)
     }
