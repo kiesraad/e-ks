@@ -115,7 +115,7 @@ syn = "3.0"
 
 [package]
 name = "eks"
-version = "0.21.0"
+version = "1.0.0-alpha"
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
