@@ -211,7 +211,10 @@ mod tests {
         // over its problems.
         mark_handled(kinds[0].clone()).await;
         let body = render(store.clone()).await;
+        // Handled is greyed out, not dropped: the finding stays listed.
         assert_eq!(body.matches("restoration-tag-handled").count(), 1, "{body}");
+        assert!(body.contains("no Dutch nationality"), "{body}");
+        assert!(body.contains("No person in the BRP has this"), "{body}");
         // The candidate and the general information; a finished check has no
         // summary strip, the list is the summary.
         assert_eq!(body.matches("restoration-strip-error").count(), 2, "{body}");
@@ -221,6 +224,8 @@ mod tests {
         let body = render(store.clone()).await;
         // Both findings; only the general information stays red.
         assert_eq!(body.matches("restoration-tag-handled").count(), 2, "{body}");
+        assert!(body.contains("no Dutch nationality"), "{body}");
+        assert!(body.contains("No person in the BRP has this"), "{body}");
         assert_eq!(body.matches("restoration-strip-error").count(), 1, "{body}");
     }
 
