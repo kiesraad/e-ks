@@ -59,6 +59,12 @@ impl BrpBadge {
         }
     }
 
+    /// Whether the badge stands for findings the committee can go and look
+    /// at, which is what makes it worth linking to the list of them.
+    pub fn has_findings(&self) -> bool {
+        matches!(self, Self::Handled | Self::Errors { .. })
+    }
+
     /// The compact one-word label, translated by the template.
     pub fn label_key(&self) -> &'static str {
         match self {

@@ -865,7 +865,7 @@ mod tests {
 
         assert!(body.contains(&person.name.display()));
         assert!(body.contains("No person in the BRP has this citizen service number."));
-        assert!(body.contains("<dt>Handled</dt>"));
+        assert!(body.contains("<dt>Ignored</dt>"));
 
         Ok(())
     }

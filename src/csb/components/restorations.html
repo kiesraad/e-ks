@@ -201,13 +201,18 @@
     <a class="restoration-strip-link" href="{{ overview_url }}">{{ "csb.omission.overview.title"|trans }}</a>
   </div>
 {% endmacro omission_strip %}
-{% macro brp_strip(brp, badges, incomplete_reason, problems) %}
+{% macro brp_strip(brp, badges, incomplete_reason, problems, findings_url) %}
   <div class="restoration-strip {% if brp.has_unhandled_errors() %}restoration-strip-error{% endif %}"
        data-brp-strip>
     <ul class="restoration-tags">
       {% for badge in badges %}
         <li>
-          <span class="restoration-tag restoration-tag-{{ badge.css() }}">{{ badge.strip_label_key() |trans(&badge.strip_label_count() ) }}</span>
+          {% if let Some(url) = findings_url.as_ref() && badge.has_findings() %}
+            <a class="restoration-tag restoration-tag-{{ badge.css() }}"
+               href="{{ url }}">{{ badge.strip_label_key() |trans(&badge.strip_label_count() ) }}</a>
+          {% else %}
+            <span class="restoration-tag restoration-tag-{{ badge.css() }}">{{ badge.strip_label_key() |trans(&badge.strip_label_count() ) }}</span>
+          {% endif %}
         </li>
       {% endfor %}
       {% if !problems.is_all_good() %}

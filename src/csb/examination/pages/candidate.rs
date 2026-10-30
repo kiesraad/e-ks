@@ -933,7 +933,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn the_findings_panel_offers_to_mark_each_finding_handled() {
+    async fn the_findings_panel_offers_to_ignore_each_finding() {
         let (store, list_id, person_id) = store_with_findings().await;
         let stream_id = store.stream_id;
 
@@ -944,8 +944,64 @@ mod tests {
                 "/csb/examination/{stream_id}/list/{list_id}/candidate/{person_id}/brp-finding/{index}/handled"
             )));
         }
-        assert!(body.contains("0 of 2 handled"), "{body}");
+        assert!(body.contains("0 of 2 ignored"), "{body}");
         assert!(!body.contains("restoration-tag-handled"));
+        assert!(body.contains("Ignore a BRP error once"), "{body}");
+        // One button per finding, not a handled/not handled pair.
+        assert_eq!(body.matches(">Ignore</button>").count(), 2, "{body}");
+        assert!(!body.contains("Undo ignore"));
+        // The panel leads back to the list of every finding of the group.
+        assert!(body.contains(&format!(
+            "/csb/examination/{stream_id}/brp-errors\">All BRP errors"
+        )));
+    }
+
+    /// The committee wants a way back to the list of every finding from every
+    /// candidate, so the panel stays once the findings are gone or were never
+    /// there, and then says so.
+    #[tokio::test]
+    async fn a_candidate_without_findings_keeps_the_brp_panel() {
+        let (store, list_id, person_id) = store_with_candidate();
+        let stream_id = store.stream_id;
+        store
+            .update(CsbAction::BrpPersonChecked {
+                person: person_id,
+                findings: Vec::new(),
+            })
+            .await
+            .unwrap();
+        store
+            .update(CsbAction::SetBrpStatus(BrpStatus::Finished))
+            .await
+            .unwrap();
+
+        let body = examination_body(store, list_id, person_id).await;
+
+        assert!(body.contains("No BRP errors found"), "{body}");
+        assert!(body.contains(&format!(
+            "/csb/examination/{stream_id}/brp-errors\">All BRP errors"
+        )));
+        assert!(!body.contains("brp-findings-table"));
+        assert!(!body.contains("Check this candidate against the BRP"));
+        // Nothing to ignore, so no explanation of ignoring.
+        assert!(!body.contains("Ignore a BRP error once"), "{body}");
+    }
+
+    /// An unchecked candidate has no verdict yet, so the panel offers the
+    /// check instead of claiming there is nothing to find.
+    #[tokio::test]
+    async fn an_unchecked_candidate_is_not_told_there_are_no_findings() {
+        let (store, list_id, person_id) = store_with_candidate();
+        let stream_id = store.stream_id;
+
+        let body = examination_body(store, list_id, person_id).await;
+
+        assert!(!body.contains("No BRP errors found"), "{body}");
+        assert!(body.contains("Check this candidate against the BRP"));
+        assert!(!body.contains("Ignore a BRP error once"), "{body}");
+        assert!(body.contains(&format!(
+            "/csb/examination/{stream_id}/brp-errors\">All BRP errors"
+        )));
     }
 
     #[tokio::test]
@@ -980,10 +1036,17 @@ mod tests {
         assert!(findings[1].handled);
 
         let body = examination_body(store, list_id, person_id).await;
-        assert!(body.contains("1 of 2 handled"), "{body}");
+        assert!(body.contains("1 of 2 ignored"), "{body}");
         assert!(body.contains("restoration-tag-handled"));
-        // The handled finding shows its "done" button as the selected state.
-        assert!(body.contains("button xs selected"), "{body}");
+        // The ignored finding offers, muted, to undo that; the other one to
+        // ignore it.
+        assert_eq!(
+            body.matches(r#"class="button xs tertiary">Undo ignore</button>"#)
+                .count(),
+            1,
+            "{body}"
+        );
+        assert_eq!(body.matches(">Ignore</button>").count(), 1, "{body}");
     }
 
     #[tokio::test]

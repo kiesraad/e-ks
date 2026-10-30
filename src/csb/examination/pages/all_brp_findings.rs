@@ -7,7 +7,7 @@ use crate::{
         examination::{
             extractors::CsbPoliticalGroup,
             pages::CsbAllBrpFindingsPath,
-            structs::{BrpBadge, BrpCheckState, ProblematicCandidate, brp_incomplete_reason},
+            structs::{BrpCheckState, ProblematicCandidate, brp_incomplete_reason},
         },
         import::brp_sweep_running,
     },
@@ -25,8 +25,6 @@ struct CsbAllBrpFindingsTemplate {
     brp_running: bool,
     /// Why the list below may be incomplete, when the check did not finish.
     brp_incomplete: Option<String>,
-    /// The badges of the BRP strip, derived from `brp` and `brp_running`.
-    brp_badges: Vec<BrpBadge>,
     all_problems: AllProblems,
     candidates: Vec<ProblematicCandidate>,
 }
@@ -58,7 +56,6 @@ pub async fn all_brp_findings(
                 brp_running,
                 context.session.locale,
             ),
-            brp_badges: brp.strip_badges(brp_running),
             brp,
             brp_running,
             political_group,
@@ -175,6 +172,12 @@ mod tests {
         assert!(body.contains("Download Markdown"));
         assert!(body.contains("Download Word"));
         assert!(body.contains("Download PDF"));
+        // The downloads come first, above the findings they contain.
+        let downloads = body.find("brp-overzicht.pdf").expect("download link");
+        let findings = body.find("Kandidaat0").expect("candidate");
+        assert!(downloads < findings, "{body}");
+        // The page title already says what is listed.
+        assert!(!body.contains("Errors found"), "{body}");
     }
 
     #[tokio::test]
@@ -208,14 +211,21 @@ mod tests {
         // over its problems.
         mark_handled(kinds[0].clone()).await;
         let body = render(store.clone()).await;
+        // Handled is greyed out, not dropped: the finding stays listed.
         assert_eq!(body.matches("restoration-tag-handled").count(), 1, "{body}");
-        // The summary strip, the candidate and the general information.
-        assert_eq!(body.matches("restoration-strip-error").count(), 3, "{body}");
+        assert!(body.contains("no Dutch nationality"), "{body}");
+        assert!(body.contains("No person in the BRP has this"), "{body}");
+        // The candidate and the general information; a finished check has no
+        // summary strip, the list is the summary.
+        assert_eq!(body.matches("restoration-strip-error").count(), 2, "{body}");
+        assert!(!body.contains("data-brp-strip"), "{body}");
 
         mark_handled(kinds[1].clone()).await;
         let body = render(store.clone()).await;
-        // Both findings, and the summary strip above them.
-        assert_eq!(body.matches("restoration-tag-handled").count(), 3, "{body}");
+        // Both findings; only the general information stays red.
+        assert_eq!(body.matches("restoration-tag-handled").count(), 2, "{body}");
+        assert!(body.contains("no Dutch nationality"), "{body}");
+        assert!(body.contains("No person in the BRP has this"), "{body}");
         assert_eq!(body.matches("restoration-strip-error").count(), 1, "{body}");
     }
 
@@ -225,14 +235,21 @@ mod tests {
 
         let body = render(store).await;
 
-        assert!(body.contains("Not checked"), "{body}");
-        assert!(body.contains("have not been checked against the BRP yet"));
+        // A notice warns that the list is not a verdict yet.
+        assert!(
+            body.contains(
+                r#"<div class="alert alert-warning" data-brp-strip>The candidates have not been checked against the BRP yet.</div>"#
+            ),
+            "{body}"
+        );
         // Nothing to download before the check ran.
         assert!(!body.contains("brp-overzicht"));
     }
 
+    /// Once the check is conclusive the list is the verdict: no summary
+    /// strip, and no candidate section when there is nothing to list.
     #[tokio::test]
-    async fn a_finished_check_without_findings_says_so() {
+    async fn a_finished_check_without_findings_lists_no_candidates() {
         let person = PersonId::new();
         let store = store_with_candidates(&[person]);
         store
@@ -249,7 +266,8 @@ mod tests {
 
         let body = render(store).await;
 
-        assert!(body.contains("No BRP errors"), "{body}");
+        assert!(!body.contains("data-brp-strip"), "{body}");
+        assert!(!body.contains("Candidates</h4>"), "{body}");
     }
 
     #[tokio::test]
