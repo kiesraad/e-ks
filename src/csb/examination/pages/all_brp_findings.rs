@@ -207,26 +207,25 @@ mod tests {
                 .unwrap();
         };
 
-        // The general information of the sample group stays red throughout,
-        // over its problems.
+        // The problems of the sample group are warnings, so only the
+        // candidate's strip is ever red.
         mark_handled(kinds[0].clone()).await;
         let body = render(store.clone()).await;
         // Handled is greyed out, not dropped: the finding stays listed.
         assert_eq!(body.matches("restoration-tag-handled").count(), 1, "{body}");
         assert!(body.contains("no Dutch nationality"), "{body}");
         assert!(body.contains("No person in the BRP has this"), "{body}");
-        // The candidate and the general information; a finished check has no
-        // summary strip, the list is the summary.
-        assert_eq!(body.matches("restoration-strip-error").count(), 2, "{body}");
+        // A finished check has no summary strip, the list is the summary.
+        assert_eq!(body.matches("restoration-strip-error").count(), 1, "{body}");
         assert!(!body.contains("data-brp-strip"), "{body}");
 
         mark_handled(kinds[1].clone()).await;
         let body = render(store.clone()).await;
-        // Both findings; only the general information stays red.
+        // Both findings handled; nothing is red any more.
         assert_eq!(body.matches("restoration-tag-handled").count(), 2, "{body}");
         assert!(body.contains("no Dutch nationality"), "{body}");
         assert!(body.contains("No person in the BRP has this"), "{body}");
-        assert_eq!(body.matches("restoration-strip-error").count(), 1, "{body}");
+        assert!(!body.contains("restoration-strip-error"), "{body}");
     }
 
     #[tokio::test]
@@ -284,7 +283,7 @@ mod tests {
 
         assert!(body.contains("General Information</h4>"));
         assert!(body.contains(&format!(
-            "href=\"/csb/examination/{stream_id}/general-information\">Appellation</a>"
+            "href=\"/csb/examination/{stream_id}/general-information\">Appellation missing</a>"
         )));
     }
 
@@ -313,7 +312,7 @@ mod tests {
         assert!(body.contains("General Information</h4>"));
         assert!(body.contains("Nagelhout II, A. (List submitter)</h3>"));
         assert!(body.contains(&format!(
-            "href=\"/csb/examination/{stream_id}/general-information\">Address</a>"
+            "href=\"/csb/examination/{stream_id}/general-information\">Address incomplete</a>"
         )));
     }
 
@@ -342,7 +341,7 @@ mod tests {
         assert!(body.contains("General Information</h4>"));
         assert!(body.contains("Nagelhout III, A. (Substitute submitter)</h3>"));
         assert!(body.contains(&format!(
-            "href=\"/csb/examination/{stream_id}/general-information\">Address</a>"
+            "href=\"/csb/examination/{stream_id}/general-information\">Address incomplete</a>"
         )));
     }
 

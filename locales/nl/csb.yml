@@ -134,6 +134,7 @@ general:
 group:
   added_on_paper: Toegevoegd bij papieren correcties
   brp_errors:
+    label: BRP fouten
     none: Geen BRP fouten
     plural: "{} BRP fouten"
     singular: 1 BRP fout
@@ -151,7 +152,7 @@ group:
   instruction_group: Controleer de gegevens van de politieke groepering
   instruction_submitter: Controleer de gegevens van de lijstinleveraar(s)
   omission_all: Naar alle verzuimen
-  problems_present: Problemen
+  problems_present: Waarschuwingen
   toggle: Onderzoek afronden of heropenen
   unfinished: Onderzoek afronden
   unregistered_combined_warning: "Niet alle statutaire namen van de partijen achter deze samengevoegde lijst komen overeen met een geregistreerde politieke groepering. Controleer de registraties: alleen geregistreerde partijen tellen mee voor de nummering en de vrijstelling van ondersteunings\u00ADverklaringen."

@@ -307,6 +307,12 @@ mod tests {
         );
         assert!(body.contains("restoration-strip-error"));
         assert!(!body.contains("restoration-tag-handled"));
+        // The list card shows the errors as an icon with the label on hover.
+        assert!(
+            body.contains(r#"restoration-tag-error restoration-tag-icon-only"#),
+            "{body}"
+        );
+        assert!(body.contains(r#"title="BRP errors""#), "{body}");
 
         store
             .update(CsbAction::SetBrpFindingHandled {
@@ -317,14 +323,14 @@ mod tests {
             .await
             .unwrap();
 
-        // Both the group strip and the list tile turn grey. The general
-        // information stays red over the problems of the sample group.
+        // Both the group strip and the list tile turn grey. The problems of
+        // the sample group are warnings, which never turn a strip red.
         let body = examination_body(store).await;
         assert_eq!(body.matches("restoration-tag-handled").count(), 2, "{body}");
         assert_eq!(body.matches(">Ignored<").count(), 2, "{body}");
         assert!(!body.contains("1 BRP error"));
         assert!(!body.contains(r#"restoration-tag-error">Errors<"#));
-        assert_eq!(body.matches("restoration-strip-error").count(), 1, "{body}");
+        assert!(!body.contains("restoration-strip-error"), "{body}");
     }
 
     #[tokio::test]
@@ -1010,7 +1016,7 @@ mod tests {
         let body = response_body_string(response).await;
 
         // one in the brp bar, one on the general problems card
-        assert_eq!(2, body.matches(">Problems</span").count())
+        assert_eq!(2, body.matches(">Warnings</span").count())
     }
 
     #[tokio::test]
@@ -1046,7 +1052,7 @@ mod tests {
         let body = response_body_string(response).await;
 
         // one in the brp bar, one on the general problems card
-        assert_eq!(2, body.matches(">Problems</span").count())
+        assert_eq!(2, body.matches(">Warnings</span").count())
     }
 
     #[tokio::test]
@@ -1082,7 +1088,7 @@ mod tests {
         let body = response_body_string(response).await;
 
         // one in the brp bar, one on the general problems card
-        assert_eq!(2, body.matches(">Problems</span").count())
+        assert_eq!(2, body.matches(">Warnings</span").count())
     }
 
     #[tokio::test]
@@ -1110,14 +1116,16 @@ mod tests {
 
         let body = response_body_string(response).await;
 
-        // The empty list is correct as far as the BRP is concerned.
+        // The empty list is correct as far as the BRP is concerned, and a
+        // problem is a warning however severe the political group rates it.
         let card = list_card(&body, &stream_id.to_string(), list_id);
         assert!(!card.contains("BRP"), "{card}");
-        assert!(card.contains("restoration-strip-error"), "{card}");
+        assert!(!card.contains("restoration-strip-error"), "{card}");
         assert!(
-            card.contains(r#"restoration-tag-error">Problems</span>"#),
+            card.contains("restoration-tag-warning restoration-tag-icon-only"),
             "{card}"
         );
+        assert!(card.contains(r#"title="Warnings""#), "{card}");
     }
 
     #[tokio::test]
@@ -1153,9 +1161,10 @@ mod tests {
         let card = list_card(&body, &stream_id.to_string(), list_id);
         assert!(!card.contains("restoration-strip-error"), "{card}");
         assert!(
-            card.contains(r#"restoration-tag-warning">Problems</span>"#),
+            card.contains("restoration-tag-warning restoration-tag-icon-only"),
             "{card}"
         );
+        assert!(card.contains(r#"title="Warnings""#), "{card}");
     }
 
     /// The card of candidate list `list_id` on the group page.

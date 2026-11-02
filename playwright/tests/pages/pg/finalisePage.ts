@@ -27,24 +27,22 @@ export class FinalisePage {
       name: "1 statutaire naam te weinig",
     });
     this.linkBSN = this.page.getByRole("link", {
-      name: "BSN",
+      name: "BSN ontbreekt",
     });
     this.linkDateOfBirth = this.page.getByRole("link", {
-      name: "Geboortedatum",
-      exact: true,
+      name: "Geboortedatum ontbreekt",
     });
     this.linkPlaceOfResidenceNotFound = this.page.getByRole("link", {
       name: "Woonplaats niet gevonden in de BAG",
     });
     this.linkAdressIncomplete = this.page.getByRole("link", {
-      name: "Adres",
-      exact: true,
+      name: "Adres onvolledig",
     });
     this.linkAdressNotFound = this.page.getByRole("link", {
       name: "Adres niet gevonden in de BAG",
     });
     this.linkTooYoung = this.page.getByRole("link", {
-      name: "Te jong",
+      name: "Kandidaat te jong",
     });
     this.linkTooManyCandidates = this.page.getByRole("link", {
       name: /\d+ (kandidaat|kandidaten) te veel/,

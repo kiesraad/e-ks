@@ -1,28 +1,28 @@
-candidate_too_young: Too young
+candidate_too_young: Candidate too young
 candidate_too_young_long: Candidate too young to participate in election
 candidates_with_problems: "{} candidates with problems"
 candidates_with_problems_one: 1 candidate with problems
 duplicate_districts: Duplicate districts
-incomplete_address: Address
+incomplete_address: Address incomplete
 legend:
   error: Not submittable
   info: Informative
   warning: Action required
-no_appellation: Appellation
+no_appellation: Appellation missing
 no_authorised_agent: No authorised agent
-no_bsn: BSN
+no_bsn: BSN missing
 no_candidate_list: No candidate list
 no_candidates: No candidates
-no_country_of_residence: Country of residence
-no_date_of_birth: Date of birth
-no_designation_type: Appellation type
+no_country_of_residence: Country of residence missing
+no_date_of_birth: Date of birth missing
+no_designation_type: Appellation type missing
 no_districts: No districts
-no_initials: Initials
-no_last_name: Last name
-no_legal_name: Statutory name
+no_initials: Initials missing
+no_last_name: Last name missing
+no_legal_name: Statutory name missing
 no_list_submitter: No list submitter
-no_place_of_residence: Place of residence
-no_previous_election_results: Previous election results
+no_place_of_residence: Place of residence missing
+no_previous_election_results: Previous election results missing
 no_problems: Complete
 no_representative: No authorised person
 no_substitute_submitter: No substitute submitter

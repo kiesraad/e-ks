@@ -229,6 +229,11 @@
   --restoration-tag-icon: url("../icons/checkmarkSmall.svg");
 }
 
+.restoration-tag-icon-only {
+  gap: 0;
+  padding-inline: var(--space-1);
+}
+
 /* A BRP finding the committee dealt with: no problem, or an omission added.
    Settled, so it carries no icon. */
 .restoration-tag-handled {
