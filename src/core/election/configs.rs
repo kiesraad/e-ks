@@ -16,11 +16,15 @@ const fn date(year: i32, month: u32, day: u32) -> NaiveDate {
     }
 }
 
-const fn at(date: NaiveDate, hour: u32, minute: u32) -> NaiveDateTime {
+const fn time(hour: u32, minute: u32) -> NaiveTime {
     match NaiveTime::from_hms_opt(hour, minute, 0) {
-        Some(time) => NaiveDateTime::new(date, time),
+        Some(time) => time,
         None => panic!("invalid constant time"),
     }
+}
+
+const fn at(date: NaiveDate, hour: u32, minute: u32) -> NaiveDateTime {
+    NaiveDateTime::new(date, time(hour, minute))
 }
 
 super::define_elections! {
@@ -38,6 +42,7 @@ super::define_elections! {
         nomination_day_date: const { date(2027, 4, 20) },
         document_review_date: const { date(2027, 4, 21) },
         omission_period_end_date: const { date(2027, 4, 26) },
+        omission_period_end_time: const { time(17, 0) },
         public_session: PublicSession {
             location: "'s-Gravenhage",
             datetime: const { at(date(2027, 4, 29), 11, 0) },
@@ -69,11 +74,12 @@ super::define_elections! {
             Province::NoordBrabant => 55,
             Province::Limburg => 47,
         },
-        eligible_date_of_birth: const { date(2014, 2, 1) }, // TODO: determine definitive date
+        eligible_date_of_birth: const { date(2013, 4, 1) },
         presubmission_end_date: const { date(2027, 1, 28) },
         nomination_day_date: const { date(2027, 2, 1) },
         document_review_date: const { date(2027, 2, 2) },
         omission_period_end_date: const { date(2027, 2, 4) },
+        omission_period_end_time: const { time(17, 0) },
         public_session: PublicSession {
             location: "'s-Gravenhage",
             datetime: const { at(date(2027, 2, 5), 17, 0) },
@@ -114,11 +120,12 @@ super::define_elections! {
             WaterCouncil::Vechtstromen => 23,
             WaterCouncil::Zuiderzeeland => 21,
         },
-        eligible_date_of_birth: const { date(2014, 2, 1) }, // TODO: determine definitive date
+        eligible_date_of_birth: const { date(2013, 4, 1) },
         presubmission_end_date: const { date(2027, 1, 28) },
         nomination_day_date: const { date(2027, 2, 1) },
         document_review_date: const { date(2027, 2, 2) },
         omission_period_end_date: const { date(2027, 2, 4) },
+        omission_period_end_time: const { time(17, 0) },
         public_session: PublicSession {
             location: "'s-Gravenhage",
             datetime: const { at(date(2027, 2, 5), 17, 0) },
@@ -208,9 +215,11 @@ impl ElectionConfig {
             (ElectionType::Ep, ModelLocale::Nl) => "het Europees Parlement".to_string(),
             (ElectionType::Ep, ModelLocale::Fry) => "het Europees Parlement".to_string(),
 
-            (ElectionType::Kc, _) => todo!("Support electoral college elections"),
-            (ElectionType::Kcni, _) => todo!("Support non-resident electoral college elections"),
-            (ElectionType::Er, _) => todo!("Support island elections"),
+            (ElectionType::Kc | ElectionType::Kcni | ElectionType::Er, _) => panic!(
+                "no formal title for {:?} elections: no election of this type is configured, \
+                 add its title here when one is",
+                self.election_type()
+            ),
         }
     }
 

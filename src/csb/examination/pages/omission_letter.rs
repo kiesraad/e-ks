@@ -31,10 +31,6 @@ use crate::{
     utils::no_cache_headers,
 };
 
-/// The recovery period closes at 17:00 on its last day.
-// TODO: move to the election configuration; the deadlines there are plain dates.
-const RECOVERY_DEADLINE_TIME: &str = "17:00";
-
 #[derive(Template)]
 #[template(path = "csb/examination/pages/omission_letter.html")]
 struct CsbOmissionLetterTemplate {
@@ -83,7 +79,10 @@ fn omission_letter_model(
         election_code: election.filename_slug(),
         omission_groups: omission_letter_sections(data, &election)?,
         recovery_deadline_date: election.omission_period_end_date(),
-        recovery_deadline_time: RECOVERY_DEADLINE_TIME.to_string(),
+        recovery_deadline_time: election
+            .omission_period_end_time()
+            .format("%H:%M")
+            .to_string(),
         // TODO: use the committee's street address once configured.
         recovery_address: format!(
             "het secretariaat van het centraal stembureau te {}",
