@@ -234,18 +234,20 @@ fn generate_baseline(project_dir: &Path) -> Result<()> {
         let target_dir = env::var("CARGO_TARGET_DIR")
             .map(PathBuf::from)
             .unwrap_or_else(|_| project_dir.join("target"));
-        // shortcut: main may predate the `pdf-diff` feature, drop this check once it has it
-        let cargo_toml = fs::read_to_string(worktree.join("development/Cargo.toml"))
-            .context("Failed to read the main worktree's development/Cargo.toml")?;
-        let features: &[&str] = if cargo_toml.contains("\npdf-diff = ") {
-            &["--features", "pdf-diff"]
-        } else {
-            &[]
-        };
         let status = Command::new("cargo")
-            .args(["run", "--locked", "--release", "-p", "eks-development"])
-            .args(features)
-            .args(["--bin", "pdf_diff", "--", "--save-baseline"])
+            .args([
+                "run",
+                "--locked",
+                "--release",
+                "-p",
+                "eks-development",
+                "--features",
+                "pdf-diff",
+                "--bin",
+                "pdf_diff",
+                "--",
+                "--save-baseline",
+            ])
             .env("CARGO_TARGET_DIR", &target_dir)
             .current_dir(&worktree)
             .status()
