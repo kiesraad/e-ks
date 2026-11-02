@@ -1,6 +1,7 @@
 use crate::structs::candidate_lists::{CandidateList, CandidateListId};
 use askama::Template;
 use axum::response::{IntoResponse, Redirect, Response};
+use std::collections::BTreeMap;
 
 use crate::{
     AppError, Context, ElectoralDistrict, Form, HtmlTemplate, Overlay, PgStore, QueryParamState,
@@ -14,7 +15,7 @@ use crate::{
 struct CandidateListCreateTemplate {
     form: FormData<CandidateListCreateForm>,
     available_districts: Vec<ElectoralDistrict>,
-    districts_on_other_lists: Vec<ElectoralDistrict>,
+    districts_on_other_lists: BTreeMap<ElectoralDistrict, CandidateList>,
     has_previous_list: bool,
     overlay: Overlay,
 }

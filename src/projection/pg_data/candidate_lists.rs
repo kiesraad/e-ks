@@ -1,6 +1,6 @@
 //! Candidate list reads that look across every list in the projection.
 
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
 
 use crate::{
     ElectionConfig, ElectoralDistrict, PgStoreData,
@@ -8,19 +8,22 @@ use crate::{
 };
 
 impl CandidateList {
-    /// Districts already claimed by candidate lists other than `list_id`
+    /// Districts already claimed by candidate lists other than `list_id`,
+    /// each with the (oldest) list that claims it.
     pub fn districts_on_other_lists(
         data: &PgStoreData,
         list_id: Option<CandidateListId>,
-    ) -> Vec<ElectoralDistrict> {
-        let districts: BTreeSet<ElectoralDistrict> = data
-            .candidate_lists
-            .values()
-            .filter(|list| Some(list.id) != list_id)
-            .flat_map(|list| list.electoral_districts.iter().copied())
-            .collect();
-
-        districts.into_iter().collect()
+    ) -> BTreeMap<ElectoralDistrict, CandidateList> {
+        let mut districts = BTreeMap::new();
+        for list in data.get_candidate_lists() {
+            if Some(list.id) == list_id {
+                continue;
+            }
+            for district in &list.electoral_districts {
+                districts.entry(*district).or_insert_with(|| list.clone());
+            }
+        }
+        districts
     }
 
     pub fn duplicate_districts(&self, data: &PgStoreData) -> Vec<ElectoralDistrict> {
@@ -28,7 +31,7 @@ impl CandidateList {
 
         self.electoral_districts
             .iter()
-            .filter(|d| other_districts.contains(d))
+            .filter(|d| other_districts.contains_key(d))
             .copied()
             .collect()
     }

@@ -8,9 +8,9 @@
   {% let election = "election"|election_value %}
   <div class="checklist grid" id="district_list">
     {% for d in election.electoral_districts() %}
-      {% let on_other_list = districts_on_other_lists.contains(&d) %}
-      <div class="checkbox {% if !available_districts.contains(&d) %}disabled{% endif %} {% if on_other_list && form.data.electoral_districts.contains(&d) %}warning{% endif %}"
-           {% if on_other_list %}data-on-other-list{% endif %}>
+      {% let on_other_list = districts_on_other_lists.contains_key(&d) %}
+      <div class="checkbox {% if !available_districts.contains(&d) %}disabled{% endif %} {% if on_other_list && form.data.electoral_districts.contains(&d) %}error{% endif %}"
+           {% if on_other_list %}data-on-other-list="{{ d.code() }}"{% endif %}>
         <input type="checkbox"
                name="electoral_districts"
                id="electoral_district_{{ d.code() }}"
@@ -20,6 +20,11 @@
       </div>
     {% endfor %}
   </div>
-  <span class="warning district-duplicate-warning mt-md">{{ "candidate_list.districts.duplicate_warning"|trans }}</span>
+  {% for (d, other) in districts_on_other_lists %}
+    {% let name = d|district_name %}
+    {% let fix_path = other.update_path_from(&close_action).to_string() %}
+    <span class="error district-duplicate-warning mt-md {% if !form.data.electoral_districts.contains(d) %}hidden{% endif %}"
+          data-district="{{ d.code() }}">{{ "candidate_list.districts.duplicate_warning"|trans(&name, &fix_path) |safe }}</span>
+  {% endfor %}
   {% for error in form|error("electoral_districts") %}<span class="error">{{ error }}</span>{% endfor %}
 </fieldset>

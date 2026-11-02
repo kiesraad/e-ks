@@ -295,6 +295,16 @@
     color: var(--color-error-darker);
     font-weight: normal;
     margin-top: 0.5rem;
+
+    a,
+    a:visited {
+      color: var(--color-error-darker);
+      text-decoration: underline;
+
+      &:hover {
+        color: var(--color-error-darkest);
+      }
+    }
   }
 
   span.warning:not(.hidden) {
