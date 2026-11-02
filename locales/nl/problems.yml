@@ -1,28 +1,28 @@
-candidate_too_young: Te jong
+candidate_too_young: Kandidaat te jong
 candidate_too_young_long: kandidaat te jong om met verkiezing mee te doen
 candidates_with_problems: "{} kandidaten met problemen"
 candidates_with_problems_one: 1 kandidaat met problemen
 duplicate_districts: Dubbele kieskringen
-incomplete_address: Adres
+incomplete_address: Adres onvolledig
 legend:
   error: Niet inleverbaar
   info: Ter info
   warning: Actie vereist
-no_appellation: Geregistreerde aanduiding
+no_appellation: Geregistreerde aanduiding ontbreekt
 no_authorised_agent: Geen gemachtigde
-no_bsn: BSN
+no_bsn: BSN ontbreekt
 no_candidate_list: Geen kandidatenlijst
 no_candidates: Geen kandidaten
-no_country_of_residence: Woonland
-no_date_of_birth: Geboortedatum
-no_designation_type: Lijstaanduiding
+no_country_of_residence: Woonland ontbreekt
+no_date_of_birth: Geboortedatum ontbreekt
+no_designation_type: Lijstaanduiding ontbreekt
 no_districts: Geen kieskringen
-no_initials: Initialen
-no_last_name: Achternaam
-no_legal_name: Statutaire naam
+no_initials: Initialen ontbreken
+no_last_name: Achternaam ontbreekt
+no_legal_name: Statutaire naam ontbreekt
 no_list_submitter: Geen lijstinleveraar
-no_place_of_residence: Woonplaats
-no_previous_election_results: Resultaten vorige verkiezing
+no_place_of_residence: Woonplaats ontbreekt
+no_previous_election_results: Uitslag laatstgehouden verkiezing ontbreekt
 no_problems: Compleet
 no_representative: Geen gemachtigde
 no_substitute_submitter: Geen vervanger voor het herstel van verzuimen

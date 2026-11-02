@@ -458,7 +458,7 @@ mod tests {
         .into_response();
         let body = response_body_string(response).await;
 
-        assert!(body.contains(">Appellation</span>"));
+        assert!(body.contains(">Appellation missing</span>"));
     }
 
     #[tokio::test]
@@ -493,7 +493,7 @@ mod tests {
         .into_response();
         let body = response_body_string(response).await;
 
-        assert!(body.contains(">Address</span>"));
+        assert!(body.contains(">Address incomplete</span>"));
     }
 
     #[tokio::test]
@@ -529,6 +529,6 @@ mod tests {
         .into_response();
         let body = response_body_string(response).await;
 
-        assert!(body.contains(">Address</span>"));
+        assert!(body.contains(">Address incomplete</span>"));
     }
 }

@@ -134,6 +134,7 @@ general:
 group:
   added_on_paper: Added during paper corrections
   brp_errors:
+    label: BRP errors
     none: No BRP errors
     plural: "{} BRP errors"
     singular: 1 BRP error
@@ -151,7 +152,7 @@ group:
   instruction_group: Examine information about the political group
   instruction_submitter: Examine information about the list submitter(s)
   omission_all: To all omissions
-  problems_present: Problems
+  problems_present: Warnings
   toggle: Finish or reopen examination
   unfinished: Finish examination
   unregistered_combined_warning: "Not all statutory names of the parties behind this combined list match a registered political group. Check the registrations: only registered parties count towards the numbering and the exemption from declarations of support."

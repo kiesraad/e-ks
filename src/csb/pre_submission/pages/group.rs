@@ -250,7 +250,7 @@ mod tests {
         let body = render(store).await;
 
         assert!(body.contains("No BRP errors"), "{body}");
-        assert!(body.contains("Problems</span>"));
+        assert!(body.contains("Warnings</span>"));
     }
 
     #[tokio::test]
@@ -330,7 +330,7 @@ mod tests {
         let body = render(store).await;
 
         assert!(body.contains("General Information</h4>"));
-        assert!(body.contains(">Appellation</span>"));
+        assert!(body.contains(">Appellation missing</span>"));
     }
 
     #[tokio::test]
@@ -356,7 +356,7 @@ mod tests {
 
         assert!(body.contains("General Information</h4>"));
         assert!(body.contains("Nagelhout II, A. (List submitter)</h3>"));
-        assert!(body.contains(">Address</span>"));
+        assert!(body.contains(">Address incomplete</span>"));
     }
 
     #[tokio::test]
@@ -382,7 +382,7 @@ mod tests {
 
         assert!(body.contains("General Information</h4>"));
         assert!(body.contains("Nagelhout III, A. (Substitute submitter)</h3>"));
-        assert!(body.contains(">Address</span>"));
+        assert!(body.contains(">Address incomplete</span>"));
     }
 
     #[tokio::test]

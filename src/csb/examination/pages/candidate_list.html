@@ -113,8 +113,8 @@
                 <td>
                   <div class="icon-container">
                     {{ brp_badge(candidate.brp, political_group.candidate_path(list_id, candidate.person.id) ) }}
-                    {% if let Some(severity) = PersonProblems::get_highest_severity_for_person(candidate_problems, *candidate.person.id) %}
-                      <span class="restoration-tag restoration-tag-{{ severity.class() }}">{{ "csb.group.problems_present"|trans }}</span>
+                    {% if PersonProblems::get_highest_severity_for_person(candidate_problems, *candidate.person.id).is_some() %}
+                      <span class="restoration-tag restoration-tag-warning">{{ "csb.group.problems_present"|trans }}</span>
                     {% endif %}
                   </div>
                 </td>

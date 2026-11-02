@@ -395,6 +395,6 @@ mod tests {
         .into_response();
         let body = response_body_string(response).await;
 
-        assert!(body.contains(">Problems</span>"));
+        assert!(body.contains(">Warnings</span>"));
     }
 }
