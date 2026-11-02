@@ -1,22 +1,26 @@
 @font-face {
+  font-display: swap;
   font-family: "SpaceGrotesk";
   src: url("../fonts/Space_Grotesk/SpaceGrotesk.woff2") format("woff2");
   font-weight: 300 700;
 }
 
 @font-face {
+  font-display: swap;
   font-family: "DMSans";
   src: url("../fonts/DM_Sans/DMSans.woff2") format("woff2");
   font-weight: 100 1000;
 }
 
 @font-face {
+  font-display: swap;
   font-family: "GeistMono";
   src: url("../fonts/Geist_Mono/GeistMono.woff2") format("woff2");
   font-weight: 100 900;
 }
 
 @font-face {
+  font-display: swap;
   font-family: "FlagEmojis";
   unicode-range: U+1F1E6-1F1FF; /* range for flag emojis */
   /* check for local emoji fonts with proper flags first */

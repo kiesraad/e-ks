@@ -59,7 +59,10 @@
         padding 200ms;
 
       p {
-        transition: all 200ms;
+        transition:
+          max-height 200ms,
+          padding-bottom 200ms,
+          opacity 200ms;
       }
     }
   }

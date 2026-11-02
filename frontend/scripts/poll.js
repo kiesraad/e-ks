@@ -12,16 +12,10 @@ const longPoll = () => {
   fetch("/livereload/poll", {
     cache: "no-store",
     signal: controller.signal,
-  })
-    .catch(() => {
+  }).then(
+    (r) => {
       if (!controller.signal.aborted) {
-        console.log("[livereload] disconnected");
-        shortPoll();
-      }
-    })
-    .then((r) => {
-      if (!controller.signal.aborted) {
-        if (r && r.ok) {
+        if (r.ok) {
           console.log("[livereload] heartbeat");
           longPoll();
         } else {
@@ -29,7 +23,14 @@ const longPoll = () => {
           shortPoll();
         }
       }
-    });
+    },
+    () => {
+      if (!controller.signal.aborted) {
+        console.log("[livereload] disconnected");
+        shortPoll();
+      }
+    },
+  );
 };
 
 // short polling, when the server is down we check it every 1000ms

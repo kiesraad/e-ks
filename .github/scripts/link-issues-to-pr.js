@@ -1,4 +1,4 @@
-module.exports = async ({ github, context, core }) => {
+module.exports = async function linkIssuesToPr({ github, context, core }) {
   const title = process.env.TITLE;
   const prNumber = context.payload.pull_request.number;
 
@@ -6,11 +6,10 @@ module.exports = async ({ github, context, core }) => {
   const bracket = title.match(/^\[([^\]]+)\]/);
   if (!bracket) return;
 
-  const issueNumbers = [...bracket[1].matchAll(/#(\d+)/g)].map(m => parseInt(m[1]));
+  const issueNumbers = [...bracket[1].matchAll(/#(\d+)/g)].map(m => Number.parseInt(m[1], 10));
   console.log(`Found issues: ${issueNumbers.join(", ")}`);
 
   // Verify issues exist
-  const validIssues = [];
   for (const num of issueNumbers) {
     try {
       const { data: issue } = await github.rest.issues.get({
@@ -19,11 +18,8 @@ module.exports = async ({ github, context, core }) => {
         issue_number: num,
       });
       // Make sure it's actually an issue, not a PR
-      if (!issue.pull_request) {
-        validIssues.push(num);
-      } else {
-        core.warning(`#${num} is a pull request, not an issue.`);
-        core.setFailed(`Issue #${num} does not exist.`);
+      if (issue.pull_request) {
+        core.setFailed(`#${num} is a pull request, not an issue.`);
         return;
       }
     } catch (error) {

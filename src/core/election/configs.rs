@@ -296,6 +296,14 @@ mod tests {
     use super::*;
 
     #[test]
+    fn const_helpers_build_the_expected_values() {
+        assert_eq!(
+            at(date(2027, 4, 29), 11, 0).to_string(),
+            "2027-04-29 11:00:00"
+        );
+    }
+
+    #[test]
     fn election_titles_are_correct() {
         assert!(ElectionConfig::EK27.title(AnyLocale::Nl).len() > 20);
 

@@ -140,7 +140,7 @@ impl ToolConfig {
                 .arg("--version")
                 .output()
                 .await
-                .context(format!("check version of installed {}", self.name))?;
+                .with_context(|| format!("check version of installed {}", self.name))?;
 
             let installed_version = String::from_utf8_lossy(&output.stdout).trim().to_string();
             if !installed_version.contains(&self.version) {
@@ -150,7 +150,7 @@ impl ToolConfig {
                 );
                 self.install(platform, &target)
                     .await
-                    .context(format!("re-install {}", self.name))?;
+                    .with_context(|| format!("re-install {}", self.name))?;
 
                 println!("✅ {} updated to version {}", self.name, self.version);
             }
@@ -158,7 +158,7 @@ impl ToolConfig {
             println!("📦 Installing {} for platform: {platform}", self.name);
             self.install(platform, &target)
                 .await
-                .context(format!("install {}", self.name))?;
+                .with_context(|| format!("install {}", self.name))?;
 
             println!("✅ {} installed", self.name);
         }
