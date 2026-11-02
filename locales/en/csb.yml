@@ -77,7 +77,7 @@ candidate:
   personal_details: Personal details
 correction:
   brp_value: Value in the BRP
-  column_title: Corrections
+  column_title: Correction
   form:
     submit: Save correction
     value_label: Corrected value
