@@ -11,6 +11,7 @@ use crate::{
     filters,
     form::FormData,
 };
+use std::collections::BTreeMap;
 
 #[derive(Template)]
 #[template(path = "pg/candidate_lists/pages/update.html")]
@@ -19,7 +20,7 @@ struct CandidateListUpdateTemplate {
     form: FormData<CandidateListForm>,
     candidate_list: CandidateList,
     available_districts: Vec<ElectoralDistrict>,
-    districts_on_other_lists: Vec<ElectoralDistrict>,
+    districts_on_other_lists: BTreeMap<ElectoralDistrict, CandidateList>,
     overlay: Overlay,
 }
 
@@ -181,6 +182,42 @@ mod tests {
             BTreeSet::from([ElectoralDistrict::Drenthe]),
             updated_list.electoral_districts
         );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn update_candidate_list_warns_about_district_of_another_list() -> Result<(), AppError> {
+        let store = PgStore::new_for_test();
+        let other_list = CandidateList {
+            electoral_districts: BTreeSet::from([ElectoralDistrict::Utrecht]),
+            ..Default::default()
+        };
+        other_list.create(&store).await?;
+        let candidate_list = CandidateList {
+            electoral_districts: BTreeSet::from([ElectoralDistrict::Drenthe]),
+            ..Default::default()
+        };
+        candidate_list.create(&store).await?;
+
+        let response = update_candidate_list(
+            CandidateListUpdatePath {
+                list_id: candidate_list.id,
+            },
+            Context::new_test_without_db(),
+            candidate_list.clone(),
+            store.clone(),
+            Query(QueryParamState::default()),
+        )
+        .await?;
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response_body_string(response).await;
+        assert!(body.contains(&format!(
+            "7. Utrecht already belongs to <a href='{}'>",
+            other_list.update_path_from(candidate_list.view_path())
+        )));
+        assert!(body.contains(r#"data-on-other-list="prov7""#));
 
         Ok(())
     }

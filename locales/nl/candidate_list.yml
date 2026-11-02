@@ -24,7 +24,7 @@ candidate_register: Adresboek
 candidate_register_note: Kandidaten die u heeft aangemaakt vindt u hier terug
 districts:
   all: Alle
-  duplicate_warning: U heeft kieskring(en) in meerdere kandidatenlijsten geselecteerd
+  duplicate_warning: "{} hoort al bij <a href='{}'>een andere kandidatenlijst</a>. Pas die lijst aan om deze kieskring hier te gebruiken."
   select_hint: Kies hier de gebieden waarvoor deze lijst wordt ingeleverd. In deze gebieden kunnen kiezers tijdens de Eerste Kamerverkiezing op de politieke groepering stemmen.
 edit_position: Volgorde op de lijst
 errors:
