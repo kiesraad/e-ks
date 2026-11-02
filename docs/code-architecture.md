@@ -136,7 +136,10 @@ workspace-level dependency list.
   `update_locales`, and `pdf_diff` (used by CI to visualize PDF document
   differences). `pdf_diff` is run with `cargo run` rather than installed into
   `bin/`, because the PDF models are compiled into it and a cached copy goes
-  stale as soon as `src/` changes.
+  stale as soon as `src/` changes. `eks` is an optional dependency, enabled
+  by the `pdf-diff` and `acme` features: the default binaries (`bin/init`
+  builds `dev`, `setup` and `update_locales`) compile without the application
+  and its dependency tree.
 - **`tools/locales/`** (`eks-locales`): shared locale tooling, used by the `eks`
   build script (locale codegen), the `eks` test suite (used-key scanning) and
   the `update_locales` binary.
@@ -591,7 +594,7 @@ download.
 Type-checked example inputs live in `src/models/examples/`; the `pdf_diff`
 tool renders every example and visually diffs the output against a saved
 baseline (`tmp/main-pdfs/`, created with
-`cargo run --bin pdf_diff -- --save-baseline`).
+`cargo run -p eks-development --features pdf-diff --bin pdf_diff -- --save-baseline`).
 
 ### [`bagatel`](https://github.com/tweedegolf/bagatel): Dutch address lookup
 
