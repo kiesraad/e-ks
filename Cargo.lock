@@ -1686,7 +1686,6 @@ dependencies = [
  "saphyr",
  "serde",
  "serde-saphyr",
- "serde_json",
  "tokio",
  "tracing",
  "tracing-subscriber",

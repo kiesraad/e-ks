@@ -20,6 +20,7 @@ test = false
 [[bin]]
 name = "pdf_diff"
 test = false
+required-features = ["pdf-diff"]
 
 [[bin]]
 name = "create_acme_account"
@@ -27,19 +28,19 @@ test = false
 required-features = ["acme"]
 
 [features]
-acme = ["eks/acme"]
+pdf-diff = ["dep:eks", "dep:tracing", "dep:tracing-subscriber"]
+acme = ["dep:eks", "eks/acme"]
 
 [dependencies]
 anyhow = { workspace = true }
 dotenvy = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }
-serde_json = { workspace = true }
 saphyr = { workspace = true }
 serde-saphyr = { workspace = true }
-tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
-eks = { path = "..", default-features = false }
+tracing = { workspace = true, optional = true }
+tracing-subscriber = { workspace = true, optional = true }
+eks = { path = "..", default-features = false, optional = true }
 eks-locales = { path = "../tools/locales" }
 
 [lints]

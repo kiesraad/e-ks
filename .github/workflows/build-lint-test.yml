@@ -289,7 +289,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y diff-pdf-wx
 
       - name: Generate PDF diff summary
-        run: cargo run --locked --release -p eks-development --bin pdf_diff
+        run: cargo run --locked --release -p eks-development --features pdf-diff --bin pdf_diff
 
       - name: Check for diff artifacts
         id: diff-artifacts
