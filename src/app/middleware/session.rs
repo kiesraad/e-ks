@@ -21,7 +21,7 @@ use crate::{
         session_extractor::{build_strict_session_cookie, user_agent_hash},
     },
     common::{LoginStartPath, PgIndexPath, SelectElectionPath, SessionExpiryPath},
-    csb::{import::is_brp_status_poll, index::CsbIndexPath},
+    csb::{import::is_brp_status_poll, index::CsbIndexPath, login::CsbLoginPath},
     csrf_rejection_response,
     finalise::FinalisePath,
     store::{Store, StoreData},
@@ -40,18 +40,30 @@ pub async fn session_middleware(
     }
 
     let token = jar.get(SESSION_COOKIE_NAME).map(Cookie::value);
+    let public_listener = request.extensions().get::<PublicListener>().is_some();
 
     let mut session = match state.sessions.get_existing(token).await {
         Ok(Some(session)) => session,
         // Send unauthenticated users to the login start page (DigiD button +
-        // explanation), not straight into the SAML flow at `/login`.
-        Ok(None) => return Redirect::to(&LoginStartPath.to_string()).into_response(),
+        // explanation), not straight into the SAML flow at `/login`. On the
+        // dedicated CSB listener the index is a committee member landing on
+        // their own domain, so it goes to the security-key login instead.
+        Ok(None) => {
+            let csb_listener = !public_listener && state.config.csb_bind_address.is_some();
+            let path = request.uri().path();
+            let login = if csb_listener && (path == PgIndexPath::PATH || path == CsbIndexPath::PATH)
+            {
+                CsbLoginPath.to_string()
+            } else {
+                LoginStartPath.to_string()
+            };
+            return Redirect::to(&login).into_response();
+        }
         // A database error here must not masquerade as "logged out": trip the
         // maintenance gate instead of redirecting to login.
         Err(err) => return handle_db_error(&state.db_health, err, &request),
     };
 
-    let public_listener = request.extensions().get::<PublicListener>().is_some();
     match reject_session(
         &state,
         &session,
@@ -144,7 +156,7 @@ async fn reject_session(
             (
                 jar.clone()
                     .remove(crate::auth::session_extractor::build_removal_cookie()),
-                Redirect::to(&crate::csb::login::CsbLoginPath.to_string()),
+                Redirect::to(&CsbLoginPath.to_string()),
             )
                 .into_response(),
         ));
@@ -332,6 +344,41 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
         assert_eq!(response.headers().get(header::LOCATION).unwrap(), "/login");
+    }
+
+    /// On the dedicated CSB listener an anonymous visit to the index lands on
+    /// the security-key login; other paths and the public listener keep the
+    /// DigiD login start page.
+    #[tokio::test]
+    async fn csb_listener_redirects_anonymous_index_to_csb_login() {
+        let mut config = crate::Config::new_test();
+        config.csb_bind_address = Some("127.0.0.1:3001".parse().unwrap());
+        let state = AppState::new_for_tests_with_config(config).await;
+        let location = |app: Router, uri: &'static str| async move {
+            let request = HttpRequest::builder().uri(uri).body(Body::empty()).unwrap();
+            let response = app.oneshot(request).await.unwrap();
+            assert_eq!(response.status(), StatusCode::SEE_OTHER);
+            response.headers()[header::LOCATION]
+                .to_str()
+                .unwrap()
+                .to_string()
+        };
+
+        assert_eq!(
+            location(session_app(state.clone()), "/").await,
+            "/csb/login"
+        );
+        assert_eq!(
+            location(session_app(state.clone()), "/csb").await,
+            "/csb/login"
+        );
+        assert_eq!(
+            location(session_app(state.clone()), "/csb/import").await,
+            "/login"
+        );
+
+        let public = session_app(state.clone()).layer(axum::Extension(PublicListener));
+        assert_eq!(location(public, "/").await, "/login");
     }
 
     /// Reuses the existing session when the cookie is provided.
