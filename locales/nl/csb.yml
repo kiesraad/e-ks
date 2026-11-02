@@ -77,7 +77,7 @@ candidate:
   personal_details: Persoonsgegevens
 correction:
   brp_value: Waarde in de BRP
-  column_title: Ambtshalve correcties
+  column_title: Ambtshalve correctie
   form:
     submit: Correctie opslaan
     value_label: Gecorrigeerde waarde
