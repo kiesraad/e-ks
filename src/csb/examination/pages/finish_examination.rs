@@ -2,7 +2,7 @@ use askama::Template;
 use axum::response::{IntoResponse, Response};
 
 use crate::{
-    AppError, Context, CsbContext, HtmlTemplate,
+    AppError, Context, CsbContext, CsbMainStore, HtmlTemplate,
     csb::examination::{
         extractors::{CsbPoliticalGroup, CsbPoliticalGroups},
         paths::{
@@ -11,17 +11,21 @@ use crate::{
         },
     },
     filters,
+    structs::csb::HearingModel,
 };
 
 #[derive(Template)]
 #[template(path = "csb/examination/pages/finish_examination.html")]
 struct CsbFinishExaminationTemplate {
     political_groups: Vec<CsbPoliticalGroup>,
+    /// The I 1 can only be downloaded once its hearing details are recorded.
+    has_hearing_details: bool,
 }
 
 pub async fn finish(
     _: CsbFinishExaminationPath,
     context: CsbContext,
+    main_store: CsbMainStore,
     CsbPoliticalGroups(political_groups): CsbPoliticalGroups,
 ) -> Result<Response, AppError> {
     // A letter of omission is only written for a group that has omissions;
@@ -35,6 +39,7 @@ pub async fn finish(
     Ok(HtmlTemplate(
         CsbFinishExaminationTemplate {
             political_groups: groups_with_omissions,
+            has_hearing_details: main_store.get_hearing_details(HearingModel::I1).is_some(),
         },
         context,
     )
@@ -47,8 +52,9 @@ mod tests {
     use axum::http::StatusCode;
 
     use crate::{
-        StreamId,
+        CsbMainAction, CsbUser, StreamId,
         csb::examination::structs::BrpCheckState,
+        structs::csb::HearingDetails,
         test_utils::{response_body_string, sample_political_group},
     };
 
@@ -78,9 +84,14 @@ mod tests {
     }
 
     async fn render(groups: Vec<CsbPoliticalGroup>) -> String {
+        render_with_store(CsbMainStore::new_for_test(), groups).await
+    }
+
+    async fn render_with_store(main_store: CsbMainStore, groups: Vec<CsbPoliticalGroup>) -> String {
         let response = finish(
             CsbFinishExaminationPath,
             CsbContext::new_test(),
+            main_store,
             CsbPoliticalGroups(groups),
         )
         .await
@@ -97,13 +108,27 @@ mod tests {
         assert!(render(vec![letter_group()]).await.contains("Kiesraad Demo"));
     }
 
-    /// The I 1 download buttons point at the PDF and Word endpoints.
+    /// The I 1 download buttons point at the PDF and Word endpoints once the
+    /// hearing details are recorded, and are disabled before that.
     #[tokio::test]
-    async fn finish_links_the_i1_downloads() {
+    async fn finish_links_the_i1_downloads_only_with_hearing_details() {
         let body = render(vec![letter_group()]).await;
+        assert!(!body.contains(r#"href="/csb/examination/i1.pdf""#));
+        assert!(!body.contains(r#"href="/csb/examination/i1.docx""#));
+        assert_eq!(body.matches(r#"aria-disabled="true""#).count(), 2);
 
+        let main_store = CsbMainStore::new_for_test();
+        main_store
+            .update(
+                CsbMainAction::UpdateHearingDetails(HearingModel::I1, HearingDetails::default())
+                    .by(CsbUser::new_test()),
+            )
+            .await
+            .unwrap();
+        let body = render_with_store(main_store, vec![letter_group()]).await;
         assert!(body.contains(r#"href="/csb/examination/i1.pdf""#));
         assert!(body.contains(r#"href="/csb/examination/i1.docx""#));
+        assert!(!body.contains("aria-disabled"));
     }
 
     /// The row links to the group's omission letter page, not its examination

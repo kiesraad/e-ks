@@ -77,6 +77,7 @@ candidate:
   personal_details: Persoonsgegevens
 correction:
   brp_value: Waarde in de BRP
+  column_title: Ambtshalve correcties
   form:
     submit: Correctie opslaan
     value_label: Gecorrigeerde waarde
@@ -161,7 +162,7 @@ hearing:
   chair_name: Naam voorzitter
   date: Datum zitting
   location: Het betreft de zitting van het centraal stembureau in
-  member_name: Naam lid
+  member_name: "Naam lid {}"
   place_and_time: Locatie en tijdstip
   signing: Ondertekening
   time: Tijdstip zitting

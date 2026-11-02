@@ -160,6 +160,9 @@ mod tests {
         assert_eq!(body.matches(r#"name="signers""#).count(), 10);
         assert!(body.contains(r#"id="signer_0""#));
         assert!(body.contains(r#"id="signer_9""#));
+        // Numbered in the order the members are listed on the I 1 and I 4
+        assert!(body.contains("Member name 1<"));
+        assert!(body.contains("Member name 10<"));
     }
 
     #[tokio::test]

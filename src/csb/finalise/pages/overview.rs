@@ -11,7 +11,7 @@ use crate::{
         },
     },
     filters,
-    structs::csb::Objection,
+    structs::csb::{HearingModel, Objection},
 };
 
 #[derive(Template)]
@@ -22,6 +22,8 @@ struct CsbFinaliseTemplate {
     /// election has nothing to show there.
     has_multiple_districts: bool,
     objections: Vec<Objection>,
+    /// The I 4 can only be downloaded once its hearing details are recorded.
+    has_hearing_details: bool,
 }
 
 /// The finalise page: the I 4 downloads, the sortable list order, and the
@@ -45,6 +47,7 @@ pub async fn overview(
             numbering,
             has_multiple_districts,
             objections,
+            has_hearing_details: main_store.get_hearing_details(HearingModel::I4).is_some(),
         },
         context,
     )
@@ -59,7 +62,7 @@ mod tests {
     use crate::{
         CsbMainAction, CsbUser,
         csb::examination::extractors::CsbPoliticalGroup,
-        structs::csb::sample_registered_political_group,
+        structs::csb::{HearingDetails, sample_registered_political_group},
         test_utils::{contains_word, response_body_string},
     };
 
@@ -85,6 +88,26 @@ mod tests {
 
         assert!(body.contains("Hearing details"));
         assert!(body.contains(r#"href="/csb/examination/hearing-details/i4""#));
+    }
+
+    /// The I 4 downloads are disabled until the hearing details are recorded.
+    #[tokio::test]
+    async fn overview_links_the_i4_downloads_only_with_hearing_details() {
+        let body = render(CsbMainStore::new_for_test(), vec![]).await;
+        assert!(!body.contains(r#"href="/csb/finalise/Model_I4_Proces_Verbaal_Concept.pdf""#));
+        assert_eq!(body.matches(r#"aria-disabled="true""#).count(), 3);
+
+        let main_store = CsbMainStore::new_for_test();
+        main_store
+            .update(
+                CsbMainAction::UpdateHearingDetails(HearingModel::I4, HearingDetails::default())
+                    .by(CsbUser::new_test()),
+            )
+            .await
+            .unwrap();
+        let body = render(main_store, vec![]).await;
+        assert!(body.contains(r#"href="/csb/finalise/Model_I4_Proces_Verbaal_Concept.pdf""#));
+        assert!(!body.contains("aria-disabled"));
     }
 
     #[tokio::test]

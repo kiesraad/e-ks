@@ -393,7 +393,9 @@
     }
 
     th:nth-child(3) {
-      width: 4rem;
+      text-align: right;
+      white-space: nowrap;
+      width: 10rem;
     }
   }
 
