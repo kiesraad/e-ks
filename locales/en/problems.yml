@@ -6,8 +6,11 @@ duplicate_districts: Duplicate districts
 incomplete_address: Address incomplete
 legend:
   error: Not submittable
+  error_help: Fill in the missing information, only then can the documents be printed
   info: Informative
+  info_help: We recommend checking this information once more
   warning: Action required
+  warning_help: The documents can be printed, but this may result in an omission
 no_appellation: Appellation missing
 no_authorised_agent: No authorised agent
 no_bsn: BSN missing

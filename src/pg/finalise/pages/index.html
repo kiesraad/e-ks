@@ -16,9 +16,18 @@
             <div class="section-heading">
               <h4>{{ "common.general_information"|trans }}</h4>
               <div class="problem-legend">
-                <span class="info">{{ "problems.legend.info"|trans }}</span>
-                <span class="warning">{{ "problems.legend.warning"|trans }}</span>
-                <span class="error">{{ "problems.legend.error"|trans }}</span>
+                <span class="info" tabindex="0">
+                  {{ "problems.legend.info"|trans }}
+                  <span class="help">{{ "problems.legend.info_help"|trans }}</span>
+                </span>
+                <span class="warning" tabindex="0">
+                  {{ "problems.legend.warning"|trans }}
+                  <span class="help">{{ "problems.legend.warning_help"|trans }}</span>
+                </span>
+                <span class="error" tabindex="0">
+                  {{ "problems.legend.error"|trans }}
+                  <span class="help">{{ "problems.legend.error_help"|trans }}</span>
+                </span>
               </div>
             </div>
             {% if problems.general.flatten().is_empty() %}
