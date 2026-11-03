@@ -125,6 +125,61 @@ impl CsbStoreData {
     }
 }
 
+impl AllOmissions {
+    /// Split into the recoverable and the irrecoverable omissions, in that
+    /// order. A candidate with both appears in both.
+    pub fn split_on_recoverability(self) -> (Self, Self) {
+        let (g_recoverable, g_irrecoverable) = split_rows(self.general);
+        let (d_recoverable, d_irrecoverable) = split_rows(self.declarations_of_support);
+        let (cl_recoverable, cl_irrecoverable) = split_rows(self.candidate_lists);
+        let mut c_recoverable = Vec::new();
+        let mut c_irrecoverable = Vec::new();
+        for candidate in self.candidates {
+            let (o_recoverable, o_irrecoverable) = split_rows(candidate.omissions);
+            if !o_recoverable.is_empty() {
+                c_recoverable.push(CandidateOmissions {
+                    omissions: o_recoverable,
+                    person: candidate.person.clone(),
+                    removed: candidate.removed,
+                });
+            }
+            if !o_irrecoverable.is_empty() {
+                c_irrecoverable.push(CandidateOmissions {
+                    omissions: o_irrecoverable,
+                    person: candidate.person,
+                    removed: candidate.removed,
+                });
+            }
+        }
+        (
+            AllOmissions {
+                general: g_recoverable,
+                declarations_of_support: d_recoverable,
+                candidate_lists: cl_recoverable,
+                candidates: c_recoverable,
+            },
+            AllOmissions {
+                general: g_irrecoverable,
+                declarations_of_support: d_irrecoverable,
+                candidate_lists: cl_irrecoverable,
+                candidates: c_irrecoverable,
+            },
+        )
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.general.is_empty()
+            && self.declarations_of_support.is_empty()
+            && self.candidate_lists.is_empty()
+            && self.candidates.is_empty()
+    }
+}
+
+/// `rows` split into the recoverable and the irrecoverable ones, in that order.
+fn split_rows(rows: Vec<OmissionRow>) -> (Vec<OmissionRow>, Vec<OmissionRow>) {
+    rows.into_iter().partition(|row| row.omission.recoverable)
+}
+
 // In examination mode an omission links to the manage-omissions overlay it can
 // be edited in; in recovery mode there is nothing to edit, so it links to the
 // page of the item it applies to instead.
@@ -413,4 +468,6 @@ mod tests {
         assert_eq!(all_omissions.candidates.len(), 1);
         assert_eq!(all_omissions.candidates[0].omissions.len(), omission_count)
     }
+
+    // TODO test for splitting.
 }

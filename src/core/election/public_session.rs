@@ -7,6 +7,9 @@ use crate::core::constants::{DEFAULT_DATE_FORMAT, DEFAULT_TIME_FORMAT};
 #[derive(Debug, Clone, Copy, Default)]
 pub struct PublicSession {
     pub location: &'static str,
+    pub street_name: &'static str,
+    pub house_number: usize,
+    pub postal_code: &'static str,
     pub datetime: NaiveDateTime,
     pub chair: &'static str,
     pub members: &'static [&'static str],

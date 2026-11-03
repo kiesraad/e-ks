@@ -12,6 +12,14 @@ footer_right = "Pagina {page} van {total}"
 {%- endfor %}
 {% endmacro %}
 
+{% macro list_name() %}
+{%- if is_blank -%}
+blanco lijst met de eerste kandidaat **{{ first_candidate_name }}**
+{%- else -%}
+lijst met aanduiding **{{ appellation }}**
+{%- endif -%}
+{% endmacro %}
+
 AANTEKENEN\
 {{ addressee.initials }} {{ addressee.last_name }}\
 {{ addressee.postal_address.street_address }}\
@@ -31,12 +39,12 @@ Geachte lijstinleveraar,
 
 {% if omission_groups.is_empty() %}
 Hierbij deel ik u mede dat het centraal stembureau voor de verkiezing van
-{{ election_name }} in zijn vergadering van heden geen verzuimen heeft
-geconstateerd met betrekking tot de aanduiding **{{ appellation }}.**
+{{ election_name }} in zijn vergadering van {{ *date|long_date }} geen verzuimen heeft
+geconstateerd met betrekking tot de {{ list_name() }}.
 {% else %}
 Hierbij deel ik u mede dat het centraal stembureau voor de verkiezing van
-{{ election_name }} in zijn vergadering van heden een of meerdere verzuimen
-heeft geconstateerd met betrekking tot de aanduiding **{{ appellation }}.**
+{{ election_name }} in zijn vergadering van {{ *date|long_date }} een of meerdere verzuimen
+heeft geconstateerd met betrekking tot de {{ list_name() }}.
 {% endif %}
 
 {% for group in omission_groups %}
