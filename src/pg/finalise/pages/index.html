@@ -19,13 +19,13 @@
           <section class="card problems-card">
             {% if problems.has_severity_or_higher(Severity::Warn) %}
               <div class="problem-legend">
-                <span class="error" tabindex="0">
-                  {{ "problems.legend.error"|trans }}
-                  <span class="help">{{ "problems.legend.error_help"|trans }}</span>
+                <span>
+                  <button type="button" class="error" aria-describedby="legend-error-help">{{ "problems.legend.error"|trans }}</button>
+                  <span class="help" id="legend-error-help" role="tooltip">{{ "problems.legend.error_help"|trans }}</span>
                 </span>
-                <span class="warning" tabindex="0">
-                  {{ "problems.legend.warning"|trans }}
-                  <span class="help">{{ "problems.legend.warning_help"|trans }}</span>
+                <span>
+                  <button type="button" class="warning" aria-describedby="legend-warning-help">{{ "problems.legend.warning"|trans }}</button>
+                  <span class="help" id="legend-warning-help" role="tooltip">{{ "problems.legend.warning_help"|trans }}</span>
                 </span>
               </div>
             {% else %}
@@ -188,8 +188,7 @@
                     <div>{{ "common.languages.dutch"|trans }}:</div>
                   {% endif %}
                   {% if problems.models_downloadable() %}
-                    <a href="{{ download_path_nl }}"
-                       class="button primary icon-download">{{ "action.download_zip"|trans }}</a>
+                    <a href="{{ download_path_nl }}" class="button primary icon-download">{{ "action.download_zip"|trans }}</a>
                   {% else %}
                     <a class="button primary icon-download disabled"
                        disabled
@@ -202,8 +201,7 @@
                   <div class="step-download">
                     <div>{{ "common.languages.frisian"|trans }}:</div>
                     {% if problems.models_downloadable() %}
-                      <a href="{{ download_path_fry }}"
-                         class="button primary icon-download">{{ "action.download_zip"|trans }}</a>
+                      <a href="{{ download_path_fry }}" class="button primary icon-download">{{ "action.download_zip"|trans }}</a>
                     {% else %}
                       <a class="button primary icon-download disabled"
                          disabled

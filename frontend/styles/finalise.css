@@ -227,6 +227,10 @@
 
   > span {
     --pad: 0.75rem;
+    position: relative;
+  }
+
+  button {
     padding-block: var(--pad);
     padding-left: calc(var(--pad) + 1.5rem + var(--space-sm));
     padding-right: calc(var(--pad) + 1rem + var(--space-sm));
@@ -237,44 +241,46 @@
       right var(--pad) center;
     background-size: 1.5rem, 1rem;
     background-color: var(--gray-50);
+    border: none;
     border-radius: var(--rounded-lg);
+    color: inherit;
+    font: inherit;
     font-weight: var(--font-weight-medium);
     white-space: nowrap;
-    position: relative;
 
     &:hover,
     &:focus-visible {
       background-color: var(--gray-100);
 
-      .help {
+      + .help {
         display: block;
       }
     }
+  }
 
-    .help {
-      --arrow: 0.5rem;
-      display: none;
+  .help {
+    --arrow: 0.5rem;
+    display: none;
+    position: absolute;
+    top: calc(100% + var(--arrow) + var(--space-xs));
+    right: 0;
+    z-index: 10;
+    width: 28ch;
+    padding: var(--space-md);
+    background-color: var(--blue-900);
+    border-radius: var(--rounded-lg);
+    color: white;
+    white-space: normal;
+
+    /* arrow pointing at the question mark icon */
+    &::before {
+      content: "";
       position: absolute;
-      top: calc(100% + var(--arrow) + var(--space-xs));
-      right: 0;
-      z-index: 10;
-      width: 28ch;
-      padding: var(--space-md);
-      background-color: var(--blue-900);
-      border-radius: var(--rounded-lg);
-      color: white;
-      white-space: normal;
-
-      /* arrow pointing at the question mark icon */
-      &::before {
-        content: "";
-        position: absolute;
-        bottom: 100%;
-        right: calc(var(--pad) + 0.5rem - var(--arrow));
-        border: var(--arrow) solid transparent;
-        border-top: 0;
-        border-bottom-color: var(--blue-900);
-      }
+      bottom: 100%;
+      right: calc(var(--pad) + 0.5rem - var(--arrow));
+      border: var(--arrow) solid transparent;
+      border-top: 0;
+      border-bottom-color: var(--blue-900);
     }
   }
 

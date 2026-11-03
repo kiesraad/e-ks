@@ -3,7 +3,7 @@ collection:
   pre_submission: "In the week before nomination day, you can have the documents reviewed in advance by the central electoral committee, known as a 'pre-submission'. Please make an appointment for this."
   title: "Gather, review and sign"
 complete_list:
-  no_problems_description: The documents are now ready to be submitted on paper to the central electoral committee, who will check the paper documents and the personal details.
+  no_problems_description: "The documents are now ready to be submitted on paper to the central electoral committee, who will check the paper documents and the personal details."
   no_problems_title: No errors were found by this application.
   title: Complete your list
 correction:
@@ -25,7 +25,7 @@ hearing:
   open_to_public: You may attend the session.
   title: Public session
 intro:
-  description: You have entered your candidates and candidate lists. To finish, there are a few more steps to go through. These steps are set out on this page.
+  description: "You have entered your candidates and candidate lists. To finish, there are a few more steps to go through. These steps are set out on this page."
   title: A few more steps
 print:
   download_description: Keep in mind that the latest changes in this system match the most recently downloaded zip.
@@ -41,7 +41,7 @@ print:
   h4_description: "With the H\u00A04, your political group collects declarations of support from eligible voters. This is required for political groups that are not currently represented in the relevant body or are participating with a blank list."
   h4_title: Declarations of support (H\u00A04)
   h9_consent: "With this form, candidates agree to being placed on the list of candidates. They also agree to their position on the list."
-  h9_identity: When submitting the H\u00A09, a legible copy of the identity document of the candidate must also be included.
+  h9_identity: "When submitting the H\u00A09, a legible copy of the identity document of the candidate must also be included."
   h9_title: Declarations of consent (H\u00A09)
   incomplete_warning: "<strong>Attention!</strong> You can print the documents, but they will be considered incomplete by the central electoral committee. Resolve the warnings in step 1 to complete the list."
   title: Print the documents

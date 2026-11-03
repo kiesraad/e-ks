@@ -8,7 +8,6 @@ delete: Delete
 done: Done
 download_zip: Download zip
 edit: Edit
-hide: Hide
 information: Information
 manage_candidate_list: Manage candidate list
 manage_candidate_lists: Manage candidate lists
@@ -21,6 +20,5 @@ review_and_download: Review and download
 save: Save
 save_and_close: Save and close
 save_and_continue: Save and continue
-show: Show
 signout: Sign out
 to: to

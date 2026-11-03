@@ -2,7 +2,8 @@
   background-color: var(--alert-bg);
   background-image: var(--alert-icon);
   background-repeat: no-repeat;
-  background-position: left calc(var(--space-md) + 4px) top var(--alert-py, var(--space-4));
+  background-position: left calc(var(--space-md) + 4px) top
+    var(--alert-py, var(--space-4));
   background-size: 1.5rem;
   border-left: 4px solid var(--alert-border-color);
   color: var(--alert-color);

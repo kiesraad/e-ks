@@ -8,7 +8,6 @@ delete: Verwijderen
 done: Klaar
 download_zip: Download zip
 edit: Bewerken
-hide: Verberg
 information: Informatie
 manage_candidate_list: Kandidatenlijst beheren
 manage_candidate_lists: Kandidatenlijsten beheren
@@ -21,6 +20,5 @@ review_and_download: Controleren en downloaden
 save: Opslaan
 save_and_close: Opslaan en sluiten
 save_and_continue: Opslaan en volgende
-show: Bekijk
 signout: Afmelden
 to: naar
