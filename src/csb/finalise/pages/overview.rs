@@ -126,7 +126,7 @@ mod tests {
         let main_store = CsbMainStore::new_for_test();
         for group in [
             sample_registered_political_group("Gezeteld", 1000, 2),
-            sample_registered_political_group("Zetelloos", 4242, 0),
+            sample_registered_political_group("Zetelloos", 42424, 0),
         ] {
             main_store
                 .update(
@@ -152,7 +152,7 @@ mod tests {
         assert!(body.contains(r#"data-sortable-update-key="stream_ids""#));
         assert!(body.contains(&format!(r#"data-id="{stream_id}""#)));
         assert!(contains_word(&body, "1000"));
-        assert!(!contains_word(&body, "4242"));
+        assert!(!contains_word(&body, "42424"));
         assert!(body.contains("Seats at the previous election"));
         let position = |name: &str| body.find(name).expect("group in table");
         assert!(position("Gezeteld") < position("Nieuwkomer"));
