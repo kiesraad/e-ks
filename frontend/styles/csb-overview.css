@@ -75,7 +75,7 @@
   }
 
   > .percentage {
-    white-space: no-wrap;
+    white-space: nowrap;
     margin-left: var(--space-2);
   }
 }

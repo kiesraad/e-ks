@@ -16,6 +16,7 @@ macro_rules! define_elections {
                 nomination_day_date: $nomination_day_date:expr,
                 document_review_date: $document_review_date:expr,
                 omission_period_end_date: $omission_period_end_date:expr,
+                omission_period_end_time: $omission_period_end_time:expr,
                 public_session: $public_session:expr,
                 election_date: $election_date:expr
             }
@@ -187,6 +188,16 @@ macro_rules! define_elections {
                 match self {
                     $(
                         Self::$name $(($binding))? => $omission_period_end_date,
+                    )*
+                }
+            }
+
+            /// The time on [`Self::omission_period_end_date`] the recovery period closes.
+            pub fn omission_period_end_time(&self) -> NaiveTime {
+                #[allow(unused)]
+                match self {
+                    $(
+                        Self::$name $(($binding))? => $omission_period_end_time,
                     )*
                 }
             }

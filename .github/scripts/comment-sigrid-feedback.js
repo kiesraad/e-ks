@@ -1,4 +1,4 @@
-const fs = require('fs');
+const fs = require('node:fs');
 
 module.exports = async function commentSigridFeedback({ github, context }) {
   const marker = '<!-- sigrid-feedback -->';
