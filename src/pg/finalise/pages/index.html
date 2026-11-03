@@ -13,26 +13,25 @@
         </div>
         <div class="step-content">
           <section class="card problems-card">
-            <div class="section-heading">
-              <h4>{{ "common.general_information"|trans }}</h4>
+            {% if problems.has_severity_or_higher(Severity::Warn) %}
               <div class="problem-legend">
-                <span class="info" tabindex="0">
-                  {{ "problems.legend.info"|trans }}
-                  <span class="help">{{ "problems.legend.info_help"|trans }}</span>
+                <span class="error" tabindex="0">
+                  {{ "problems.legend.error"|trans }}
+                  <span class="help">{{ "problems.legend.error_help"|trans }}</span>
                 </span>
                 <span class="warning" tabindex="0">
                   {{ "problems.legend.warning"|trans }}
                   <span class="help">{{ "problems.legend.warning_help"|trans }}</span>
                 </span>
-                <span class="error" tabindex="0">
-                  {{ "problems.legend.error"|trans }}
-                  <span class="help">{{ "problems.legend.error_help"|trans }}</span>
-                </span>
               </div>
-            </div>
-            {% if problems.general.flatten().is_empty() %}
-              <div class="card success">{{ "problems.no_problems"|trans }}</div>
             {% else %}
+              <div class="card success">
+                <h4>{{ "finalise.complete_list.no_problems_title"|trans }}</h4>
+                <p>{{ "finalise.complete_list.no_problems_description"|trans }}</p>
+              </div>
+            {% endif %}
+            {% if !problems.general.flatten().is_empty() %}
+              <h4>{{ "common.general_information"|trans }}</h4>
               <div class="card">
                 {% if !problems.general.general.is_empty() %}
                   <div class="mb-md">
@@ -87,10 +86,8 @@
                 {% endfor %}
               </div>
             {% endif %}
-            <h4>{{ "common.candidates"|trans }}</h4>
-            {% if problems.candidates.is_empty() %}
-              <div class="card success">{{ "problems.no_problems"|trans }}</div>
-            {% else %}
+            {% if !problems.candidates.is_empty() %}
+              <h4>{{ "common.candidates"|trans }}</h4>
               <div class="card">
                 {% for candidate_pp in &problems.candidates %}
                   <div>
@@ -107,10 +104,8 @@
                 {% endfor %}
               </div>
             {% endif %}
-            <h4>{{ "candidate_list.title_plural"|trans }}</h4>
-            {% if problems.lists.is_empty() %}
-              <div class="card success">{{ "problems.no_problems"|trans }}</div>
-            {% else %}
+            {% if !problems.lists.is_empty() %}
+              <h4>{{ "candidate_list.title_plural"|trans }}</h4>
               <div class="card">
                 <ul class="warnings tags-list">
                   {# NOTE ordering only works because we assume all general list problems are of the highest severity #}
@@ -133,6 +128,7 @@
             {% endif %}
             {% if !problems.info_problems.is_empty() %}
               <h4>{{ "problems.legend.info"|trans }}</h4>
+              <p>{{ "problems.legend.info_help"|trans }}</p>
               <div class="card">
                 <ul class="warnings tags-list partially-hidden">
                   {% for problem in problems.info_problems %}

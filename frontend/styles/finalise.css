@@ -199,19 +199,12 @@
   --card-gap: var(--space-3);
   border: none;
 
-  h4:not(:first-child) {
+  .card + h4 {
     margin-top: var(--space-5);
   }
-}
 
-.section-heading {
-  align-items: end;
-  display: flex;
-  flex-wrap: wrap-reverse;
-  gap: var(--space-md) var(--space-lg);
-
-  .problem-legend {
-    margin-left: auto;
+  p {
+    margin-top: 0;
   }
 }
 

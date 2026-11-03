@@ -102,14 +102,9 @@
   }
 
   &.success {
-    background-color: var(--green-100);
+    background-color: var(--green-50);
     color: var(--green-700);
-    border: 1px solid var(--green-700);
-    background-image: url("../icons/checkmarkSmall.svg");
-    background-size: 1.5rem;
-    background-repeat: no-repeat;
-    background-position: left var(--space-8) center;
-    padding-left: var(--space-20);
+    border: 1px solid var(--green-400);
   }
 
   .card-header {

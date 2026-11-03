@@ -3,6 +3,8 @@ collection:
   pre_submission: "In the week before nomination day, you can have the documents reviewed in advance by the central electoral committee, known as a 'pre-submission'. Please make an appointment for this."
   title: "Gather, review and sign"
 complete_list:
+  no_problems_description: The documents are now ready to be submitted on paper to the central electoral committee, who will check the paper documents and the personal details.
+  no_problems_title: No errors were found by this application.
   title: Complete your list
 correction:
   deadline: "The missing documents must be received by the central electoral committee by <strong>{}</strong> at <strong>17:00</strong>."
