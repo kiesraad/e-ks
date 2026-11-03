@@ -6,14 +6,14 @@
 
 use askama::Template;
 use axum::{
-    extract::{Query, State},
+    extract::State,
     response::{IntoResponse, Redirect, Response},
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{
     AnyLocale, AppError, AppRequestState, Context, CsbWebauthnConfig, ElectionConfig, HtmlTemplate,
-    Locale, LocaleValues, Province, WaterCouncil,
+    Locale, LocaleValues, Province, Query, WaterCouncil,
     auth::csb_webauthn::Challenge,
     csb::login::{CsbLoginPath, require_webauthn},
     filters,
@@ -141,6 +141,7 @@ mod tests {
     use base64::{Engine, prelude::BASE64_URL_SAFE_NO_PAD};
 
     use crate::{
+        Query,
         auth::csb_webauthn::{consume_challenge, test_support},
         csb::login::pages::tests::{ceremony_options, test_app},
         test_utils::response_body_string,

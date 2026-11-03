@@ -1,9 +1,6 @@
-use crate::structs::name_authorisations::NameAuthorisation;
+use crate::{Query, structs::name_authorisations::NameAuthorisation};
 use askama::Template;
-use axum::{
-    extract::Query,
-    response::{IntoResponse, Response},
-};
+use axum::response::{IntoResponse, Response};
 
 use super::NameAuthorisationCreatePath;
 use crate::{
@@ -73,7 +70,7 @@ pub async fn create_name_authorisation_submit(
 mod tests {
     use super::*;
     use crate::{
-        AppError, Context, CsbMainAction, CsbUser, Form, PgStore, QueryParamState,
+        AppError, Context, CsbMainAction, CsbUser, Form, PgStore, Query, QueryParamState,
         structs::{
             csb::sample_registered_political_group, list_designation::ListDesignation,
             political_groups::PoliticalGroup,
@@ -81,7 +78,6 @@ mod tests {
         test_utils::{response_body_string, sample_name_authorisation_form},
     };
     use axum::{
-        extract::Query,
         http::{StatusCode, header},
         response::IntoResponse,
     };

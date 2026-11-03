@@ -17,7 +17,11 @@ pub use string_validators::{
 pub use switch_election::SwitchElectionForm;
 pub use validation_error::ValidationError;
 
-use axum::extract::{FromRequest, Request};
+use axum::{
+    Json as AxumJson,
+    extract::{FromRequest, FromRequestParts, Query as AxumQuery, Request},
+    http::request::Parts,
+};
 use axum_extra::extract::Form as AxumForm;
 use serde::de::DeserializeOwned;
 
@@ -41,6 +45,42 @@ where
         let AxumForm(form) = AxumForm::<T>::from_request(req, state).await?;
 
         Ok(Form(form))
+    }
+}
+
+/// `axum::extract::Query` with its rejection mapped to [`AppError`].
+#[derive(Debug, Default)]
+pub struct Query<T>(pub T);
+
+impl<T, S> FromRequestParts<S> for Query<T>
+where
+    S: Sync + Send,
+    T: DeserializeOwned,
+{
+    type Rejection = AppError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let AxumQuery(query) = AxumQuery::<T>::from_request_parts(parts, state).await?;
+
+        Ok(Query(query))
+    }
+}
+
+/// `axum::Json` (as extractor) with its rejection mapped to [`AppError`].
+#[derive(Debug)]
+pub struct Json<T>(pub T);
+
+impl<T, S> FromRequest<S> for Json<T>
+where
+    S: Sync + Send,
+    T: DeserializeOwned,
+{
+    type Rejection = AppError;
+
+    async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
+        let AxumJson(json) = AxumJson::<T>::from_request(req, state).await?;
+
+        Ok(Json(json))
     }
 }
 

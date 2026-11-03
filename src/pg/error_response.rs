@@ -16,8 +16,8 @@ use axum::{
 use tracing::warn;
 
 use crate::{
-    Context, ErrorPage, HtmlTemplate, Locale, LocaleValues, auth::csrf_guard::CsrfRejection,
-    filters, trans,
+    Context, ErrorPage, HtmlTemplate, Locale, LocaleValues, Session,
+    auth::csrf_guard::CsrfRejection, filters, trans,
 };
 
 #[derive(Template)]
@@ -62,6 +62,33 @@ pub(crate) fn csrf_rejection_response(rejection: CsrfRejection, locale: Locale) 
     .into_response();
     *response.status_mut() = status_code;
     response
+}
+
+/// Renders the error page of a session-only route (no store, so no
+/// political-group layout) with the session locale.
+pub async fn render_session_error_pages(
+    session: Session,
+    request: Request,
+    next: Next,
+) -> Response {
+    let mut response = next.run(request).await;
+
+    match ErrorPage::take_from(&mut response, session.locale) {
+        None => response,
+        Some(page) => (
+            page.status_code,
+            HtmlTemplate(
+                RequestErrorTemplate {
+                    title: page.title,
+                    message: page.message,
+                },
+                LocaleValues {
+                    locale: session.locale,
+                },
+            ),
+        )
+            .into_response(),
+    }
 }
 
 /// Middleware that renders the error page an `AppError` response carries in

@@ -1,9 +1,6 @@
-use crate::structs::political_groups::PoliticalGroup;
+use crate::{Query, structs::political_groups::PoliticalGroup};
 use askama::Template;
-use axum::{
-    extract::Query,
-    response::{IntoResponse, Response},
-};
+use axum::response::{IntoResponse, Response};
 
 use crate::{
     AppError, Context, CsbMainStore, HtmlTemplate, PgStore, QueryParamState, filters,
@@ -139,7 +136,7 @@ pub async fn update_political_group_submit(
 mod tests {
     use super::*;
     use crate::{
-        AppError, Context, CsbMainAction, CsbUser, Form, PgStore, QueryParamState,
+        AppError, Context, CsbMainAction, CsbUser, Form, PgStore, Query, QueryParamState,
         structs::{
             common::{Appellation, PreviousElectionResults},
             csb::{RegisteredPoliticalGroupId, sample_registered_political_group},

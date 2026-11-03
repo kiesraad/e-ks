@@ -1,11 +1,8 @@
 use askama::Template;
-use axum::{
-    extract::Query,
-    response::{IntoResponse, Response},
-};
+use axum::response::{IntoResponse, Response};
 
 use crate::{
-    AppError, Context, CsbContext, CsbMainAction, CsbMainStore, Form, HtmlTemplate, Overlay,
+    AppError, Context, CsbContext, CsbMainAction, CsbMainStore, Form, HtmlTemplate, Overlay, Query,
     QueryParamState,
     csb::finalise::{
         CsbFinalisePath,
@@ -128,7 +125,7 @@ mod tests {
     use axum_extra::routing::TypedPath;
     use reqwest::{StatusCode, header};
 
-    use crate::{CsbUser, structs::csb::ObjectionId, test_utils::response_body_string};
+    use crate::{CsbUser, Query, structs::csb::ObjectionId, test_utils::response_body_string};
 
     use super::*;
 

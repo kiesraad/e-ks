@@ -1,9 +1,6 @@
-use crate::structs::name_authorisations::NameAuthorisation;
+use crate::{Query, structs::name_authorisations::NameAuthorisation};
 use askama::Template;
-use axum::{
-    extract::Query,
-    response::{IntoResponse, Response},
-};
+use axum::response::{IntoResponse, Response};
 
 use crate::{
     AppError, Context, Form, HtmlTemplate, Overlay, PgStore, QueryParamState, filters,
@@ -69,14 +66,13 @@ pub async fn update_name_authorisation_submit(
 mod tests {
     use super::*;
     use crate::{
-        AppError, Context, Form, PgStore, QueryParamState,
+        AppError, Context, Form, PgStore, Query, QueryParamState,
         structs::name_authorisations::NameAuthorisationId,
         test_utils::{
             response_body_string, sample_name_authorisation, sample_name_authorisation_form,
         },
     };
     use axum::{
-        extract::Query,
         http::{StatusCode, header},
         response::IntoResponse,
     };

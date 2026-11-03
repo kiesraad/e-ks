@@ -15,8 +15,8 @@ use crate::{
     AppState, app::middleware::PublicListener, audit_log, candidate_lists, candidates, common, csb,
     csb_ip_allow_list_middleware, csb_store_middleware, db_gate_middleware, eks_key_middleware,
     finalise, health_router, http_trace, lb_health_router, list_designation, list_submitters,
-    name_authorisations, persons, political_groups, render_error_pages, session_middleware,
-    store_middleware, substitute_list_submitters, utils::bag,
+    name_authorisations, persons, political_groups, render_error_pages, render_session_error_pages,
+    session_middleware, store_middleware, substitute_list_submitters, utils::bag,
 };
 
 /// Whether a router serves the CSB section. The listener configured through
@@ -61,9 +61,7 @@ pub fn create_with(state: AppState, csb_routes: WithCsbRoutes) -> Router<AppStat
     // expensive to expose anonymously, and it is only called from a logged-in
     // form. The session middleware also verifies the CSRF token of every mutating
     // request (see `auth::csrf_guard`), so no handler can forget the check.
-    let app_router = app_router
-        .merge(common::session_only_router())
-        .merge(bag::router());
+    let app_router = app_router.merge(session_only_routes());
 
     let app_router = match csb_routes {
         WithCsbRoutes::Included => app_router.merge(csb_router(&state)),
@@ -131,6 +129,14 @@ pub fn create_with(state: AppState, csb_routes: WithCsbRoutes) -> Router<AppStat
     let router = router.merge(crate::acme::acme_challenge_router());
 
     apply_security_headers(router)
+}
+
+/// The session-only routes, with their own (store-less) error pages.
+fn session_only_routes() -> Router<AppState> {
+    Router::new()
+        .merge(common::session_only_router())
+        .merge(bag::router())
+        .layer(middleware::from_fn(render_session_error_pages))
 }
 
 /// Global fetch-metadata CSRF protection, backstopping the session

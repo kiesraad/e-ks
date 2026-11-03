@@ -1,6 +1,6 @@
 use super::NameAuthorisationsPath;
 use crate::{
-    AppError, Context, HtmlTemplate, PgStore, QueryParamState, filters,
+    AppError, Context, HtmlTemplate, PgStore, Query, QueryParamState, filters,
     political_groups::{PoliticalGroupStep, PoliticalGroupSteps},
     structs::{
         common::{HasSeverity, PotentialProblems, Problematic},
@@ -11,7 +11,7 @@ use crate::{
     },
 };
 use askama::Template;
-use axum::{extract::Query, response::IntoResponse};
+use axum::response::IntoResponse;
 
 #[derive(Template)]
 #[template(path = "pg/name_authorisations/pages/view.html")]
@@ -49,11 +49,11 @@ pub async fn list_name_authorisations(
 mod tests {
     use super::*;
     use crate::{
-        AppError, Context, PgStore, QueryParamState,
+        AppError, Context, PgStore, Query, QueryParamState,
         structs::name_authorisations::NameAuthorisationId,
         test_utils::{response_body_string, sample_name_authorisation},
     };
-    use axum::{extract::Query, http::StatusCode, response::IntoResponse};
+    use axum::{http::StatusCode, response::IntoResponse};
 
     #[tokio::test]
     async fn list_name_authorisations_shows_created_agent() -> Result<(), AppError> {

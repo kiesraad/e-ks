@@ -1,12 +1,9 @@
-use axum::{
-    extract::Query,
-    response::{IntoResponse, Redirect, Response},
-};
+use axum::response::{IntoResponse, Redirect, Response};
 use axum_extra::routing::TypedPath;
 use uuid::Uuid;
 
 use crate::{
-    AppError, CsbContext, CsbStore, CsbStoreData, Form, HtmlTemplate, Locale, Overlay,
+    AppError, CsbContext, CsbStore, CsbStoreData, Form, HtmlTemplate, Locale, Overlay, Query,
     QueryParamState, StreamId,
     csb::examination::{
         OmissionForm,
