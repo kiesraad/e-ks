@@ -124,8 +124,7 @@
             {% endif %}
             {% if !problems.info_problems.is_empty() %}
               <h4>{{ "problems.legend.info"|trans }}</h4>
-              <div class="card read-more">
-                <input type="checkbox" id="info-toggle" class="toggle" hidden>
+              <div class="card">
                 <ul class="warnings tags-list partially-hidden">
                   {% for problem in problems.info_problems %}
                     <li class="tag link">
@@ -134,8 +133,6 @@
                     </li>
                   {% endfor %}
                 </ul>
-                <label for="info-toggle" class="more-less center open">{{ "action.show"|trans }}</label>
-                <label for="info-toggle" class="more-less center close">{{ "action.hide"|trans }}</label>
               </div>
             {% endif %}
           </section>
@@ -200,7 +197,8 @@
                     <div>{{ "common.languages.dutch"|trans }}:</div>
                   {% endif %}
                   {% if problems.models_downloadable() %}
-                    <a href="{{ download_path_nl }}" class="button primary icon-download">{{ "action.download_zip"|trans }}</a>
+                    <a href="{{ download_path_nl }}"
+                       class="button primary icon-download">{{ "action.download_zip"|trans }}</a>
                   {% else %}
                     <a class="button primary icon-download disabled"
                        disabled
@@ -213,7 +211,8 @@
                   <div class="step-download">
                     <div>{{ "common.languages.frisian"|trans }}:</div>
                     {% if problems.models_downloadable() %}
-                      <a href="{{ download_path_fry }}" class="button primary icon-download">{{ "action.download_zip"|trans }}</a>
+                      <a href="{{ download_path_fry }}"
+                         class="button primary icon-download">{{ "action.download_zip"|trans }}</a>
                     {% else %}
                       <a class="button primary icon-download disabled"
                          disabled
