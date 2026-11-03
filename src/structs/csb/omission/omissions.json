@@ -3,13 +3,13 @@
   "appellation": [
     {
       "title": "De aanduiding is niet geregistreerd",
-      "description": "De machtiging om de aanduiding van de politieke groepering boven de lijst te plaatsen, wordt geacht te ontbreken omdat de aanduiding niet vermeld staat in het register van aanduidingen voor de Tweede Kamer of het register van aanduidingen voor de Eerste Kamer. Dit is een onherstelbaar verzuim. De politieke groepering kan nog wel meedoen aan de Eerste Kamerverkiezing, maar dan zonder aanduiding. Het zal dus een blanco lijst worden.",
+      "description": "De machtiging om de aanduiding van de politieke groepering boven de lijst te plaatsen, wordt geacht te ontbreken omdat de aanduiding niet vermeld staat in het register van aanduidingen voor de Tweede Kamer of het register van aanduidingen voor de Eerste Kamer.",
       "help_text": "",
       "recoverable": false
     },
     {
       "title": "De aanduiding(en) is/zijn niet geregistreerd",
-      "description": "De machtiging om de samenvoeging van aanduidingen van de politieke groeperingen boven de lijst te plaatsen, wordt geacht te ontbreken omdat (één van) de aanduiding(en) niet vermeld staat/staan in het register van aanduidingen voor de Tweede Kamer of het register van aanduidingen voor de Eerste Kamer. Dit is een onherstelbaar verzuim. De politieke groeperingen kunnen nog wel meedoen aan de Eerste Kamerverkiezing, maar dan zonder samenvoeging van aanduidingen. Het zal dus een blanco lijst worden.",
+      "description": "De machtiging om de samenvoeging van aanduidingen van de politieke groeperingen boven de lijst te plaatsen, wordt geacht te ontbreken omdat (één van) de aanduiding(en) niet vermeld staat/staan in het register van aanduidingen voor de Tweede Kamer of het register van aanduidingen voor de Eerste Kamer.",
       "help_text": "",
       "recoverable": false
     }
@@ -29,12 +29,12 @@
     },
     {
       "title": "Voor meerdere kieskringen ontbreken ondersteuningsverklaringen",
-      "description": "Bij de lijst zijn niet voldoende geldige verklaringen van ondersteuning ingeleverd in de genoemde kieskring(en).",
-      "help_text": "Dit betreft de kieskring(en) {districts}. Dit verzuim is te herstellen door voor iedere kieskring waarin u wilt deelnemen alsnog voldoende (ten minste 1 per kieskring) ondertekende ondersteuningsverklaringen (model H 4) in te leveren.",
+      "description": "Bij de lijst zijn niet voldoende geldige verklaringen van ondersteuning ingeleverd in de genoemde kieskringen.",
+      "help_text": "Dit betreft de kieskringen {districts}. Dit verzuim is te herstellen door voor iedere kieskring waarin u wilt deelnemen alsnog voldoende (ten minste 1 per kieskring) ondertekende ondersteuningsverklaringen (model H 4) in te leveren.",
       "recoverable": true
     },
     {
-      "title": "Geen geldige ondersteuningsverklaringen ingeleverd",
+      "title": "Ondersteuningsverklaringen komen niet overeen met kandidatenlijst",
       "description": "Bij de lijst zijn geen (geldige) verklaringen van ondersteuning ingeleverd voor de kieskring(en) waarvoor de lijst is ingediend. De ingediende verklaringen worden geacht te ontbreken omdat de daarop vermelde kandidaten afwijken van die op de kandidatenlijst.",
       "help_text": "Dit verzuim is te herstellen door voor iedere kieskring waarin u wilt deelnemen alsnog voldoende (ten minste 1 per kieskring) ondersteuningsverklaringen (model H 4) in te leveren waar dezelfde kandidaten als op de kandidatenlijst staan vermeld.",
       "recoverable": true
@@ -43,8 +43,8 @@
   "candidate": [
     {
       "title": "De handtekening onder de instemmingsverklaring is niet correct",
-      "description": "Ten aanzien van kandidaat nr. {candidate_number} {candidate_name} ontbreekt de verklaring dat deze instemt met kandidaatstelling op de lijst. De verklaring wordt geacht te ontbreken omdat de handtekening onder de instemmingsverklaring niet correct is. Correcte handtekeningen zijn natte handtekeningen, volledige handtekeningen en handtekeningen die niet evident zijn geplakt.",
-      "help_text": "Dit verzuim is te herstellen door een nieuwe instemmingsverklaring (model H 9) van betreffende kandidaat in te leveren met daarop een handtekening die wel correct is.",
+      "description": "Ten aanzien van kandidaat nr. {candidate_number} {candidate_name} ontbreekt de verklaring dat deze instemt met kandidaatstelling op de lijst. De verklaring wordt geacht te ontbreken omdat de handtekening onder de instemmingsverklaring niet correct is.",
+      "help_text": "Dit verzuim is te herstellen door een nieuwe instemmingsverklaring (model H 9) van betreffende kandidaat in te leveren met daarop een handtekening die wel correct is. Correcte handtekeningen zijn natte handtekeningen, volledige handtekeningen en handtekeningen die niet evident zijn geplakt.",
       "recoverable": true,
       "group": "Handtekeningen en ID bewijzen"
     },
