@@ -105,6 +105,18 @@ pub(crate) async fn establish_session(
         sessions.remove(&old_token).await?;
     }
     sessions.cleanup_expired().await;
+
+    // keep only one session per user
+    let replaced = sessions.remove_other_sessions_of(&session).await?;
+    if replaced > 0 {
+        tracing::info!(
+            event = "auth.session_replaced",
+            user = ?session.user,
+            replaced,
+            "earlier sessions of the same user ended by a new login"
+        );
+    }
+
     let cookie = build_session_cookie(&session, origin);
     sessions.insert(session).await;
     Ok(jar.add(cookie))

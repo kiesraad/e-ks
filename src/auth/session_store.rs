@@ -213,6 +213,19 @@ impl SessionStore {
         }
     }
 
+    /// Remove all other sessions of a user
+    #[cfg_attr(not(feature = "database"), expect(unused_variables))]
+    pub async fn remove_other_sessions_of(&self, session: &Session) -> Result<u64, AppError> {
+        match self {
+            SessionStore::InMemory(_) => Ok(0),
+            #[cfg(feature = "database")]
+            SessionStore::Database(pool) => {
+                session_db::delete_other_sessions_of(pool, &session.user, session.token_hash())
+                    .await
+            }
+        }
+    }
+
     /// Removes all expired sessions from the store.
     pub async fn cleanup_expired(&self) {
         match self {
@@ -352,6 +365,18 @@ mod tests {
         }
     }
 
+    /// A committee session for a security-key user named `username`.
+    #[cfg(feature = "database")]
+    fn test_member_session(username: &str) -> Session {
+        Session::for_committee(
+            crate::CsbUser::SecurityKey {
+                username: username.parse().unwrap(),
+            },
+            ElectionConfig::EK27,
+            Locale::default(),
+        )
+    }
+
     /// Postgres round-trip: hash-at-rest, identity/UA persistence, `created_at`
     /// fixed across a touch, and `remove`.
     #[cfg(feature = "database")]
@@ -417,6 +442,27 @@ mod tests {
             store.set_paper_correction_stream_id(&updated, None).await,
             Err(AppError::Conflict)
         ));
+
+        // A second login for the same stream ends the first; other streams stay.
+        let other = crate::Session::new_test();
+        let other_token = other.token_string();
+        store.insert(other).await;
+        let newer = crate::Session::new_test_for_stream(stream_id);
+        store.insert(newer.clone()).await;
+        assert_eq!(store.remove_other_sessions_of(&newer).await?, 1);
+        assert!(store.get(&token).await?.is_none());
+        assert!(store.get(&other_token).await?.is_some());
+        assert!(store.get(&newer.token_string()).await?.is_some());
+        let member_old = test_member_session("alice");
+        let member_new = test_member_session("alice");
+        let member_other = test_member_session("bob");
+        for session in [&member_old, &member_new, &member_other] {
+            store.insert(session.clone()).await;
+        }
+        assert_eq!(store.remove_other_sessions_of(&member_new).await?, 1);
+        assert!(store.get(&member_old.token_string()).await?.is_none());
+        assert!(store.get(&member_other.token_string()).await?.is_some());
+        store.insert(updated.clone()).await;
 
         assert!(store.remove(&token).await?.is_some());
         assert!(store.remove(&token).await?.is_none());
