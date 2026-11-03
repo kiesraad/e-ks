@@ -57,8 +57,10 @@ mod tests {
     use axum::http::StatusCode;
 
     use crate::{
-        CsbMainAction, CsbUser, csb::examination::extractors::CsbPoliticalGroup,
-        structs::csb::sample_registered_political_group, test_utils::response_body_string,
+        CsbMainAction, CsbUser,
+        csb::examination::extractors::CsbPoliticalGroup,
+        structs::csb::sample_registered_political_group,
+        test_utils::{contains_word, response_body_string},
     };
 
     async fn render(main_store: CsbMainStore, groups: Vec<CsbPoliticalGroup>) -> String {
@@ -94,32 +96,40 @@ mod tests {
     }
 
     /// The sortable table lists every group with its stream as row id, the
-    /// seated group first with its votes and seats.
+    /// seated group first with its votes and seats. A group without a seat
+    /// is numbered by lot, so its votes are not shown.
     #[tokio::test]
     async fn overview_lists_every_group_seated_first() {
         let main_store = CsbMainStore::new_for_test();
-        main_store
-            .update(
-                CsbMainAction::CreateRegisteredPoliticalGroup(sample_registered_political_group(
-                    "Gezeteld", 1000, 2,
-                ))
-                .by(CsbUser::new_test()),
-            )
-            .await
-            .unwrap();
+        for group in [
+            sample_registered_political_group("Gezeteld", 1000, 2),
+            sample_registered_political_group("Zetelloos", 4242, 0),
+        ] {
+            main_store
+                .update(
+                    CsbMainAction::CreateRegisteredPoliticalGroup(group).by(CsbUser::new_test()),
+                )
+                .await
+                .unwrap();
+        }
         let by_lot = CsbPoliticalGroup::sample("Nieuwkomer");
         let stream_id = by_lot.stream_id;
 
         let body = render(
             main_store,
-            vec![by_lot, CsbPoliticalGroup::sample("Gezeteld")],
+            vec![
+                by_lot,
+                CsbPoliticalGroup::sample("Gezeteld"),
+                CsbPoliticalGroup::sample("Zetelloos"),
+            ],
         )
         .await;
 
         assert!(body.contains(r#"data-sortable-update-url="/csb/finalise/order""#));
         assert!(body.contains(r#"data-sortable-update-key="stream_ids""#));
         assert!(body.contains(&format!(r#"data-id="{stream_id}""#)));
-        assert!(body.contains("1000"));
+        assert!(contains_word(&body, "1000"));
+        assert!(!contains_word(&body, "4242"));
         assert!(body.contains("Seats at the previous election"));
         let position = |name: &str| body.find(name).expect("group in table");
         assert!(position("Gezeteld") < position("Nieuwkomer"));

@@ -53,7 +53,7 @@ mod tests {
         assert!(body.contains("Registration"));
         assert!(body.contains("Pre-submission"));
         assert!(body.contains("Examination"));
-        assert!(body.contains("Rectified lists"));
+        assert!(body.contains("Omission period"));
         assert!(body.contains("Finalise candidate lists"));
     }
 

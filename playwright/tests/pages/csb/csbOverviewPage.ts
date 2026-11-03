@@ -39,7 +39,7 @@ export class CsbOverviewPage {
       name: "Fase 1",
     });
     this.linkRecoveredLists = this.page.getByRole("link", {
-      name: "Herstelde lijsten",
+      name: "Verzuimperiode",
     });
   }
 }

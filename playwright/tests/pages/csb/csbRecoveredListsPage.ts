@@ -6,7 +6,7 @@ export class CsbRecoveredListsPage {
   constructor(protected readonly page: Page) {
     this.headerRecoveredLists = this.page.getByRole("heading", {
       level: 1,
-      name: "Herstelde lijsten",
+      name: "Verzuimperiode",
     });
   }
 

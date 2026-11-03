@@ -188,7 +188,7 @@ index:
   go_to_examination: Go to examination
   go_to_finalise: Go to finalise candidate lists
   go_to_pre_submission: Go to pre-submission
-  go_to_recovery: Go to recovered lists
+  go_to_recovery: Go to omission period
   go_to_registered_political_groups: Go to registered political groups
   phase: "Phase {}"
   phase_0:
@@ -198,7 +198,7 @@ index:
   phase_2:
     title: Examination
   phase_3:
-    title: Rectified lists
+    title: Omission period
   phase_4:
     title: Finalise candidate lists
   runs_through: Runs through
@@ -296,7 +296,7 @@ recovery:
   omissions_title: Recover omissions
   recovered: Recovered
   scrapped: Scrapped
-  title: Recovered lists
+  title: Omission period
 registered_political_groups:
   edit: Edit political group
   none: No political groups have been registered yet.
