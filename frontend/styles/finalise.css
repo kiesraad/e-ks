@@ -206,6 +206,17 @@
   p {
     margin-top: 0;
   }
+
+  /* hovering a legend item highlights the problems of that severity */
+  &:has(.problem-legend .warning:is(:hover, :focus-visible)) .tag a.warning {
+    --tag-border-color: var(--orange-700);
+    background-color: var(--orange-100);
+  }
+
+  &:has(.problem-legend .error:is(:hover, :focus-visible)) .tag a.error {
+    --tag-border-color: var(--red-700);
+    background-color: var(--red-100);
+  }
 }
 
 .problem-legend {
