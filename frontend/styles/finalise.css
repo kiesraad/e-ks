@@ -123,16 +123,18 @@
     top: 0;
     width: 2px;
   }
-}
 
-.step-grid {
-  display: grid;
-  gap: var(--space-8);
-  grid-template-columns: repeat(auto-fit, minmax(19.125rem, 1fr));
-  margin-bottom: var(--space-12);
+  p,
+  li {
+    max-width: 42rem;
+  }
 
-  &:has(> :nth-child(4)) {
-    grid-template-columns: repeat(auto-fit, minmax(max(19.125rem, 40%), 1fr));
+  h5 + p {
+    margin-top: 0;
+  }
+
+  p + h5 {
+    margin-top: var(--space-lg);
   }
 }
 
@@ -146,10 +148,8 @@
 .download-card {
   --card-padding: var(--space-6);
   border: none;
-  align-items: center;
-  flex-direction: row;
-  gap: var(--space-8);
-  justify-content: space-between;
+  margin-top: var(--space-xl);
+  gap: var(--space-md);
 
   p {
     margin: 0;

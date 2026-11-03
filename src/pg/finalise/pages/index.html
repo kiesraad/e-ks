@@ -158,43 +158,25 @@
             {% if problems.highest_severity() == Some(Severity::Error) %}
               <div class="alert alert-error">{{ "finalise.print.errors_warning"|trans }}</div>
             {% else if problems.highest_severity() == Some(Severity::Warn) %}
-              <div class="alert alert-warning">{{ "finalise.print.incomplete_warning"|trans }}</div>
+              <div class="alert alert-warning">{{ "finalise.print.incomplete_warning"|trans|safe }}</div>
             {% endif %}
-            <div class="step-grid">
-              <div>
-                <h5>{{ "finalise.print.h1_title"|trans }}</h5>
-                <p>{{ "finalise.print.h1_description"|trans }}</p>
-              </div>
-              {% if list_designation != Some(ListDesignationKind::Blank) %}
-                <div>
-                  {% if list_designation == Some(ListDesignationKind::Combined) %}
-                    <h5>{{ "finalise.print.h3_2_title"|trans }}</h5>
-                    <p>{{ "finalise.print.h3_2_description"|trans }}</p>
-                  {% else %}
-                    <h5>{{ "finalise.print.h3_1_title"|trans }}</h5>
-                    <p>{{ "finalise.print.h3_1_description"|trans }}</p>
-                  {% endif %}
-                </div>
-              {% endif %}
-              {% if !previously_seated %}
-                <div>
-                  <h5>{{ "finalise.print.h4_title"|trans }}</h5>
-                  <p>{{ "finalise.print.h4_description"|trans }}</p>
-                </div>
-              {% endif %}
-              <div>
-                <h5>{{ "finalise.print.h9_title"|trans }}</h5>
-                <p>
-                  {{ "finalise.print.h9_consent"|trans }}
-                  <br>
-                  {{ "finalise.print.h9_identity"|trans }}
-                </p>
-              </div>
-              <div>
-                <h5>{{ "finalise.print.eml_title"|trans }}</h5>
-                <p>{{ "finalise.print.eml"|trans }}</p>
-              </div>
-            </div>
+            <h5>{{ "finalise.print.h1_title"|trans }}</h5>
+            <p>{{ "finalise.print.h1_description"|trans }}</p>
+            {% if list_designation == Some(ListDesignationKind::Standalone) %}
+              <h5>{{ "finalise.print.h3_1_title"|trans }}</h5>
+              <p>{{ "finalise.print.h3_1_description"|trans }}</p>
+            {% endif %}
+            {% if list_designation == Some(ListDesignationKind::Combined) %}
+              <h5>{{ "finalise.print.h3_2_title"|trans }}</h5>
+              <p>{{ "finalise.print.h3_2_description"|trans }}</p>
+            {% endif %}
+            {% if !previously_seated %}
+              <h5>{{ "finalise.print.h4_title"|trans }}</h5>
+              <p>{{ "finalise.print.h4_description"|trans }}</p>
+            {% endif %}
+            <h5>{{ "finalise.print.h9_title"|trans }}</h5>
+            <p>{{ "finalise.print.h9_consent"|trans }}</p>
+            <p>{{ "finalise.print.h9_identity"|trans }}</p>
             <div class="card download-card {% if !problems.models_downloadable() %}disabled{% endif %}">
               <div class="download-card-text">
                 <p class="download-card-title">{{ "finalise.print.download_title"|trans }}</p>
@@ -231,6 +213,12 @@
                     {% endif %}
                   </div>
                 {% endif %}
+              </div>
+              <div class="alert alert-info">
+                <ul>
+                  <li>{{ "finalise.print.usb_not_required"|trans|safe }}</li>
+                  <li>{{ "finalise.print.eml_not_required"|trans }}</li>
+                </ul>
               </div>
             </div>
           </section>
