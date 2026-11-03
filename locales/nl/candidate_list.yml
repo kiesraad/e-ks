@@ -25,7 +25,8 @@ candidate_register_note: Kandidaten die u heeft aangemaakt vindt u hier terug
 districts:
   all: Alle
   duplicate_warning: "{} hoort al bij <a href='{}'>een andere kandidatenlijst</a>. Pas die lijst aan om deze kieskring hier te gebruiken."
-  select_hint: Kies hier de gebieden waarvoor deze lijst wordt ingeleverd. In deze gebieden kunnen kiezers tijdens de Eerste Kamerverkiezing op de politieke groepering stemmen.
+  explanation: Een kieskring is een regio waarin politieke partijen met een specifieke kandidatenlijst kunnen deelnemen aan de verkiezingen. Het stelsel van kieskringen maakt het politieke partijen mogelijk om in verschillende kieskringen met verschillende kandidatenlijsten uit te komen.
+  select_hint: Selecteer de kieskring(en) waar u met deze kandidatenlijst mee wilt doen. In deze kieskringen kunnen kiezers tijdens de Eerste Kamerverkiezing op uw partij en kandidaten stemmen.
 edit_position: Volgorde op de lijst
 errors:
   candidate_set_changed: Bij het herordenen kan alleen de volgorde van de huidige kandidaten veranderen.
