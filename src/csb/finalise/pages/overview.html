@@ -12,22 +12,22 @@
           <h3>{{ "csb.finalise.i4_title"|trans }}</h3>
           <p>{{ "csb.finalise.i4_note"|trans }}</p>
         </div>
-        <a class="button secondary icon-plus-end"
-           href="{{ crate::csb::examination::CsbHearingDetailsPath { model: crate::structs::csb::HearingModel::I4 } }}">{{ "csb.finish_examination.hearing_details"|trans }}</a>
       </div>
+      <a class="button {% if has_hearing_details %}secondary{% else %}primary{% endif %} icon-plus-end mb-lg"
+         href="{{ crate::csb::examination::CsbHearingDetailsPath { model: crate::structs::csb::HearingModel::I4 } }}">{{ "csb.finish_examination.hearing_details"|trans }}</a>
       <h4 class="mb-sm">{{ "csb.finalise.draft_title"|trans }}</h4>
       <div class="examination-strip">
-        <a href="{{ crate::csb::finalise::paths::CsbI4DraftDocxDownloadPath }}"
-           class="button secondary icon-download"
+        <a class="button secondary icon-download{% if !has_hearing_details %} disabled{% endif %}"
+           {% if has_hearing_details %}href="{{ crate::csb::finalise::paths::CsbI4DraftDocxDownloadPath }}"{% else %}aria-disabled="true"{% endif %}
            id="i4-draft-docx">{{ "csb.finish_examination.download_word"|trans }}</a>
-        <a href="{{ crate::csb::finalise::paths::CsbI4DraftDownloadPath }}"
-           class="button primary icon-download"
+        <a class="button primary icon-download{% if !has_hearing_details %} disabled{% endif %}"
+           {% if has_hearing_details %}href="{{ crate::csb::finalise::paths::CsbI4DraftDownloadPath }}"{% else %}aria-disabled="true"{% endif %}
            id="i4-draft-pdf">{{ "csb.finish_examination.download_pdf"|trans }}</a>
       </div>
       <h3 class="mt-xl mb-sm">{{ "csb.finalise.final_title"|trans }}</h3>
       <div class="examination-strip">
-        <a href="{{ crate::csb::finalise::paths::CsbFinalZipDownloadPath }}"
-           class="button primary icon-download"
+        <a class="button primary icon-download{% if !has_hearing_details %} disabled{% endif %}"
+           {% if has_hearing_details %}href="{{ crate::csb::finalise::paths::CsbFinalZipDownloadPath }}"{% else %}aria-disabled="true"{% endif %}
            id="final-zip">{{ "csb.finalise.download_final_zip"|trans }}</a>
       </div>
     </div>
@@ -67,18 +67,10 @@
                   <strong>{{ group.appellation }}</strong>
                 </td>
                 <td class="font-number statistic">
-                  {% if let Some(votes) = group.previous_votes && group.numbered_on_votes %}
-                    {{ votes }}
-                  {% endif %}
+                  {% if let Some(votes) = group.previous_votes && group.numbered_on_votes %}{{ votes }}{% endif %}
                 </td>
-                <td class="font-number statistic">
-                  {% if let Some(seats) = group.previous_seats %}
-                    {{ seats }}
-                  {% endif %}
-                </td>
-                {% if has_multiple_districts %}
-                  <td class="font-number statistic">{{ group.district_count }}</td>
-                {% endif %}
+                <td class="font-number statistic">{% if let Some(seats) = group.previous_seats %}{{ seats }}{% endif %}</td>
+                {% if has_multiple_districts %}<td class="font-number statistic">{{ group.district_count }}</td>{% endif %}
               </tr>
             {% endfor %}
           </tbody>

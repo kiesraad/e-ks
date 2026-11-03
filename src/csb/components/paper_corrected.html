@@ -27,12 +27,12 @@
 {% macro position_number(value, class) %}
   <span class="badge position-badge {{ class }}">{{ value }}</span>
 {% endmacro %}
-{% macro columns_head(label) %}
+{% macro columns_head(label, examining=true) %}
   <thead>
     <tr>
       <th scope="col">{{ label }}</th>
       <th scope="col">{{ "csb.status.name"|trans }}</th>
-      <th scope="col"></th>
+      <th scope="col">{% if examining %}{{ "csb.correction.column_title"|trans }}{% endif %}</th>
     </tr>
   </thead>
 {% endmacro %}
