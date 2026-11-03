@@ -24,6 +24,9 @@ hearing:
   description: "Bij deze zitting bepaalt het centraal stembureau welke partijen er op het stembiljet komen te staan, en wordt indien nodig door een loting de volgorde van partijen bepaald."
   open_to_public: U kunt de zitting bijwonen.
   title: Openbare zitting
+intro:
+  description: U heeft uw kandidaten en kandidatenlijsten aangemaakt. Om af te ronden, zijn er nog een paar stappen te doorlopen. Deze stappen staan uiteengezet op deze pagina.
+  title: Nog een paar stappen
 print:
   download_description: Houd er rekening mee dat de laatste wijzigingen uit dit systeem overeenkomen met de laatst gedownloade zip.
   download_title: Download hier de bestanden en print ze uit.

@@ -6,6 +6,10 @@
   {% let max_candidates = "max_candidates"|integer_value %}
   {% let election = "election"|election_value %}
   <div class="finalise">
+    <div class="content-header">
+      <h3>{{ "finalise.intro.title"|trans }}</h3>
+      <p>{{ "finalise.intro.description"|trans }}</p>
+    </div>
     <div class="step {{ problems.highest_severity_class() }} illustration-errors">
       <div class="step-main">
         <div class="step-header">

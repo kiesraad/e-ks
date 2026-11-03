@@ -12,7 +12,7 @@ development:
 download_warning: "Warning: the documents have already been downloaded. The data on paper is leading. If any changes are still needed, make sure to reprint the documents and submit the correct version."
 electoral_districts: Electoral districts
 error_code: "Error code {}"
-finalise: Finalise
+finalise: Print and submit
 finalise_description:
   download_documents: Download all required documents
   review_problems: Review potential problems

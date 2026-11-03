@@ -24,6 +24,9 @@ hearing:
   description: "During this session, the central electoral committee determines which parties will appear on the ballot, and if necessary, the order of the parties will be decided by lot."
   open_to_public: You may attend the session.
   title: Public session
+intro:
+  description: You have entered your candidates and candidate lists. To finish, there are a few more steps to go through. These steps are set out on this page.
+  title: A few more steps
 print:
   download_description: Keep in mind that the latest changes in this system match the most recently downloaded zip.
   download_title: Download the files here and print them.
