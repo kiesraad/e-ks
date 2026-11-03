@@ -21,19 +21,14 @@ use crate::{
                 CsbPoliticalGroupToggleFinishPath,
             },
             structs::{
-                BrpBadge, BrpCheckState, CsbCandidateList, PaperCorrectionsOverview,
+                BrpBadge, BrpCheckState, CsbCandidateList, OmissionRow, PaperCorrectionsOverview,
                 RestorationStatus, ScrappedOverview, brp_incomplete_reason,
             },
         },
         import::{BrpSweepStatus, brp_sweep_running, brp_sweep_status, do_brp_verification},
     },
     filters, redirect_success,
-    structs::{
-        brp::BrpFinding,
-        csb::{CsbPhase, Omission},
-        persons::PersonId,
-        problems::AllProblems,
-    },
+    structs::{brp::BrpFinding, csb::CsbPhase, persons::PersonId, problems::AllProblems},
 };
 
 #[derive(Template)]
@@ -50,7 +45,7 @@ struct CsbPoliticalGroupTemplate {
     brp_badges: Vec<BrpBadge>,
     candidate_lists: Vec<CsbCandidateList>,
     political_group_status: RestorationStatus,
-    declarations_of_support_omissions: Vec<Omission>,
+    declarations_of_support_omissions: Vec<OmissionRow>,
     /// One pill per list, district or candidate added or removed on paper.
     paper_corrections: PaperCorrectionsOverview,
     /// What the unresolved omissions scrapped; only shown in the recovery
@@ -110,6 +105,10 @@ pub(in crate::csb) async fn render(
     let scrapped = data.get_scrapped_overview(&political_group);
     let paper_corrections = data.get_paper_corrections_overview(&political_group);
     let all_problems = data.get_all_problems(context.election)?;
+    let declarations_of_support_omissions = OmissionRow::unlinked(
+        data.get_all_declarations_of_support_omissions(context.election),
+        &political_group,
+    );
     Ok(HtmlTemplate(
         CsbPoliticalGroupTemplate {
             political_group,
@@ -119,8 +118,7 @@ pub(in crate::csb) async fn render(
             brp_incomplete,
             candidate_lists,
             political_group_status,
-            declarations_of_support_omissions: data
-                .get_all_declarations_of_support_omissions(context.election),
+            declarations_of_support_omissions,
             paper_corrections,
             scrapped,
             all_problems,
@@ -736,11 +734,15 @@ mod tests {
         assert!(body.contains("BRP"));
     }
 
+    /// The declarations of support are decided on the omissions page, so the
+    /// group page sums the omissions up instead of listing them, right under
+    /// the scrapped overview.
     #[tokio::test]
-    async fn recovery_mode_lists_the_districts_of_a_declarations_of_support_omission() {
+    async fn recovery_mode_sums_up_the_omissions_instead_of_listing_them() {
         use crate::ElectoralDistrict;
 
         let store = CsbStore::new_for_test();
+        let stream_id = store.stream_id;
         store.set_political_group(sample_political_group());
         Omission::new(
             OmissionCategory::DeclarationsOfSupport(vec![
@@ -769,8 +771,16 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
-        assert!(body.contains("Groningen"));
-        assert!(body.contains("Frysl"));
+        assert!(!body.contains("Declarations of support missing"), "{body}");
+        // One decision per district still to make.
+        assert!(body.contains("2 still to assess"), "{body}");
+        // Only the summary card links to the omissions page: the header
+        // button is gone.
+        let omissions_path = format!("/csb/recovery/{stream_id}/omissions");
+        assert_eq!(body.matches(omissions_path.as_str()).count(), 1, "{body}");
+        let scrapped = body.find("Scrapped</h2>").unwrap();
+        let summary = body.find("2 still to assess").unwrap();
+        assert!(scrapped < summary, "{body}");
     }
 
     /// A main store registering the sample group with `seats` at the previous

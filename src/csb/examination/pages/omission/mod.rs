@@ -1094,7 +1094,7 @@ mod tests {
         // The candidate's name and position are interpolated into the preset.
         assert!(body.contains("Kandidaat nr. 1, Jansen, H.A.H.A. (Henk)"));
         // The unresolved token is left for the committee to fill in manually.
-        assert!(body.contains("{appellation}"));
+        assert!(body.contains("{nadere aanduiding/predicaat}"));
         assert!(!body.contains("{candidate_name}"));
         // Both former "candidate" and "person" presets are shown.
         assert!(body.contains("Kopie ID ontbreekt"));

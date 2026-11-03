@@ -1,8 +1,8 @@
 use axum_extra::routing::TypedPath;
 
 use crate::{
-    AppError, CsbStoreData, ElectionConfig, QueryParamState,
-    csb::examination::extractors::CsbPoliticalGroup,
+    AppError, CsbStoreData, QueryParamState,
+    csb::examination::{extractors::CsbPoliticalGroup, structs::OmissionRow},
     projection::WithCorrections,
     structs::{
         candidate_lists::CandidateListId,
@@ -12,22 +12,17 @@ use crate::{
 };
 
 pub struct AllOmissions {
-    pub general: Vec<OmissionWithPath>,
-    pub declarations_of_support: Vec<OmissionWithPath>,
-    pub candidate_lists: Vec<OmissionWithPath>,
+    pub general: Vec<OmissionRow>,
+    pub declarations_of_support: Vec<OmissionRow>,
+    pub candidate_lists: Vec<OmissionRow>,
     pub candidates: Vec<CandidateOmissions>,
 }
 
 pub struct CandidateOmissions {
-    pub omissions: Vec<OmissionWithPath>,
+    pub omissions: Vec<OmissionRow>,
     pub person: Person,
     /// No longer on the corrected list; `person` is the imported data.
     pub removed: bool,
-}
-
-pub struct OmissionWithPath {
-    pub omission: Omission,
-    pub path: String,
 }
 
 impl CsbStoreData {
@@ -35,113 +30,102 @@ impl CsbStoreData {
         &self,
         political_group: &CsbPoliticalGroup,
     ) -> Result<AllOmissions, AppError> {
-        let omissions = self.get_omissions();
+        let election = political_group.election;
 
         let mut general = Vec::new();
         let mut declarations_of_support = Vec::new();
         let mut candidate_lists = Vec::new();
-        let mut candidates: Vec<CandidateOmissions> = Vec::new();
+        let mut candidates: Vec<(PersonId, Vec<Omission>)> = Vec::new();
 
-        for omission in omissions {
+        for omission in self.get_omissions() {
             match omission.category {
-                OmissionCategory::PoliticalGroup => general.push(OmissionWithPath {
-                    path: general_path(political_group),
-                    omission,
-                }),
-                OmissionCategory::Appellation => general.push(OmissionWithPath {
-                    path: appellation_path(political_group),
-                    omission,
-                }),
+                OmissionCategory::PoliticalGroup | OmissionCategory::Appellation => {
+                    general.push(omission)
+                }
                 OmissionCategory::CandidateList(ref lists) => {
-                    let list_id = lists.first().ok_or(AppError::InternalServerError)?;
-                    candidate_lists.push(OmissionWithPath {
-                        path: candidate_list_path(political_group, list_id),
-                        omission,
-                    })
+                    lists.first().ok_or(AppError::InternalServerError)?;
+                    candidate_lists.push(omission)
                 }
                 OmissionCategory::DeclarationsOfSupport(_) => {
-                    declarations_of_support.push(OmissionWithPath {
-                        path: declarations_of_support_path(political_group),
-                        omission,
-                    })
+                    declarations_of_support.push(omission)
                 }
-                OmissionCategory::Candidate { person, .. } => {
-                    self.push_candidate_omission(
-                        &mut candidates,
-                        political_group,
-                        person,
-                        omission,
-                    )?;
+                OmissionCategory::Candidate { person, ref lists } => {
+                    lists.first().ok_or(AppError::InternalServerError)?;
+                    match candidates.iter_mut().find(|(id, _)| *id == person) {
+                        Some((_, omissions)) => omissions.push(omission),
+                        None => candidates.push((person, vec![omission])),
+                    }
                 }
             }
         }
-        let mut all = AllOmissions {
-            general,
-            declarations_of_support,
-            candidate_lists,
+
+        // Title order, then district order, so the parts of a split stay together.
+        declarations_of_support.sort_by_cached_key(|omission| self.title_order(omission, election));
+        candidate_lists.sort_by_cached_key(|omission| self.title_order(omission, election));
+
+        let candidates = self.candidate_omissions(political_group, candidates)?;
+
+        Ok(AllOmissions {
+            general: OmissionRow::rows(general, political_group, |omission| {
+                match omission.category {
+                    OmissionCategory::Appellation => appellation_path(political_group),
+                    _ => general_path(political_group),
+                }
+            }),
+            declarations_of_support: OmissionRow::rows(
+                declarations_of_support,
+                political_group,
+                |_| declarations_of_support_path(political_group),
+            ),
+            candidate_lists: OmissionRow::rows(candidate_lists, political_group, |omission| {
+                omission
+                    .candidate_lists()
+                    .first()
+                    .map_or_else(String::new, |list| {
+                        candidate_list_path(political_group, list)
+                    })
+            }),
             candidates,
-        };
-        all.sort_by_title(self, political_group.election);
-        Ok(all)
+        })
     }
 
-    /// Add `omission` to its candidate's group, starting a new group when this
-    /// is the candidate's first one.
-    fn push_candidate_omission(
+    /// The rows of each candidate's omissions, in title order.
+    fn candidate_omissions(
         &self,
-        candidates: &mut Vec<CandidateOmissions>,
         political_group: &CsbPoliticalGroup,
-        person: PersonId,
-        omission: Omission,
-    ) -> Result<(), AppError> {
-        let list = omission
-            .candidate_lists()
-            .first()
-            .ok_or(AppError::InternalServerError)?;
-        let with_path = OmissionWithPath {
-            path: candidate_path(political_group, &person, list),
-            omission,
-        };
-
-        if let Some(candidate) = candidates.iter_mut().find(|c| c.person.id == person) {
-            candidate.omissions.push(with_path);
-        } else {
-            // a candidate deleted on paper keeps their omissions, shown from the imported data
-            let (person, removed) = match self.pg(WithCorrections::All).get_person(person).ok() {
-                Some(current) => (current.clone(), false),
-                None => (
-                    self.pg(WithCorrections::None)
-                        .get_person(person)
-                        .map_err(|_| AppError::InternalServerError)?
-                        .clone(),
-                    true,
-                ),
-            };
-            candidates.push(CandidateOmissions {
-                omissions: vec![with_path],
-                person,
-                removed,
-            });
-        }
-
-        Ok(())
-    }
-}
-
-impl AllOmissions {
-    /// Order the omissions by title, then district, so the parts of a split
-    /// stay together.
-    fn sort_by_title(&mut self, data: &CsbStoreData, election: ElectionConfig) {
-        self.declarations_of_support
-            .sort_by_cached_key(|view| data.title_order(&view.omission, election));
-        self.candidate_lists
-            .sort_by_cached_key(|view| data.title_order(&view.omission, election));
-
-        for candidate in &mut self.candidates {
-            candidate
-                .omissions
-                .sort_by_cached_key(|view| data.title_order(&view.omission, election));
-        }
+        candidates: Vec<(PersonId, Vec<Omission>)>,
+    ) -> Result<Vec<CandidateOmissions>, AppError> {
+        let election = political_group.election;
+        candidates
+            .into_iter()
+            .map(|(person_id, mut omissions)| {
+                omissions.sort_by_cached_key(|omission| self.title_order(omission, election));
+                // a candidate deleted on paper keeps their omissions, shown from the imported data
+                let (person, removed) =
+                    match self.pg(WithCorrections::All).get_person(person_id).ok() {
+                        Some(current) => (current.clone(), false),
+                        None => (
+                            self.pg(WithCorrections::None)
+                                .get_person(person_id)
+                                .map_err(|_| AppError::InternalServerError)?
+                                .clone(),
+                            true,
+                        ),
+                    };
+                Ok(CandidateOmissions {
+                    omissions: OmissionRow::rows(omissions, political_group, |omission| {
+                        omission
+                            .candidate_lists()
+                            .first()
+                            .map_or_else(String::new, |list| {
+                                candidate_path(political_group, &person_id, list)
+                            })
+                    }),
+                    person,
+                    removed,
+                })
+            })
+            .collect::<Result<Vec<_>, AppError>>()
     }
 }
 
@@ -185,6 +169,8 @@ fn candidate_list_path(political_group: &CsbPoliticalGroup, list_id: &CandidateL
     }
 }
 
+/// The declarations of support are decided on the recovery omissions page
+/// itself, so there the title links nowhere.
 fn declarations_of_support_path(political_group: &CsbPoliticalGroup) -> String {
     match political_group.mode {
         CsbPhase::Examination => political_group
@@ -193,7 +179,7 @@ fn declarations_of_support_path(political_group: &CsbPoliticalGroup) -> String {
                 political_group.all_restorations_path(),
             ))
             .to_string(),
-        CsbPhase::Recovery => political_group.group_path(),
+        CsbPhase::Recovery => String::new(),
     }
 }
 

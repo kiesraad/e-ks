@@ -294,6 +294,7 @@ recovery:
   nothing_scrapped: Er is niets geschrapt.
   omissions_explanation: Leg per verzuim vast of het is hersteld.
   omissions_title: Verzuimen herstellen
+  pending_count: "Nog {} te beoordelen"
   recovered: Hersteld
   scrapped: Geschrapt
   title: Verzuimperiode

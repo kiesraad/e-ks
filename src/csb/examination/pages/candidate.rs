@@ -17,7 +17,7 @@ use crate::{
                 CsbCandidateBrpCheckPath, CsbCandidateBrpFindingHandledPath, CsbCandidatePath,
             },
             structs::{
-                BrpCheckState, BrpFindingTag, CandidateBrpFindings, PaperCorrected,
+                BrpCheckState, BrpFindingTag, CandidateBrpFindings, OmissionRow, PaperCorrected,
                 PaperCorrectedPersonDetails, brp_incomplete_reason,
             },
         },
@@ -30,7 +30,7 @@ use crate::{
         brp::BrpFinding,
         candidate_lists::CandidateListId,
         common::PotentialProblems,
-        csb::{CsbPhase, Omission},
+        csb::CsbPhase,
         persons::{Person, PersonId},
     },
     trans,
@@ -45,7 +45,7 @@ struct CsbCandidateTemplate {
     candidate: Person,
     details: PaperCorrectedPersonDetails,
     position: PaperCorrected,
-    candidate_omissions: Vec<Omission>,
+    candidate_omissions: Vec<OmissionRow>,
     brp: CandidateBrp,
     is_scrapped: bool,
     recovery_position: Option<usize>,
@@ -186,7 +186,7 @@ pub(in crate::csb) async fn render(
         .electoral_districts
         .clone();
     let candidate_omissions =
-        data.get_candidate_omissions(person_id, Some(list_id), context.election);
+        OmissionRow::for_candidate_on_list(&data, &political_group, person_id, list_id);
     let brp =
         CandidateBrp::for_candidate(&data, store.stream_id, person_id, context.session.locale);
     let scrapped = &political_group.scrapped;
@@ -304,7 +304,7 @@ mod tests {
         csb::import::claim_sweep_for_test,
         structs::{
             brp::{BrpFindingKind, BrpStatus},
-            csb::OmissionCategory,
+            csb::{Omission, OmissionCategory},
             persons::PersonId,
         },
         test_utils::{contains_word, response_body_string, sample_candidate_list, sample_person},

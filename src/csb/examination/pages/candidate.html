@@ -152,7 +152,8 @@
         </div>
       </div>
     {% else %}
-      {{ restorations::status_panel(political_group, "csb.omission.title_for.candidate"|trans(&candidate.name.display() ) , "csb.recovery.omissions_explanation"|trans, candidate_omissions.as_slice() , political_group.candidate_path(list_id, candidate.id)) }}
+      {% call restorations::status_panel(political_group, "csb.omission.title_for.candidate"|trans(&candidate.name.display() ) , "csb.recovery.omissions_explanation"|trans, candidate_omissions.as_slice() , political_group.candidate_path(list_id, candidate.id)) %}
+      {% endcall %}
     {% endif %}
     <div class="examination-panel-header">
       <div>

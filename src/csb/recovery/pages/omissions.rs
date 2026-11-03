@@ -173,6 +173,100 @@ mod tests {
         );
     }
 
+    /// A decision on one district splits the omission in the store; the page
+    /// keeps the parts in one row, each district with its own decision.
+    #[tokio::test]
+    async fn a_split_omission_stays_in_one_row() {
+        use crate::{ElectoralDistrict, structs::csb::OmissionPart};
+
+        let store = CsbStore::new_for_test();
+        let stream_id = store.stream_id;
+        let omission = Omission::new(
+            OmissionCategory::DeclarationsOfSupport(vec![
+                ElectoralDistrict::Groningen,
+                ElectoralDistrict::Fryslan,
+            ]),
+            "Declarations of support missing".parse().unwrap(),
+            "Too few declarations of support were handed in."
+                .parse()
+                .unwrap(),
+            None,
+        );
+        omission.create(&store).await.unwrap();
+        omission
+            .set_part_status(
+                &store,
+                OmissionPart::ElectoralDistrict(ElectoralDistrict::Fryslan),
+                OmissionStatus::Recovered,
+            )
+            .await
+            .unwrap();
+        let ids: Vec<_> = store
+            .snapshot()
+            .get_omissions()
+            .into_iter()
+            .map(|omission| omission.id)
+            .collect();
+        assert_eq!(ids.len(), 2, "the decision split the omission");
+
+        let response = omissions(
+            CsbRecoveryOmissionsPath { stream_id },
+            CsbContext::new_test(),
+            store,
+        )
+        .await
+        .unwrap()
+        .into_response();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response_body_string(response).await;
+        assert_eq!(
+            body.matches("<li class=\"omission-status-row").count(),
+            1,
+            "{body}"
+        );
+        assert_eq!(body.matches(r#"name="electoral_district""#).count(), 2);
+        // In election order, each district posting to the omission that holds
+        // its decision; only the recovered one is selected.
+        assert!(body.find("1. Groningen").unwrap() < body.find("2. Frysl").unwrap());
+        for id in ids {
+            assert!(body.contains(&format!("/omission/{id}/status")), "{body}");
+        }
+        assert_eq!(body.matches("selected").count(), 1);
+        assert!(body.contains("1 of 2 assessed"));
+    }
+
+    /// Irreparable omissions are never split, so two look-alikes added for
+    /// different districts are two rows, each naming its own district.
+    #[tokio::test]
+    async fn irreparable_look_alikes_keep_their_own_rows() {
+        use crate::ElectoralDistrict;
+
+        let store = CsbStore::new_for_test();
+        let stream_id = store.stream_id;
+        for district in [ElectoralDistrict::Groningen, ElectoralDistrict::Utrecht] {
+            let mut omission =
+                sample_omission(OmissionCategory::DeclarationsOfSupport(vec![district]));
+            omission.recoverable = false;
+            omission.create(&store).await.unwrap();
+        }
+
+        let response = omissions(
+            CsbRecoveryOmissionsPath { stream_id },
+            CsbContext::new_test(),
+            store,
+        )
+        .await
+        .unwrap()
+        .into_response();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response_body_string(response).await;
+        assert_eq!(body.matches("<li class=\"omission-status-row").count(), 2);
+        assert!(body.contains("Groningen"), "{body}");
+        assert!(body.contains("Utrecht"), "{body}");
+    }
+
     #[tokio::test]
     async fn candidate_list_omissions_name_their_list() {
         use crate::{

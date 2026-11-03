@@ -5,14 +5,16 @@ use std::collections::BTreeSet;
 use crate::{
     AnyLocale, AppError, Context, CsbContext, CsbStore, ElectoralDistrict, HtmlTemplate,
     csb::examination::{
-        extractors::CsbPoliticalGroup, pages::CsbCandidateListPath, structs::CsbCandidate,
+        extractors::CsbPoliticalGroup,
+        pages::CsbCandidateListPath,
+        structs::{CsbCandidate, OmissionRow},
     },
     filters,
     projection::WithCorrections,
     structs::{
         candidate_lists::{CandidateList, CandidateListId},
         common::PotentialProblems,
-        csb::{CsbPhase, Omission},
+        csb::CsbPhase,
         problems::PersonProblems,
     },
 };
@@ -24,10 +26,13 @@ struct CsbCandidateListTemplate {
     list_id: CandidateListId,
     electoral_districts: BTreeSet<ElectoralDistrict>,
     candidates: Vec<CsbCandidate>,
-    omissions: Vec<Omission>,
+    omissions: Vec<OmissionRow>,
     is_scrapped: bool,
     scrapped_districts: Vec<ElectoralDistrict>,
     all_districts_scrapped: bool,
+    /// The declarations-of-support omissions touching this list's districts,
+    /// decided on the omissions page; only shown in the recovery phase.
+    declarations_of_support_omissions: Vec<OmissionRow>,
     list_problems: Vec<PotentialProblems>,
     candidate_problems: Vec<PersonProblems>,
 }
@@ -75,38 +80,40 @@ pub(in crate::csb) async fn render(
         AnyLocale::from(context.session.locale),
     );
 
-    let omissions = data.get_candidate_list_omissions(list_id, context.election)?;
-
     // The corrected electoral districts take precedence over the imported ones.
     let electoral_districts = corrected_list
         .map(|corrected| corrected.electoral_districts.clone())
         .unwrap_or(imported_list.electoral_districts);
 
-    let scrapped = &political_group.scrapped;
-    let is_scrapped = scrapped.is_list_scrapped(list_id);
-    let scrapped_districts = scrapped.list_districts(list_id).to_vec();
-    let all_districts_scrapped = scrapped.all_list_districts_scrapped(list_id);
+    let declarations_of_support_omissions = OmissionRow::declarations_of_support_for_districts(
+        &data,
+        &political_group,
+        &electoral_districts,
+    );
 
     let all_problems = data.get_all_problems(context.election)?;
-    let list_problems = all_problems
-        .get_problems_for_list(list_id)
-        .into_iter()
-        .cloned()
-        .collect();
-    let candidate_problems = all_problems.candidates;
-
     Ok(HtmlTemplate(
         CsbCandidateListTemplate {
-            political_group,
             list_id,
             electoral_districts,
             candidates,
-            omissions,
-            is_scrapped,
-            scrapped_districts,
-            all_districts_scrapped,
-            list_problems,
-            candidate_problems,
+            omissions: OmissionRow::unlinked(
+                data.get_candidate_list_omissions(list_id, context.election)?,
+                &political_group,
+            ),
+            is_scrapped: political_group.scrapped.is_list_scrapped(list_id),
+            scrapped_districts: political_group.scrapped.list_districts(list_id).to_vec(),
+            all_districts_scrapped: political_group
+                .scrapped
+                .all_list_districts_scrapped(list_id),
+            declarations_of_support_omissions,
+            list_problems: all_problems
+                .get_problems_for_list(list_id)
+                .into_iter()
+                .cloned()
+                .collect(),
+            candidate_problems: all_problems.candidates,
+            political_group,
         },
         context,
     )
@@ -120,7 +127,11 @@ mod tests {
     use axum::http::StatusCode;
 
     use crate::{
-        structs::{common::UtcDateTime, csb::OmissionCategory, persons::PersonId},
+        structs::{
+            common::UtcDateTime,
+            csb::{Omission, OmissionCategory},
+            persons::PersonId,
+        },
         test_utils::{contains_word, response_body_string, sample_candidate_list, sample_person},
     };
 
