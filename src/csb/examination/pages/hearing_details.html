@@ -2,7 +2,7 @@
 {% import "pg/common/components/macros.html" as macros %}
 {% macro member_input(index, value) %}
   <p class="form-field form-field-lg">
-    <label for="signer_{{ index }}">{{ "csb.hearing.member_name"|trans }}</label>
+    <label for="signer_{{ index }}">{{ "csb.hearing.member_name"|trans(&(index + 1).to_string()) }}</label>
     <input type="text"
            name="signers"
            id="signer_{{ index }}"

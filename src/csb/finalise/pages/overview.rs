@@ -11,7 +11,7 @@ use crate::{
         },
     },
     filters,
-    structs::csb::Objection,
+    structs::csb::{HearingModel, Objection},
 };
 
 #[derive(Template)]
@@ -22,6 +22,8 @@ struct CsbFinaliseTemplate {
     /// election has nothing to show there.
     has_multiple_districts: bool,
     objections: Vec<Objection>,
+    /// The I 4 can only be downloaded once its hearing details are recorded.
+    has_hearing_details: bool,
 }
 
 /// The finalise page: the I 4 downloads, the sortable list order, and the
@@ -45,6 +47,7 @@ pub async fn overview(
             numbering,
             has_multiple_districts,
             objections,
+            has_hearing_details: main_store.get_hearing_details(HearingModel::I4).is_some(),
         },
         context,
     )
@@ -59,7 +62,7 @@ mod tests {
     use crate::{
         CsbMainAction, CsbUser,
         csb::examination::extractors::CsbPoliticalGroup,
-        structs::csb::sample_registered_political_group,
+        structs::csb::{HearingDetails, sample_registered_political_group},
         test_utils::{contains_word, response_body_string},
     };
 
@@ -87,6 +90,26 @@ mod tests {
         assert!(body.contains(r#"href="/csb/examination/hearing-details/i4""#));
     }
 
+    /// The I 4 downloads are disabled until the hearing details are recorded.
+    #[tokio::test]
+    async fn overview_links_the_i4_downloads_only_with_hearing_details() {
+        let body = render(CsbMainStore::new_for_test(), vec![]).await;
+        assert!(!body.contains(r#"href="/csb/finalise/Model_I4_Proces_Verbaal_Concept.pdf""#));
+        assert_eq!(body.matches(r#"aria-disabled="true""#).count(), 3);
+
+        let main_store = CsbMainStore::new_for_test();
+        main_store
+            .update(
+                CsbMainAction::UpdateHearingDetails(HearingModel::I4, HearingDetails::default())
+                    .by(CsbUser::new_test()),
+            )
+            .await
+            .unwrap();
+        let body = render(main_store, vec![]).await;
+        assert!(body.contains(r#"href="/csb/finalise/Model_I4_Proces_Verbaal_Concept.pdf""#));
+        assert!(!body.contains("aria-disabled"));
+    }
+
     #[tokio::test]
     async fn overview_renders_without_lists_to_number() {
         let body = render(CsbMainStore::new_for_test(), vec![]).await;
@@ -103,7 +126,7 @@ mod tests {
         let main_store = CsbMainStore::new_for_test();
         for group in [
             sample_registered_political_group("Gezeteld", 1000, 2),
-            sample_registered_political_group("Zetelloos", 4242, 0),
+            sample_registered_political_group("Zetelloos", 42424, 0),
         ] {
             main_store
                 .update(
@@ -129,7 +152,7 @@ mod tests {
         assert!(body.contains(r#"data-sortable-update-key="stream_ids""#));
         assert!(body.contains(&format!(r#"data-id="{stream_id}""#)));
         assert!(contains_word(&body, "1000"));
-        assert!(!contains_word(&body, "4242"));
+        assert!(!contains_word(&body, "42424"));
         assert!(body.contains("Seats at the previous election"));
         let position = |name: &str| body.find(name).expect("group in table");
         assert!(position("Gezeteld") < position("Nieuwkomer"));

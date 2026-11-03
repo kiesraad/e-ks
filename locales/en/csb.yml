@@ -77,6 +77,7 @@ candidate:
   personal_details: Personal details
 correction:
   brp_value: Value in the BRP
+  column_title: Correction
   form:
     submit: Save correction
     value_label: Corrected value
@@ -161,7 +162,7 @@ hearing:
   chair_name: Chair name
   date: Date of hearing
   location: This concerns the hearing of the central electoral committee in
-  member_name: Member name
+  member_name: "Member name {}"
   place_and_time: Location and time
   signing: Signing
   time: Time of hearing
