@@ -251,6 +251,7 @@
 }
 
 .omission-icon,
+.omission-icon-irrecoverable,
 .correction-icon {
   background-position: center;
   background-repeat: no-repeat;
@@ -262,6 +263,11 @@
 
 .omission-icon {
   background-color: var(--orange-200);
+  background-image: url("../icons/omission.svg");
+}
+
+.omission-icon-irrecoverable {
+  background-color: var(--red-200);
   background-image: url("../icons/omission.svg");
 }
 

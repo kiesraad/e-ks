@@ -1802,7 +1802,7 @@ mod tests {
         assert!(!sections[1].covers_all_districts);
         assert_eq!(
             sections[1].heading(),
-            "Een deel van de kieskringen: kieskring 13 (Bonaire)"
+            "De volgende kieskringen: kieskring 13 (Bonaire)"
         );
         assert_eq!(
             sections[1].omissions[0].description,
@@ -1916,7 +1916,7 @@ mod tests {
         let section = &sections[0];
         assert_eq!(
             section.heading(),
-            "Een deel van de kieskringen: kieskring 1 (Groningen), 13 (Bonaire)"
+            "De volgende kieskringen: kieskring 1 (Groningen), 13 (Bonaire)"
         );
         // The plain bullets: group first, declarations of support last.
         assert_eq!(

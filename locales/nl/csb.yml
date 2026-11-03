@@ -259,7 +259,11 @@ omission_letter:
   download_note: Download de verzuimbrief voor deze politieke groepering als Word- of PDF-bestand.
   explanation: In de verzuimbrief staan alle verzuimen die bij deze politieke groepering zijn vastgesteld.
   omissions_explanation: "Alle vastgestelde verzuimen van deze politieke groepering, zoals ze in de verzuimbrief staan."
-  omissions_title: Verzuimen in de brief
+  omissions_explanation_no_letter: "Alle verzuimen die niet in de verzuimbrief staan, omdat ze onherstelbaar zijn."
+  omissions_letter_title: Verzuimen in de brief (herstelbaar)
+  omissions_no_letter_title: Verzuimen niet in de brief (onherstelbaar)
+  recoverable: herstelbaar
+  irrecoverable: onherstelbaar
   title: Verzuimbrief
 paper_corrections:
   added: Papieren correctie toegevoegd

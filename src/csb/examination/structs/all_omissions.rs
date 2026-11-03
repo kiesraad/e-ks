@@ -18,6 +18,7 @@ pub struct AllOmissions {
     pub candidates: Vec<CandidateOmissions>,
 }
 
+#[derive(Clone)]
 pub struct CandidateOmissions {
     pub omissions: Vec<OmissionWithPath>,
     pub person: Person,
@@ -25,9 +26,16 @@ pub struct CandidateOmissions {
     pub removed: bool,
 }
 
+#[derive(Clone)]
 pub struct OmissionWithPath {
     pub omission: Omission,
     pub path: String,
+}
+
+impl OmissionWithPath {
+    pub fn split_on_recoverability(omissions: Vec<Self>) -> (Vec<Self>, Vec<Self>) {
+        omissions.into_iter().partition(|o| o.omission.recoverable)
+    }
 }
 
 impl CsbStoreData {
@@ -142,6 +150,54 @@ impl AllOmissions {
                 .omissions
                 .sort_by_cached_key(|view| data.title_order(&view.omission, election));
         }
+    }
+
+    /// split [AllOmissions] into two separate [AllOmissions]'s. One containing all the recoverable
+    /// omissions, the other containing all the irrecoverable omissions
+    pub fn split_on_recoverability(&self) -> (Self, Self) {
+        let (g_recoverable, g_irrecoverable) =
+            OmissionWithPath::split_on_recoverability(self.general.clone());
+        let (d_recoverable, d_irrecoverable) =
+            OmissionWithPath::split_on_recoverability(self.declarations_of_support.clone());
+        let (cl_recoverable, cl_irrecoverable) =
+            OmissionWithPath::split_on_recoverability(self.candidate_lists.clone());
+        let mut c_recoverable = Vec::new();
+        let mut c_irrecoverable = Vec::new();
+        for c in self.candidates.clone() {
+            let (o_recoverable, o_irrecoverable) =
+                OmissionWithPath::split_on_recoverability(c.omissions.clone());
+            if !o_recoverable.is_empty() {
+                let mut c = c.clone();
+                c.omissions = o_recoverable;
+                c_recoverable.push(c);
+            }
+            if !o_irrecoverable.is_empty() {
+                let mut c = c.clone();
+                c.omissions = o_irrecoverable;
+                c_irrecoverable.push(c);
+            }
+        }
+        (
+            AllOmissions {
+                general: g_recoverable,
+                declarations_of_support: d_recoverable,
+                candidate_lists: cl_recoverable,
+                candidates: c_recoverable,
+            },
+            AllOmissions {
+                general: g_irrecoverable,
+                declarations_of_support: d_irrecoverable,
+                candidate_lists: cl_irrecoverable,
+                candidates: c_irrecoverable,
+            },
+        )
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.general.is_empty()
+            && self.declarations_of_support.is_empty()
+            && self.candidate_lists.is_empty()
+            && self.candidates.is_empty()
     }
 }
 
@@ -425,4 +481,6 @@ mod tests {
         assert_eq!(all_omissions.candidates.len(), 1);
         assert_eq!(all_omissions.candidates[0].omissions.len(), omission_count)
     }
+
+    // TODO test for splitting.
 }

@@ -1,5 +1,47 @@
 {% extends "csb/components/layout.html" %}
 {% import "csb/components/restorations.html" as restorations %}
+{% macro display_omissions(all_omissions) %}
+  {% if all_omissions.is_empty() %}
+    <p class="font-italic">{{ "csb.omission.overview.no_omissions"|trans }}</p>
+  {% else %}
+    {% if !all_omissions.general.is_empty() %}
+      <h3 class="examination-panel-group">{{ "common.general_information"|trans }}</h3>
+      <ul class="omission-status-list">
+        {% for view in all_omissions.general %}{{ restorations::omission_row(political_group, view.omission) }}{% endfor %}
+      </ul>
+    {% endif %}
+    {% if !all_omissions.declarations_of_support.is_empty() %}
+      <h3 class="examination-panel-group">{{ "csb.declarations_of_support.title"|trans }}</h3>
+      <ul class="omission-status-list">
+        {% for view in all_omissions.declarations_of_support %}
+          {{ restorations::omission_row(political_group, view.omission) }}
+        {% endfor %}
+      </ul>
+    {% endif %}
+    {% if !all_omissions.candidate_lists.is_empty() %}
+      <h3 class="examination-panel-group">{{ "candidate_list.title_plural"|trans }}</h3>
+      <ul class="omission-status-list">
+        {% for view in all_omissions.candidate_lists %}
+          {{ restorations::omission_row(political_group, view.omission) }}
+        {% endfor %}
+      </ul>
+    {% endif %}
+    {% for candidate in all_omissions.candidates %}
+      <h3 class="examination-panel-group">
+        {% if candidate.removed %}
+          {{ "csb.omission.removed_candidate"|trans(&candidate.person.name.display() ) }}
+        {% else %}
+          {{ candidate.person.name.display() }}
+        {% endif %}
+      </h3>
+      <ul class="omission-status-list">
+        {% for view in candidate.omissions %}
+          {{ restorations::omission_row(political_group, view.omission) }}
+        {% endfor %}
+      </ul>
+    {% endfor %}
+  {% endif %}
+{% endmacro display_omissions %}
 {% block breadcrumbs %}
   {{ breadcrumb(crate::csb::examination::CsbExaminationOverviewPath, "csb.examination") }}
   {{ breadcrumb(CsbFinishExaminationPath, "csb.finish_examination.title") }}
@@ -33,51 +75,24 @@
         <div>
           <h2 class="h3">
             <span class="omission-icon" aria-hidden="true"></span>
-            {{ "csb.omission_letter.omissions_title"|trans }}
+            {{ "csb.omission_letter.omissions_letter_title"|trans }}
           </h2>
           <p>{{ "csb.omission_letter.omissions_explanation"|trans }}</p>
         </div>
       </div>
-      {% if omission_count == 0 %}
-        <p class="font-italic">{{ "csb.omission.overview.no_omissions"|trans }}</p>
-      {% else %}
-        {% if !all_omissions.general.is_empty() %}
-          <h3 class="examination-panel-group">{{ "common.general_information"|trans }}</h3>
-          <ul class="omission-status-list">
-            {% for view in all_omissions.general %}{{ restorations::omission_row(political_group, view.omission) }}{% endfor %}
-          </ul>
-        {% endif %}
-        {% if !all_omissions.declarations_of_support.is_empty() %}
-          <h3 class="examination-panel-group">{{ "csb.declarations_of_support.title"|trans }}</h3>
-          <ul class="omission-status-list">
-            {% for view in all_omissions.declarations_of_support %}
-              {{ restorations::omission_row(political_group, view.omission) }}
-            {% endfor %}
-          </ul>
-        {% endif %}
-        {% if !all_omissions.candidate_lists.is_empty() %}
-          <h3 class="examination-panel-group">{{ "candidate_list.title_plural"|trans }}</h3>
-          <ul class="omission-status-list">
-            {% for view in all_omissions.candidate_lists %}
-              {{ restorations::omission_row(political_group, view.omission) }}
-            {% endfor %}
-          </ul>
-        {% endif %}
-        {% for candidate in all_omissions.candidates %}
-          <h3 class="examination-panel-group">
-            {% if candidate.removed %}
-              {{ "csb.omission.removed_candidate"|trans(&candidate.person.name.display() ) }}
-            {% else %}
-              {{ candidate.person.name.display() }}
-            {% endif %}
-          </h3>
-          <ul class="omission-status-list">
-            {% for view in candidate.omissions %}
-              {{ restorations::omission_row(political_group, view.omission) }}
-            {% endfor %}
-          </ul>
-        {% endfor %}
-      {% endif %}
+      {{ display_omissions(recoverable_omissions) }}
+    </div>
+    <div class="examination-panel">
+      <div class="examination-panel-header">
+        <div>
+          <h2 class="h3">
+            <span class="omission-icon-irrecoverable" aria-hidden="true"></span>
+            {{ "csb.omission_letter.omissions_no_letter_title"|trans }}
+          </h2>
+          <p>{{ "csb.omission_letter.omissions_explanation_no_letter"|trans }}</p>
+        </div>
+      </div>
+      {{ display_omissions(irrecoverable_omissions) }}
     </div>
   </div>
 {% endblock %}
