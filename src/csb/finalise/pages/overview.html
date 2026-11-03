@@ -67,7 +67,7 @@
                   <strong>{{ group.appellation }}</strong>
                 </td>
                 <td class="font-number statistic">
-                  {% if let Some(votes) = group.previous_votes %}
+                  {% if let Some(votes) = group.previous_votes && group.numbered_on_votes %}
                     {{ votes }}
                   {% endif %}
                 </td>

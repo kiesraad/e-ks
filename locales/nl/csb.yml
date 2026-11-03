@@ -188,7 +188,7 @@ index:
   go_to_examination: Ga naar onderzoek
   go_to_finalise: Ga naar vaststellen kandidatenlijsten
   go_to_pre_submission: Ga naar voorinlevering
-  go_to_recovery: Ga naar herstelde lijsten
+  go_to_recovery: Ga naar verzuimperiode
   go_to_registered_political_groups: Ga naar registratie
   phase: "Fase {}"
   phase_0:
@@ -198,7 +198,7 @@ index:
   phase_2:
     title: Onderzoek
   phase_3:
-    title: Herstelde lijsten
+    title: Verzuimperiode
   phase_4:
     title: Vaststellen kandidatenlijsten
   runs_through: Loopt t/m
@@ -296,7 +296,7 @@ recovery:
   omissions_title: Verzuimen herstellen
   recovered: Hersteld
   scrapped: Geschrapt
-  title: Herstelde lijsten
+  title: Verzuimperiode
 registered_political_groups:
   edit: Politieke groepering bewerken
   none: Er zijn nog geen politieke groeperingen geregistreerd.
