@@ -263,8 +263,6 @@ omission_letter:
   omissions_explanation_no_letter: "Alle verzuimen die niet in de verzuimbrief staan, omdat ze onherstelbaar zijn."
   omissions_letter_title: Verzuimen in de brief (herstelbaar)
   omissions_no_letter_title: Verzuimen niet in de brief (onherstelbaar)
-  recoverable: herstelbaar
-  irrecoverable: onherstelbaar
   title: Verzuimbrief
 paper_corrections:
   added: Papieren correctie toegevoegd
