@@ -161,6 +161,34 @@ mod tests {
         assert!(body.contains("Te veel verzoeken"), "{body}");
     }
 
+    /// A rejected `Query` on a session-only route is rendered as a 400 page
+    /// with the session locale, without a store.
+    #[tokio::test]
+    async fn session_error_page_renders_query_rejection() {
+        #[derive(serde::Deserialize)]
+        struct Params {
+            #[allow(dead_code)]
+            n: u32,
+        }
+        let app = Router::new()
+            .route("/", get(|crate::Query(_): crate::Query<Params>| async {}))
+            .layer(middleware::from_fn(render_session_error_pages));
+
+        let mut request = Request::builder()
+            .uri("/?n=abc")
+            .body(Body::empty())
+            .unwrap();
+        request
+            .extensions_mut()
+            .insert(crate::Session::new_test_with_locale(Locale::Nl));
+        let response = app.oneshot(request).await.expect("response");
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = test_utils::response_body_string(response).await;
+        assert!(body.contains("Ongeldig verzoek"), "{body}");
+        assert!(body.contains("Naar het startscherm"), "{body}");
+    }
+
     #[cfg(feature = "database")]
     #[tokio::test]
     async fn database_error_maps_to_internal_server_error() {

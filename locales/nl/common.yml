@@ -60,6 +60,8 @@ request_error:
   conflict_title: Gegevens gewijzigd
   csrf_message: "Het verzonden formulier kon niet worden gecontroleerd omdat het ongeldig of verlopen was. Ga terug, ververs de pagina en probeer het opnieuw."
   csrf_title: Formulier verlopen
+  invalid_message: Het verzoek bevatte ongeldige gegevens en kon niet worden verwerkt. Ga terug en probeer het opnieuw.
+  invalid_title: Ongeldig verzoek
   too_large_message: Het verzonden bestand is groter dan toegestaan.
   too_large_title: Upload te groot
   unreadable_message: Het verzoek is niet volledig ontvangen. Probeer het opnieuw.

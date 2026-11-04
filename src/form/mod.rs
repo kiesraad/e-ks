@@ -17,13 +17,7 @@ pub use string_validators::{
 pub use switch_election::SwitchElectionForm;
 pub use validation_error::ValidationError;
 
-use axum::{
-    Json as AxumJson,
-    extract::{FromRequest, FromRequestParts, Query as AxumQuery, Request},
-    http::request::Parts,
-};
-use axum_extra::extract::Form as AxumForm;
-use serde::de::DeserializeOwned;
+use axum::extract::{FromRequest, FromRequestParts};
 
 use crate::AppError;
 
@@ -31,58 +25,19 @@ pub type FieldErrors = Vec<(String, ValidationError)>;
 
 /// Wrapper around `axum_extra::extract::Form` that maps rejections to
 /// [`AppError`]. Validation happens separately via the `Validate` derive.
-#[derive(Debug)]
+#[derive(Debug, FromRequest)]
+#[from_request(via(axum_extra::extract::Form), rejection(AppError))]
 pub struct Form<T>(pub T);
 
-impl<T, S> FromRequest<S> for Form<T>
-where
-    S: Sync + Send,
-    T: DeserializeOwned,
-{
-    type Rejection = AppError;
-
-    async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
-        let AxumForm(form) = AxumForm::<T>::from_request(req, state).await?;
-
-        Ok(Form(form))
-    }
-}
-
 /// `axum::extract::Query` with its rejection mapped to [`AppError`].
-#[derive(Debug, Default)]
+#[derive(Debug, Default, FromRequestParts)]
+#[from_request(via(axum::extract::Query), rejection(AppError))]
 pub struct Query<T>(pub T);
 
-impl<T, S> FromRequestParts<S> for Query<T>
-where
-    S: Sync + Send,
-    T: DeserializeOwned,
-{
-    type Rejection = AppError;
-
-    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        let AxumQuery(query) = AxumQuery::<T>::from_request_parts(parts, state).await?;
-
-        Ok(Query(query))
-    }
-}
-
 /// `axum::Json` (as extractor) with its rejection mapped to [`AppError`].
-#[derive(Debug)]
+#[derive(Debug, FromRequest)]
+#[from_request(via(axum::Json), rejection(AppError))]
 pub struct Json<T>(pub T);
-
-impl<T, S> FromRequest<S> for Json<T>
-where
-    S: Sync + Send,
-    T: DeserializeOwned,
-{
-    type Rejection = AppError;
-
-    async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
-        let AxumJson(json) = AxumJson::<T>::from_request(req, state).await?;
-
-        Ok(Json(json))
-    }
-}
 
 pub trait IntoValidationError {
     fn into_validation_error(self) -> ValidationError;

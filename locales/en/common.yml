@@ -60,6 +60,8 @@ request_error:
   conflict_title: Data changed
   csrf_message: "The submitted form could not be verified because it was invalid or had expired. Go back, refresh the page, and try again."
   csrf_title: Form expired
+  invalid_message: The request contained invalid data and could not be processed. Go back and try again.
+  invalid_title: Invalid request
   too_large_message: The submitted file is larger than allowed.
   too_large_title: Upload too large
   unreadable_message: The request was not received completely. Please try again.
