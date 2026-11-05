@@ -1,5 +1,9 @@
 .finalise {
-  --dash: var(--gray-200) 0 0.5rem, transparent 0.5rem 1rem;
+  --dash: linear-gradient(
+    transparent 25%,
+    var(--gray-200) 25% 75%,
+    transparent 75%
+  );
   counter-reset: step;
   display: flex;
   flex-direction: column;
@@ -51,10 +55,6 @@
     --step-illustration: url("../icons/illustration-collection.svg");
   }
 
-  &.illustration-correction {
-    --step-illustration: url("../icons/illustration-correction.svg");
-  }
-
   &.illustration-delivery {
     --step-illustration: url("../icons/illustration-delivery.svg");
   }
@@ -96,6 +96,10 @@
 }
 
 /* continue the line of the previous step up to the panel */
+.step:has(+ .step) .step-content::before {
+  height: calc(100% + var(--space-8));
+}
+
 .step:has(+ .step.csb) .step-content::before {
   height: calc(100% + var(--space-16));
 }
@@ -161,7 +165,9 @@
   /* steps outside this application */
   .follow-up ~ .step &::before {
     background-color: transparent;
-    background-image: repeating-linear-gradient(to bottom, var(--dash));
+    background-image: var(--dash);
+    background-repeat: no-repeat space;
+    background-size: 100% 1rem;
   }
 
   p,
@@ -175,6 +181,26 @@
 
   p + h5 {
     margin-top: var(--space-lg);
+  }
+}
+
+/* title marked with a down arrow on the step line */
+.follow-up-main h3,
+.omission > .step-main > h3 {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  position: relative;
+
+  &::before {
+    background-image: url("../icons/arrow-down-circle.svg");
+    background-size: contain;
+    content: "";
+    height: var(--space-6);
+    left: calc(var(--space-8) * -1);
+    position: absolute;
+    top: 50%;
+    translate: -50% -50%;
+    width: var(--space-6);
   }
 }
 
@@ -195,30 +221,16 @@
     position: relative;
   }
 
-  h3 {
-    font-size: var(--font-size-xl);
-    font-weight: var(--font-weight-bold);
-
-    &::before {
-      background-image: url("../icons/arrow-down-circle.svg");
-      background-size: contain;
-      content: "";
-      height: var(--space-6);
-      left: calc(var(--space-8) * -1);
-      position: absolute;
-      top: 50%;
-      translate: -50% -50%;
-      width: var(--space-6);
-    }
-  }
-
   p {
     margin-top: var(--space-6);
   }
 
-  /* same offset and width as the solid line of the steps */
+  /* same offset, width and dashes as the line of the steps */
   h3::after,
   p::before {
+    background-image: var(--dash);
+    background-repeat: no-repeat space;
+    background-size: 100% 1rem;
     content: "";
     left: calc(var(--space-8) * -1);
     position: absolute;
@@ -226,18 +238,88 @@
     width: 2px;
   }
 
-  /* dashed line from the previous step down to the arrow, dashes anchored at the arrow */
+  /* dashed line from the previous step down to the arrow */
   h3::after {
-    background-image: repeating-linear-gradient(to top, var(--dash));
     bottom: calc(50% + var(--space-10));
     height: var(--space-16);
   }
 
   /* dashed line from the arrow down along the description */
   p::before {
-    background-image: repeating-linear-gradient(to bottom, var(--dash));
-    bottom: calc(var(--space-7) * -1);
+    bottom: calc(var(--space-12) * -1);
     top: var(--space-1);
+  }
+}
+
+/* Steps in case of missing or incorrect documents, grouped on a card with its own step line */
+.step.omission {
+  &::before {
+    content: none;
+  }
+
+  > .step-main {
+    background-color: var(--base-white);
+    gap: var(--space-6);
+    padding: var(--space-8) var(--space-8) var(--space-8) var(--space-16);
+    position: relative;
+
+    /* the line between the surrounding panels passes the card */
+    &::before {
+      background-image: var(--dash);
+      background-repeat: no-repeat space;
+      background-size: 100% 1rem;
+      bottom: calc(var(--space-16) * -1);
+      content: "";
+      left: calc(var(--space-8) * -1);
+      position: absolute;
+      top: calc(var(--space-16) * -1);
+      translate: -50%;
+      width: 2px;
+    }
+  }
+
+  .step-header {
+    margin-top: var(--space-6);
+  }
+
+  .step-content::before {
+    content: none;
+  }
+}
+
+.omission-letter {
+  background-color: var(--gray-50);
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-8);
+  position: relative;
+  text-wrap: balance;
+
+  h2 {
+    margin-bottom: var(--space-4);
+  }
+
+  p {
+    margin-top: var(--space-3);
+    max-width: 36rem;
+  }
+
+  .alert {
+    margin-block: var(--space-6) 0;
+  }
+
+  /* dashed line along the panel down towards the step number, the first dash level with the top of the panel */
+  &::before {
+    background-image: var(--dash);
+    background-repeat: no-repeat space;
+    background-size: 100% 1rem;
+    bottom: calc(var(--space-4) * -1);
+    content: "";
+    left: calc(var(--space-8) * -1);
+    position: absolute;
+    top: calc(var(--space-1) * -1);
+    translate: -50%;
+    width: 2px;
   }
 }
 

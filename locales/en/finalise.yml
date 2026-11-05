@@ -7,10 +7,9 @@ complete_list:
   no_problems_title: No errors were found by this application.
   title: Complete your list
 correction:
-  deadline: "The missing documents must be received by the central electoral committee by <strong>{}</strong> at <strong>17:00</strong>."
-  description: "If you have received an omission letter, the political group has three days to rectify the omissions and resubmit the documents."
-  title: Omission period
-  until: "Omissions can be rectified until <strong>{}</strong>"
+  description: "If you have received an omission letter, the political group has a few days to rectify the omissions and resubmit the documents."
+  title: Rectify and resubmit
+  until: "Resubmit at the central electoral committee from <strong>{}</strong> until <strong>{}</strong>, <strong>{}</strong>"
 delivery:
   appointment: "Please make an appointment for this. The address is:"
   description: "On nomination day you must submit your documents to the central electoral committee between <strong>09:00</strong> and <strong>17:00</strong>."
@@ -27,6 +26,12 @@ hearing:
 intro:
   description: "You have entered your candidates and candidate lists. To finish, there are a few more steps to go through. These steps are set out on this page."
   title: A few more steps
+omission_letter:
+  description: You will receive the letter listing missing or incorrect documents by post.
+  sent: "The letter will be sent on <strong>{}</strong>"
+  title: Receiving the omission letter
+omission_steps:
+  title: Extra steps for missing or incorrect documents
 print:
   download_description: Keep in mind that the latest changes in this system match the most recently downloaded zip.
   download_title: Download the files here and print them.

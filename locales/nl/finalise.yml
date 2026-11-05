@@ -7,10 +7,9 @@ complete_list:
   no_problems_title: Er zijn geen fouten ontdekt door deze applicatie.
   title: Maak uw lijst compleet
 correction:
-  deadline: "Uiterlijk <strong>{}</strong> om <strong>17:00</strong> dient het centraal stembureau de ontbrekende stukken te ontvangen."
-  description: "Als u een verzuimbrief heeft ontvangen, heeft de politieke groepering vervolgens drie dagen de tijd om de stukken te corrigeren en opnieuw in te leveren."
-  title: Verzuimperiode
-  until: "Verzuim kan hersteld worden tot en met <strong>{}</strong>"
+  description: "Als u een verzuimbrief heeft ontvangen, heeft de politieke groepering vervolgens enkele dagen de tijd om de stukken te corrigeren en opnieuw in te leveren."
+  title: Herstellen en herinleveren
+  until: "Herinleveren kan bij het centraal stembureau van <strong>{}</strong> tot uiterlijk <strong>{}</strong>, <strong>{}</strong> uur"
 delivery:
   appointment: "Maak hiervoor een afspraak. Het adres is:"
   description: "Op de dag van kandidaatstelling dient u uw documenten in te leveren bij het centraal stembureau tussen <strong>09:00</strong> en <strong>17:00</strong>."
@@ -27,6 +26,12 @@ hearing:
 intro:
   description: "U heeft uw kandidaten en kandidatenlijsten aangemaakt. Om af te ronden, zijn er nog een paar stappen te doorlopen. Deze stappen staan uiteengezet op deze pagina."
   title: Nog een paar stappen
+omission_letter:
+  description: De brief met ontbrekende of onjuiste stukken ontvangt u per post.
+  sent: "De brief wordt verstuurd op <strong>{}</strong>"
+  title: Ontvangst verzuimbrief
+omission_steps:
+  title: Extra stappen bij ontbrekende of onjuiste stukken
 print:
   download_description: Houd er rekening mee dat de laatste wijzigingen uit dit systeem overeenkomen met de laatst gedownloade zip.
   download_title: Download hier de bestanden en print ze uit.

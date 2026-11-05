@@ -15,6 +15,7 @@ macro_rules! define_elections {
                 presubmission_end_date: $presubmission_end_date:expr,
                 nomination_day_date: $nomination_day_date:expr,
                 document_review_date: $document_review_date:expr,
+                omission_period_start_date: $omission_period_start_date:expr,
                 omission_period_end_date: $omission_period_end_date:expr,
                 omission_period_end_time: $omission_period_end_time:expr,
                 public_session: $public_session:expr,
@@ -179,6 +180,16 @@ macro_rules! define_elections {
                 match self {
                     $(
                         Self::$name $(($binding))? => $document_review_date,
+                    )*
+                }
+            }
+
+            /// The first day omissions can be recovered, the day after the omission letter is sent.
+            pub fn omission_period_start_date(&self) -> NaiveDate {
+                #[allow(unused)]
+                match self {
+                    $(
+                        Self::$name $(($binding))? => $omission_period_start_date,
                     )*
                 }
             }

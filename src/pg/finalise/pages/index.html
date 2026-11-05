@@ -275,17 +275,24 @@
         </div>
       </div>
     </div>
-    <div class="step illustration-correction">
+    <div class="step omission">
       <div class="step-main">
+        <h3>{{ "finalise.omission_steps.title"|trans }}</h3>
+        <div class="omission-letter">
+          <h2>{{ "finalise.omission_letter.title"|trans }}</h2>
+          <p>{{ "finalise.omission_letter.description"|trans }}</p>
+          <p class="alert alert-info-gray">
+            {{ "finalise.omission_letter.sent"|trans(&(election.document_review_date() |extra_long_date))|safe }}
+          </p>
+        </div>
         <div class="step-header">
           <h2>{{ "finalise.correction.title"|trans }}</h2>
         </div>
         <div class="step-content less-wide">
+          <p class="mb-ml">{{ "finalise.correction.description"|trans }}</p>
           <p class="alert alert-info">
-            {{ "finalise.correction.until"|trans(&(election.omission_period_end_date() |extra_long_date))|safe }}
+            {{ "finalise.correction.until"|trans(&(election.omission_period_start_date() |extra_long_date), &(election.omission_period_end_date() |extra_long_date), &(election.omission_period_end_time() |time))|safe }}
           </p>
-          <p>{{ "finalise.correction.description"|trans }}</p>
-          <p>{{ "finalise.correction.deadline"|trans(&(election.omission_period_end_date() |extra_long_date))|safe }}</p>
         </div>
       </div>
     </div>
