@@ -25,8 +25,8 @@ candidate_register_note: All created candidates can be found here
 districts:
   all: All
   duplicate_warning: "{} already belongs to <a href='{}'>another candidate list</a>. Change that list to use this electoral district here."
-  explanation: An electoral district is a region in which political parties can take part in the elections with a specific candidate list. The system of electoral districts allows political parties to stand with different candidate lists in different electoral districts.
-  select_hint: "Select the electoral district(s) in which you want to take part with this candidate list. In these electoral districts, voters can vote for your party and candidates in the elections of the Senate."
+  explanation: An electoral district is a region in which political groups can take part in the elections with a specific candidate list. The system of electoral districts allows political groups to participate with different candidate lists in different electoral districts.
+  select_hint: "Select the electoral district(s) in which your political group wants to take part with this candidate list. In these electoral districts, voters can vote for your political group and candidates in the {}."
 edit_position: Position on the list
 errors:
   candidate_set_changed: Reordering can only change the order of the current candidates.

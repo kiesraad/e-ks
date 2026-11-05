@@ -1,12 +1,12 @@
 <fieldset class="district-select">
   <legend>{{ "candidate_list.fields.electoral_districts"|trans }}</legend>
-  <p class="text-body-width">{{ "candidate_list.districts.select_hint"|trans }}</p>
+  {% let election = "election"|election_value %}
+  <p class="text-body-width">{{ "candidate_list.districts.select_hint"|trans(&election|election_type_title) }}</p>
   <span class="hint">{{ "candidate_list.districts.explanation"|trans }}</span>
   <div class="checkbox select-all-checkbox mt-sm mb-lg">
     <input type="checkbox" for-checklist="district_list" id="select-all" />
     <label for="select-all">{{ "candidate_list.actions.select_all_districts"|trans }}</label>
   </div>
-  {% let election = "election"|election_value %}
   <div class="checklist grid" id="district_list">
     {% for d in election.electoral_districts() %}
       {% let on_other_list = districts_on_other_lists.contains_key(&d) %}

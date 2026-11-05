@@ -47,9 +47,9 @@ substitute_submitters_data: Gegevens vervangers voor het herstel van verzuimen
 substitute_submitters_info: Een verzuim is een fout of onvolledigheid in de overhandigde stukken. Alleen de lijstinleveraar en de opgegeven vervangers mogen verzuimen herstellen bij het centraal stembureau. Wij adviseren om tenminste één vervanger op te geven.
 type:
   appellation_combined_hint: "Regels voor de samengevoegde naam:"
-  appellation_combined_hint_combine: "Samenvoegen: Combineer de officieel geregistreerde namen (of de afkortingen daarvan) en scheid ze met een streepje (-) of schuine streep (/)."
-  appellation_combined_hint_length: "Lengte: De naam mag maximaal 35 tekens lang zijn. Spaties, leestekens, haakjes en verbindings\u00ADstreepjes tellen niet mee voor deze 35 tekens."
-  appellation_combined_hint_no_additions: "Geen toevoegingen: U mag geen extra letters, woorden of tekens toevoegen die niet bij de officiële partijnamen horen."
+  appellation_combined_hint_combine: "<strong>Samenvoegen</strong> Combineer de officieel geregistreerde namen (of de afkortingen daarvan) en scheid ze met een streepje (-) of schuine streep (/)."
+  appellation_combined_hint_length: "<strong>Lengte</strong> De naam mag maximaal 35 tekens lang zijn. Spaties, leestekens, haakjes en verbindings\u00ADstreepjes tellen niet mee voor deze 35 tekens."
+  appellation_combined_hint_no_additions: "<strong>Geen toevoegingen</strong> U mag geen extra letters, woorden of tekens toevoegen die niet bij de officiële partijnamen horen."
   appellation_hint: Vul hier de partijnaam in die geregistreerd is bij het centraal stembureau. Deze naam komt boven de lijst op het stembiljet te staan.
   blank_name: Blanco lijst
   blank_name_hint: Er is geen geregistreerde aanduiding.

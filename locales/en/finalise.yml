@@ -1,5 +1,5 @@
 collection:
-  gather_h9: Collect the signature of all candidates on the declarations of consent (H\u00A09). Also ensure legible copies of the required identity documents.
+  gather_h9: Collect the signature of all candidates on the declarations of consent (H\u00A09). Also include legible copies of the required identity documents.
   pre_submission: "Two weeks before nomination day, you can have the documents reviewed in advance by the central electoral committee during the so-called 'pre-submission'. Please make an appointment with the central electoral committee for this."
   title: "Gather, review and sign"
 complete_list:
@@ -19,7 +19,7 @@ follow_up_steps:
   title: Follow-up steps outside this system
 hearing:
   date: "The session is on <strong>{}</strong> at <strong>{}</strong>"
-  description: "During this session, the central electoral committee determines which parties will appear on the ballot, and if necessary, the order of the parties will be decided by lot."
+  description: "During this session, the central electoral committee determines which political groups will appear on the ballot, and if necessary, the order of the political groups will be decided by lot."
   open_to_public: You may attend the session.
   title: Public session
 print:

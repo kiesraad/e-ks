@@ -100,7 +100,7 @@ finalise:
   objections_note: Did anyone raise an objection during the session? Add it below.
   objections_title: Enter objection
   order_note: "Political groups that obtained one or more seats at the previous election start at the top, in the order of their votes. Drag the lists into the order determined during the session."
-  order_title: Party order
+  order_title: Political group order
   position: Position
   title: Finalise candidate lists
 finish_examination:
@@ -155,7 +155,7 @@ group:
   problems_present: Warnings
   toggle: Finish or reopen examination
   unfinished: Finish examination
-  unregistered_combined_warning: "Not all statutory names of the parties behind this combined list match a registered political group. Check the registrations: only registered parties count towards the numbering and the exemption from declarations of support."
+  unregistered_combined_warning: "Not all statutory names of the political groups behind this combined list match a registered political group. Check the registrations: only registered political groups count towards the numbering and the exemption from declarations of support."
   unregistered_warning: "The appellation of this political group matches none of the registered political groups. Check the registration: without one the list is numbered by lot and declarations of support are required."
 hearing:
   chair_name: Chair name
