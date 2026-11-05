@@ -121,6 +121,7 @@
     left: calc(var(--space-8) * -1);
     position: absolute;
     top: 0;
+    translate: -50%;
     width: 2px;
   }
 
@@ -135,6 +136,70 @@
 
   p + h5 {
     margin-top: var(--space-lg);
+  }
+}
+
+.follow-up {
+  display: grid;
+  gap: var(--space-8);
+  grid-template-columns: repeat(12, 1fr);
+  margin-block: var(--space-8) var(--space-4);
+}
+
+.follow-up-main {
+  --dash: var(--gray-200) 0 0.5rem, transparent 0.5rem 1rem;
+  grid-column: 4 / 13;
+  max-width: 36rem;
+  text-wrap: balance;
+
+  h3,
+  p {
+    position: relative;
+  }
+
+  h3 {
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-bold);
+
+    &::before {
+      background-image: url("../icons/arrow-down-circle.svg");
+      background-size: contain;
+      content: "";
+      height: var(--space-6);
+      left: calc(var(--space-8) * -1);
+      position: absolute;
+      top: 50%;
+      translate: -50% -50%;
+      width: var(--space-6);
+    }
+  }
+
+  p {
+    margin-top: var(--space-6);
+  }
+
+  /* same offset and width as the solid line of the steps */
+  h3::after,
+  p::before {
+    content: "";
+    left: calc(var(--space-8) * -1);
+    position: absolute;
+    translate: -50%;
+    width: 2px;
+  }
+
+  /* dashed line from the previous step down to the arrow, dashes anchored at the arrow */
+  h3::after {
+    background-image: repeating-linear-gradient(to top, var(--dash));
+    bottom: calc(50% + var(--space-10));
+    height: var(--space-16);
+  }
+
+  /* dashed line from the arrow down along the description */
+  p::before {
+    background-image: repeating-linear-gradient(to bottom, var(--dash));
+    bottom: calc(var(--space-7) * -1);
+    top: var(--space-1);
   }
 }
 

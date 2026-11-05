@@ -17,8 +17,8 @@ delivery:
   only_on: "Nomination day is on <strong>{}</strong>"
   title: Submit documents
 follow_up_steps:
-  description: "After printing the documents, there are a few more steps to take outside of this application. Below, the rest of the nomination process up to and including the public session is described."
-  title: Follow-up steps outside this system
+  description: "Below, the rest of the nomination process up to and including the public session is described."
+  title: The next steps outside this application
 hearing:
   date: "The session is on <strong>{}</strong> at <strong>{}</strong>"
   description: "During this session, the central electoral committee determines which parties will appear on the ballot, and if necessary, the order of the parties will be decided by lot."

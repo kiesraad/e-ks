@@ -17,8 +17,8 @@ delivery:
   only_on: "De dag van kandidaatstelling is op <strong>{}</strong>"
   title: Documenten inleveren
 follow_up_steps:
-  description: Na het printen van de documenten zijn er nog enkele vervolgstappen die u buiten deze applicatie moet zetten. Hieronder wordt de rest van het kandidaatstellings\u00ADproces tot en met de openbare zitting beschreven.
-  title: Vervolgstappen buiten dit systeem
+  description: Hieronder wordt de rest van het kandidaatstellings\u00ADproces tot en met de openbare zitting beschreven.
+  title: De volgende stappen buiten deze applicatie
 hearing:
   date: "De zitting is op <strong>{}</strong> om <strong>{}</strong>"
   description: "Bij deze zitting bepaalt het centraal stembureau welke partijen er op het stembiljet komen te staan, en wordt indien nodig door een loting de volgorde van partijen bepaald."
