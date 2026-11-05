@@ -58,7 +58,7 @@
       }
 
       &.ok {
-        background-image: url("../icons/checkmarkSmall.svg");
+        background-image: url("../icons/checkmark-small.svg");
       }
 
       &.trash {
@@ -66,7 +66,6 @@
         color: var(--color-error-darkest);
 
         &.active {
-          background-image: url("../icons/arrowNarrowRight-red.svg");
           background-color: var(--color-error-bg);
         }
       }
@@ -84,10 +83,24 @@
       }
 
       &.active {
-        background-image: url("../icons/arrowNarrowRight.svg");
+        position: relative;
+        background-image: none;
         background-color: var(--gray-100);
         font-weight: 600;
         padding-right: var(--space-md);
+
+        &::before {
+          position: absolute;
+          top: 50%;
+          left: var(--space-sm);
+          width: 1.5rem;
+          height: 1.5rem;
+          translate: 0 -50%;
+          content: "";
+          background-color: var(--step-arrow-color, currentColor);
+          mask-image: url("../icons/arrow-right-long.svg");
+          mask-size: contain;
+        }
       }
     }
   }

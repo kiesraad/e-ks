@@ -63,7 +63,7 @@
     --alert-bg: var(--green-100);
     --alert-border-color: var(--green-700);
     --alert-color: var(--green-700);
-    --alert-icon: url("../icons/checkmarkSmall.svg");
+    --alert-icon: url("../icons/checkmark-small.svg");
     --alert-duration: 10s;
   }
 

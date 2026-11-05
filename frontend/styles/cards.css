@@ -194,7 +194,7 @@
     &::after {
       background-color: var(--gray-600);
       content: "";
-      mask-image: url("../icons/chevronRight.svg");
+      mask-image: url("../icons/chevron-right.svg");
       mask-position: center;
       mask-repeat: no-repeat;
       transition-duration: 300ms;

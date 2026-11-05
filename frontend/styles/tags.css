@@ -22,7 +22,7 @@
   background-color: currentColor;
   content: "";
   height: var(--space-4);
-  mask-image: url("../icons/arrowNarrowRight.svg");
+  mask-image: url("../icons/arrow-right-long.svg");
   mask-size: contain;
   width: var(--space-4);
   margin-left: auto;
@@ -41,7 +41,7 @@
 }
 
 .tag.link a.ok::after {
-  mask-image: url("../icons/checkmarkSmall.svg");
+  mask-image: url("../icons/checkmark-small.svg");
 }
 
 /* A state that leads nowhere (the BRP check has not run), so it carries the
