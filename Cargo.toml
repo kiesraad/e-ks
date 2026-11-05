@@ -90,8 +90,8 @@ config = { version = "0.15.27", default-features = false } # 100M downloads (rus
 
 # development tooling
 dotenvy = "0.15.7"
-saphyr = { version = "0.2.1", default-features = false }
-serde-saphyr = { version = "1.0.0", default-features = false, features = ["deserialize"] }
+saphyr = { version = "0.3.3", default-features = false }
+serde-saphyr = { version = "2.0.0", default-features = false, features = ["deserialize"] }
 
 # tweedegolf
 memory-serve = "2.4.0"
