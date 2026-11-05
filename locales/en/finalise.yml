@@ -13,7 +13,7 @@ correction:
   until: "Omissions can be rectified until <strong>{}</strong>"
 delivery:
   appointment: "Please make an appointment for this. The address is:"
-  description: "On nomination day you must submit your documents to the central electoral committee between <strong>09:00</strong> and <strong>17:00</strong> ."
+  description: "On nomination day you must submit your documents to the central electoral committee between <strong>09:00</strong> and <strong>17:00</strong>."
   only_on: "Nomination day is on <strong>{}</strong>"
   title: Submit documents
 follow_up_steps:
@@ -21,9 +21,9 @@ follow_up_steps:
   title: The next steps outside this application
 hearing:
   date: "The session is on <strong>{}</strong> at <strong>{}</strong>"
-  description: "During this session, the central electoral committee determines which parties will appear on the ballot, and if necessary, the order of the parties will be decided by lot."
+  description: "In a public session, the central electoral committee determines which parties will appear on the ballot, and in what order."
   open_to_public: You may attend the session.
-  title: Public session
+  title: Final determination of candidate lists
 intro:
   description: "You have entered your candidates and candidate lists. To finish, there are a few more steps to go through. These steps are set out on this page."
   title: A few more steps

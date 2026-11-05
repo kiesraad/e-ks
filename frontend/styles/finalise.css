@@ -1,4 +1,5 @@
 .finalise {
+  --dash: var(--gray-200) 0 0.5rem, transparent 0.5rem 1rem;
   counter-reset: step;
   display: flex;
   flex-direction: column;
@@ -67,6 +68,38 @@
   }
 }
 
+.step.csb {
+  background-color: var(--gray-50);
+  padding: var(--space-8);
+
+  &::before {
+    grid-column: 10 / 13;
+    grid-row: 1;
+    margin: 0;
+    position: static;
+  }
+
+  .step-main {
+    gap: var(--space-4);
+    grid-column: 1 / 10;
+    grid-row: 1;
+  }
+
+  .step-header::before,
+  .step-content::before {
+    content: none;
+  }
+
+  .alert {
+    margin-top: var(--space-6);
+  }
+}
+
+/* continue the line of the previous step up to the panel */
+.step:has(+ .step.csb) .step-content::before {
+  height: calc(100% + var(--space-16));
+}
+
 .step-main {
   grid-column: 4 / 13;
   display: flex;
@@ -125,6 +158,12 @@
     width: 2px;
   }
 
+  /* steps outside this application */
+  .follow-up ~ .step &::before {
+    background-color: transparent;
+    background-image: repeating-linear-gradient(to bottom, var(--dash));
+  }
+
   p,
   li {
     max-width: 42rem;
@@ -147,7 +186,6 @@
 }
 
 .follow-up-main {
-  --dash: var(--gray-200) 0 0.5rem, transparent 0.5rem 1rem;
   grid-column: 4 / 13;
   max-width: 36rem;
   text-wrap: balance;

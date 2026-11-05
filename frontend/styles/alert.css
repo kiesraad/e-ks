@@ -43,6 +43,28 @@
     --alert-duration: 20s;
   }
 
+  &.alert-info-gray {
+    --alert-bg: var(--gray-100);
+    --alert-border-color: var(--gray-600);
+    --alert-color: var(--gray-600);
+    --alert-duration: 20s;
+
+    /* the info icon is recolored through a mask */
+    --alert-icon: none;
+
+    &::before {
+      background-color: var(--gray-700);
+      content: "";
+      height: 1.5rem;
+      left: calc(var(--space-md) + 4px);
+      mask-image: url("../icons/info.svg");
+      mask-size: contain;
+      position: absolute;
+      top: var(--alert-py, var(--space-4));
+      width: 1.5rem;
+    }
+  }
+
   &.alert-warning {
     --alert-bg: var(--orange-100);
     --alert-border-color: var(--orange-600);

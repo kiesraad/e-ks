@@ -261,17 +261,17 @@
         </div>
       </div>
     </div>
-    <div class="step illustration-verification">
+    <div class="step csb illustration-verification">
       <div class="step-main">
         <div class="step-header">
           <h2>{{ "finalise.verification.title"|trans }}</h2>
         </div>
         <div class="step-content less-wide">
-          <p class="alert alert-info">
-            {{ "finalise.verification.until"|trans(&(election.document_review_date() |extra_long_date))|safe }}
-          </p>
           <p>{{ "finalise.verification.description"|trans }}</p>
           <p>{{ "finalise.verification.correction_notice"|trans }}</p>
+          <p class="alert alert-info-gray">
+            {{ "finalise.verification.until"|trans(&(election.document_review_date() |extra_long_date))|safe }}
+          </p>
         </div>
       </div>
     </div>
@@ -289,17 +289,17 @@
         </div>
       </div>
     </div>
-    <div class="step illustration-hearing">
+    <div class="step csb illustration-hearing">
       <div class="step-main">
         <div class="step-header">
           <h2>{{ "finalise.hearing.title"|trans }}</h2>
         </div>
         <div class="step-content less-wide">
-          <p class="alert alert-info">
-            {{ "finalise.hearing.date"|trans(&(election.public_session().datetime.date()|extra_long_date), &election.public_session().formatted_time())|safe }}
-          </p>
           <p>{{ "finalise.hearing.description"|trans }}</p>
           <p>{{ "finalise.hearing.open_to_public"|trans }}</p>
+          <p class="alert alert-info-gray">
+            {{ "finalise.hearing.date"|trans(&(election.public_session().datetime.date()|extra_long_date), &election.public_session().formatted_time())|safe }}
+          </p>
         </div>
       </div>
     </div>
