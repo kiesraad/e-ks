@@ -44,11 +44,7 @@ pub fn time(value: NaiveTime, _: &dyn askama::Values) -> askama::Result<String> 
     Ok(value.format(DEFAULT_TIME_FORMAT).to_string())
 }
 
-/// Format a date with the month written out in the template's locale (`27 oktober 2027`)
-#[askama::filter_fn]
-pub fn long_date(value: NaiveDate, values: &dyn askama::Values) -> askama::Result<String> {
-    let locale = template_locale(values)?;
-
+fn month(date: NaiveDate, locale: AnyLocale) -> &'static str {
     let months: [&str; 12] = match locale {
         AnyLocale::En => [
             "January",
@@ -93,11 +89,65 @@ pub fn long_date(value: NaiveDate, values: &dyn askama::Values) -> askama::Resul
             "december",
         ],
     };
+    months[date.month0() as usize]
+}
+
+/// Format a date with the month written out in the template's locale (`27 oktober 2027`)
+#[askama::filter_fn]
+pub fn long_date(value: NaiveDate, values: &dyn askama::Values) -> askama::Result<String> {
+    let locale = template_locale(values)?;
 
     Ok(format!(
         "{} {} {}",
         value.day(),
-        months[value.month0() as usize],
+        month(value, locale),
+        value.year()
+    ))
+}
+
+fn weekday(date: NaiveDate, locale: AnyLocale) -> &'static str {
+    let weekdays: [&str; 7] = match locale {
+        AnyLocale::En => [
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+            "Sunday",
+        ],
+        AnyLocale::Fry => [
+            "moandei",
+            "tiisdei",
+            "woansdei",
+            "tongersdei",
+            "freed",
+            "saterdei",
+            "snein",
+        ],
+        AnyLocale::Nl => [
+            "maandag",
+            "dinsdag",
+            "woensdag",
+            "donderdag",
+            "vrijdag",
+            "zaterdag",
+            "zondag",
+        ],
+    };
+    weekdays[date.weekday().num_days_from_monday() as usize]
+}
+
+/// Format a date with the month and week day written out in the template's locale (`dinsdag 27 oktober 2027`)
+#[askama::filter_fn]
+pub fn extra_long_date(value: NaiveDate, values: &dyn askama::Values) -> askama::Result<String> {
+    let locale = template_locale(values)?;
+
+    Ok(format!(
+        "{} {} {} {}",
+        weekday(value, locale),
+        value.day(),
+        month(value, locale),
         value.year()
     ))
 }
@@ -304,11 +354,31 @@ mod tests {
     #[test]
     fn long_date_writes_the_month_out_in_the_template_locale() {
         assert_eq!(long(Locale::Nl, 2025, 9, 16), "16 september 2025");
-        assert_eq!(long(Locale::En, 2027, 10, 27), "27 October 2027");
+        assert_eq!(long(Locale::En, 2026, 10, 28), "28 October 2026");
         assert_eq!(long(ModelLocale::Nl, 2027, 5, 27), "27 mei 2027");
         assert_eq!(long(ModelLocale::Fry, 2027, 5, 27), "27 maaie 2027");
         // No zero padding on the day
         assert_eq!(long(Locale::Nl, 2027, 1, 1), "1 januari 2027");
         assert_eq!(long(Locale::Nl, 2027, 12, 31), "31 december 2027");
+    }
+
+    fn full(locale: impl std::any::Any, year: i32, month: u32, day: u32) -> String {
+        let date = NaiveDate::from_ymd_opt(year, month, day).unwrap();
+        let values = ("locale", &locale as &dyn std::any::Any);
+        extra_long_date::default().execute(date, &values).unwrap()
+    }
+
+    #[test]
+    fn extra_long_date_writes_the_month_out_in_the_template_locale() {
+        assert_eq!(full(Locale::Nl, 2025, 9, 16), "dinsdag 16 september 2025");
+        assert_eq!(full(Locale::En, 2026, 10, 28), "Wednesday 28 October 2026");
+        assert_eq!(full(ModelLocale::Nl, 2027, 5, 27), "donderdag 27 mei 2027");
+        assert_eq!(
+            full(ModelLocale::Fry, 2027, 5, 27),
+            "tongersdei 27 maaie 2027"
+        );
+        // No zero padding on the day
+        assert_eq!(full(Locale::Nl, 2027, 1, 1), "vrijdag 1 januari 2027");
+        assert_eq!(full(Locale::Nl, 2027, 12, 31), "vrijdag 31 december 2027");
     }
 }
