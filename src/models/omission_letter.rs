@@ -27,6 +27,12 @@ pub struct OmissionLetter {
     /// The list submitter the letter is addressed to.
     pub addressee: Person,
     pub appellation: String,
+    /// determines whether to either use the text:
+    /// - "lijst met aanduiding **<appellation>**" (non-blank)
+    /// - "blanco lijst met de eerste kandidaat **<name>**" (blank)
+    pub is_blank: bool,
+    /// first candidate name to use in case of a blank list
+    pub first_candidate_name: String,
     /// Election code stamped into the filename, e.g. `ek27`.
     pub election_code: String,
     /// One section per set of districts. Empty: the letter reports that no
@@ -64,7 +70,7 @@ impl DistrictOmissions {
         if self.covers_all_districts {
             "Alle kieskringen".to_string()
         } else {
-            format!("Een deel van de kieskringen: {}", self.electoral_districts)
+            format!("De volgende kieskringen: {}", self.electoral_districts)
         }
     }
 }

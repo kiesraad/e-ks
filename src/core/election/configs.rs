@@ -45,6 +45,9 @@ super::define_elections! {
         omission_period_end_time: const { time(17, 0) },
         public_session: PublicSession {
             location: "'s-Gravenhage",
+            street_name: "Muzenstraat",
+            house_number: 85,
+            postal_code: "2511 WB",
             datetime: const { at(date(2027, 4, 29), 11, 0) },
             chair: "",
             members: &["", "", "", "", ""],
@@ -82,6 +85,9 @@ super::define_elections! {
         omission_period_end_time: const { time(17, 0) },
         public_session: PublicSession {
             location: "'s-Gravenhage",
+            street_name: "Muzenstraat",
+            house_number: 85,
+            postal_code: "2511 WB",
             datetime: const { at(date(2027, 2, 5), 17, 0) },
             chair: "",
             members: &["", "", "", "", ""],
@@ -128,6 +134,9 @@ super::define_elections! {
         omission_period_end_time: const { time(17, 0) },
         public_session: PublicSession {
             location: "'s-Gravenhage",
+            street_name: "Muzenstraat",
+            house_number: 85,
+            postal_code: "2511 WB",
             datetime: const { at(date(2027, 2, 5), 17, 0) },
             chair: "",
             members: &["", "", "", "", ""],

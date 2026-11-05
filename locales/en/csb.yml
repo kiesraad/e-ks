@@ -260,7 +260,9 @@ omission_letter:
   download_note: Download the letter of omission for this political group as a Word or PDF file.
   explanation: The letter of omission lists every omission found for this political group.
   omissions_explanation: "All omissions found for this political group, as they are listed in the letter of omission."
-  omissions_title: Omissions in the letter
+  omissions_explanation_no_letter: "All omissions not presented in the letter of omissions, as they are irrecoverable."
+  omissions_letter_title: Omissions in the letter (recoverable)
+  omissions_no_letter_title: Omissions not in the letter (irrecoverable)
   title: Letter of omission
 paper_corrections:
   added: Paper correction added

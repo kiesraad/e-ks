@@ -18,6 +18,7 @@ pub struct AllOmissions {
     pub candidates: Vec<CandidateOmissions>,
 }
 
+#[derive(Clone)]
 pub struct CandidateOmissions {
     pub omissions: Vec<OmissionWithPath>,
     pub person: Person,
@@ -25,9 +26,16 @@ pub struct CandidateOmissions {
     pub removed: bool,
 }
 
+#[derive(Clone)]
 pub struct OmissionWithPath {
     pub omission: Omission,
     pub path: String,
+}
+
+impl OmissionWithPath {
+    pub fn split_on_recoverability(omissions: Vec<Self>) -> (Vec<Self>, Vec<Self>) {
+        omissions.into_iter().partition(|o| o.omission.recoverable)
+    }
 }
 
 impl CsbStoreData {
@@ -143,6 +151,54 @@ impl AllOmissions {
                 .sort_by_cached_key(|view| data.title_order(&view.omission, election));
         }
     }
+
+    /// split [AllOmissions] into two separate [AllOmissions]'s. One containing all the recoverable
+    /// omissions, the other containing all the irrecoverable omissions
+    pub fn split_on_recoverability(&self) -> (Self, Self) {
+        let (g_recoverable, g_irrecoverable) =
+            OmissionWithPath::split_on_recoverability(self.general.clone());
+        let (d_recoverable, d_irrecoverable) =
+            OmissionWithPath::split_on_recoverability(self.declarations_of_support.clone());
+        let (cl_recoverable, cl_irrecoverable) =
+            OmissionWithPath::split_on_recoverability(self.candidate_lists.clone());
+        let mut c_recoverable = Vec::new();
+        let mut c_irrecoverable = Vec::new();
+        for c in self.candidates.clone() {
+            let (o_recoverable, o_irrecoverable) =
+                OmissionWithPath::split_on_recoverability(c.omissions.clone());
+            if !o_recoverable.is_empty() {
+                let mut c = c.clone();
+                c.omissions = o_recoverable;
+                c_recoverable.push(c);
+            }
+            if !o_irrecoverable.is_empty() {
+                let mut c = c.clone();
+                c.omissions = o_irrecoverable;
+                c_irrecoverable.push(c);
+            }
+        }
+        (
+            AllOmissions {
+                general: g_recoverable,
+                declarations_of_support: d_recoverable,
+                candidate_lists: cl_recoverable,
+                candidates: c_recoverable,
+            },
+            AllOmissions {
+                general: g_irrecoverable,
+                declarations_of_support: d_irrecoverable,
+                candidate_lists: cl_irrecoverable,
+                candidates: c_irrecoverable,
+            },
+        )
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.general.is_empty()
+            && self.declarations_of_support.is_empty()
+            && self.candidate_lists.is_empty()
+            && self.candidates.is_empty()
+    }
 }
 
 // In examination mode an omission links to the manage-omissions overlay it can
@@ -217,7 +273,7 @@ fn candidate_path(
 mod tests {
     use crate::{
         CsbStore, StreamId,
-        structs::csb::OmissionType,
+        structs::csb::{OmissionType, sample_omission},
         test_utils::{sample_candidate_list, sample_person},
     };
 
@@ -424,5 +480,124 @@ mod tests {
         // creates one candidate with 10 omissions
         assert_eq!(all_omissions.candidates.len(), 1);
         assert_eq!(all_omissions.candidates[0].omissions.len(), omission_count)
+    }
+
+    fn sample_omissions_with_paths(data: Vec<(&str, bool)>) -> Vec<OmissionWithPath> {
+        let mut omissions = Vec::new();
+        for (path, recoverable) in data {
+            let mut omission = sample_omission(OmissionCategory::DeclarationsOfSupport(Vec::new()));
+            omission.recoverable = recoverable;
+            omissions.push(OmissionWithPath {
+                omission,
+                path: path.to_string(),
+            });
+        }
+        omissions
+    }
+
+    #[test]
+    // splitting up the test in subroutines impedes readability
+    #[allow(clippy::cognitive_complexity)]
+    #[allow(clippy::too_many_lines)]
+    fn split_on_recoverability_splits_correctly() {
+        let sample_people = [
+            sample_person(PersonId::new()), // 1 recoverable, 1 irrecoverable
+            sample_person(PersonId::new()), // 1 recoverable, 0 irrecoverable
+            sample_person(PersonId::new()), // 0 recoverable, 1 irrecoverable
+        ];
+        let omissions = AllOmissions {
+            general: sample_omissions_with_paths(vec![("/rec/gen", true), ("/irr/gen", false)]),
+            declarations_of_support: sample_omissions_with_paths(vec![
+                ("/irr/dec", false),
+                ("/rec/dec", true),
+            ]),
+            candidate_lists: sample_omissions_with_paths(vec![
+                ("/rec/cl", true),
+                ("/irr/cl", false),
+            ]),
+            candidates: vec![
+                CandidateOmissions {
+                    omissions: sample_omissions_with_paths(vec![
+                        ("/irr/c0", false),
+                        ("/rec/c0", true),
+                    ]),
+                    person: sample_people[0].clone(),
+                    removed: false,
+                },
+                CandidateOmissions {
+                    omissions: sample_omissions_with_paths(vec![("/rec/c1", true)]),
+                    person: sample_people[1].clone(),
+                    removed: false,
+                },
+                CandidateOmissions {
+                    omissions: sample_omissions_with_paths(vec![("/irr/c2", false)]),
+                    person: sample_people[2].clone(),
+                    removed: false,
+                },
+            ],
+        };
+
+        let (recoverable, irrecoverable) = omissions.split_on_recoverability();
+
+        assert_eq!(recoverable.general.len(), 1);
+        assert_eq!(recoverable.general[0].path, "/rec/gen");
+        assert_eq!(irrecoverable.general.len(), 1);
+        assert_eq!(irrecoverable.general[0].path, "/irr/gen");
+
+        assert_eq!(recoverable.declarations_of_support.len(), 1);
+        assert_eq!(recoverable.declarations_of_support[0].path, "/rec/dec");
+        assert_eq!(irrecoverable.declarations_of_support.len(), 1);
+        assert_eq!(irrecoverable.declarations_of_support[0].path, "/irr/dec");
+
+        assert_eq!(recoverable.candidate_lists.len(), 1);
+        assert_eq!(recoverable.candidate_lists[0].path, "/rec/cl");
+        assert_eq!(irrecoverable.candidate_lists.len(), 1);
+        assert_eq!(irrecoverable.candidate_lists[0].path, "/irr/cl");
+
+        assert_eq!(recoverable.candidates.len(), 2);
+        let c0 = recoverable
+            .candidates
+            .iter()
+            .find(|c| c.person.id == sample_people[0].id)
+            .expect("person 0 should be in the recoverable set");
+        assert_eq!(c0.omissions.len(), 1);
+        assert_eq!(c0.omissions[0].path, "/rec/c0");
+        let c1 = recoverable
+            .candidates
+            .iter()
+            .find(|c| c.person.id == sample_people[1].id)
+            .expect("person 1 should be in the recoverable set");
+        assert_eq!(c1.omissions.len(), 1);
+        assert_eq!(c1.omissions[0].path, "/rec/c1");
+
+        assert_eq!(irrecoverable.candidates.len(), 2);
+        let c0 = irrecoverable
+            .candidates
+            .iter()
+            .find(|c| c.person.id == sample_people[0].id)
+            .expect("person 0 should be in the irrecoverable set");
+        assert_eq!(c0.omissions.len(), 1);
+        assert_eq!(c0.omissions[0].path, "/irr/c0");
+        let c2 = irrecoverable
+            .candidates
+            .iter()
+            .find(|c| c.person.id == sample_people[2].id)
+            .expect("person 2 should be in the recoverable set");
+        assert_eq!(c2.omissions.len(), 1);
+        assert_eq!(c2.omissions[0].path, "/irr/c2");
+    }
+
+    #[test]
+    /// test for regression on the [AllOmission] fields such that [AllOmissions::is_empty] keeps
+    /// checking all fields. Fixing this tests means [AllOmissions::is_empty] needs fixing too.
+    fn empty_all_omissions_yields_true_on_is_empty() {
+        let omissions = AllOmissions {
+            general: Vec::new(),
+            declarations_of_support: Vec::new(),
+            candidate_lists: Vec::new(),
+            candidates: Vec::new(),
+        };
+
+        assert!(omissions.is_empty());
     }
 }
