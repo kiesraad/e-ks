@@ -2,6 +2,7 @@ services:
   playwright:
     build:
       dockerfile: docker/playwright.Dockerfile
+    user: "${UID:-1000}:${GID:-1000}"
     volumes:
       - ./tests:/app/tests
       - ./playwright-report:/app/playwright-report
@@ -9,6 +10,9 @@ services:
     environment:
       PLAYWRIGHT_TEST_BASE_URL: http://application:3000
       CI: ${CI:-}
+      HOME: /tmp
+    # Lets UI mode reach the dev server on the host, see README.md.
+    extra_hosts: ["host.docker.internal:host-gateway"]
     depends_on:
       # Waiting for the healthcheck rather than for the container to exist
       # means a startup failure surfaces here, as an unhealthy dependency,

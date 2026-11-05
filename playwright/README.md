@@ -1,46 +1,44 @@
 # Playwright Tests
 
-This directory contains end-to-end tests for the application using Playwright.
-
-## Setup
-
-From this `playwright` directory:
-
-```bash
-npm install
-npx playwright install
-```
-
-`npx playwright install` downloads the required browsers (Chromium/Chrome, Firefox, WebKit/Safari, and Edge).
-
-## Configuration
-
-- Base URL: set `PLAYWRIGHT_BASE_URL` (defaults to `http://localhost:3000`).
-- Tests live in `playwright/tests`.
+End-to-end tests for the application. They run inside the official Playwright
+docker image, so there is nothing to install locally: no Node, npm or browsers.
 
 ## Running tests
 
-Run only on Chrome:
+From the repository root:
 
 ```bash
-npm run test:chrome
+bin/test                                   # chromium, firefox and webkit
+bin/test --project=edge                    # one browser (chromium, firefox, webkit, edge)
+bin/test --project=firefox tests/csb-brp-check.spec.ts
 ```
 
-Run the full suite (Chrome, Firefox, Safari/WebKit, Edge):
+`bin/test` builds the frontend and the `eks` binary, starts the application and
+the BRP mock in docker, and runs the suite against them. Arguments are passed
+to `playwright test`. The HTML report lands in `playwright/playwright-report`.
+
+## UI mode in development
+
+With the dev server running (`bin/dev`, port 3000), start the Playwright UI
+from the container and open it at http://localhost:8080:
 
 ```bash
-npm run test:full
+cd playwright
+docker compose run --rm --no-deps -p 8080:8080 \
+  -e PLAYWRIGHT_TEST_BASE_URL=http://host.docker.internal:3000 \
+  playwright --ui --ui-host=0.0.0.0 --ui-port=8080
 ```
 
-Other useful commands:
+`--no-deps` skips the dockerised application and BRP mock; the tests run
+against your dev server instead. Edited tests are picked up live, since
+`tests` is mounted into the container.
 
-```bash
-npm test
-npm run test:ui
-npm run report
-```
+## Updating Playwright
+
+Bump the image tag in `docker/playwright.Dockerfile`; the test runner is
+installed at the version the image records, so it follows the tag.
 
 ## Notes
 
-- If your app runs on a different port or URL, set `PLAYWRIGHT_BASE_URL`.
-- Edge and Chrome use the system channels; if they are not installed locally, install them or remove the channel settings in `playwright.config.ts`.
+- Tests live in `playwright/tests` and are linted with `bin/biome`.
+- Base URL: set `PLAYWRIGHT_TEST_BASE_URL` (defaults to `http://localhost:3000`).

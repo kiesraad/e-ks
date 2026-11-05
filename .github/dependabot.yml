@@ -29,3 +29,9 @@ updates:
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
       - dependency-name: "axum-extra"
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  - package-ecosystem: "docker"
+    directory: "/playwright/docker"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
