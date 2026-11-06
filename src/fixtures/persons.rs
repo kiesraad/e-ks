@@ -138,14 +138,7 @@ pub async fn load(store: &PgStore) -> Result<(), AppError> {
         .from_reader(PERSONS_CSV.as_bytes());
 
     for record in reader.deserialize::<PersonRecord>() {
-        let record = record.map_err(|err| {
-            AppError::IoError(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("Failed to parse CSV record: {err}"),
-            ))
-        })?;
-
-        record.into_person()?.create(store).await?;
+        record?.into_person()?.create(store).await?;
     }
 
     Ok(())

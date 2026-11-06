@@ -121,6 +121,12 @@ impl std::fmt::Display for EncodingError {
 
 impl std::error::Error for EncodingError {}
 
+impl From<EncodingError> for crate::AppError {
+    fn from(err: EncodingError) -> Self {
+        crate::AppError::IoError(std::io::Error::new(std::io::ErrorKind::InvalidData, err))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use serde::Deserialize;

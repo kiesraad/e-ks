@@ -215,13 +215,10 @@ impl EventCipher {
     pub fn encrypt<E: Serialize>(&self, event: &E, aad: &[u8]) -> Result<Vec<u8>, AppError> {
         let nonce = Nonce::<Aes256Gcm>::generate();
 
-        let invalid = |e: encoding::EncodingError| {
-            AppError::IoError(std::io::Error::new(std::io::ErrorKind::InvalidData, e))
-        };
         // sized up front, so no reallocation leaves plaintext behind
-        let size = encoding::encoded_size(event).map_err(invalid)?;
+        let size = encoding::encoded_size(event)?;
         let mut ciphertext = Zeroizing::new(Vec::with_capacity(size + TAG_LEN));
-        encoding::encode_into(event, &mut ciphertext).map_err(invalid)?;
+        encoding::encode_into(event, &mut ciphertext)?;
 
         self.cipher
             .encrypt_in_place(&nonce, aad, &mut *ciphertext)
@@ -428,6 +425,22 @@ mod tests {
         let decrypted: Vec<u8> = cipher.decrypt(encrypted, NO_AAD).unwrap();
 
         assert_eq!(original, decrypted);
+    }
+
+    #[test]
+    fn encrypt_rejects_unserializable_event() {
+        struct Unserializable;
+        impl Serialize for Unserializable {
+            fn serialize<S: serde::Serializer>(&self, _: S) -> Result<S::Ok, S::Error> {
+                Err(serde::ser::Error::custom("nope"))
+            }
+        }
+
+        let err = StreamKey::generate()
+            .cipher()
+            .encrypt(&Unserializable, NO_AAD)
+            .expect_err("unserializable");
+        assert!(matches!(err, AppError::IoError(_)));
     }
 
     #[test]
