@@ -21,8 +21,7 @@ use crate::{
     utils::describe_json_error,
 };
 
-/// Candidates per BRP request; the BRP itself accepts up to twenty
-/// burgerservicenummers.
+/// Candidates per BRP request; the BRP itself accepts up to 20 BSNs.
 pub const BRP_BSN_BATCH_SIZE: usize = 10;
 
 /// The fields requested per candidate.
