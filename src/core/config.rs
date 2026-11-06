@@ -879,7 +879,11 @@ mod tests {
             (" 127.0.0.1:3001 ", "127.0.0.1:3001"),
             ("[::]:3001", "[::]:3001"),
         ] {
-            let config = config_from(&[("CSB_BIND_ADDRESS", raw)]).expect("config");
+            let config = config_from(&[
+                ("CSB_BIND_ADDRESS", raw),
+                ("CSB_IP_ALLOW_LIST", "203.0.113.7"),
+            ])
+            .expect("config");
 
             assert_eq!(
                 config.csb_bind_address.expect("address").to_string(),
@@ -954,8 +958,9 @@ mod tests {
     fn from_env_reads_proxy_protocol_peers_with_csb_listener_and_tls() {
         let peers = ("CSB_PROXY_PROTOCOL_FROM", "172.16.12.9");
         let listener = ("CSB_BIND_ADDRESS", "8443");
+        let allow = ("CSB_IP_ALLOW_LIST", "203.0.113.7");
 
-        let config = config_from(&[&TLS, &[listener, peers][..]].concat()).expect("config");
+        let config = config_from(&[&TLS, &[listener, allow, peers][..]].concat()).expect("config");
         let from = config.csb_proxy_protocol_from.expect("peers");
         assert!(from.contains("172.16.12.9".parse().unwrap()));
         assert!(!from.contains("172.16.12.5".parse().unwrap()));
@@ -965,7 +970,7 @@ mod tests {
             "CSB_BIND_ADDRESS"
         ));
         assert!(rejected_naming(
-            config_from(&[listener, peers]),
+            config_from(&[listener, allow, peers]),
             "TLS_CERT_PATH"
         ));
     }
@@ -1184,6 +1189,7 @@ mod tests {
         let users = format!("alice:{}", test_credential_encoded());
         let config = config_from(&[
             ("CSB_BIND_ADDRESS", "8081"),
+            ("CSB_IP_ALLOW_LIST", "203.0.113.7"),
             ("CSB_WEBAUTHN_ORIGIN", TEST_ORIGIN),
             ("CSB_WEBAUTHN_USERS", &users),
         ])
@@ -1200,6 +1206,7 @@ mod tests {
     fn from_env_csb_webauthn_origin_is_the_switch() {
         let config = config_from(&[
             ("CSB_BIND_ADDRESS", "8081"),
+            ("CSB_IP_ALLOW_LIST", "203.0.113.7"),
             ("CSB_WEBAUTHN_ORIGIN", "http://localhost:3000"),
         ])
         .expect("config");
@@ -1222,6 +1229,7 @@ mod tests {
         ] {
             let result = config_from(&[
                 ("CSB_BIND_ADDRESS", "8081"),
+                ("CSB_IP_ALLOW_LIST", "203.0.113.7"),
                 ("CSB_WEBAUTHN_ORIGIN", "https://csb.example.nl"),
                 ("CSB_WEBAUTHN_USERS", users),
             ]);
