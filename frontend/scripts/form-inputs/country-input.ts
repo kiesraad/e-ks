@@ -1,8 +1,8 @@
 // Enhance country code inputs with flag icons and keyboard navigation.
 const COUNTRY_INPUT_SELECTOR = ".country-input";
 
-// Places of residence in the Caribbean Netherlands: country code NL, but an
-// authorised person is needed instead of a Dutch correspondence address.
+// Places of residence in the Caribbean Netherlands: country code NL, but a
+// representative is needed instead of a Dutch correspondence address.
 // Mirrors CARIBBEAN_NL_PLACES in src/structs/common/place_of_residence.rs.
 const CARIBBEAN_NL_PLACES = new Set([
   "kralendijk",
@@ -84,7 +84,7 @@ function hideList(list: HTMLElement) {
 /**
  * Toggles the hint visibility based on the selected country and, when present,
  * the place of residence. A place in the Caribbean Netherlands counts as
- * outside NL: an authorised person is needed instead of a Dutch
+ * outside NL: a representative is needed instead of a Dutch
  * correspondence address.
  */
 function updateVisibility(textInput: HTMLInputElement) {
@@ -177,7 +177,7 @@ function initCountryInput(elements: CountryInputElements) {
   updateVisibility(textInput);
 
   // the place of residence also determines the visibility (Caribbean
-  // Netherlands places require an authorised person while the country is NL)
+  // Netherlands places require a representative while the country is NL)
   const placeInput = getPlaceOfResidenceInput();
   ["input", "change"].forEach((eventName) => {
     placeInput?.addEventListener(eventName, () => updateVisibility(textInput));

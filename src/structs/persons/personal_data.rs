@@ -91,7 +91,7 @@ impl PersonalData {
         self.lives_in_nl() && PlaceOfResidence::is_unknown_opt(&self.place_of_residence)
     }
 
-    /// Whether this person needs an authorised person (gemachtigde) instead of
+    /// Whether this person needs a representative (gemachtigde) instead of
     /// a Dutch correspondence address: living abroad, or in the Caribbean
     /// Netherlands (which has country code NL, but no Dutch postal addresses).
     pub fn needs_representative(&self) -> bool {
