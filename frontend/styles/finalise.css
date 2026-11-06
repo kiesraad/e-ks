@@ -36,7 +36,7 @@
     margin-inline-end: var(--space-8);
     margin-top: calc(var(--font-size-4xl) + var(--space-8));
     position: sticky;
-    top: var(--space-8);
+    top: var(--space-20);
   }
 
   &.illustration-errors {
