@@ -4,7 +4,7 @@ use axum::{Json, http::StatusCode, response::IntoResponse};
 use serde::Deserialize;
 
 use crate::{
-    AppError, CsbContext, CsbMainAction, CsbMainStore, StreamId,
+    AppError, CsbMainAction, CsbMainStore, StreamId,
     csb::{
         examination::extractors::CsbPoliticalGroups,
         finalise::{numbering::ListNumbering, paths::CsbListOrderPath},
@@ -21,7 +21,6 @@ pub struct ListOrderPayload {
 /// exactly the groups currently numbered; a stale page is refused.
 pub async fn update_order(
     _: CsbListOrderPath,
-    context: CsbContext,
     main_store: CsbMainStore,
     CsbPoliticalGroups(political_groups): CsbPoliticalGroups,
     Json(payload): Json<ListOrderPayload>,
@@ -38,7 +37,7 @@ pub async fn update_order(
     }
 
     main_store
-        .update(CsbMainAction::UpdateListOrder(payload.stream_ids).by(context.user()?))
+        .update(CsbMainAction::UpdateListOrder(payload.stream_ids))
         .await?;
 
     Ok(StatusCode::NO_CONTENT)
@@ -73,7 +72,6 @@ mod tests {
 
         let response = update_order(
             CsbListOrderPath,
-            CsbContext::new_test(),
             main_store.clone(),
             CsbPoliticalGroups(vec![first, second]),
             Json(ListOrderPayload {
@@ -103,7 +101,6 @@ mod tests {
         ] {
             let result = update_order(
                 CsbListOrderPath,
-                CsbContext::new_test(),
                 main_store.clone(),
                 CsbPoliticalGroups(vec![CsbPoliticalGroup::sample("Bekend")]),
                 Json(ListOrderPayload { stream_ids }),

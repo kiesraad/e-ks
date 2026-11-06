@@ -60,7 +60,7 @@ mod tests {
     use axum::http::StatusCode;
 
     use crate::{
-        CsbMainAction, CsbUser,
+        CsbMainAction,
         csb::examination::extractors::CsbPoliticalGroup,
         structs::csb::{HearingDetails, sample_registered_political_group},
         test_utils::{contains_word, response_body_string},
@@ -99,10 +99,10 @@ mod tests {
 
         let main_store = CsbMainStore::new_for_test();
         main_store
-            .update(
-                CsbMainAction::UpdateHearingDetails(HearingModel::I4, HearingDetails::default())
-                    .by(CsbUser::new_test()),
-            )
+            .update(CsbMainAction::UpdateHearingDetails(
+                HearingModel::I4,
+                HearingDetails::default(),
+            ))
             .await
             .unwrap();
         let body = render(main_store, vec![]).await;
@@ -129,9 +129,7 @@ mod tests {
             sample_registered_political_group("Zetelloos", 42424, 0),
         ] {
             main_store
-                .update(
-                    CsbMainAction::CreateRegisteredPoliticalGroup(group).by(CsbUser::new_test()),
-                )
+                .update(CsbMainAction::CreateRegisteredPoliticalGroup(group))
                 .await
                 .unwrap();
         }

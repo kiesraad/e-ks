@@ -52,7 +52,7 @@ mod tests {
     use axum::http::StatusCode;
 
     use crate::{
-        CsbMainAction, CsbUser, StreamId,
+        CsbMainAction, StreamId,
         csb::examination::structs::BrpCheckState,
         structs::csb::HearingDetails,
         test_utils::{response_body_string, sample_political_group},
@@ -119,10 +119,10 @@ mod tests {
 
         let main_store = CsbMainStore::new_for_test();
         main_store
-            .update(
-                CsbMainAction::UpdateHearingDetails(HearingModel::I1, HearingDetails::default())
-                    .by(CsbUser::new_test()),
-            )
+            .update(CsbMainAction::UpdateHearingDetails(
+                HearingModel::I1,
+                HearingDetails::default(),
+            ))
             .await
             .unwrap();
         let body = render_with_store(main_store, vec![letter_group()]).await;
