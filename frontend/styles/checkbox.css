@@ -142,7 +142,7 @@
 
     /* Set checkbox icon */
     &[type="checkbox"]:checked::before {
-      mask-image: url("../icons/checkmarkSmall.svg");
+      mask-image: url("../icons/checkmark-small.svg");
     }
 
     /* Set checkbox indeterminate icon */

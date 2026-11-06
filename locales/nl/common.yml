@@ -12,7 +12,7 @@ development:
 download_warning: "Let op: de documenten zijn al gedownload. De gegevens op papier zijn leidend. Zorg ervoor dat u de documenten opnieuw print en de juiste versie inlevert als er nog wijzigingen nodig zijn."
 electoral_districts: Kieskringen
 error_code: "Foutcode {}"
-finalise: Afronden
+finalise: Printen en inleveren
 finalise_description:
   download_documents: Download alle benodigde documenten
   review_problems: Controleer mogelijke problemen

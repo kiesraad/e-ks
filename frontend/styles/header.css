@@ -162,7 +162,7 @@ header {
       content: "";
       vertical-align: middle;
       height: var(--space-5);
-      mask-image: url("../icons/arrowLeft.svg");
+      mask-image: url("../icons/arrow-left.svg");
       mask-size: contain;
       width: var(--space-5);
       margin-left: auto;

@@ -229,7 +229,7 @@ span.button {
     background-color: currentColor;
     content: "";
     height: var(--space-5);
-    mask-image: url("../icons/chevronRight.svg");
+    mask-image: url("../icons/chevron-right.svg");
     mask-position: center;
     mask-repeat: no-repeat;
     width: var(--space-5);
@@ -262,22 +262,6 @@ span.button {
     background-position: left var(--space-md) center;
     padding-left: var(--space-xl);
     background-size: 20px;
-  }
-
-  &.icon-down {
-    background-image: url("../icons/arrowNarrowDown.svg");
-    background-repeat: no-repeat;
-    background-position: left var(--space-md) center;
-    padding-left: 2.6rem;
-    background-size: 18px;
-  }
-
-  &.icon-up {
-    background-image: url("../icons/arrowNarrowUp.svg");
-    background-repeat: no-repeat;
-    background-position: left var(--space-md) center;
-    padding-left: 2.6rem;
-    background-size: 18px;
   }
 
   &.icon-file {
@@ -377,11 +361,5 @@ span.button {
     margin: var(--space-3) 0;
     padding-left: var(--space-5);
     list-style: disc;
-  }
-
-  .toggle:not(:checked) ~ .partially-hidden {
-    overflow: hidden;
-    height: var(--space-6);
-    mask-image: linear-gradient(to bottom, black, transparent);
   }
 }

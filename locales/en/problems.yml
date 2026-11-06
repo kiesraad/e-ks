@@ -6,8 +6,11 @@ duplicate_districts: Duplicate districts
 incomplete_address: Address incomplete
 legend:
   error: Not submittable
+  error_help: Fill in the missing information. Only then can the documents be printed.
   info: Informative
+  info_help: We recommend checking this information once more.
   warning: Action required
+  warning_help: "The documents can be printed, but this may result in an omission."
 no_appellation: Appellation missing
 no_authorised_agent: No authorised agent
 no_bsn: BSN missing
@@ -23,7 +26,6 @@ no_legal_name: Statutory name missing
 no_list_submitter: No list submitter
 no_place_of_residence: Place of residence missing
 no_previous_election_results: Previous election results missing
-no_problems: Complete
 no_representative: No authorised person
 no_substitute_submitter: No substitute submitter
 position_warning: "More than {} candidates on this list"

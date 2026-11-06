@@ -6,8 +6,11 @@ duplicate_districts: Dubbele kieskringen
 incomplete_address: Adres onvolledig
 legend:
   error: Niet inleverbaar
+  error_help: Vul de ontbrekende informatie aan. Pas daarna kunnen de documenten worden geprint.
   info: Ter info
+  info_help: We raden aan om deze informatie nog een keer te controleren.
   warning: Actie vereist
+  warning_help: De documenten kunnen wel geprint worden maar dit levert mogelijk een verzuim op.
 no_appellation: Geregistreerde aanduiding ontbreekt
 no_authorised_agent: Geen gemachtigde
 no_bsn: BSN ontbreekt
@@ -23,7 +26,6 @@ no_legal_name: Statutaire naam ontbreekt
 no_list_submitter: Geen lijstinleveraar
 no_place_of_residence: Woonplaats ontbreekt
 no_previous_election_results: Uitslag laatstgehouden verkiezing ontbreekt
-no_problems: Compleet
 no_representative: Geen gemachtigde
 no_substitute_submitter: Geen vervanger voor het herstel van verzuimen
 position_warning: "Meer dan {} kandidaten op de lijst"

@@ -23,9 +23,9 @@ signed_out:
   message: "U bent uitgelogd. Sluit uw browser om de sessie helemaal af te sluiten, of log opnieuw in."
   title: U bent uitgelogd
 start:
-  app_description: Maak de papieren documenten die nodig zijn voor de dag van de kandidaatstelling met deze applicatie.
+  app_description: Maak met deze applicatie de papieren documenten die nodig zijn voor de dag van kandidaatstelling.
   app_title: Kandidaat\u00ADstellen
-  intro: Log in om toegang te krijgen tot de applicatie Kandidaatstelling van de Kiesraad via onderstaande knop.
+  intro: Log in via onderstaande knop om toegang te krijgen tot de applicatie Kandidaatstelling van de Kiesraad.
   title: Inloggen
 unavailable:
   message: De inlogdienst is op dit moment niet beschikbaar. Probeert u het over enkele minuten opnieuw.

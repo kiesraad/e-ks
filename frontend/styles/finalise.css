@@ -1,4 +1,9 @@
 .finalise {
+  --dash: linear-gradient(
+    transparent 25%,
+    var(--gray-200) 25% 75%,
+    transparent 75%
+  );
   counter-reset: step;
   display: flex;
   flex-direction: column;
@@ -31,7 +36,7 @@
     margin-inline-end: var(--space-8);
     margin-top: calc(var(--font-size-4xl) + var(--space-8));
     position: sticky;
-    top: var(--space-8);
+    top: var(--space-20);
   }
 
   &.illustration-errors {
@@ -50,10 +55,6 @@
     --step-illustration: url("../icons/illustration-collection.svg");
   }
 
-  &.illustration-correction {
-    --step-illustration: url("../icons/illustration-correction.svg");
-  }
-
   &.illustration-delivery {
     --step-illustration: url("../icons/illustration-delivery.svg");
   }
@@ -65,6 +66,42 @@
   &.illustration-verification {
     --step-illustration: url("../icons/illustration-verification.svg");
   }
+}
+
+.step.csb {
+  background-color: var(--gray-50);
+  padding: var(--space-8);
+
+  &::before {
+    grid-column: 10 / 13;
+    grid-row: 1;
+    margin: 0;
+    position: static;
+  }
+
+  .step-main {
+    gap: var(--space-4);
+    grid-column: 1 / 10;
+    grid-row: 1;
+  }
+
+  .step-header::before,
+  .step-content::before {
+    content: none;
+  }
+
+  .alert {
+    margin-top: var(--space-6);
+  }
+}
+
+/* continue the line of the previous step up to the panel */
+.step:has(+ .step) .step-content::before {
+  height: calc(100% + var(--space-8));
+}
+
+.step:has(+ .step.csb) .step-content::before {
+  height: calc(100% + var(--space-16));
 }
 
 .step-main {
@@ -121,18 +158,168 @@
     left: calc(var(--space-8) * -1);
     position: absolute;
     top: 0;
+    translate: -50%;
     width: 2px;
+  }
+
+  /* steps outside this application */
+  .follow-up ~ .step &::before {
+    background-color: transparent;
+    background-image: var(--dash);
+    background-repeat: no-repeat space;
+    background-size: 100% 1rem;
+  }
+
+  p,
+  li {
+    max-width: 42rem;
+  }
+
+  h5 + p {
+    margin-top: 0;
+  }
+
+  p + h5 {
+    margin-top: var(--space-lg);
   }
 }
 
-.step-grid {
+/* title marked with a down arrow on the step line */
+.follow-up-main h3,
+.omission > .step-main > h3 {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  position: relative;
+
+  &::before {
+    background-image: url("../icons/arrow-down-circle.svg");
+    background-size: contain;
+    content: "";
+    height: var(--space-6);
+    left: calc(var(--space-8) * -1);
+    position: absolute;
+    top: 50%;
+    translate: -50% -50%;
+    width: var(--space-6);
+  }
+}
+
+.follow-up {
   display: grid;
   gap: var(--space-8);
-  grid-template-columns: repeat(auto-fit, minmax(19.125rem, 1fr));
-  margin-bottom: var(--space-12);
+  grid-template-columns: repeat(12, 1fr);
+  margin-block: var(--space-8) var(--space-4);
+}
 
-  &:has(> :nth-child(4)) {
-    grid-template-columns: repeat(auto-fit, minmax(max(19.125rem, 40%), 1fr));
+.follow-up-main {
+  grid-column: 4 / 13;
+  max-width: 36rem;
+  text-wrap: balance;
+
+  h3,
+  p {
+    position: relative;
+  }
+
+  p {
+    margin-top: var(--space-6);
+  }
+
+  /* same offset, width and dashes as the line of the steps */
+  h3::after,
+  p::before {
+    background-image: var(--dash);
+    background-repeat: no-repeat space;
+    background-size: 100% 1rem;
+    content: "";
+    left: calc(var(--space-8) * -1);
+    position: absolute;
+    translate: -50%;
+    width: 2px;
+  }
+
+  /* dashed line from the previous step down to the arrow */
+  h3::after {
+    bottom: calc(50% + var(--space-10));
+    height: var(--space-16);
+  }
+
+  /* dashed line from the arrow down along the description */
+  p::before {
+    bottom: calc(var(--space-12) * -1);
+    top: var(--space-1);
+  }
+}
+
+/* Steps in case of missing or incorrect documents, grouped on a card with its own step line */
+.step.omission {
+  &::before {
+    content: none;
+  }
+
+  > .step-main {
+    background-color: var(--base-white);
+    gap: var(--space-6);
+    padding: var(--space-8) var(--space-8) var(--space-8) var(--space-16);
+    position: relative;
+
+    /* the line between the surrounding panels passes the card */
+    &::before {
+      background-image: var(--dash);
+      background-repeat: no-repeat space;
+      background-size: 100% 1rem;
+      bottom: calc(var(--space-16) * -1);
+      content: "";
+      left: calc(var(--space-8) * -1);
+      position: absolute;
+      top: calc(var(--space-16) * -1);
+      translate: -50%;
+      width: 2px;
+    }
+  }
+
+  .step-header {
+    margin-top: var(--space-6);
+  }
+
+  .step-content::before {
+    content: none;
+  }
+}
+
+.omission-letter {
+  background-color: var(--gray-50);
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-8);
+  position: relative;
+  text-wrap: balance;
+
+  h2 {
+    margin-bottom: var(--space-4);
+  }
+
+  p {
+    margin-top: var(--space-3);
+    max-width: 36rem;
+  }
+
+  .alert {
+    margin-block: var(--space-6) 0;
+  }
+
+  /* dashed line along the panel down towards the step number, the first dash level with the top of the panel */
+  &::before {
+    background-image: var(--dash);
+    background-repeat: no-repeat space;
+    background-size: 100% 1rem;
+    bottom: calc(var(--space-4) * -1);
+    content: "";
+    left: calc(var(--space-8) * -1);
+    position: absolute;
+    top: calc(var(--space-1) * -1);
+    translate: -50%;
+    width: 2px;
   }
 }
 
@@ -146,10 +333,8 @@
 .download-card {
   --card-padding: var(--space-6);
   border: none;
-  align-items: center;
-  flex-direction: row;
-  gap: var(--space-8);
-  justify-content: space-between;
+  margin-top: var(--space-xl);
+  gap: var(--space-md);
 
   p {
     margin: 0;
@@ -199,16 +384,24 @@
   --card-gap: var(--space-3);
   border: none;
 
-  h4:not(:first-child) {
+  .card + h4 {
     margin-top: var(--space-5);
   }
-}
 
-.section-heading {
-  align-items: end;
-  display: grid;
-  gap: var(--space-lg);
-  grid-template-columns: auto 1fr;
+  p {
+    margin-top: 0;
+  }
+
+  /* hovering a legend item highlights the problems of that severity */
+  &:has(.problem-legend .warning:is(:hover, :focus-visible)) .tag a.warning {
+    --tag-border-color: var(--orange-700);
+    background-color: var(--orange-100);
+  }
+
+  &:has(.problem-legend .error:is(:hover, :focus-visible)) .tag a.error {
+    --tag-border-color: var(--red-700);
+    background-color: var(--red-100);
+  }
 }
 
 .problem-legend {
@@ -217,24 +410,74 @@
   gap: var(--space-sm);
   justify-content: flex-end;
 
-  span {
-    padding-left: var(--space-xl);
+  > span {
+    --pad: 0.75rem;
+    position: relative;
+  }
+
+  button {
+    padding-block: var(--pad);
+    padding-left: calc(var(--pad) + 1.5rem + var(--space-sm));
+    padding-right: calc(var(--pad) + 1rem + var(--space-sm));
+    background-image: var(--legend-icon), url("../icons/question-mark.svg");
     background-repeat: no-repeat;
-    background-position: left var(--space-sm) center;
-    background-size: 1.5rem;
+    background-position:
+      left var(--pad) center,
+      right var(--pad) center;
+    background-size: 1.5rem, 1rem;
+    background-color: var(--gray-50);
+    border: none;
+    border-radius: var(--rounded-lg);
+    color: inherit;
+    font: inherit;
     font-weight: var(--font-weight-medium);
     white-space: nowrap;
+
+    &:hover,
+    &:focus-visible {
+      background-color: var(--gray-100);
+
+      + .help {
+        display: block;
+      }
+    }
+  }
+
+  .help {
+    --arrow: 0.5rem;
+    display: none;
+    position: absolute;
+    top: calc(100% + var(--arrow) + var(--space-xs));
+    right: 0;
+    z-index: 10;
+    width: 28ch;
+    padding: var(--space-md);
+    background-color: var(--blue-900);
+    border-radius: var(--rounded-lg);
+    color: white;
+    white-space: normal;
+
+    /* arrow pointing at the question mark icon */
+    &::before {
+      content: "";
+      position: absolute;
+      bottom: 100%;
+      right: calc(var(--pad) + 0.5rem - var(--arrow));
+      border: var(--arrow) solid transparent;
+      border-top: 0;
+      border-bottom-color: var(--blue-900);
+    }
   }
 
   .info {
-    background-image: url("../icons/info.svg");
+    --legend-icon: url("../icons/info.svg");
   }
 
   .warning {
-    background-image: url("../icons/warning.svg");
+    --legend-icon: url("../icons/warning.svg");
   }
 
   .error {
-    background-image: url("../icons/error.svg");
+    --legend-icon: url("../icons/error.svg");
   }
 }

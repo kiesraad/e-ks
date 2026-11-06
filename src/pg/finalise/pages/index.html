@@ -6,6 +6,10 @@
   {% let max_candidates = "max_candidates"|integer_value %}
   {% let election = "election"|election_value %}
   <div class="finalise">
+    <div class="content-header">
+      <h3>{{ "finalise.intro.title"|trans }}</h3>
+      <p>{{ "finalise.intro.description"|trans }}</p>
+    </div>
     <div class="step {{ problems.highest_severity_class() }} illustration-errors">
       <div class="step-main">
         <div class="step-header">
@@ -13,17 +17,25 @@
         </div>
         <div class="step-content">
           <section class="card problems-card">
-            <div class="section-heading">
-              <h4>{{ "common.general_information"|trans }}</h4>
+            {% if problems.has_severity_or_higher(Severity::Warn) %}
               <div class="problem-legend">
-                <span class="info">{{ "problems.legend.info"|trans }}</span>
-                <span class="warning">{{ "problems.legend.warning"|trans }}</span>
-                <span class="error">{{ "problems.legend.error"|trans }}</span>
+                <span>
+                  <button type="button" class="error" aria-describedby="legend-error-help">{{ "problems.legend.error"|trans }}</button>
+                  <span class="help" id="legend-error-help" role="tooltip">{{ "problems.legend.error_help"|trans }}</span>
+                </span>
+                <span>
+                  <button type="button" class="warning" aria-describedby="legend-warning-help">{{ "problems.legend.warning"|trans }}</button>
+                  <span class="help" id="legend-warning-help" role="tooltip">{{ "problems.legend.warning_help"|trans }}</span>
+                </span>
               </div>
-            </div>
-            {% if problems.general.flatten().is_empty() %}
-              <div class="card success">{{ "problems.no_problems"|trans }}</div>
             {% else %}
+              <div class="card success">
+                <h4>{{ "finalise.complete_list.no_problems_title"|trans }}</h4>
+                <p>{{ "finalise.complete_list.no_problems_description"|trans }}</p>
+              </div>
+            {% endif %}
+            {% if !problems.general.flatten().is_empty() %}
+              <h4>{{ "common.general_information"|trans }}</h4>
               <div class="card">
                 {% if !problems.general.general.is_empty() %}
                   <div class="mb-md">
@@ -78,10 +90,8 @@
                 {% endfor %}
               </div>
             {% endif %}
-            <h4>{{ "common.candidates"|trans }}</h4>
-            {% if problems.candidates.is_empty() %}
-              <div class="card success">{{ "problems.no_problems"|trans }}</div>
-            {% else %}
+            {% if !problems.candidates.is_empty() %}
+              <h4>{{ "common.candidates"|trans }}</h4>
               <div class="card">
                 {% for candidate_pp in &problems.candidates %}
                   <div>
@@ -98,10 +108,8 @@
                 {% endfor %}
               </div>
             {% endif %}
-            <h4>{{ "candidate_list.title_plural"|trans }}</h4>
-            {% if problems.lists.is_empty() %}
-              <div class="card success">{{ "problems.no_problems"|trans }}</div>
-            {% else %}
+            {% if !problems.lists.is_empty() %}
+              <h4>{{ "candidate_list.title_plural"|trans }}</h4>
               <div class="card">
                 <ul class="warnings tags-list">
                   {# NOTE ordering only works because we assume all general list problems are of the highest severity #}
@@ -124,9 +132,9 @@
             {% endif %}
             {% if !problems.info_problems.is_empty() %}
               <h4>{{ "problems.legend.info"|trans }}</h4>
-              <div class="card read-more">
-                <input type="checkbox" id="info-toggle" class="toggle" hidden>
-                <ul class="warnings tags-list partially-hidden">
+              <p>{{ "problems.legend.info_help"|trans }}</p>
+              <div class="card">
+                <ul class="warnings tags-list">
                   {% for problem in problems.info_problems %}
                     <li class="tag link">
                       <a class="{{ problem.severity().class() }}"
@@ -134,8 +142,6 @@
                     </li>
                   {% endfor %}
                 </ul>
-                <label for="info-toggle" class="more-less center open">{{ "action.show"|trans }}</label>
-                <label for="info-toggle" class="more-less center close">{{ "action.hide"|trans }}</label>
               </div>
             {% endif %}
           </section>
@@ -152,43 +158,25 @@
             {% if problems.highest_severity() == Some(Severity::Error) %}
               <div class="alert alert-error">{{ "finalise.print.errors_warning"|trans }}</div>
             {% else if problems.highest_severity() == Some(Severity::Warn) %}
-              <div class="alert alert-warning">{{ "finalise.print.incomplete_warning"|trans }}</div>
+              <div class="alert alert-warning">{{ "finalise.print.incomplete_warning"|trans|safe }}</div>
             {% endif %}
-            <div class="step-grid">
-              <div>
-                <h5>{{ "finalise.print.h1_title"|trans }}</h5>
-                <p>{{ "finalise.print.h1_description"|trans }}</p>
-              </div>
-              {% if list_designation != Some(ListDesignationKind::Blank) %}
-                <div>
-                  {% if list_designation == Some(ListDesignationKind::Combined) %}
-                    <h5>{{ "finalise.print.h3_2_title"|trans }}</h5>
-                    <p>{{ "finalise.print.h3_2_description"|trans }}</p>
-                  {% else %}
-                    <h5>{{ "finalise.print.h3_1_title"|trans }}</h5>
-                    <p>{{ "finalise.print.h3_1_description"|trans }}</p>
-                  {% endif %}
-                </div>
-              {% endif %}
-              {% if !previously_seated %}
-                <div>
-                  <h5>{{ "finalise.print.h4_title"|trans }}</h5>
-                  <p>{{ "finalise.print.h4_description"|trans }}</p>
-                </div>
-              {% endif %}
-              <div>
-                <h5>{{ "finalise.print.h9_title"|trans }}</h5>
-                <p>
-                  {{ "finalise.print.h9_consent"|trans }}
-                  <br>
-                  {{ "finalise.print.h9_identity"|trans(body) }}
-                </p>
-              </div>
-              <div>
-                <h5>{{ "finalise.print.eml_title"|trans }}</h5>
-                <p>{{ "finalise.print.eml"|trans }}</p>
-              </div>
-            </div>
+            <h5>{{ "finalise.print.h1_title"|trans }}</h5>
+            <p>{{ "finalise.print.h1_description"|trans }}</p>
+            {% if list_designation == Some(ListDesignationKind::Standalone) %}
+              <h5>{{ "finalise.print.h3_1_title"|trans }}</h5>
+              <p>{{ "finalise.print.h3_1_description"|trans }}</p>
+            {% endif %}
+            {% if list_designation == Some(ListDesignationKind::Combined) %}
+              <h5>{{ "finalise.print.h3_2_title"|trans }}</h5>
+              <p>{{ "finalise.print.h3_2_description"|trans }}</p>
+            {% endif %}
+            {% if !previously_seated %}
+              <h5>{{ "finalise.print.h4_title"|trans }}</h5>
+              <p>{{ "finalise.print.h4_description"|trans(body) }}</p>
+            {% endif %}
+            <h5>{{ "finalise.print.h9_title"|trans }}</h5>
+            <p>{{ "finalise.print.h9_consent"|trans }}</p>
+            <p>{{ "finalise.print.h9_identity"|trans(body) }}</p>
             <div class="card download-card {% if !problems.models_downloadable() %}disabled{% endif %}">
               <div class="download-card-text">
                 <p class="download-card-title">{{ "finalise.print.download_title"|trans }}</p>
@@ -224,14 +212,22 @@
                   </div>
                 {% endif %}
               </div>
+              <div class="alert alert-info">
+                <ul>
+                  <li>{{ "finalise.print.usb_not_required"|trans|safe }}</li>
+                  <li>{{ "finalise.print.eml_not_required"|trans }}</li>
+                </ul>
+              </div>
             </div>
           </section>
         </div>
       </div>
     </div>
-    <div class="content-header">
-      <h3>{{ "finalise.follow_up_steps.title"|trans }}</h3>
-      <p>{{ "finalise.follow_up_steps.description"|trans }}</p>
+    <div class="follow-up">
+      <div class="follow-up-main">
+        <h3>{{ "finalise.follow_up_steps.title"|trans }}</h3>
+        <p>{{ "finalise.follow_up_steps.description"|trans }}</p>
+      </div>
     </div>
     <div class="step illustration-collection">
       <div class="step-main">
@@ -251,7 +247,7 @@
         </div>
         <div class="step-content less-wide">
           <p class="alert alert-info">
-            {{ "finalise.delivery.only_on"|trans(&(election.nomination_day_date() |long_date))|safe }}
+            {{ "finalise.delivery.only_on"|trans(&(election.nomination_day_date() |extra_long_date))|safe }}
           </p>
           <p>{{ "finalise.delivery.description"|trans |safe }}</p>
           <p>{{ "finalise.delivery.appointment"|trans }}</p>
@@ -265,45 +261,52 @@
         </div>
       </div>
     </div>
-    <div class="step illustration-verification">
+    <div class="step csb illustration-verification">
       <div class="step-main">
         <div class="step-header">
           <h2>{{ "finalise.verification.title"|trans }}</h2>
         </div>
         <div class="step-content less-wide">
-          <p class="alert alert-info">
-            {{ "finalise.verification.until"|trans(&(election.document_review_date() |long_date))|safe }}
-          </p>
           <p>{{ "finalise.verification.description"|trans }}</p>
           <p>{{ "finalise.verification.correction_notice"|trans }}</p>
+          <p class="alert alert-info-gray">
+            {{ "finalise.verification.until"|trans(&(election.document_review_date() |extra_long_date))|safe }}
+          </p>
         </div>
       </div>
     </div>
-    <div class="step illustration-correction">
+    <div class="step omission">
       <div class="step-main">
+        <h3>{{ "finalise.omission_steps.title"|trans }}</h3>
+        <div class="omission-letter">
+          <h2>{{ "finalise.omission_letter.title"|trans }}</h2>
+          <p>{{ "finalise.omission_letter.description"|trans }}</p>
+          <p class="alert alert-info-gray">
+            {{ "finalise.omission_letter.sent"|trans(&(election.document_review_date() |extra_long_date))|safe }}
+          </p>
+        </div>
         <div class="step-header">
           <h2>{{ "finalise.correction.title"|trans }}</h2>
         </div>
         <div class="step-content less-wide">
+          <p class="mb-ml">{{ "finalise.correction.description"|trans }}</p>
           <p class="alert alert-info">
-            {{ "finalise.correction.until"|trans(&(election.omission_period_end_date() |long_date))|safe }}
+            {{ "finalise.correction.until"|trans(&(election.omission_period_start_date() |extra_long_date), &(election.omission_period_end_date() |extra_long_date), &(election.omission_period_end_time() |time))|safe }}
           </p>
-          <p>{{ "finalise.correction.description"|trans }}</p>
-          <p>{{ "finalise.correction.deadline"|trans(&(election.omission_period_end_date() |long_date))|safe }}</p>
         </div>
       </div>
     </div>
-    <div class="step illustration-hearing">
+    <div class="step csb illustration-hearing">
       <div class="step-main">
         <div class="step-header">
           <h2>{{ "finalise.hearing.title"|trans }}</h2>
         </div>
         <div class="step-content less-wide">
-          <p class="alert alert-info">
-            {{ "finalise.hearing.date"|trans(&(election.public_session().datetime.date()|long_date), &election.public_session().formatted_time())|safe }}
-          </p>
           <p>{{ "finalise.hearing.description"|trans }}</p>
           <p>{{ "finalise.hearing.open_to_public"|trans }}</p>
+          <p class="alert alert-info-gray">
+            {{ "finalise.hearing.date"|trans(&(election.public_session().datetime.date()|extra_long_date), &election.public_session().formatted_time())|safe }}
+          </p>
         </div>
       </div>
     </div>
