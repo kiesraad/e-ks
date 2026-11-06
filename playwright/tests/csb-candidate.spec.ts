@@ -81,7 +81,7 @@ test.describe("check candidate and add corrections and omissions", async () => {
       },
 
       {
-        button: omissionsPage.buttonAuthorisedPerson,
+        button: omissionsPage.buttonRepresentative,
         text: "Gemachtigde kandidaat ontbreekt",
         resolvable: true,
       },
