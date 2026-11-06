@@ -76,7 +76,7 @@ Note that "vervanger herstel verzuim" is called "plaatsvervanger van de inlevera
 | waarborgsom                    |           | deposit                   |             |
 | betalingsbewijs                |           | proof of payment          |             |
 | gemachtigde                    |           | authorised agent          |             |
-| gemachtigde van kandidaat      |           | authorised person         |             |
+| gemachtigde van kandidaat      |           | representative            |             |
 | kiesgerechtigd                 |           | entitled to vote          |             |
 | Kamer van Koophandel           | KVK       | Chamber of Commerce       |             |
 | instemmingsverklaring          |           | declaration of consent    |             |

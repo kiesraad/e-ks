@@ -660,7 +660,7 @@ mod tests {
         // The corrected house number addition is highlighted.
         assert!(body.contains(r#"<strong class="paper-corrected-value">C</strong>"#));
         // The representative table renders with the corrected name.
-        assert!(body.contains("Authorised person"));
+        assert!(body.contains("Representative"));
         assert!(body.contains("Gemachtigde"));
         assert!(body.contains("Opvolger"));
     }
