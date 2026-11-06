@@ -176,7 +176,7 @@
             {% endif %}
             <h5>{{ "finalise.print.h9_title"|trans }}</h5>
             <p>{{ "finalise.print.h9_consent"|trans }}</p>
-            <p>{{ "finalise.print.h9_identity"|trans }}</p>
+            <p>{{ "finalise.print.h9_identity"|trans(body) }}</p>
             <div class="card download-card {% if !problems.models_downloadable() %}disabled{% endif %}">
               <div class="download-card-text">
                 <p class="download-card-title">{{ "finalise.print.download_title"|trans }}</p>

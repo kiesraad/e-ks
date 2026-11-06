@@ -20,7 +20,7 @@ follow_up_steps:
   title: The next steps outside this application
 hearing:
   date: "The session is on <strong>{}</strong> at <strong>{}</strong>"
-  description: "In a public session, the central electoral committee determines which parties will appear on the ballot, and in what order."
+  description: "The central electoral committee determines in a public session which parties will appear on the ballot, and in what order."
   open_to_public: You may attend the session.
   title: Final determination of candidate lists
 intro:
@@ -45,8 +45,8 @@ print:
   h3_2_title: Authorisation to use combined appellation (H\u00A03-2)
   h4_description: "With the H\u00A04, your political group collects declarations of support from eligible voters. This is required for political groups that are not currently represented in the relevant body or are participating with a blank list."
   h4_title: Declarations of support (H\u00A04)
-  h9_consent: "Is the candidate not yet a member of the Senate? Then add a copy of a valid identity document to the declaration of consent."
-  h9_identity: "When submitting the H\u00A09, a legible copy of the identity document of the candidate must also be included."
+  h9_consent: "With this form, candidates agree to being placed on the list of candidates. They also agree to their position on the list."
+  h9_identity: "Is the candidate not yet a member of {}? Then add a copy of a valid identity document to the declaration of consent."
   h9_title: Declarations of consent (H\u00A09)
   incomplete_warning: "<strong>Attention!</strong> You can print the documents, but they will be considered incomplete by the central electoral committee. Resolve the warnings in step 1 to complete the list."
   title: Print the documents

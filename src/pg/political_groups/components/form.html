@@ -37,6 +37,9 @@
             {{ "political_group.previous_election_results"|trans(&election|election_type_title) }}
           {% endif %}
         </legend>
+        {% if steps.is_combined() %}
+          <span class="hint">{{ "political_group.type.previous_election_results_combined_hint"|trans }}</span>
+        {% endif %}
         <div class="checklist">
           <div class="checkbox">
             <input type="radio"
@@ -73,10 +76,6 @@
               <li>{{ "political_group.type.previous_election_results_hint_support"|trans }}</li>
               <li>{{ "political_group.type.previous_election_results_hint_candidates"|trans }}</li>
             </ul>
-            {% if steps.is_combined() %}
-              <br>
-              {{ "political_group.type.previous_election_results_combined_hint"|trans }}
-            {% endif %}
           </div>
         </div>
       </fieldset>
@@ -102,7 +101,14 @@
     <div class="form-row">
       {% if steps.is_combined() %}
         <div class="alert alert-info alert-full">
-          <p class="text-body-width">{{ "political_group.type.appellation_combined_hint"|trans }}</p>
+          <div class="text-body-width">
+            {{ "political_group.type.appellation_combined_hint"|trans }}
+            <ul>
+              <li>{{ "political_group.type.appellation_combined_hint_combine"|trans|safe }}</li>
+              <li>{{ "political_group.type.appellation_combined_hint_no_additions"|trans|safe }}</li>
+              <li>{{ "political_group.type.appellation_combined_hint_length"|trans|safe }}</li>
+            </ul>
+          </div>
         </div>
       {% endif %}
     </div>

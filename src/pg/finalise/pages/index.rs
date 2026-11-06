@@ -24,6 +24,7 @@ pub struct IndexTemplate {
     frisian_export_allowed: bool,
     list_designation: Option<ListDesignationKind>,
     previously_seated: bool,
+    body: String,
 }
 
 pub async fn index(
@@ -51,6 +52,11 @@ pub async fn index(
             frisian_export_allowed: context.election.frisian_export_allowed(),
             list_designation: data.get_political_group().list_designation_kind(),
             previously_seated: data.get_political_group().was_previously_seated(),
+            body: context
+                .election
+                .election_type()
+                .body(context.session.locale)
+                .to_string(),
         },
         context,
     ))
