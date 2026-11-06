@@ -24,7 +24,6 @@ pub(crate) mod csb_model_inputs;
 pub(crate) mod documents;
 pub(crate) mod eml;
 pub(crate) mod established_lists;
-pub mod examples;
 mod fonts;
 pub mod h1;
 pub mod h3;
@@ -36,8 +35,13 @@ pub mod inputs;
 mod layout;
 mod markdown;
 pub mod omission_letter;
-pub use examples::{Example, examples};
 pub use fonts::fonts;
+
+#[cfg(any(test, feature = "examples"))]
+pub mod examples;
+
+#[cfg(any(test, feature = "examples"))]
+pub use examples::{Example, examples};
 
 use axum::{
     http::HeaderValue,
