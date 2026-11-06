@@ -17,6 +17,7 @@ pub type AppResponse<T> = Result<T, AppError>;
 pub enum AppError {
     // Request level errors
     Unauthorised,
+    /// A broken invariant with no underlying error worth reporting.
     InternalServerError,
     #[default]
     GenericNotFound,
@@ -36,7 +37,8 @@ pub enum AppError {
 
     // Application level errors
     ConfigLoadError(String),
-    ServerError(std::io::Error),
+    /// An I/O failure, e.g. binding the listener or writing TLS files.
+    IoError(std::io::Error),
     UpstreamError(reqwest::Error),
 
     /// Missing or invalid data when generating a PDF.
@@ -173,7 +175,7 @@ impl Display for AppError {
             AppError::UserError(msg) => write!(f, "{msg}"),
             AppError::PathRejection(err) => write!(f, "Path error: {err}"),
             AppError::QueryRejection(err) => write!(f, "Query error: {err}"),
-            AppError::ServerError(err) => write!(f, "Server error: {err}"),
+            AppError::IoError(err) => write!(f, "I/O error: {err}"),
             AppError::TemplateError(err) => write!(f, "Template error: {err}"),
             AppError::Unauthorised => write!(f, "Unauthorised"),
             AppError::UpstreamError(err) => write!(f, "Upstream error: {err}"),

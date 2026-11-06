@@ -82,7 +82,7 @@ impl Renewal<'_> {
     async fn renew_if_due(&self) -> Result<(), AppError> {
         let cert_pem = tokio::fs::read(&self.tls.cert_path)
             .await
-            .map_err(AppError::ServerError)?;
+            .map_err(AppError::IoError)?;
         let not_after = cert_not_after(&cert_pem)?;
         if !renewal_due(not_after, Utc::now()) {
             return Ok(());
@@ -413,7 +413,7 @@ mod tests {
         setup.tls.cert_path = setup.dir.join("nonexistent.pem");
 
         let err = setup.renewal().renew_if_due().await.expect_err("err");
-        assert!(matches!(err, AppError::ServerError(_)));
+        assert!(matches!(err, AppError::IoError(_)));
 
         setup.cleanup().await;
     }

@@ -76,7 +76,7 @@ impl MasterKey {
         buf.extend_from_slice(key.0.expose_secret());
         self.cipher
             .encrypt_in_place(&nonce, &wrap_aad(stream_id, election), &mut *buf)
-            .map_err(|e| AppError::ServerError(std::io::Error::other(e.to_string())))?;
+            .map_err(|e| AppError::IoError(std::io::Error::other(e.to_string())))?;
 
         let mut out = Vec::with_capacity(NONCE_LEN + buf.len());
         out.extend_from_slice(&nonce);
@@ -216,7 +216,7 @@ impl EventCipher {
         let nonce = Nonce::<Aes256Gcm>::generate();
 
         let invalid = |e: encoding::EncodingError| {
-            AppError::ServerError(std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+            AppError::IoError(std::io::Error::new(std::io::ErrorKind::InvalidData, e))
         };
         // sized up front, so no reallocation leaves plaintext behind
         let size = encoding::encoded_size(event).map_err(invalid)?;
@@ -225,7 +225,7 @@ impl EventCipher {
 
         self.cipher
             .encrypt_in_place(&nonce, aad, &mut *ciphertext)
-            .map_err(|e| AppError::ServerError(std::io::Error::other(e.to_string())))?;
+            .map_err(|e| AppError::IoError(std::io::Error::other(e.to_string())))?;
 
         let mut out = Vec::with_capacity(NONCE_LEN + ciphertext.len());
         out.extend_from_slice(&nonce);

@@ -15,10 +15,10 @@ const PLACEHOLDER_VALIDITY: time::Duration = time::Duration::days(7);
 pub async fn bootstrap_certificate(acme: &AcmeConfig, tls: &TlsConfig) -> Result<(), AppError> {
     let cert_exists = tokio::fs::try_exists(&tls.cert_path)
         .await
-        .map_err(AppError::ServerError)?;
+        .map_err(AppError::IoError)?;
     let key_exists = tokio::fs::try_exists(&tls.key_path)
         .await
-        .map_err(AppError::ServerError)?;
+        .map_err(AppError::IoError)?;
 
     match (cert_exists, key_exists) {
         (true, true) => return Ok(()),
@@ -35,10 +35,10 @@ pub async fn bootstrap_certificate(acme: &AcmeConfig, tls: &TlsConfig) -> Result
     let (cert_pem, key_pem) = self_signed_placeholder(&acme.domain)?;
     write_atomic(&tls.key_path, key_pem.as_bytes(), 0o600)
         .await
-        .map_err(AppError::ServerError)?;
+        .map_err(AppError::IoError)?;
     write_atomic(&tls.cert_path, cert_pem.as_bytes(), 0o644)
         .await
-        .map_err(AppError::ServerError)?;
+        .map_err(AppError::IoError)?;
 
     tracing::info!(
         "no TLS certificate found at {}; wrote a self-signed placeholder for {} — \
