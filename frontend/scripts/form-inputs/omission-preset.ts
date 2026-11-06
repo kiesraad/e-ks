@@ -1,10 +1,12 @@
 // Assign a dataset value to a field, tolerating a missing field or value.
+// The change event lets stale server errors on the field clear themselves.
 function setValue(
   field: HTMLInputElement | HTMLTextAreaElement | null,
   value: string | undefined,
 ) {
   if (field) {
     field.value = value ?? "";
+    field.dispatchEvent(new Event("change"));
   }
 }
 

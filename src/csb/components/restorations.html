@@ -24,8 +24,12 @@
     <ul class="restoration-tags">
       {% for view in omissions %}
         <li>
-          <a class="restoration-tag{% if !view.omission.recoverable %} restoration-tag-unrecoverable{% endif %}"
-             href="{{ view.path }}">{{ view.omission.title }}</a>
+          {% if let Some(path) = view.path %}
+            <a class="restoration-tag{% if !view.omission.recoverable %} restoration-tag-unrecoverable{% endif %}"
+               href="{{ path }}">{{ view.omission.title }}</a>
+          {% else %}
+            <span class="restoration-tag{% if !view.omission.recoverable %} restoration-tag-unrecoverable{% endif %}">{{ view.omission.title }}</span>
+          {% endif %}
         </li>
       {% endfor %}
     </ul>
@@ -65,22 +69,24 @@
         {% for part_row in row.parts %}
           <tr>
             <th scope="row">
-              {% if let Some(district) = part_row.district() %}{{ district|district_name }}{% endif %}
-              {% if let Some(list_id) = part_row.list() %}
-                {% for district in political_group.candidate_list_districts(list_id) %}
-                  {% if !loop.first %}<span class="districts-separator" aria-hidden="true">|</span>{% endif %}
-                  {{ district|district_name }}
-                {% endfor %}
-              {% endif %}
-            </th>
-            <td>{{ status_buttons(political_group, part_row.omission, redirect, part_row.value() , size="xs", part_field=part_row.field()) }}</td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  {% else %}
-    {{ status_buttons(political_group, row.omission, redirect, "") }}
-  {% endif %}
+              {% match part_row.part %}
+              {% when crate::structs::csb::OmissionPart::ElectoralDistrict(district) %}
+              {{ district|district_name }}
+              {% when crate::structs::csb::OmissionPart::CandidateList(list_id) %}
+              {% for district in political_group.candidate_list_districts(list_id) %}
+                {% if !loop.first %}<span class="districts-separator" aria-hidden="true">|</span>{% endif %}
+                {{ district|district_name }}
+              {% endfor %}
+            {% endmatch %}
+          </th>
+          <td>{{ status_buttons(political_group, part_row.omission, redirect, part_row.value() , size="xs", part_field=part_row.field()) }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  {{ status_buttons(political_group, row.omission, redirect, "") }}
+{% endif %}
 {% endmacro status_control %}
 {% macro districts_line(districts) %}
   {% let election = "election"|election_value %}
@@ -119,11 +125,11 @@
   <li class="omission-status-row{% if per_part %} omission-status-row-per-part{% endif %}"
       data-id="{{ row.omission.id }}{% for part in row.parts %} {{ part.omission.id }}{% endfor %}">
     <div class="omission-status-text">
-      {% if row.path.is_empty() %}
-        <span class="restoration-tag{% if !row.omission.recoverable %} restoration-tag-unrecoverable{% endif %}">{{ row.omission.title }}</span>
-      {% else %}
+      {% if let Some(path) = row.path %}
         <a class="restoration-tag{% if !row.omission.recoverable %} restoration-tag-unrecoverable{% endif %}"
-           href="{{ row.path }}">{{ row.omission.title }}</a>
+           href="{{ path }}">{{ row.omission.title }}</a>
+      {% else %}
+        <span class="restoration-tag{% if !row.omission.recoverable %} restoration-tag-unrecoverable{% endif %}">{{ row.omission.title }}</span>
       {% endif %}
       {% if !per_part %}{{ districts_line(row.omission.electoral_districts(election) ) }}{% endif %}
       {% if scope_list.is_empty() && lists.len() == 1 %}{{ lists_line(political_group, lists) }}{% endif %}

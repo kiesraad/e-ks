@@ -118,7 +118,7 @@
              href="{{ political_group.all_restorations_path() }}">{{ "csb.recovery.omissions_title"|trans }}</a>
         </div>
         <div class="alert mb-0 {% if political_group.recovery.is_complete() %}alert-success{% else %}alert-warning{% endif %}">
-          {{ "csb.recovery.pending_count"|trans(&political_group.recovery.pending.to_string() ) }}
+          {{ "csb.recovery.pending_count"|trans(&political_group.recovery.pending.to_string() )|safe }}
         </div>
       </div>
     {% endif %}

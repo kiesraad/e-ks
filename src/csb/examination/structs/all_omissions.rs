@@ -81,9 +81,7 @@ impl CsbStoreData {
                 omission
                     .candidate_lists()
                     .first()
-                    .map_or_else(String::new, |list| {
-                        candidate_list_path(political_group, list)
-                    })
+                    .and_then(|list| candidate_list_path(political_group, list))
             }),
             candidates,
         })
@@ -117,9 +115,7 @@ impl CsbStoreData {
                         omission
                             .candidate_lists()
                             .first()
-                            .map_or_else(String::new, |list| {
-                                candidate_path(political_group, &person_id, list)
-                            })
+                            .and_then(|list| candidate_path(political_group, &person_id, list))
                     }),
                     person,
                     removed,
@@ -133,8 +129,8 @@ impl CsbStoreData {
 // be edited in; in recovery mode there is nothing to edit, so it links to the
 // page of the item it applies to instead.
 
-fn general_path(political_group: &CsbPoliticalGroup) -> String {
-    match political_group.mode {
+fn general_path(political_group: &CsbPoliticalGroup) -> Option<String> {
+    Some(match political_group.mode {
         CsbPhase::Examination => political_group
             .manage_political_group_omissions_path()
             .with_query_params(QueryParamState::redirect_to(
@@ -142,11 +138,11 @@ fn general_path(political_group: &CsbPoliticalGroup) -> String {
             ))
             .to_string(),
         CsbPhase::Recovery => political_group.general_information_path(),
-    }
+    })
 }
 
-fn appellation_path(political_group: &CsbPoliticalGroup) -> String {
-    match political_group.mode {
+fn appellation_path(political_group: &CsbPoliticalGroup) -> Option<String> {
+    Some(match political_group.mode {
         CsbPhase::Examination => political_group
             .manage_appellation_omissions_path()
             .with_query_params(QueryParamState::redirect_to(
@@ -154,11 +150,14 @@ fn appellation_path(political_group: &CsbPoliticalGroup) -> String {
             ))
             .to_string(),
         CsbPhase::Recovery => political_group.general_information_path(),
-    }
+    })
 }
 
-fn candidate_list_path(political_group: &CsbPoliticalGroup, list_id: &CandidateListId) -> String {
-    match political_group.mode {
+fn candidate_list_path(
+    political_group: &CsbPoliticalGroup,
+    list_id: &CandidateListId,
+) -> Option<String> {
+    Some(match political_group.mode {
         CsbPhase::Examination => political_group
             .manage_candidate_list_omissions_path(list_id)
             .with_query_params(QueryParamState::redirect_to(
@@ -166,20 +165,22 @@ fn candidate_list_path(political_group: &CsbPoliticalGroup, list_id: &CandidateL
             ))
             .to_string(),
         CsbPhase::Recovery => political_group.candidate_list_path(list_id),
-    }
+    })
 }
 
 /// The declarations of support are decided on the recovery omissions page
 /// itself, so there the title links nowhere.
-fn declarations_of_support_path(political_group: &CsbPoliticalGroup) -> String {
+fn declarations_of_support_path(political_group: &CsbPoliticalGroup) -> Option<String> {
     match political_group.mode {
-        CsbPhase::Examination => political_group
-            .manage_declarations_of_support_omissions_path()
-            .with_query_params(QueryParamState::redirect_to(
-                political_group.all_restorations_path(),
-            ))
-            .to_string(),
-        CsbPhase::Recovery => String::new(),
+        CsbPhase::Examination => Some(
+            political_group
+                .manage_declarations_of_support_omissions_path()
+                .with_query_params(QueryParamState::redirect_to(
+                    political_group.all_restorations_path(),
+                ))
+                .to_string(),
+        ),
+        CsbPhase::Recovery => None,
     }
 }
 
@@ -187,8 +188,8 @@ fn candidate_path(
     political_group: &CsbPoliticalGroup,
     person: &PersonId,
     list: &CandidateListId,
-) -> String {
-    match political_group.mode {
+) -> Option<String> {
+    Some(match political_group.mode {
         CsbPhase::Examination => political_group
             .manage_candidate_omissions_path(person, list)
             .with_query_params(QueryParamState::redirect_to(
@@ -196,7 +197,7 @@ fn candidate_path(
             ))
             .to_string(),
         CsbPhase::Recovery => political_group.candidate_path(list, person),
-    }
+    })
 }
 
 #[cfg(test)]
@@ -217,7 +218,7 @@ mod tests {
     fn general_path_test() {
         let store = CsbStore::new_for_test();
 
-        let path = general_path(&CsbPoliticalGroup::new_from_csb_store(&store));
+        let path = general_path(&CsbPoliticalGroup::new_from_csb_store(&store)).unwrap();
 
         let pg_type = OmissionType::PoliticalGroup.to_string();
         let stream_id = store.stream_id;
@@ -272,7 +273,8 @@ mod tests {
             &CsbPoliticalGroup::new_from_csb_store(&store),
             &person_id,
             &list_id,
-        );
+        )
+        .unwrap();
 
         let candidate_type = OmissionType::Candidate.to_string();
         let stream_id = store.stream_id;

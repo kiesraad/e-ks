@@ -15,8 +15,8 @@ use crate::{
 /// An omission as the omission pages list it.
 pub struct OmissionRow {
     pub omission: Omission,
-    /// Where the title links to; empty for no link.
-    pub path: String,
+    /// Where the title links to, if anywhere.
+    pub path: Option<String>,
     /// One entry per district or list the omission is decided on, in election
     /// order; empty when it is decided as a whole. A decision on one part
     /// splits the omission (see [`Omission::set_part_status`]), so each part
@@ -31,20 +31,6 @@ pub struct OmissionPartRow {
 }
 
 impl OmissionPartRow {
-    pub fn district(&self) -> Option<ElectoralDistrict> {
-        match self.part {
-            OmissionPart::ElectoralDistrict(district) => Some(district),
-            OmissionPart::CandidateList(_) => None,
-        }
-    }
-
-    pub fn list(&self) -> Option<&CandidateListId> {
-        match &self.part {
-            OmissionPart::ElectoralDistrict(_) => None,
-            OmissionPart::CandidateList(list_id) => Some(list_id),
-        }
-    }
-
     /// The form field the status control posts this part as.
     pub fn field(&self) -> &'static str {
         match self.part {
@@ -70,29 +56,23 @@ impl OmissionRow {
     pub fn rows(
         omissions: Vec<Omission>,
         political_group: &CsbPoliticalGroup,
-        path: impl Fn(&Omission) -> String,
+        path: impl Fn(&Omission) -> Option<String>,
     ) -> Vec<Self> {
-        let election = political_group.election;
         let mut rows: Vec<Self> = Vec::new();
         for omission in omissions {
             let parts: Vec<OmissionPartRow> = omission
-                .parts(&election)
+                .parts(&political_group.election)
                 .into_iter()
                 .map(|part| OmissionPartRow {
                     part,
                     omission: omission.clone(),
                 })
                 .collect();
-            let shared =
-                political_group.mode.is_recovery() && omission.is_actionable() && !parts.is_empty();
-            match rows.iter_mut().find(|row| {
-                shared
-                    && row.omission.has_same_details(&omission)
-                    && row
-                        .parts
-                        .iter()
-                        .all(|p| parts.iter().all(|q| q.part != p.part))
-            }) {
+            let shared = political_group.mode.is_recovery() && omission.is_actionable();
+            match rows
+                .iter_mut()
+                .find(|row| shared && row.shares_with(&omission, &parts))
+            {
                 Some(row) => row.parts.extend(parts),
                 None => rows.push(Self {
                     path: path(&omission),
@@ -102,8 +82,29 @@ impl OmissionRow {
             }
         }
 
-        let districts = election.electoral_districts();
-        let order = |part: &OmissionPartRow| {
+        let order = Self::part_order(political_group);
+        for row in &mut rows {
+            row.parts.sort_by_key(&order);
+        }
+        rows
+    }
+
+    /// Whether `omission` is another part of this row's split omission: same
+    /// details, and none of `parts` already in the row.
+    fn shares_with(&self, omission: &Omission, parts: &[OmissionPartRow]) -> bool {
+        !parts.is_empty()
+            && self.omission.has_same_details(omission)
+            && self
+                .parts
+                .iter()
+                .all(|p| parts.iter().all(|q| q.part != p.part))
+    }
+
+    /// A part's position in the election's district order; a list sorts on
+    /// its first district.
+    fn part_order(political_group: &CsbPoliticalGroup) -> impl Fn(&OmissionPartRow) -> usize {
+        let districts = political_group.election.electoral_districts();
+        move |part| {
             let district = match part.part {
                 OmissionPart::ElectoralDistrict(district) => Some(district),
                 OmissionPart::CandidateList(list_id) => political_group
@@ -114,17 +115,13 @@ impl OmissionRow {
             district
                 .and_then(|district| districts.iter().position(|d| *d == district))
                 .unwrap_or(usize::MAX)
-        };
-        for row in &mut rows {
-            row.parts.sort_by_key(order);
         }
-        rows
     }
 
     /// `omissions` as rows whose titles link nowhere, for the page of the
     /// item they apply to.
     pub fn unlinked(omissions: Vec<Omission>, political_group: &CsbPoliticalGroup) -> Vec<Self> {
-        Self::rows(omissions, political_group, |_| String::new())
+        Self::rows(omissions, political_group, |_| None)
     }
 
     /// The rows a candidate's page on `list_id` shows: every omission of the
@@ -140,7 +137,11 @@ impl OmissionRow {
             data.get_candidate_omissions(person_id, None, political_group.election),
             political_group,
         );
-        rows.retain(|row| row.parts.iter().any(|part| part.list() == Some(&list_id)));
+        rows.retain(|row| {
+            row.parts
+                .iter()
+                .any(|part| part.part == OmissionPart::CandidateList(list_id))
+        });
         rows
     }
 

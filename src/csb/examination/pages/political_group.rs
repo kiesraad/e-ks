@@ -773,13 +773,16 @@ mod tests {
         let body = response_body_string(response).await;
         assert!(!body.contains("Declarations of support missing"), "{body}");
         // One decision per district still to make.
-        assert!(body.contains("2 still to assess"), "{body}");
+        assert!(
+            body.contains("<strong>2</strong> still to assess"),
+            "{body}"
+        );
         // Only the summary card links to the omissions page: the header
         // button is gone.
         let omissions_path = format!("/csb/recovery/{stream_id}/omissions");
         assert_eq!(body.matches(omissions_path.as_str()).count(), 1, "{body}");
         let scrapped = body.find("Scrapped</h2>").unwrap();
-        let summary = body.find("2 still to assess").unwrap();
+        let summary = body.find("</strong> still to assess").unwrap();
         assert!(scrapped < summary, "{body}");
     }
 
