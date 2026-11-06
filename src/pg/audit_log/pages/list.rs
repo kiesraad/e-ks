@@ -205,6 +205,14 @@ mod tests {
         Query(AuditLogFilter::default())
     }
 
+    #[test]
+    fn filter_offers_every_event_key() {
+        crate::structs::audit_log::assert_lists_every_key(
+            EVENT_TYPES_BY_CATEGORY,
+            &[include_str!("../event_info.rs")],
+        );
+    }
+
     #[tokio::test]
     async fn renders_empty_audit_log() -> Result<(), AppError> {
         let store = PgStore::new_for_test();

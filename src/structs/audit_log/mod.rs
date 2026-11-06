@@ -22,6 +22,8 @@ pub use change::{Change, ChangeKind, Move};
 pub use diff::fields_of;
 pub use diff::{between, diff, diff_at, diff_updated};
 pub use event_type_category::EventTypeCategory;
+#[cfg(test)]
+pub use event_type_category::assert_lists_every_key;
 pub use field_key::{FieldKey, FieldPath};
 pub(crate) use fields::audit_fields;
 pub use fields::{AuditFields, Field};

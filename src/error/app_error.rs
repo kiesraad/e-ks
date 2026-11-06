@@ -52,7 +52,6 @@ pub enum AppError {
     #[cfg(feature = "acme")]
     AcmeError(instant_acme::Error),
 
-    NoStorageConfigured,
     IntegrityViolation,
 
     /// A person-creating write would take the stream past the maximum number
@@ -165,7 +164,6 @@ impl Display for AppError {
             AppError::JsonRejection(err) => write!(f, "JSON error: {err}"),
             AppError::MultipartError(err) => write!(f, "Multipart error: {err}"),
             AppError::MultipartFormError(err) => write!(f, "Multipart form error: {err}"),
-            AppError::NoStorageConfigured => write!(f, "No event storage configured"),
             AppError::PdfError(err) => write!(f, "PDF error: {err}"),
             AppError::DocxError(err) => write!(f, "Word export error: {err}"),
             AppError::MarkdownError(err) => write!(f, "Markdown template error: {err}"),

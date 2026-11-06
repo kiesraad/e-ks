@@ -72,7 +72,10 @@ export default function addressLookup() {
       return;
     }
     // skip lookup if country code input is present and not NL
-    if (countryCodeInput != null && countryCodeInput.value !== "NL") {
+    if (
+      countryCodeInput != null &&
+      countryCodeInput.value.toUpperCase() !== "NL"
+    ) {
       return;
     }
 

@@ -14,15 +14,16 @@
 //!
 //! **Core structs and relationships**
 //! - [`AppState`]: application state container shared by request handlers. Owns config,
-//!   a `StoreRegistry<PgStoreData>` for per-stream data, and the in-memory
+//!   a `StoreRegistry<PgStoreData>` for per-stream data, and the
 //!   [`SessionStore`] for active sessions.
 //! - [`PgStoreData`]: the domain projection for a single stream. It is the
 //!   in-memory state updated by [`PgEvent`] through `StoreData::apply`.
 //! - `Store<D>`: generic event-sourced store wrapper around type parameter `D`
 //!   implementing `StoreData`. It owns
-//!   a persistence backend (database/local/memory) and a shared data handle.
-//! - [`PgStore`]: type alias for `Store<PgStoreData>`, i.e., the concrete store used
-//!   by the application.
+//!   a persistence backend (database/memory) and a shared data handle.
+//! - [`PgStore`]: the handle the PG handlers use: reads from a `Store<PgStoreData>`,
+//!   writes to the political group's stream, or to the CSB stream in
+//!   paper-corrections mode.
 //! - `StoreRegistry<D>`: cache/registry that creates and reuses `Store<D>` instances
 //!   per stream ID (scoped to BSN + election).
 //! - [`PgEvent`]: domain event enum driving updates to [`PgStoreData`].
@@ -38,17 +39,17 @@
 //!
 //! **Directory layout (high level)**
 //! - `src/pg/`: political group section domain modules (candidates, candidate_lists,
-//!   persons, etc), plus the per-stream [`PgStoreData`] projection (`pg/store/`) and
-//!   the HTML error-page renderer.
+//!   persons, etc), plus the HTML error-page renderer.
 //! - `src/csb/`: central voting bureau section (import, pre-submission, examination, monitoring).
 //! - `src/structs/`: shared domain model structs used by both `pg` and `csb`.
-//! - `src/middleware/`: shared HTTP infrastructure that needs [`AppState`]
-//!   (session/store middleware, health, proxy, eks_key, dev login).
+//! - `src/app/`: [`AppState`], the top-level route wiring (see [`router`]), the
+//!   auth-service login/logout hooks, and the HTTP middleware that needs
+//!   [`AppState`] (session/store, health, proxy, eks_key, dev login).
 //! - `src/auth/`: authentication, the session model, and session storage (see [`Session`], [`SessionStore`]).
 //! - `src/core/`: shared configuration, logging, server setup, and core helpers (see [`Config`], [`logging`], [`server`]).
-//! - `src/store/`: generic event store, persistence, and registry logic (see [`PgStore`]).
-//! - `src/state.rs`: [`AppState`] definition and extractors.
-//! - `src/router.rs`: top-level route wiring (see [`router`]).
+//! - `src/store/`: generic event store, persistence, and registry logic.
+//! - `src/projection/`: the projections on that store ([`PgStoreData`],
+//!   `CsbStoreData`, `CsbMainStoreData`) and their handles ([`PgStore`], `CsbStore`).
 //!
 //! **PG module layout (per-domain)**
 //! Most `src/pg/<domain>/` modules follow a similar structure:
@@ -61,7 +62,7 @@
 //! - `mod.rs`: re-exports and module-level wiring.
 //!
 //! This layout keeps domain-specific routing and UI close to each other while
-//! sharing generic infrastructure via `core`, `auth`, `state`, and `store`.
+//! sharing generic infrastructure via `core`, `auth`, `app`, and `store`.
 
 #[cfg(feature = "acme")]
 mod acme;
@@ -78,10 +79,10 @@ mod structs;
 mod utils;
 mod view;
 
-// `pub` because the `pdf_diff` development tool renders the PDF models (from
-// the JSON example inputs) through this module.
 pub use app::router;
 
+// `pub` because the `pdf_diff` development tool renders the PDF models (from
+// their example inputs) through this module.
 pub mod models;
 
 #[cfg(feature = "fixtures")]

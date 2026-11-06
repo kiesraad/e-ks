@@ -321,6 +321,19 @@ mod tests {
         Query(CsbAuditLogFilter::default())
     }
 
+    /// Paper corrections delegate `key()` to the wrapped `PgEvent` and are
+    /// filtered by their category instead.
+    #[test]
+    fn filter_offers_every_event_key() {
+        crate::structs::audit_log::assert_lists_every_key(
+            EVENT_TYPES_BY_CATEGORY,
+            &[
+                include_str!("../../../projection/csb_data/event.rs"),
+                include_str!("../../../projection/csb_main/event.rs"),
+            ],
+        );
+    }
+
     async fn call(
         main_store: CsbMainStore,
         state: AppState,
