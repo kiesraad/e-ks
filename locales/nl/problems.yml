@@ -6,7 +6,7 @@ duplicate_districts: Dubbele kieskringen
 incomplete_address: Adres onvolledig
 legend:
   error: Niet inleverbaar
-  error_help: "Vul de ontbrekende informatie aan, pas daarna kunnen de documenten worden geprint."
+  error_help: Vul de ontbrekende informatie aan. Pas daarna kunnen de documenten worden geprint.
   info: Ter info
   info_help: We raden aan om deze informatie nog een keer te controleren.
   warning: Actie vereist

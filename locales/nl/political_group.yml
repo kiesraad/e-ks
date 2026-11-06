@@ -11,7 +11,7 @@ authorised_agent: Gemachtigde
 authorised_agent_data: Gegevens (plv.) gemachtigde
 authorised_agent_data_hint: Vul de gegevens in van de (plaatsvervangend) gemachtigde die is geregistreerd bij het centraal stembureau.
 authorised_agent_info: Voeg hier de statutaire naam met bijbehorende gemachtigde toe.
-authorised_agent_info_hint: De statutaire naam is de naam van de partij die is vastgelegd in de notariële akte en bij de Kamer van Koophandel. De gemachtigde of plaatsvervangend gemachtigde is geregistreerd bij het centraal stembureau samen met de aanduiding. De (plaatsvervangende) gemachtigde geeft de lijstinleveraar toestemming om de naam van de partij boven de kandidatenlijst te plaatsen.
+authorised_agent_info_hint: De statutaire naam is de naam van de partij die is vastgelegd in de notariële akte en bij de Kamer van Koophandel. De gemachtigde of plaatsvervangend gemachtigde is geregistreerd bij het centraal stembureau samen met de aanduiding. De (plaatsvervangend) gemachtigde geeft de lijstinleveraar toestemming om de naam van de partij boven de kandidatenlijst te plaatsen.
 basic_information_political_group: Gegevens politieke groepering
 blank_list_warning: U gebruikt een blanco lijst. Wijzigingen die u hier maakt hebben geen effect.
 delete_name_authorisation_warning_text: Weet u zeker dat u dit wilt verwijderen? Deze actie kan niet ongedaan worden gemaakt.
@@ -44,7 +44,7 @@ registered_political_group_none: "Niet in de lijst, zelf invullen"
 substitute_submitter: Vervanger voor het herstel van verzuimen
 substitute_submitter_data: Gegevens vervanger
 substitute_submitters_data: Gegevens vervangers voor het herstel van verzuimen
-substitute_submitters_info: Een verzuim is een fout of onvolledigheid in de overhandigde stukken. Alleen de lijstinleveraar en de opgegeven vervangers mogen verzuimen herstellen bij het centraal stembureau. Wij adviseren om tenminste één vervanger op te geven.
+substitute_submitters_info: Een verzuim is een fout of onvolledigheid in de overhandigde stukken. Alleen de lijstinleveraar en de opgegeven vervangers mogen verzuimen herstellen bij het centraal stembureau. Wij adviseren om ten minste één vervanger op te geven.
 type:
   appellation_combined_hint: "Regels voor de samengevoegde naam:"
   appellation_combined_hint_combine: "<strong>Samenvoegen</strong> Combineer de officieel geregistreerde namen (of de afkortingen daarvan) en scheid ze met een streepje (-) of schuine streep (/)."

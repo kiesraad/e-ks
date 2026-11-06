@@ -3,7 +3,7 @@ collection:
   pre_submission: "In the week before nomination day, you can have the documents reviewed in advance by the central electoral committee during the so-called 'pre-submission'. Please make an appointment with the central electoral committee for this."
   title: "Gather, review and sign"
 complete_list:
-  no_problems_description: "The documents are now ready to be submitted on paper to the central electoral committee, who will check the paper documents and the personal details."
+  no_problems_description: "The documents are now ready to be submitted on paper to the central electoral committee. They will check the paper documents and the personal details."
   no_problems_title: No errors were found by this application.
   title: Complete your list
 correction:
@@ -50,7 +50,7 @@ print:
   h9_title: Declarations of consent (H\u00A09)
   incomplete_warning: "<strong>Attention!</strong> You can print the documents, but they will be considered incomplete by the central electoral committee. Resolve the warnings in step 1 to complete the list."
   title: Print the documents
-  usb_not_required: These documents <strong>no longer</strong> need to be handed over digitally on a USB stick;
+  usb_not_required: These documents <strong>no longer</strong> need to be handed over digitally on a USB stick.
 verification:
   correction_notice: "If anything is missing, you will receive a letter from us listing the omissions."
   description: The central electoral committee reviews the submitted documents for completeness and correctness.

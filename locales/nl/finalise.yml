@@ -3,7 +3,7 @@ collection:
   pre_submission: "De week voor de dag van kandidaatstelling kunt u de documenten alvast laten controleren door het centraal stembureau tijdens de zogeheten 'voorinlevering'. Maak hiervoor een afspraak bij het centraal stembureau."
   title: "Verzamelen, controleren en ondertekenen"
 complete_list:
-  no_problems_description: "De documenten zijn nu klaar om ingeleverd te worden op papier bij het centraal stembureau, zij controleren de papieren documenten en de persoonsgegevens."
+  no_problems_description: "De documenten zijn nu klaar om ingeleverd te worden op papier bij het centraal stembureau. Zij controleren de papieren documenten en de persoonsgegevens."
   no_problems_title: Er zijn geen fouten ontdekt door deze applicatie.
   title: Maak uw lijst compleet
 correction:
@@ -27,7 +27,7 @@ intro:
   description: "U heeft uw kandidaten en kandidatenlijsten aangemaakt. Om af te ronden, zijn er nog een paar stappen te doorlopen. Deze stappen staan uiteengezet op deze pagina."
   title: Nog een paar stappen
 omission_letter:
-  description: De brief met ontbrekende of onjuiste stukken ontvangt u per post.
+  description: "De brief waarin staat welke stukken ontbreken of onjuist zijn, ontvangt u per post."
   sent: "De brief wordt verstuurd op <strong>{}</strong>"
   title: Ontvangst verzuimbrief
 omission_steps:
@@ -35,7 +35,7 @@ omission_steps:
 print:
   download_description: Zorg ervoor dat de laatst gemaakte wijzigingen in deze applicatie overeenkomen met de laatst gedownloade zip.
   download_title: Download hier de bestanden en print ze uit.
-  eml_not_required: Het bijgevoegde EML bestand hoeft niet geprint te worden en hoeft ook niet ingeleverd te worden bij het centraal stembureau.
+  eml_not_required: Het bijgevoegde EML-bestand hoeft niet geprint te worden en hoeft ook niet ingeleverd te worden bij het centraal stembureau.
   errors_warning: "Voordat u de documenten kunt printen, moet u eerst alle fouten in stap 1 oplossen."
   h1_description: "Met de H\u00A01 stelt u, als inleveraar van de kandidatenlijst, kandidaten verkiesbaar voor een verkiezing."
   h1_title: Kandidatenlijst (H\u00A01)
@@ -50,7 +50,7 @@ print:
   h9_title: Instemmings\u00ADverklaringen (H\u00A09)
   incomplete_warning: "<strong>Let op!</strong> U kunt de documenten wel printen, maar ze zullen als incompleet worden beschouwd door het centraal stembureau. Los de waarschuwingen in stap 1 op om de lijst compleet te maken."
   title: Print de documenten uit
-  usb_not_required: Deze documenten hoeven <strong>niet</strong> meer met een USB stick digitaal overhandigd te worden;
+  usb_not_required: Deze documenten hoeven <strong>niet</strong> meer met een usb-stick digitaal overhandigd te worden.
 verification:
   correction_notice: "Mocht er iets ontbreken, dan krijgt u van ons per brief een bericht met de verzuimen."
   description: Het centraal stembureau onderzoekt uw ingediende documenten op volledigheid en correctheid.
