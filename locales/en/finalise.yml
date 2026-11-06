@@ -37,7 +37,7 @@ print:
   h4_description: "With the H\u00A04, your political group collects declarations of support from eligible voters. This is required for political groups that are not currently represented in the relevant body or are participating with a blank list."
   h4_title: H\u00A04 Declarations of support
   h9_consent: "With this form, candidates agree to being placed on the list of candidates. They also agree to their position on the list."
-  h9_identity: Is the candidate not yet a member of the Senate? Then add a copy of a valid identity document to the declaration of consent.
+  h9_identity: "Is the candidate not yet a member of {}? Then add a copy of a valid identity document to the declaration of consent."
   h9_title: H\u00A09 Declarations of consent
   incomplete_warning: "Attention! You can print the documents, but they will be considered incomplete by the central electoral committee. Resolve the warnings in step 1 to complete the list."
   title: Print the documents
