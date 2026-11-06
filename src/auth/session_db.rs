@@ -219,6 +219,37 @@ pub async fn remove(pool: &sqlx::PgPool, token_hash: &str) -> Result<Option<Sess
     Ok(row.and_then(session_from_row))
 }
 
+pub async fn delete_other_sessions_of(
+    pool: &sqlx::PgPool,
+    user: &SessionUser,
+    keep_token_hash: &str,
+) -> Result<u64, AppError> {
+    let (path, person) = match user {
+        SessionUser::PoliticalGroup { stream_id, .. } => (
+            ["PoliticalGroup", "stream_id"],
+            serde_json::to_value(stream_id)?,
+        ),
+        #[cfg(any(feature = "dev-features", test))]
+        SessionUser::CentralElectoralCommittee {
+            user: crate::CsbUser::Developer,
+            ..
+        } => return Ok(0),
+        SessionUser::CentralElectoralCommittee { user, .. } => (
+            ["CentralElectoralCommittee", "user"],
+            serde_json::to_value(user)?,
+        ),
+    };
+
+    let result = sqlx::query("DELETE FROM sessions WHERE token <> $1 AND identity #> $2 = $3")
+        .bind(keep_token_hash)
+        .bind(path.map(str::to_string).to_vec())
+        .bind(person)
+        .execute(pool)
+        .await?;
+
+    Ok(result.rows_affected())
+}
+
 /// Delete all sessions that have passed either the idle timeout or the absolute
 /// lifetime cap (mirrors [`Session::is_expired`]).
 pub async fn cleanup_expired(pool: &sqlx::PgPool) -> Result<(), AppError> {
