@@ -41,22 +41,28 @@ impl<'r> sqlx::FromRow<'r, sqlx::postgres::PgRow> for StoreEvent<Vec<u8>> {
     }
 }
 
+/// Advisory lock key serialising schema migrations across instances
+#[cfg(feature = "migrations")]
+const MIGRATION_LOCK_ID: i64 = 0x654B_535F_6D69_6772; // "eKS_migr"
+
 /// Initialize the database schema for event and session persistence.
 #[cfg(feature = "migrations")]
 pub async fn migrate(pool: &sqlx::PgPool) -> Result<(), AppError> {
-    let mut conn = pool.acquire().await?;
+    let mut tx = pool.begin().await?;
 
-    if let Err(error) = async {
-        create_streams_table(&mut conn).await?;
-        create_events_table(&mut conn).await?;
-        create_sessions_table(&mut conn).await?;
-        create_pending_requests_table(&mut conn).await?;
-        Ok::<(), AppError>(())
-    }
-    .await
-    {
-        tracing::warn!("Database migration failed, there might me a concurrent migration: {error}");
-    }
+    // Concurrent `CREATE ... IF NOT EXISTS` can still collide, so instances
+    // take turns.
+    sqlx::query("SELECT pg_advisory_xact_lock($1)")
+        .bind(MIGRATION_LOCK_ID)
+        .execute(&mut *tx)
+        .await?;
+
+    create_streams_table(&mut tx).await?;
+    create_events_table(&mut tx).await?;
+    create_sessions_table(&mut tx).await?;
+    create_pending_requests_table(&mut tx).await?;
+
+    tx.commit().await?;
 
     Ok(())
 }

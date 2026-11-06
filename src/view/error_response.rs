@@ -279,7 +279,6 @@ impl ErrorResponse {
             #[cfg(feature = "acme")]
             AppError::AcmeError(_) => internal(),
             AppError::InternalServerError
-            | AppError::NoStorageConfigured
             | AppError::IntegrityViolation
             | AppError::ConfigLoadError(_)
             | AppError::PdfError(_)

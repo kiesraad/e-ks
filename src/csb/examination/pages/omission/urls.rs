@@ -131,7 +131,13 @@ pub(super) fn overview_url_for(
             reference: stream_id.into(),
             list: None,
         },
-        _ => OmissionTarget {
+        OmissionCategory::Appellation => OmissionTarget {
+            stream_id,
+            omission_type: OmissionType::Appellation,
+            reference: stream_id.into(),
+            list: None,
+        },
+        OmissionCategory::PoliticalGroup | OmissionCategory::CandidateList(_) => OmissionTarget {
             stream_id,
             omission_type: OmissionType::PoliticalGroup,
             reference: stream_id.into(),
