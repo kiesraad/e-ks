@@ -714,9 +714,11 @@ mod tests {
         // The detail link carries a redirect_to pointing back at the current,
         // filtered list view so closing the overlay restores it.
         assert!(body.contains("redirect_to="));
-        let encoded = urlencoding::encode("/csb/audit-log?per_page=20&event_type=login");
+        let encoded: String =
+            url::form_urlencoded::byte_serialize(b"/csb/audit-log?per_page=20&event_type=login")
+                .collect();
         assert!(
-            body.contains(encoded.as_ref()),
+            body.contains(&encoded),
             "expected detail link to encode the filtered return URL"
         );
 

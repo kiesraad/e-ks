@@ -344,7 +344,10 @@ mod tests {
 
         let body = response_body_string(response).await;
         // Closing the detail overlay must return to this page with its filter.
-        let encoded = urlencoding::encode("/audit-log?page=2&per_page=20&event_type=person");
+        let encoded: String = url::form_urlencoded::byte_serialize(
+            b"/audit-log?page=2&per_page=20&event_type=person",
+        )
+        .collect();
         assert!(
             body.contains(&format!("redirect_to={encoded}")),
             "expected detail links to encode the paginated, filtered return URL"

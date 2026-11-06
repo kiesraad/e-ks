@@ -508,7 +508,7 @@ pub async fn zip_entry(bytes: &[u8], name: &str) -> Vec<u8> {
     contents
 }
 
-async fn response_body(response: axum::response::Response) -> bytes::Bytes {
+async fn response_body(response: axum::response::Response) -> axum::body::Bytes {
     use http_body_util::BodyExt;
 
     response

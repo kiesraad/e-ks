@@ -29,3 +29,10 @@ updates:
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
       - dependency-name: "axum-extra"
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      # Kept on the version tokio, sqlx and chrono-tz use, so it is not duplicated
+      - dependency-name: "parking_lot"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "phf"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "phf_codegen"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]

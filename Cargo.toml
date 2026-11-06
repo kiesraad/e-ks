@@ -45,7 +45,6 @@ tokio = { version = "1.52.1", features = ["fs", "io-util", "macros", "net", "par
 tower-http = { version = "0.7.0", features = ["add-extension", "csrf", "set-header", "trace"] }
 tracing = { version = "0.1.44", default-features = false, features = ["std"] }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
-bytes = "1.11.1"
 tokio-util = { version = "0.7", features = ["io"] }
 
 # rust-lang
@@ -54,7 +53,6 @@ regex = "1.12.3"
 # blessed.rs / dtolnay
 anyhow = "1.0.102"
 serde = { version = "1.0.228", features = ["derive", "rc"] }
-serde_bytes = "0.11.19"
 serde_json = "1.0.150"
 serde_path_to_error = "0.1.20"
 serde_urlencoded = "0.7"
@@ -62,7 +60,7 @@ thiserror = "2"
 
 # blessed.rs
 chrono = { version = "0.4.44", default-features = false, features = ["alloc", "std", "serde"] }
-parking_lot = "0.13.0"
+parking_lot = "0.12.5" # 0.12 matches tokio and sqlx; 0.13 duplicates it
 rand = "0.10.1"
 sha2 = { version = "0.11.0", default-features = false, features = ["alloc"] }
 aes-gcm = "0.11.0"
@@ -79,12 +77,11 @@ async_zip = { version = "0.0.19", features = ["tokio", "deflate"] } # 6M downloa
 chrono-tz = "0.10.4" # 154M downloads (Dirkjan Ochtman)
 ipnet = "2.12.2" # 610M downloads (Kris Price), already pulled in by reqwest
 csv = "1.4.0" # 245M downloads (Andrew Gallant)
-phf = { version = "0.14.0", default-features = false } # 539M downloads (Steven Fackler)
-phf_codegen = "0.14.0"
+phf = { version = "0.12.1", default-features = false } # 539M downloads (Steven Fackler)
+phf_codegen = "0.12.1" # 0.12 matches chrono-tz
 ciborium = "0.2.2" # 236M downloads (Nathaniel McCallum)
 hkdf = "0.13.0" # 259M downloads (RustCrypto)
 secrecy = "0.10.3" # 161M downloads (Tony Arcieri)
-urlencoding = "2.1.3" # 264M downloads (Kornel)
 base64 = "0.23.1" # 1.7B downloads (Marshall Pierce)
 config = { version = "0.15.27", default-features = false } # 100M downloads (rust-cli); only the environment source is used
 
@@ -152,7 +149,7 @@ livereload = []
 # Serve embedded static assets from memory.
 memory-serve = ["dep:memory-serve"]
 # Serve over HTTPS via rustls and connect to the database over TLS (production deployments)
-tls = ["dep:axum-server", "dep:rustls", "sqlx?/tls-rustls-aws-lc-rs", "reqwest/rustls"]
+tls = ["dep:axum-server", "dep:rustls", "sqlx?/tls-rustls-aws-lc-rs"]
 # Renew the TLS certificate via ACME (Let's Encrypt)
 acme = ["tls", "database", "dep:instant-acme", "dep:x509-parser", "dep:rcgen", "dep:time"]
 
@@ -166,7 +163,6 @@ axum-extra = { workspace = true, features = ["routing", "typed-routing", "form",
 axum-server = { workspace = true, optional = true }
 bagatel = { workspace = true }
 base64 = { workspace = true }
-bytes = { workspace = true }
 chrono = { workspace = true, features = ["now"] }
 chrono-tz = { workspace = true }
 config = { workspace = true }
@@ -190,7 +186,6 @@ reqwest = { workspace = true, features = ["form", "rustls"] }
 rustls = { workspace = true, optional = true }
 secrecy = { workspace = true, features = ["serde"] }
 serde = { workspace = true }
-serde_bytes = { workspace = true }
 serde_json = { workspace = true }
 serde_path_to_error = { workspace = true }
 serde_urlencoded = { workspace = true }
@@ -205,7 +200,6 @@ tower-http = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["fmt", "json"] }
 url = { workspace = true }
-urlencoding = { workspace = true }
 uuid = { workspace = true }
 validate = { path = "validate" }
 x509-parser = { workspace = true, optional = true }
@@ -220,7 +214,6 @@ eks-locales = { path = "tools/locales" }
 futures-lite = { workspace = true }
 tower = { workspace = true }
 tracing-test = { workspace = true }
-reqwest = { workspace = true, features = ["rustls"] }
 
 [lints]
 workspace = true

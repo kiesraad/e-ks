@@ -252,27 +252,4 @@ mod tests {
             Err(EncodingError::Decode(_))
         ));
     }
-
-    #[test]
-    fn byte_fields_encode_as_cbor_byte_strings() {
-        #[derive(Serialize, Deserialize)]
-        struct Framed {
-            #[serde(with = "serde_bytes")]
-            payload: Vec<u8>,
-        }
-
-        let payload = vec![0xff; 64];
-        let bytes = encode(&Framed {
-            payload: payload.clone(),
-        })
-        .unwrap();
-
-        // One byte per payload byte plus a small map/header overhead, not the
-        // one-integer-per-byte array a plain `Vec<u8>` would produce.
-        assert!(
-            bytes.len() < payload.len() + 20,
-            "got {} bytes",
-            bytes.len()
-        );
-    }
 }
