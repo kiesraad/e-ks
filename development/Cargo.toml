@@ -28,7 +28,7 @@ test = false
 required-features = ["acme"]
 
 [features]
-pdf-diff = ["dep:eks", "dep:tracing", "dep:tracing-subscriber"]
+pdf-diff = ["dep:eks", "eks/examples", "dep:tracing", "dep:tracing-subscriber"]
 acme = ["dep:eks", "eks/acme"]
 
 [dependencies]
