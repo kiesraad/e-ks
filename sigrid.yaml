@@ -53,3 +53,5 @@ thirdpartyfindings:
     - ".*/deploy/.*"
     - ".*/offline/.*"
     - ".*/development/.*"
+    - ".*/playwright/docker/.*"
+    - ".*/compose[.]yml"

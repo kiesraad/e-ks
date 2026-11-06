@@ -21,6 +21,9 @@ cargo build \
     --bin eks
 
 pushd playwright
+    export UID GID="$(id -g)"
+    mkdir -p playwright-report
+
     docker compose build --quiet
 
     # The playwright service waits for the application's healthcheck, so a
