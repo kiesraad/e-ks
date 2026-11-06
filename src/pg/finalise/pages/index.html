@@ -134,7 +134,7 @@
               <h4>{{ "problems.legend.info"|trans }}</h4>
               <p>{{ "problems.legend.info_help"|trans }}</p>
               <div class="card">
-                <ul class="warnings tags-list partially-hidden">
+                <ul class="warnings tags-list">
                   {% for problem in problems.info_problems %}
                     <li class="tag link">
                       <a class="{{ problem.severity().class() }}"

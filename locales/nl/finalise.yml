@@ -46,7 +46,7 @@ print:
   h4_description: Met de H\u00A04 verzamelt uw politieke groepering ondersteunings\u00ADverklaringen van kiesgerechtigde kiezers. Dit is vereist voor politieke groeperingen die niet reeds vertegenwoordigd zijn in het betreffende orgaan of deelnemen met een blanco lijst.
   h4_title: Ondersteunings\u00ADverklaringen (H\u00A04)
   h9_consent: Met dit formulier stemmen kandidaten ermee in dat ze op de kandidatenlijst staan. Ook stemmen ze in met hun positie op de lijst.
-  h9_identity: Is de kandidaat nog geen lid van {}? Voeg dan een kopie van een geldig identiteitsbewijs bij de instemmings\u00ADverklaring toe.
+  h9_identity: "Is de kandidaat nog geen lid van {}? Voeg dan een kopie van een geldig identiteitsbewijs bij de instemmings\u00ADverklaring toe."
   h9_title: Instemmings\u00ADverklaringen (H\u00A09)
   incomplete_warning: "<strong>Let op!</strong> U kunt de documenten wel printen, maar ze zullen als incompleet worden beschouwd door het centraal stembureau. Los de waarschuwingen in stap 1 op om de lijst compleet te maken."
   title: Print de documenten uit

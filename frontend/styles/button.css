@@ -362,10 +362,4 @@ span.button {
     padding-left: var(--space-5);
     list-style: disc;
   }
-
-  .toggle:not(:checked) ~ .partially-hidden {
-    overflow: hidden;
-    height: var(--space-6);
-    mask-image: linear-gradient(to bottom, black, transparent);
-  }
 }
