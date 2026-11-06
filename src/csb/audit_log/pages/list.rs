@@ -530,9 +530,7 @@ mod tests {
     async fn paginates_results() -> Result<(), AppError> {
         let main_store = CsbMainStore::new_for_test();
         for _ in 0..PER_PAGE + 5 {
-            main_store
-                .update(CsbMainAction::Login.by(CsbUser::Developer))
-                .await?;
+            main_store.update(CsbMainAction::Login).await?;
         }
 
         let response = call(main_store, AppState::new_for_tests().await, no_filter()).await?;
@@ -548,9 +546,7 @@ mod tests {
     #[tokio::test]
     async fn filters_by_main_stream() -> Result<(), AppError> {
         let main_store = CsbMainStore::new_for_test();
-        main_store
-            .update(CsbMainAction::Login.by(CsbUser::Developer))
-            .await?;
+        main_store.update(CsbMainAction::Login).await?;
 
         let state = AppState::new_for_tests().await;
         let csb_store = state
@@ -575,9 +571,7 @@ mod tests {
     #[tokio::test]
     async fn filters_by_import_stream() -> Result<(), AppError> {
         let main_store = CsbMainStore::new_for_test();
-        main_store
-            .update(CsbMainAction::Login.by(CsbUser::Developer))
-            .await?;
+        main_store.update(CsbMainAction::Login).await?;
 
         let state = AppState::new_for_tests().await;
         let import_stream_id = StreamId::new();
@@ -608,9 +602,7 @@ mod tests {
     #[tokio::test]
     async fn filters_by_event_type() -> Result<(), AppError> {
         let main_store = CsbMainStore::new_for_test();
-        main_store
-            .update(CsbMainAction::Login.by(CsbUser::Developer))
-            .await?;
+        main_store.update(CsbMainAction::Login).await?;
 
         let state = AppState::new_for_tests().await;
         let import_stream_id = StreamId::new();
@@ -642,9 +634,7 @@ mod tests {
     #[tokio::test]
     async fn searches_by_description() -> Result<(), AppError> {
         let main_store = CsbMainStore::new_for_test();
-        main_store
-            .update(CsbMainAction::Login.by(CsbUser::Developer))
-            .await?;
+        main_store.update(CsbMainAction::Login).await?;
 
         let state = AppState::new_for_tests().await;
         let csb_store = state
@@ -674,9 +664,7 @@ mod tests {
     #[tokio::test]
     async fn reset_button_only_shown_when_filter_active() -> Result<(), AppError> {
         let main_store = CsbMainStore::new_for_test();
-        main_store
-            .update(CsbMainAction::Login.by(CsbUser::Developer))
-            .await?;
+        main_store.update(CsbMainAction::Login).await?;
 
         let state = AppState::new_for_tests().await;
 
@@ -702,9 +690,7 @@ mod tests {
     #[tokio::test]
     async fn detail_links_preserve_filter_as_redirect() -> Result<(), AppError> {
         let main_store = CsbMainStore::new_for_test();
-        main_store
-            .update(CsbMainAction::Login.by(CsbUser::Developer))
-            .await?;
+        main_store.update(CsbMainAction::Login).await?;
 
         let response = call(
             main_store,

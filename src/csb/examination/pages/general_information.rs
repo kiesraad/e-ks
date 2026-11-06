@@ -90,7 +90,7 @@ mod tests {
     use axum::http::StatusCode;
 
     use crate::{
-        CsbAction, CsbMainAction, CsbUser, PgEvent,
+        CsbAction, CsbMainAction, PgEvent,
         structs::{
             common::{Address, PreviousElectionResults},
             csb::{Omission, OmissionCategory, sample_omission, sample_registered_political_group},
@@ -111,10 +111,9 @@ mod tests {
         let registration = sample_registered_political_group("Kiesraad Demo", 12345, 3);
         let main_store = CsbMainStore::new_for_test();
         main_store
-            .update(
-                CsbMainAction::CreateRegisteredPoliticalGroup(registration.clone())
-                    .by(CsbUser::new_test()),
-            )
+            .update(CsbMainAction::CreateRegisteredPoliticalGroup(
+                registration.clone(),
+            ))
             .await?;
         let store = CsbStore::new_for_test();
         let mut pg = sample_political_group();

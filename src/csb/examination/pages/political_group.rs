@@ -194,7 +194,7 @@ mod tests {
     use axum::http::StatusCode;
 
     use crate::{
-        AppState, CsbMainAction, CsbUser, ElectoralDistrict, PgEvent,
+        AppState, CsbMainAction, ElectoralDistrict, PgEvent,
         csb::import::claim_sweep_for_test,
         structs::{
             brp::{BrpFindingKind, BrpStatus},
@@ -792,14 +792,9 @@ mod tests {
     async fn main_store_registering_sample_group(seats: u32) -> CsbMainStore {
         let main_store = CsbMainStore::new_for_test();
         main_store
-            .update(
-                CsbMainAction::CreateRegisteredPoliticalGroup(sample_registered_political_group(
-                    "Kiesraad Demo",
-                    1000,
-                    seats,
-                ))
-                .by(CsbUser::new_test()),
-            )
+            .update(CsbMainAction::CreateRegisteredPoliticalGroup(
+                sample_registered_political_group("Kiesraad Demo", 1000, seats),
+            ))
             .await
             .unwrap();
         main_store

@@ -529,9 +529,7 @@ mod tests {
     #[tokio::test]
     async fn renders_detail_for_main_stream_event() -> Result<(), AppError> {
         let main_store = CsbMainStore::new_for_test();
-        main_store
-            .update(CsbMainAction::Login.by(CsbUser::Developer))
-            .await?;
+        main_store.update(CsbMainAction::Login).await?;
 
         let state = AppState::new_for_tests().await;
 
@@ -867,9 +865,7 @@ mod tests {
     #[tokio::test]
     async fn close_link_returns_to_redirect_target() -> Result<(), AppError> {
         let main_store = CsbMainStore::new_for_test();
-        main_store
-            .update(CsbMainAction::Login.by(CsbUser::Developer))
-            .await?;
+        main_store.update(CsbMainAction::Login).await?;
 
         let state = AppState::new_for_tests().await;
         let return_url = "/csb/audit-log?per_page=20&event_type=login";

@@ -1,7 +1,7 @@
 use axum::{extract::State, response::Response};
 
 use crate::{
-    AppError, AppRequestState, CsbContext, CsbMainStore,
+    AppError, AppRequestState, CsbMainStore,
     core::ModelLocale,
     csb::finalise::{
         numbering::list_numbering,
@@ -17,7 +17,6 @@ use crate::{
 
 /// Collect the store data the I 4 model needs.
 pub(in crate::csb::finalise::pages) async fn i4_model<S: AppRequestState>(
-    context: &CsbContext,
     main_store: &CsbMainStore,
     state: &S,
     document_status: I4Status,
@@ -28,7 +27,7 @@ pub(in crate::csb::finalise::pages) async fn i4_model<S: AppRequestState>(
 
     // A draft does not record the numbering
     if document_status.is_final() {
-        numbering.record_if_incomplete(context, main_store).await?;
+        numbering.record_if_incomplete(main_store).await?;
     }
 
     let i4_inputs = i4_inputs(registry, &election, &numbering.stream_ids()).await?;
@@ -73,11 +72,10 @@ pub(in crate::csb::finalise::pages) async fn i4_model<S: AppRequestState>(
 
 pub async fn gen_i4_draft<S: AppRequestState>(
     _: CsbI4DraftDownloadPath,
-    context: CsbContext,
     main_store: CsbMainStore,
     State(state): State<S>,
 ) -> Result<Response, AppError> {
-    i4_model(&context, &main_store, &state, I4Status::Draft)
+    i4_model(&main_store, &state, I4Status::Draft)
         .await?
         .pdf_response()
         .await
@@ -86,11 +84,10 @@ pub async fn gen_i4_draft<S: AppRequestState>(
 /// The same I 4 as [`gen_i4_draft`], exported as a Word document.
 pub async fn gen_i4_draft_docx<S: AppRequestState>(
     _: CsbI4DraftDocxDownloadPath,
-    context: CsbContext,
     main_store: CsbMainStore,
     State(state): State<S>,
 ) -> Result<Response, AppError> {
-    i4_model(&context, &main_store, &state, I4Status::Draft)
+    i4_model(&main_store, &state, I4Status::Draft)
         .await?
         .docx_response()
         .await
@@ -108,7 +105,7 @@ mod tests {
     use std::collections::BTreeSet;
 
     use crate::{
-        AppState, CsbMainAction, CsbUser, ElectionConfig, ElectoralDistrict, StreamId,
+        AppState, CsbMainAction, ElectionConfig, ElectoralDistrict, StreamId,
         structs::{
             candidate_lists::CandidateList,
             csb::{
@@ -139,27 +136,23 @@ mod tests {
 
     #[tokio::test]
     async fn i4_session_uses_the_stored_hearing_details() -> Result<(), AppError> {
-        let context = CsbContext::new_test();
         let state = AppState::new_for_tests().await;
         let main_store = CsbMainStore::new_for_test();
         main_store
-            .update(
-                CsbMainAction::UpdateHearingDetails(
-                    HearingModel::I4,
-                    HearingDetails {
-                        date_time: chrono::NaiveDate::from_ymd_opt(2027, 4, 9)
-                            .expect("valid date")
-                            .and_hms_opt(10, 15, 0)
-                            .expect("valid time"),
-                        chair: "Vera Voorzitter".to_string(),
-                        members: vec!["Jan Klaassen".to_string()],
-                    },
-                )
-                .by(CsbUser::new_test()),
-            )
+            .update(CsbMainAction::UpdateHearingDetails(
+                HearingModel::I4,
+                HearingDetails {
+                    date_time: chrono::NaiveDate::from_ymd_opt(2027, 4, 9)
+                        .expect("valid date")
+                        .and_hms_opt(10, 15, 0)
+                        .expect("valid time"),
+                    chair: "Vera Voorzitter".to_string(),
+                    members: vec!["Jan Klaassen".to_string()],
+                },
+            ))
             .await?;
 
-        let model = i4_model(&context, &main_store, &state, I4Status::Final(None)).await?;
+        let model = i4_model(&main_store, &state, I4Status::Final(None)).await?;
 
         assert_eq!(
             model.public_session.date_time,
@@ -177,24 +170,20 @@ mod tests {
     /// The I 1 hearing is a different hearing: it must not leak into the I 4.
     #[tokio::test]
     async fn i4_session_ignores_the_i1_hearing_details() -> Result<(), AppError> {
-        let context = CsbContext::new_test();
         let state = AppState::new_for_tests().await;
         let main_store = CsbMainStore::new_for_test();
         main_store
-            .update(
-                CsbMainAction::UpdateHearingDetails(
-                    HearingModel::I1,
-                    HearingDetails {
-                        chair: "Vera Voorzitter".to_string(),
-                        members: vec!["Jan Klaassen".to_string()],
-                        ..HearingDetails::default()
-                    },
-                )
-                .by(CsbUser::new_test()),
-            )
+            .update(CsbMainAction::UpdateHearingDetails(
+                HearingModel::I1,
+                HearingDetails {
+                    chair: "Vera Voorzitter".to_string(),
+                    members: vec!["Jan Klaassen".to_string()],
+                    ..HearingDetails::default()
+                },
+            ))
             .await?;
 
-        let model = i4_model(&context, &main_store, &state, I4Status::Final(None)).await?;
+        let model = i4_model(&main_store, &state, I4Status::Final(None)).await?;
 
         let configured = ElectionConfig::EK27.public_session();
         assert_eq!(model.public_session.date_time, configured.datetime);
@@ -205,10 +194,9 @@ mod tests {
 
     #[tokio::test]
     async fn gen_i4_returns_pdf_response() -> Result<(), AppError> {
-        let context = CsbContext::new_test();
         let main_store = CsbMainStore::new_for_test();
         let state = AppState::new_for_tests().await;
-        let response = gen_i4_draft(CsbI4DraftDownloadPath, context, main_store, State(state))
+        let response = gen_i4_draft(CsbI4DraftDownloadPath, main_store, State(state))
             .await?
             .into_response();
 
@@ -234,17 +222,11 @@ mod tests {
 
     #[tokio::test]
     async fn gen_i4_docx_returns_word_response() -> Result<(), AppError> {
-        let context = CsbContext::new_test();
         let main_store = CsbMainStore::new_for_test();
         let state = AppState::new_for_tests().await;
-        let response = gen_i4_draft_docx(
-            CsbI4DraftDocxDownloadPath,
-            context,
-            main_store,
-            State(state),
-        )
-        .await?
-        .into_response();
+        let response = gen_i4_draft_docx(CsbI4DraftDocxDownloadPath, main_store, State(state))
+            .await?
+            .into_response();
 
         assert_eq!(response.status(), StatusCode::OK);
         let headers = response.headers();
@@ -272,7 +254,6 @@ mod tests {
     /// lot order.
     #[tokio::test]
     async fn i4_model_numbers_the_lists_on_votes_and_by_lot() -> Result<(), AppError> {
-        let context = CsbContext::new_test();
         let state = AppState::new_for_tests().await;
         let seated = seed_group(&state, "Gezeteld").await;
         let first_by_lot = seed_group(&state, "Eerste Loting").await;
@@ -280,21 +261,19 @@ mod tests {
 
         let main_store = CsbMainStore::new_for_test();
         main_store
-            .update(
-                CsbMainAction::CreateRegisteredPoliticalGroup(sample_registered_political_group(
-                    "Gezeteld", 1234, 3,
-                ))
-                .by(CsbUser::new_test()),
-            )
+            .update(CsbMainAction::CreateRegisteredPoliticalGroup(
+                sample_registered_political_group("Gezeteld", 1234, 3),
+            ))
             .await?;
         main_store
-            .update(
-                CsbMainAction::UpdateListOrder(vec![seated, second_by_lot, first_by_lot])
-                    .by(CsbUser::new_test()),
-            )
+            .update(CsbMainAction::UpdateListOrder(vec![
+                seated,
+                second_by_lot,
+                first_by_lot,
+            ]))
             .await?;
 
-        let model = i4_model(&context, &main_store, &state, I4Status::Final(None)).await?;
+        let model = i4_model(&main_store, &state, I4Status::Final(None)).await?;
 
         let on_votes: Vec<_> = model
             .numbered_based_on_votes
@@ -337,32 +316,14 @@ mod tests {
         assert_eq!(main_store.list_order_events(), 0);
 
         let numbered = [(Some(1), "Eerste"), (Some(2), "Tweede")];
-        let model = i4_model(
-            &CsbContext::new_test(),
-            &main_store.clone(),
-            &state,
-            I4Status::Final(None),
-        )
-        .await?;
+        let model = i4_model(&main_store.clone(), &state, I4Status::Final(None)).await?;
         assert_eq!(by_lot(&model), numbered);
         assert_eq!(main_store.list_order_events(), 1);
         assert_eq!(main_store.list_order(), [first, second]);
 
-        let model = i4_model(
-            &CsbContext::new_test(),
-            &main_store.clone(),
-            &state,
-            I4Status::Final(None),
-        )
-        .await?;
+        let model = i4_model(&main_store.clone(), &state, I4Status::Final(None)).await?;
         assert_eq!(by_lot(&model), numbered);
-        let model = i4_model(
-            &CsbContext::new_test(),
-            &main_store.clone(),
-            &state,
-            I4Status::Draft,
-        )
-        .await?;
+        let model = i4_model(&main_store.clone(), &state, I4Status::Draft).await?;
         assert_eq!(by_lot(&model), numbered);
         assert_eq!(main_store.list_order_events(), 1);
 
@@ -378,20 +339,8 @@ mod tests {
         seed_group(&state, "Tweede").await;
         let main_store = CsbMainStore::new_for_test();
 
-        i4_model(
-            &CsbContext::new_test(),
-            &main_store.clone(),
-            &state,
-            I4Status::Draft,
-        )
-        .await?;
-        let model = i4_model(
-            &CsbContext::new_test(),
-            &main_store.clone(),
-            &state,
-            I4Status::Draft,
-        )
-        .await?;
+        i4_model(&main_store.clone(), &state, I4Status::Draft).await?;
+        let model = i4_model(&main_store.clone(), &state, I4Status::Draft).await?;
 
         assert_eq!(by_lot(&model), [(None, "Eerste"), (None, "Tweede")]);
         assert_eq!(main_store.list_order_events(), 0);
@@ -403,7 +352,6 @@ mod tests {
     /// Render once with omissions, a scrapped candidate and a valid list.
     #[tokio::test]
     async fn gen_i4_renders_the_omissions_and_the_valid_lists() -> Result<(), AppError> {
-        let context = CsbContext::new_test();
         let state = AppState::new_for_tests().await;
         let first = sample_person(PersonId::new());
         let second = sample_person(PersonId::new());
@@ -440,7 +388,7 @@ mod tests {
             .await?;
 
         let main_store = CsbMainStore::new_for_test();
-        let response = gen_i4_draft(CsbI4DraftDownloadPath, context, main_store, State(state))
+        let response = gen_i4_draft(CsbI4DraftDownloadPath, main_store, State(state))
             .await?
             .into_response();
 

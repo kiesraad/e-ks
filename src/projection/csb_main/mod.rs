@@ -3,13 +3,14 @@ mod extractor;
 mod getters;
 
 pub use event::{CsbMainAction, CsbMainEvent};
+pub use extractor::CsbMainStore;
 
 use serde::{Deserialize, Serialize};
 
 use std::collections::HashMap;
 
 use crate::{
-    AppError, CredentialId, CsbMainStore, CsbUser, Scope, StreamId,
+    AppError, CredentialId, CsbMainStream, CsbUser, Scope, StreamId,
     auth::csb_webauthn::sign_count_advanced,
     store::{StoreData, StoreEvent},
     structs::csb::{HearingDetails, HearingModel, Objection, RegisteredPoliticalGroup},
@@ -35,7 +36,7 @@ pub struct CsbMainStoreData {
     pub(crate) sign_counts: HashMap<CredentialId, u32>,
 }
 
-impl CsbMainStore {
+impl CsbMainStream {
     /// Records a security-key login with its signature counter (WebAuthn
     /// §7.2 step 24) as one step with the step 22 counter check: counter and
     /// stream position come from one snapshot, and the append is refused when
@@ -140,7 +141,7 @@ impl StoreData for CsbMainStoreData {
 }
 
 #[cfg(test)]
-impl crate::CsbMainStore {
+impl crate::CsbMainStream {
     pub fn new_for_test() -> Self {
         Self::new_for_test_with_election(crate::ElectionConfig::EK27)
     }
