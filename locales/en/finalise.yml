@@ -43,7 +43,7 @@ print:
   h3_1_title: Authorisation to use appellation (H\u00A03-1)
   h3_2_description: "With the H\u00A03-2, the submitter of the list of candidates receives permission to place the combined appellation above the list of candidates. This permission must be granted by a person authorised to do so by each of the political groups involved."
   h3_2_title: Authorisation to use combined appellation (H\u00A03-2)
-  h4_description: "With the H\u00A04, your political group collects declarations of support from eligible voters. This is required for political groups that are not currently represented in the relevant body or are participating with a blank list."
+  h4_description: "With the H\u00A04, your political group collects declarations of support from eligible voters. This is required for political groups that are not currently represented in {} or are participating with a blank list."
   h4_title: Declarations of support (H\u00A04)
   h9_consent: "With this form, candidates agree to being placed on the list of candidates. They also agree to their position on the list."
   h9_identity: "Is the candidate not yet a member of {}? Then add a copy of a valid identity document to the declaration of consent."

@@ -43,7 +43,7 @@ print:
   h3_1_title: Machtiging plaatsen van aanduiding (H\u00A03-1)
   h3_2_description: Met de H\u00A03-2 krijgt de inleveraar van de kandidatenlijst toestemming om de samengevoegde aanduiding boven de kandidatenlijst te plaatsen. Deze toestemming moet worden gegeven door iemand die hiertoe gemachtigd is van ieder van de betrokken politieke groeperingen.
   h3_2_title: Machtiging plaatsen van samengevoegde aanduiding (H\u00A03-2)
-  h4_description: Met de H\u00A04 verzamelt uw politieke groepering ondersteunings\u00ADverklaringen van kiesgerechtigde kiezers. Dit is vereist voor politieke groeperingen die niet reeds vertegenwoordigd zijn in het betreffende orgaan of deelnemen met een blanco lijst.
+  h4_description: "Met de H\u00A04 verzamelt uw politieke groepering ondersteunings\u00ADverklaringen van kiesgerechtigde kiezers. Dit is vereist voor politieke groeperingen die niet reeds vertegenwoordigd zijn in {} of deelnemen met een blanco lijst."
   h4_title: Ondersteunings\u00ADverklaringen (H\u00A04)
   h9_consent: Met dit formulier stemmen kandidaten ermee in dat ze op de kandidatenlijst staan. Ook stemmen ze in met hun positie op de lijst.
   h9_identity: "Is de kandidaat nog geen lid van {}? Voeg dan een kopie van een geldig identiteitsbewijs bij de instemmings\u00ADverklaring toe."
