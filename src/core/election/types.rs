@@ -54,6 +54,29 @@ impl ElectionType {
             (ElectionType::Er, Locale::Nl) => "eilandsraadsverkiezingen",
         }
     }
+
+    pub fn body(&self, locale: Locale) -> &'static str {
+        match (self, locale) {
+            (ElectionType::Tk, Locale::En) => "the House of Representatives",
+            (ElectionType::Tk, Locale::Nl) => "de Tweede Kamer",
+            (ElectionType::Ek, Locale::En) => "the Senate",
+            (ElectionType::Ek, Locale::Nl) => "de Eerste Kamer",
+            (ElectionType::Gr, Locale::En) => "the municipal council",
+            (ElectionType::Gr, Locale::Nl) => "de gemeenteraad",
+            (ElectionType::Ps, Locale::En) => "the provincial council",
+            (ElectionType::Ps, Locale::Nl) => "Provinciale Staten",
+            (ElectionType::Ws, Locale::En) => "the water authority",
+            (ElectionType::Ws, Locale::Nl) => "het waterschap",
+            (ElectionType::Ep, Locale::En) => "the European Parliament",
+            (ElectionType::Ep, Locale::Nl) => "het Europees Parlement",
+            (ElectionType::Kc, Locale::En) | (ElectionType::Kcni, Locale::En) => {
+                "the electoral college"
+            }
+            (ElectionType::Kc, Locale::Nl) | (ElectionType::Kcni, Locale::Nl) => "het kiescollege",
+            (ElectionType::Er, Locale::En) => "the island council",
+            (ElectionType::Er, Locale::Nl) => "de eilandsraad",
+        }
+    }
 }
 
 #[cfg(test)]

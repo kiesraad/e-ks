@@ -10,17 +10,13 @@
       {% endif %}
       <h3 class="mb-6">
         {% if steps.is_combined() %}
-          {{ "political_group.legal_name_data_combined"|trans }}
+          {{ "political_group.legal_name_title_combined"|trans }}
         {% else %}
-          {{ "political_group.legal_name_data"|trans }}
+          {{ "political_group.legal_name_title"|trans }}
         {% endif %}
       </h3>
-      <p class="mb-6 text-body-width">
-        {{ "political_group.authorised_agent_info"|trans }}
-        <br>
-        <br>
-        {{ "political_group.authorised_agent_info_form"|trans(steps.designation_form() ) }}
-      </p>
+      <p class="text-body-width">{{ "political_group.authorised_agent_info"|trans }}</p>
+      <span class="hint mb-lg">{{ "political_group.authorised_agent_info_hint"|trans }}</span>
       {% if !(steps.initial && name_authorisations.is_empty()) && let Some(size_problem) = size_problem %}
         <p class="alert alert-{{ size_problem.severity().class() }}">
           {% if steps.is_combined() %}
