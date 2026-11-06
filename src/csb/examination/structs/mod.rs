@@ -6,6 +6,7 @@ mod candidate_brp_findings;
 mod correction_field;
 mod csb_candidate;
 mod csb_candidate_list;
+mod omission_row;
 mod paper_corrected;
 mod paper_corrections_overview;
 mod restoration_status;
@@ -19,6 +20,7 @@ pub use candidate_brp_findings::{BrpFindingTag, CandidateBrpFindings, brp_incomp
 pub use correction_field::CandidateCorrectionField;
 pub use csb_candidate::CsbCandidate;
 pub use csb_candidate_list::CsbCandidateList;
+pub use omission_row::OmissionRow;
 pub use paper_corrected::{
     PaperCorrected, PaperCorrectedNameAuthorisation, PaperCorrectedPersonDetails,
     PaperCorrectedPoliticalGroupInfo, PaperCorrectedSubmitter, paper_corrected_list_submitter,

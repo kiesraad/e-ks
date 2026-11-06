@@ -1,11 +1,11 @@
-function isInViewport(element: Element): boolean {
+export function isInViewport(element: Element): boolean {
   const { top, bottom } = element.getBoundingClientRect();
   return top >= 0 && bottom <= window.innerHeight;
 }
 
 function getRows(personId: string | null, last: number): Element[] | null {
   if (personId) {
-    const row = document.querySelector(`[data-id="${CSS.escape(personId)}"]`);
+    const row = document.querySelector(`[data-id~="${CSS.escape(personId)}"]`);
     if (row) {
       return [row];
     }

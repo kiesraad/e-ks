@@ -56,7 +56,19 @@
     {% if political_group.mode.is_examination() %}
       {{ restorations::omission_panel("csb.omission.title_for.candidate_list"|trans, "csb.list.add_text"|trans, political_group.add_candidate_list_omission_path(list_id) , political_group.manage_candidate_list_omissions_path(list_id) , omissions.as_slice()) }}
     {% else %}
-      {{ restorations::status_panel(political_group, "csb.omission.title_for.candidate_list"|trans, "csb.recovery.omissions_explanation"|trans, omissions.as_slice() , political_group.candidate_list_path(list_id), scope_list=list_id.to_string()) }}
+      {% call restorations::status_panel(political_group, "csb.omission.title_for.candidate_list"|trans, "csb.recovery.omissions_explanation"|trans, omissions.as_slice() , political_group.candidate_list_path(list_id), scope_list=list_id.to_string()) %}
+        {% if !declarations_of_support_omissions.is_empty() %}
+          <div class="restoration-strip restoration-strip-omission">
+            <ul class="restoration-tags">
+              {% for row in declarations_of_support_omissions %}
+                <li>
+                  <span class="restoration-tag">{{ row.omission.title }}</span>
+                </li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% endif %}
+      {% endcall %}
     {% endif %}
     {% if candidates.is_empty() %}
       <p class="font-italic">{{ "candidate_list.view.empty"|trans }}</p>
@@ -85,7 +97,9 @@
                 {% endif %}
               </td>
               <td>
-                {% if political_group.mode.is_recovery() && candidate.is_scrapped %}<s class="imported-value">{% endif %}
+                {% if political_group.mode.is_recovery() && candidate.is_scrapped %}
+                  <s class="imported-value">
+                  {% endif %}
                   {% if candidate.name.differs() || candidate.name.csb_corrected.is_some() %}
                     {{ paper_corrected::value(candidate.name) }}
                   {% else %}
