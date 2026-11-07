@@ -287,7 +287,7 @@ impl ErrorResponse {
             | AppError::MarkdownError(_)
             | AppError::TemplateError(_)
             | AppError::UpstreamError(_)
-            | AppError::ServerError(_)
+            | AppError::IoError(_)
             | AppError::EventDecodeError(_)
             | AppError::BrpError(_)
             | AppError::AuthError(_) => internal(),
@@ -535,7 +535,7 @@ mod tests {
             AppError::from(json_rejection),
             AppError::from(path_rejection),
             AppError::ConfigLoadError("bad".to_string()),
-            AppError::ServerError(std::io::Error::other("oh nooo")),
+            AppError::IoError(std::io::Error::other("oh nooo")),
             #[cfg(feature = "database")]
             AppError::from(sqlx::Error::RowNotFound),
         ];
