@@ -1,9 +1,6 @@
-use crate::structs::candidate_lists::CandidateList;
+use crate::{Query, structs::candidate_lists::CandidateList};
 use askama::Template;
-use axum::{
-    extract::Query,
-    response::{IntoResponse, Response},
-};
+use axum::response::{IntoResponse, Response};
 
 use crate::{
     AppError, Context, ElectoralDistrict, Form, HtmlTemplate, Overlay, PgStore, QueryParamState,
@@ -90,14 +87,11 @@ pub async fn update_candidate_list_submit(
 mod tests {
     use super::*;
     use crate::{
-        Context, ElectionConfig, ElectoralDistrict, Form, PgStore, QueryParamState,
+        Context, ElectionConfig, ElectoralDistrict, Form, PgStore, Query, QueryParamState,
         structs::candidate_lists::{CandidateListId, CandidateListSummary},
         test_utils::{response_body_string, sample_candidate_list},
     };
-    use axum::{
-        extract::Query,
-        http::{StatusCode, header},
-    };
+    use axum::http::{StatusCode, header};
     use axum_extra::routing::TypedPath;
     use std::collections::BTreeSet;
 

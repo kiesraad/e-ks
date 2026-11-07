@@ -1,9 +1,6 @@
-use crate::structs::candidate_lists::CandidateList;
+use crate::{Query, structs::candidate_lists::CandidateList};
 use askama::Template;
-use axum::{
-    extract::Query,
-    response::{IntoResponse, Response},
-};
+use axum::response::{IntoResponse, Response};
 
 use crate::{
     AppError, AppResponse, Context, HtmlTemplate, Overlay, PgStore, QueryParamState,
@@ -48,13 +45,10 @@ pub async fn delete_candidate_list(
 mod tests {
     use super::*;
     use crate::{
-        ElectoralDistrict, PgStore, QueryParamState,
+        ElectoralDistrict, PgStore, Query, QueryParamState,
         structs::candidate_lists::CandidateListSummary, test_utils::response_body_string,
     };
-    use axum::{
-        extract::Query,
-        http::{StatusCode, header},
-    };
+    use axum::http::{StatusCode, header};
     use axum_extra::routing::TypedPath;
     use std::collections::BTreeSet;
 

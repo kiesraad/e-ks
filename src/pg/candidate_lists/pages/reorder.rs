@@ -1,11 +1,11 @@
 use std::collections::BTreeSet;
 
 use crate::{
-    AppError, PgStore,
+    AppError, Json, PgStore,
     candidate_lists::pages::CandidateListReorderPath,
     structs::{candidate_lists::CandidateList, persons::PersonId},
 };
-use axum::{Json, http::StatusCode, response::IntoResponse};
+use axum::{http::StatusCode, response::IntoResponse};
 use serde::Deserialize;
 
 #[derive(Deserialize)]

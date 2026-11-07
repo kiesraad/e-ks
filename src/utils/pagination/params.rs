@@ -1,8 +1,10 @@
 use axum::{
-    extract::{FromRequestParts, Query, rejection::QueryRejection},
+    extract::{FromRequestParts, Query},
     http::request::Parts,
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
+
+use crate::AppError;
 
 #[derive(Debug, Copy, Clone, Deserialize, Serialize, Default, PartialEq)]
 #[serde(rename_all = "lowercase")]
@@ -92,7 +94,7 @@ where
     Sort: DeserializeOwned + Serialize + Default + PartialEq,
     Pagination<Sort>: DeserializeOwned,
 {
-    type Rejection = QueryRejection;
+    type Rejection = AppError;
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let Query(pagination) = Query::<Pagination<Sort>>::from_request_parts(parts, state).await?;

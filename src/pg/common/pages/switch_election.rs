@@ -5,9 +5,9 @@ use axum::{
 };
 
 use crate::{
-    AnyLocale, AppError, AppRequestState, Context, ElectionConfig, HtmlTemplate, Province, Session,
-    SessionUser, SwitchElectionForm, WaterCouncil, common::PgIndexPath, csb::index::CsbIndexPath,
-    filters,
+    AnyLocale, AppError, AppRequestState, Context, ElectionConfig, Form, HtmlTemplate, Province,
+    Session, SessionUser, SwitchElectionForm, WaterCouncil, common::PgIndexPath,
+    csb::index::CsbIndexPath, filters,
 };
 
 use super::SwitchElectionPath;
@@ -69,7 +69,7 @@ pub async fn switch_election_submit<S: AppRequestState>(
     _: SwitchElectionPath,
     State(state): State<S>,
     session: Session,
-    axum::Form(form): axum::Form<SwitchElectionForm>,
+    Form(form): Form<SwitchElectionForm>,
 ) -> Result<Response, AppError> {
     if state.config().default_election.is_some() {
         return Err(AppError::GenericNotFound);

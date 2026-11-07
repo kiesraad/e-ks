@@ -1,11 +1,9 @@
 use askama::Template;
-use axum::{
-    extract::Query,
-    response::{IntoResponse, Response},
-};
+use axum::response::{IntoResponse, Response};
 
 use crate::{
-    AppError, AppResponse, Context, HtmlTemplate, Overlay, PgStore, QueryParamState, filters,
+    AppError, AppResponse, Context, HtmlTemplate, Overlay, PgStore, Query, QueryParamState,
+    filters,
     structs::{common::HasSeverity, list_submitters::ListSubmitter},
 };
 
@@ -47,11 +45,10 @@ pub async fn delete_substitute_submitter(
 
 #[cfg(test)]
 mod tests {
-    use axum::extract::Query;
     use axum_extra::routing::TypedPath;
 
     use super::*;
-    use crate::QueryParamState;
+    use crate::{Query, QueryParamState};
 
     use crate::{
         AppError, Context, PgStore,

@@ -17,9 +17,7 @@ pub use string_validators::{
 pub use switch_election::SwitchElectionForm;
 pub use validation_error::ValidationError;
 
-use axum::extract::{FromRequest, Request};
-use axum_extra::extract::Form as AxumForm;
-use serde::de::DeserializeOwned;
+use axum::extract::{FromRequest, FromRequestParts};
 
 use crate::AppError;
 
@@ -27,22 +25,19 @@ pub type FieldErrors = Vec<(String, ValidationError)>;
 
 /// Wrapper around `axum_extra::extract::Form` that maps rejections to
 /// [`AppError`]. Validation happens separately via the `Validate` derive.
-#[derive(Debug)]
+#[derive(Debug, FromRequest)]
+#[from_request(via(axum_extra::extract::Form), rejection(AppError))]
 pub struct Form<T>(pub T);
 
-impl<T, S> FromRequest<S> for Form<T>
-where
-    S: Sync + Send,
-    T: DeserializeOwned,
-{
-    type Rejection = AppError;
+/// `axum::extract::Query` with its rejection mapped to [`AppError`].
+#[derive(Debug, Default, FromRequestParts)]
+#[from_request(via(axum::extract::Query), rejection(AppError))]
+pub struct Query<T>(pub T);
 
-    async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
-        let AxumForm(form) = AxumForm::<T>::from_request(req, state).await?;
-
-        Ok(Form(form))
-    }
-}
+/// `axum::Json` (as extractor) with its rejection mapped to [`AppError`].
+#[derive(Debug, FromRequest)]
+#[from_request(via(axum::Json), rejection(AppError))]
+pub struct Json<T>(pub T);
 
 pub trait IntoValidationError {
     fn into_validation_error(self) -> ValidationError;

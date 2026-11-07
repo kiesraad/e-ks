@@ -1,9 +1,6 @@
-use crate::structs::list_submitters::ListSubmitter;
+use crate::{Query, structs::list_submitters::ListSubmitter};
 use askama::Template;
-use axum::{
-    extract::Query,
-    response::{IntoResponse, Response},
-};
+use axum::response::{IntoResponse, Response};
 
 use super::SubstituteSubmitterCreatePath;
 use crate::{
@@ -61,7 +58,7 @@ pub async fn create_substitute_submitter_submit(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::QueryParamState;
+    use crate::{Query, QueryParamState};
     use axum::{
         http::{StatusCode, header},
         response::IntoResponse,
