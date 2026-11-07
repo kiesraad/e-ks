@@ -2,7 +2,7 @@ use chrono::NaiveDate;
 use uuid::Uuid;
 
 use crate::{
-    AppError, AppRequestState, CsbAction, CsbMainAction, CsbMainStore, CsbStore, CsbStoreData,
+    AppError, AppRequestState, CsbAction, CsbMainAction, CsbMainStream, CsbStore, CsbStoreData,
     CsbUser, ElectionConfig, ElectoralDistrict, PgStore, PgStoreData, StreamId,
     projection::WithCorrections,
     store::{StoreData, StoreRegistry},
@@ -237,7 +237,7 @@ async fn import_pre_submission_fixture<S: AppRequestState>(
 /// Record the group's registration on the main stream, unless the group is
 /// unregistered or its appellation was registered by hand already.
 async fn register(
-    main_store: &CsbMainStore,
+    main_store: &CsbMainStream,
     user: &CsbUser,
     group: &FixtureGroup,
 ) -> Result<(), AppError> {

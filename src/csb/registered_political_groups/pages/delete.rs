@@ -43,13 +43,12 @@ pub async fn delete(
 
 pub async fn delete_submit(
     CsbDeleteRegisteredPoliticalGroupPath { id }: CsbDeleteRegisteredPoliticalGroupPath,
-    context: CsbContext,
     main_store: CsbMainStore,
 ) -> Result<Response, AppError> {
     // Deleting a group that is already gone is a stale form, not a change.
     main_store.get_registered_political_group(id)?;
     main_store
-        .update(CsbMainAction::DeleteRegisteredPoliticalGroup(id).by(context.user()?))
+        .update(CsbMainAction::DeleteRegisteredPoliticalGroup(id))
         .await?;
     Ok(redirect_success(CsbRegisteredPoliticalGroupsPath))
 }
@@ -94,7 +93,6 @@ mod tests {
 
         let response = delete_submit(
             CsbDeleteRegisteredPoliticalGroupPath { id: group.id },
-            CsbContext::new_test(),
             store.clone(),
         )
         .await
@@ -114,7 +112,6 @@ mod tests {
             CsbDeleteRegisteredPoliticalGroupPath {
                 id: RegisteredPoliticalGroupId::new(),
             },
-            CsbContext::new_test(),
             store.clone(),
         )
         .await;

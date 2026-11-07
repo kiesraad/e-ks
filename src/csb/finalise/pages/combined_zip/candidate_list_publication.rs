@@ -1,5 +1,5 @@
 use crate::{
-    AppError, AppRequestState, CsbContext, CsbMainStore,
+    AppError, AppRequestState, CsbMainStore,
     core::ModelLocale,
     csb::finalise::numbering::list_numbering,
     models::{
@@ -10,7 +10,6 @@ use crate::{
 
 /// Collect the store data the candidate list publication model needs.
 pub(super) async fn candidate_list_publication_model<S: AppRequestState>(
-    context: &CsbContext,
     main_store: &CsbMainStore,
     state: &S,
 ) -> Result<CandidateListPublication, AppError> {
@@ -18,7 +17,7 @@ pub(super) async fn candidate_list_publication_model<S: AppRequestState>(
     let registry = state.csb_store_registry();
     let mut numbering = list_numbering(registry, main_store).await?;
 
-    numbering.record_if_incomplete(context, main_store).await?;
+    numbering.record_if_incomplete(main_store).await?;
 
     let configured_session = election.public_session();
     let public_session = main_store
@@ -40,7 +39,7 @@ mod tests {
     use std::collections::BTreeSet;
 
     use crate::{
-        AppState, CsbMainAction, CsbUser, ElectionConfig, ElectoralDistrict, StreamId,
+        AppState, CsbMainAction, ElectionConfig, ElectoralDistrict, StreamId,
         structs::{
             candidate_lists::CandidateList,
             csb::{OmissionCategory, OmissionStatus, sample_omission},
@@ -75,7 +74,7 @@ mod tests {
     async fn main_store_with_order(order: Vec<StreamId>) -> Result<CsbMainStore, AppError> {
         let main_store = CsbMainStore::new_for_test();
         main_store
-            .update(CsbMainAction::UpdateListOrder(order).by(CsbUser::new_test()))
+            .update(CsbMainAction::UpdateListOrder(order))
             .await?;
         Ok(main_store)
     }
@@ -104,7 +103,6 @@ mod tests {
     #[tokio::test]
     async fn document_uses_global_ordering_even_when_list_not_present_in_district()
     -> Result<(), AppError> {
-        let context = CsbContext::new_test();
         let state = AppState::new_for_tests().await;
         let both = seed_group(
             &state,
@@ -116,7 +114,7 @@ mod tests {
             seed_group(&state, "Alleen Groningen", &[ElectoralDistrict::Groningen]).await;
         let main_store = main_store_with_order(vec![groningen, both]).await?;
 
-        let model = candidate_list_publication_model(&context, &main_store, &state).await?;
+        let model = candidate_list_publication_model(&main_store, &state).await?;
 
         assert_eq!(
             rows(&model),
@@ -138,7 +136,6 @@ mod tests {
     #[tokio::test]
     async fn document_uses_global_ordering_even_when_list_scrapped_in_district()
     -> Result<(), AppError> {
-        let context = CsbContext::new_test();
         let state = AppState::new_for_tests().await;
         let districts = [ElectoralDistrict::Groningen, ElectoralDistrict::Drenthe];
         let first = seed_group(&state, "Eerste", &districts).await;
@@ -159,7 +156,7 @@ mod tests {
             .set_status(&store, OmissionStatus::NotRecovered)
             .await?;
 
-        let model = candidate_list_publication_model(&context, &main_store, &state).await?;
+        let model = candidate_list_publication_model(&main_store, &state).await?;
 
         assert_eq!(
             rows(&model),
@@ -188,14 +185,12 @@ mod tests {
         assert_eq!(main_store.list_order_events(), 0);
 
         let numbered = [("Groningen", vec![(1, "Eerste"), (2, "Tweede")])];
-        let model =
-            candidate_list_publication_model(&CsbContext::new_test(), &main_store, &state).await?;
+        let model = candidate_list_publication_model(&main_store, &state).await?;
         assert_eq!(rows(&model), numbered);
         assert_eq!(main_store.list_order_events(), 1);
         assert_eq!(main_store.list_order(), [first, second]);
 
-        let model =
-            candidate_list_publication_model(&CsbContext::new_test(), &main_store, &state).await?;
+        let model = candidate_list_publication_model(&main_store, &state).await?;
         assert_eq!(rows(&model), numbered);
         assert_eq!(main_store.list_order_events(), 1);
 

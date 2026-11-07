@@ -2,7 +2,7 @@
 
 use crate::{
     AppError, Config, ElectionConfig, IdDeriver, PendingRequestStore, SessionStore, StreamId,
-    projection::{CsbMainStore, CsbMainStoreData, CsbStoreData, CsbStream, PgStoreData},
+    projection::{CsbMainStoreData, CsbMainStream, CsbStoreData, CsbStream, PgStoreData},
     store::{Store, StoreRegistry},
     structs::brp::BrpClient,
 };
@@ -51,7 +51,7 @@ pub trait AppRequestState: Clone + Send + Sync + 'static {
     fn csb_main_store(
         &self,
         election: ElectionConfig,
-    ) -> impl Future<Output = Result<CsbMainStore, AppError>> + Send;
+    ) -> impl Future<Output = Result<CsbMainStream, AppError>> + Send;
 
     /// Fetch (or create, optionally loading fixtures) a political-group store.
     fn store_for_stream(

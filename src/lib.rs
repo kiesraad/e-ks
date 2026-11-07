@@ -113,8 +113,8 @@ pub(crate) use pg::{
     render_error_pages, substitute_list_submitters,
 };
 pub(crate) use projection::{
-    AppRequestState, CsbAction, CsbMainAction, CsbMainStore, CsbMainStoreData, CsbStore,
-    CsbStoreData, CsbStream, PgEvent, PgStore, PgStoreData,
+    AppRequestState, CsbAction, CsbMainAction, CsbMainStore, CsbMainStoreData, CsbMainStream,
+    CsbStore, CsbStoreData, CsbStream, PgEvent, PgStore, PgStoreData,
 };
 pub use projection::{CsbEvent, CsbMainEvent};
 
