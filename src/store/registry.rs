@@ -197,7 +197,9 @@ where
             &self.master,
         )
         .await?;
+
         store.load().await?;
+
         if let Some(init) = init {
             init(store.clone()).await?;
         }
