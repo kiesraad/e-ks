@@ -59,6 +59,13 @@ pub(crate) mod test_support {
                 .insert(MessageId::parse(id).expect("test message id"));
             self
         }
+
+        /// Whether `id` is still in the store (neither consumed nor burned).
+        pub(crate) fn still_pending(&self, id: &str) -> bool {
+            self.pending
+                .lock()
+                .contains(&MessageId::parse(id).expect("test message id"))
+        }
     }
 
     impl FromRef<MockAuthState> for AuthServiceState {

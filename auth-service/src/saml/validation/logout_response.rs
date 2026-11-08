@@ -13,11 +13,14 @@ use crate::{
 /// `@InResponseTo` to consume and whether the status was `Success`.
 #[derive(Debug)]
 pub struct LogoutResponseFields {
+    /// The root's `@ID`, so the signature verifier can bind the signed element
+    /// to the one these fields were read from.
+    pub id: Option<String>,
     pub in_response_to: MessageId,
     pub status_is_success: bool,
 }
 
-/// Parse the (already signature-verified) LogoutResponse XML and enforce the
+/// Parse the (not yet signature-verified) LogoutResponse XML and enforce the
 /// §7.7.2 structural checks. Every element and attribute the §7.7.2 table gives
 /// cardinality 1 is required: `samlp:LogoutResponse` root, `@Version` = 2.0, a
 /// fresh `@IssueInstant`, `Issuer` = the RD, `@Destination` = our SLS endpoint,
@@ -57,6 +60,7 @@ pub fn validate_logout_response(
         == Some(STATUS_SUCCESS);
 
     Ok(LogoutResponseFields {
+        id: doc.get_attribute(root, "ID").map(str::to_owned),
         in_response_to,
         status_is_success,
     })
