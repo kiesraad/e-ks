@@ -128,18 +128,22 @@ impl PgStore {
     /// Refuse the write when one of the configured [`RateLimits`] is reached,
     /// counted from the stream's own event log.
     ///
-    /// Every event counts, session events (login/logout) included.
+    /// Every event counts, session events (login/logout) included, but those
+    /// are exempt from the absolute cap so a capped stream can still log in.
     fn check_rate_limits(&self, event: &PgEvent) -> Result<(), AppError> {
-        self.check_limits(matches!(event, PgEvent::DownloadFile { .. }))
+        self.check_limits(
+            matches!(event, PgEvent::DownloadFile { .. }),
+            matches!(event, PgEvent::Login | PgEvent::Logout),
+        )
     }
 
     /// The limits a `DownloadFile` event would be held to, for checking before
     /// the documents are generated.
     pub fn check_download_limit(&self) -> Result<(), AppError> {
-        self.check_limits(true)
+        self.check_limits(true, false)
     }
 
-    fn check_limits(&self, is_download: bool) -> Result<(), AppError> {
+    fn check_limits(&self, is_download: bool, is_session: bool) -> Result<(), AppError> {
         let Some(RateLimits {
             downloads,
             events: event_limit,
@@ -153,7 +157,7 @@ impl PgStore {
         let events = &data.events;
         let now = Utc::now();
 
-        if events_total > 0 && events.len() >= events_total {
+        if !is_session && events_total > 0 && events.len() >= events_total {
             return Err(self.limit_hit(
                 "events_total",
                 AppError::EventLimitReached { max: events_total },
@@ -378,21 +382,28 @@ mod tests {
         PgEvent::DeleteCandidateList(CandidateListId::new())
     }
 
-    /// The absolute cap stops every write, session events included, but never
-    /// a read (nothing in this module gates reads): a political group whose
-    /// stream is capped can still look at its data.
+    /// The absolute cap stops data writes, but not session events or reads
+    /// (nothing in this module gates reads): a political group whose stream is
+    /// capped can still log in and look at its data.
     #[tokio::test]
-    async fn absolute_event_cap_stops_every_write_but_not_reads() {
+    async fn absolute_event_cap_stops_data_writes_but_not_sessions_or_reads() {
         let limits = RateLimits::new_for_test(0, 0, 3, TimeDelta::minutes(1));
         let store = store_with_events(limits, 3, TimeDelta::days(30));
 
-        for event in [data_event(), PgEvent::Login, PgEvent::Logout] {
-            let err = store.update(event).await.expect_err("cap must be enforced");
-            assert!(
-                matches!(err, AppError::EventLimitReached { max: 3 }),
-                "got {err:?}"
-            );
-        }
+        let err = store
+            .update(data_event())
+            .await
+            .expect_err("cap must be enforced");
+        assert!(
+            matches!(err, AppError::EventLimitReached { max: 3 }),
+            "got {err:?}"
+        );
+
+        store.update(PgEvent::Login).await.expect("login is exempt");
+        store
+            .update(PgEvent::Logout)
+            .await
+            .expect("logout is exempt");
 
         // Reads never pass through the limit check, so the stream stays
         // viewable while the cap is in force.
