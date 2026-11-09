@@ -211,9 +211,11 @@ are evidence-only (§9.1), and claims are read only from the outer assertion
 - An assertion with no **acting** SubjectID is treated as an authentication
   failure (no usable identity).
 
-> **PII:** decrypted SubjectIDs and the SAML `NameID` are wrapped in
-> `SecretString` (zeroized on drop) and are never logged; only non-PII metadata
-> (presence flags, lengths, LoA, entity URNs) appears in traces.
+> **PII:** decrypted SubjectIDs are wrapped in `SecretString` (zeroized on
+> drop). The SAML `NameID` is a plain `String` (redacted in `Debug`), because
+> the app must keep it in the session for the `LogoutRequest`. Neither is
+> logged; only non-PII metadata (presence flags, lengths, LoA, entity URNs)
+> appears in traces.
 
 ## Logout (SP-initiated only, §3.1.1.1)
 
