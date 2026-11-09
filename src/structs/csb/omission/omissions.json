@@ -44,14 +44,14 @@
     {
       "title": "De handtekening onder de instemmingsverklaring is niet correct",
       "description": "Ten aanzien van kandidaat nr. {candidate_number} {candidate_name} ontbreekt de verklaring dat deze instemt met kandidaatstelling op de lijst. De verklaring wordt geacht te ontbreken omdat de handtekening onder de instemmingsverklaring niet correct is.",
-      "help_text": "Dit verzuim is te herstellen door een nieuwe instemmingsverklaring (model H 9) van betreffende kandidaat in te leveren met daarop een handtekening die wel correct is. Correcte handtekeningen zijn natte handtekeningen, volledige handtekeningen en handtekeningen die niet evident zijn geplakt.",
+      "help_text": "Dit verzuim is te herstellen door een nieuwe instemmingsverklaring (model H 9) van de kandidaat in te leveren met daarop een handtekening die wel correct is. Correcte handtekeningen zijn natte handtekeningen, volledige handtekeningen en handtekeningen die niet evident zijn geplakt.",
       "recoverable": true,
       "group": "Handtekeningen en ID bewijzen"
     },
     {
       "title": "De handtekening onder de instemmingsverklaring en op het kopie ID komen niet overeen",
       "description": "Ten aanzien van kandidaat nr. {candidate_number} {candidate_name} ontbreekt de verklaring dat deze instemt met kandidaatstelling op de lijst. De verklaring wordt geacht te ontbreken omdat de handtekening onder de instemmingsverklaring niet overeenkomt met de handtekening op de kopie van het identiteitsbewijs.",
-      "help_text": "Dit verzuim is te herstellen door een nieuwe instemmingsverklaring (model H 9) van betreffende kandidaat in te leveren met daarop een handtekening die overeenkomt met de handtekening op de kopie van het identiteitsbewijs.",
+      "help_text": "Dit verzuim is te herstellen door een nieuwe instemmingsverklaring (model H 9) van de kandidaat in te leveren met daarop een handtekening die overeenkomt met de handtekening op de kopie van het identiteitsbewijs.",
       "recoverable": true,
       "group": "Handtekeningen en ID bewijzen"
     },
@@ -65,28 +65,28 @@
     {
       "title": "Handtekening ontbreekt",
       "description": "Ten aanzien van kandidaat nr. {candidate_number} {candidate_name} ontbreekt de verklaring dat deze instemt met kandidaatstelling op de lijst. De verklaring wordt geacht te ontbreken omdat de handtekening ontbreekt.",
-      "help_text": "Dit verzuim is te herstellen door een nieuwe ondertekende instemmingsverklaring (model H 9) van de betreffende kandidaat in te leveren.",
+      "help_text": "Dit verzuim is te herstellen door een nieuwe ondertekende instemmingsverklaring (model H 9) van de kandidaat in te leveren.",
       "recoverable": true,
       "group": "Handtekeningen en ID bewijzen"
     },
     {
       "title": "Verklaring en kopie ID ontbreken",
       "description": "Ten aanzien van kandidaat nr. {candidate_number}, {candidate_name} ontbreekt de verklaring dat deze instemt met kandidaatstelling op de lijst. Tevens ontbreekt van deze kandidaat een kopie van een geldig identiteitsbewijs.",
-      "help_text": "Dit verzuim is te herstellen door een instemmingsverklaring (model H 9) en een kopie van een geldig identiteitsbewijs van betreffende kandidaat in te leveren.",
+      "help_text": "Dit verzuim is te herstellen door een instemmingsverklaring (model H 9) en een kopie van een geldig identiteitsbewijs van de kandidaat in te leveren.",
       "recoverable": true,
       "group": "Handtekeningen en ID bewijzen"
     },
     {
       "title": "Kandidaat onjuist vermeld",
       "description": "Kandidaat nr. {candidate_number}, {candidate_name} is niet op de kandidatenlijst vermeld op de manier waarop dat moet (artikel H 2 van het Kiesbesluit). De kandidaat staat op de lijst vermeld met de nadere aanduiding/het predicaat {appellation}. Dit is op grond van de beleidsregel van de Kiesraad omtrent de vermelding van kandidaten op de kandidatenlijst niet toegestaan.",
-      "help_text": "Dit verzuim is te herstellen door een nieuwe instemmingsverklaring (model H 9) van betreffende kandidaat in te leveren, waar deze nadere aanduiding(en)/het predicaat niet zijn vermeld.",
+      "help_text": "Dit verzuim is te herstellen door een nieuwe instemmingsverklaring (model H 9) van de kandidaat in te leveren, waar deze nadere aanduiding(en)/het predicaat niet zijn vermeld.",
       "recoverable": true,
       "group": "Over kandidaat en gemachtigde"
     },
     {
       "title": "Bij kandidaat is het onjuiste geslacht (x) vermeld",
       "description": "Kandidaat nr. {candidate_number}, {candidate_name} is niet op de kandidatenlijst vermeld op de manier waarop dat moet (artikel H 2 van het Kiesbesluit). De kandidaat staat op de lijst vermeld met de geslachtsvermelding (x). Artikel H 2, vierde lid, van de Kiesbesluit staat enkel de vermeldingen (m) of (v) toe.",
-      "help_text": "Dit verzuim is te herstellen door een nieuwe instemmingsverklaring (model H 9) van betreffende kandidaat in te leveren, waarbij geen geslacht wordt vermeld of het geslacht met (m) of (v) wordt vermeld.",
+      "help_text": "Dit verzuim is te herstellen door een nieuwe instemmingsverklaring (model H 9) van de kandidaat in te leveren, waarbij geen geslacht wordt vermeld of het geslacht met (m) of (v) wordt vermeld.",
       "recoverable": true,
       "group": "Over kandidaat en gemachtigde"
     },
@@ -100,21 +100,21 @@
     {
       "title": "Geen (volledig) adres opgegeven op de instemmingsverklaring",
       "description": "Ten aanzien van kandidaat nr. {candidate_number} {candidate_name} ontbreekt de verklaring dat deze instemt met kandidaatstelling op de lijst. De verklaring wordt geacht te ontbreken omdat op de verklaring geen (volledig) adres is vermeld.",
-      "help_text": "Dit verzuim is te herstellen door een nieuwe instemmingsverklaring (model H 9) van betreffende kandidaat in te leveren met daarop een adres vermeld.",
+      "help_text": "Dit verzuim is te herstellen door een nieuwe instemmingsverklaring (model H 9) van de kandidaat in te leveren met daarop een adres vermeld.",
       "recoverable": true,
       "group": "Over kandidaat en gemachtigde"
     },
     {
       "title": "Datum van ondertekening is niet correct",
       "description": "Ten aanzien van kandidaat nr. {candidate_number} {candidate_name} ontbreekt de verklaring dat deze instemt met kandidaatstelling op de lijst. De verklaring wordt geacht te ontbreken omdat de datum van ondertekening niet correct is.",
-      "help_text": "Dit verzuim is te herstellen door een nieuwe instemmingsverklaring (model H 9) van betreffende kandidaat in te leveren met daarop een juiste datum van ondertekening.",
+      "help_text": "Dit verzuim is te herstellen door een nieuwe instemmingsverklaring (model H 9) van de kandidaat in te leveren met daarop een juiste datum van ondertekening.",
       "recoverable": true,
       "group": "Datum ondertekening en kandidatenlijst"
     },
     {
       "title": "Datum ondertekening ontbreekt",
       "description": "Ten aanzien van kandidaat nr. {candidate_number} {candidate_name} ontbreekt de verklaring dat deze instemt met kandidaatstelling op de lijst. De verklaring wordt geacht te ontbreken omdat de datum van ondertekening ontbreekt.",
-      "help_text": "Dit verzuim is te herstellen door een nieuwe instemmingsverklaring (model H 9) van de betreffende kandidaat in te leveren waarop de datum van ondertekening is ingevuld.",
+      "help_text": "Dit verzuim is te herstellen door een nieuwe instemmingsverklaring (model H 9) van de kandidaat in te leveren waarop de datum van ondertekening is ingevuld.",
       "recoverable": true,
       "group": "Datum ondertekening en kandidatenlijst"
     },
