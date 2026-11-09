@@ -173,12 +173,7 @@ impl BrpClient {
         let result = self.get_persons(&query).await;
 
         let outcome = match &result {
-            Ok(found) => BrpLookupOutcome::Returned {
-                bsns: found
-                    .iter()
-                    .map(|brp_person| brp_person.bsn.clone().unwrap_or_default())
-                    .collect(),
-            },
+            Ok(found) => BrpLookupOutcome::Returned { count: found.len() },
             Err(err) => BrpLookupOutcome::Failed {
                 error: err.to_string(),
             },
@@ -1526,21 +1521,13 @@ mod tests {
             BrpQuery::ConsultWithBsn { bsn, fields }
                 if *bsn == vec![bsn_of(&person).unwrap().clone()] && fields == CANDIDATE_FIELDS
         ));
-        assert_eq!(
-            by_bsn.outcome,
-            BrpLookupOutcome::Returned { bsns: Vec::new() }
-        );
+        assert_eq!(by_bsn.outcome, BrpLookupOutcome::Returned { count: 0 });
         assert!(matches!(
             &by_details.query,
             BrpQuery::SearchByLastNameAndDateOfBirth { last_name, date_of_birth, .. }
                 if last_name == "Bruin" && date_of_birth == "1990-12-11"
         ));
-        assert_eq!(
-            by_details.outcome,
-            BrpLookupOutcome::Returned {
-                bsns: vec!["999992806".to_string()]
-            }
-        );
+        assert_eq!(by_details.outcome, BrpLookupOutcome::Returned { count: 1 });
         assert!(matches!(
             &found.query,
             BrpQuery::ConsultWithBsn { bsn, .. } if *bsn == vec!["999992806".parse().unwrap()]

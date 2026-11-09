@@ -15,7 +15,7 @@ detail:
     query_consult: Lookup by citizen service number
     query_search: Search by last name and date of birth
     result: Result
-    returned: "Persons returned, by citizen service number"
+    returned: Persons returned
     returned_none: None
   collections:
     to: to

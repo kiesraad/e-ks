@@ -1042,12 +1042,7 @@ mod tests {
             BrpQuery::ConsultWithBsn { bsn: sent, .. }
                 if sent.len() == 1 && sent[0].expose() == bsn
         ));
-        assert_eq!(
-            lookups[0].outcome,
-            BrpLookupOutcome::Returned {
-                bsns: vec![bsn.clone()]
-            }
-        );
+        assert_eq!(lookups[0].outcome, BrpLookupOutcome::Returned { count: 1 });
 
         let events = csb_store.snapshot().events().to_vec();
         let position = |is_it: fn(&CsbAction) -> bool| {

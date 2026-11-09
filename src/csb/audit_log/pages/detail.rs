@@ -413,15 +413,15 @@ fn search_criteria_facts(
     facts
 }
 
-/// What came back: the persons the BRP returned, or why it did not answer.
+/// What came back: how many persons the BRP returned, or why it did not answer.
 fn outcome_fact(outcome: &BrpLookupOutcome, locale: Locale) -> Fact {
     match outcome {
-        BrpLookupOutcome::Returned { bsns } => Fact {
+        BrpLookupOutcome::Returned { count } => Fact {
             label: trans!("audit_log.detail.brp.returned", locale),
-            value: if bsns.is_empty() {
+            value: if *count == 0 {
                 trans!("audit_log.detail.brp.returned_none", locale)
             } else {
-                bsns.join(", ")
+                count.to_string()
             },
         },
         BrpLookupOutcome::Failed { error } => Fact {
@@ -719,9 +719,7 @@ mod tests {
                         include_deceased: true,
                         fields: vec![BrpField::Bsn, BrpField::LastName],
                     },
-                    outcome: BrpLookupOutcome::Returned {
-                        bsns: vec!["999992806".to_string(), "999993653".to_string()],
-                    },
+                    outcome: BrpLookupOutcome::Returned { count: 2 },
                 })
                 .by(CsbUser::new_test()),
             )
@@ -735,7 +733,8 @@ mod tests {
         assert!(body.contains("Jansen"));
         assert!(body.contains("1980-01-02"));
         assert!(body.contains("burgerservicenummer, naam.geslachtsnaam"));
-        assert!(body.contains("999992806, 999993653"));
+        assert!(body.contains("Persons returned"));
+        assert!(!body.contains("999992806"));
         assert!(body.contains("Including deceased persons"));
 
         Ok(())
