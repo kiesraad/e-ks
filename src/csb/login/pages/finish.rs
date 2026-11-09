@@ -16,7 +16,7 @@ use serde::Deserialize;
 use tracing::{info, warn};
 
 use crate::{
-    AppError, AppRequestState, CsbMainStore, CsbUser, CsbUsername, ElectionConfig, Form, Locale,
+    AppError, AppRequestState, CsbMainStream, CsbUser, CsbUsername, ElectionConfig, Form, Locale,
     Session, SwitchElectionForm,
     auth::{
         csb_webauthn::{AssertionError, LoginFailure, VerifiedLogin, verify_login},
@@ -93,7 +93,7 @@ fn login_failed_with(failure: LoginFailure, peer: Option<IpAddr>) -> Response {
 /// step with the counter check, and creates the committee session.
 async fn establish_committee_session<S: AppRequestState>(
     state: &S,
-    store: &CsbMainStore,
+    store: &CsbMainStream,
     election: ElectionConfig,
     login: VerifiedLogin,
     jar: CookieJar,

@@ -73,9 +73,7 @@ pub async fn hearing_details_submit(
         Ok(validated_target) => {
             let hearing_details = HearingDetails::from(validated_target);
             store
-                .update(
-                    CsbMainAction::UpdateHearingDetails(model, hearing_details).by(context.user()?),
-                )
+                .update(CsbMainAction::UpdateHearingDetails(model, hearing_details))
                 .await?;
             Ok(Redirect::to(&return_path(model)).into_response())
         }
