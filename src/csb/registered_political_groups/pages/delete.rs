@@ -1,11 +1,8 @@
 use askama::Template;
-use axum::{
-    extract::Query,
-    response::{IntoResponse, Response},
-};
+use axum::response::{IntoResponse, Response};
 
 use crate::{
-    AppError, Context, CsbContext, CsbMainAction, CsbMainStore, HtmlTemplate, Overlay,
+    AppError, Context, CsbContext, CsbMainAction, CsbMainStore, HtmlTemplate, Overlay, Query,
     QueryParamState,
     csb::registered_political_groups::paths::{
         CsbDeleteRegisteredPoliticalGroupPath, CsbRegisteredPoliticalGroupsPath,

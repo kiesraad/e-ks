@@ -1,8 +1,8 @@
-use axum::{extract::Query, response::Response};
+use axum::response::Response;
 use serde::Deserialize;
 
 use crate::{
-    AppError, CsbContext, CsbStore, ElectoralDistrict, Form, QueryParamState,
+    AppError, CsbContext, CsbStore, ElectoralDistrict, Form, Query, QueryParamState,
     csb::{examination::extractors::CsbPoliticalGroup, recovery::paths::CsbSetOmissionStatusPath},
     structs::{
         candidate_lists::CandidateListId,

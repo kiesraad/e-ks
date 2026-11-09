@@ -1,6 +1,9 @@
-use crate::structs::candidate_lists::{CandidateList, FullCandidateList};
+use crate::{
+    Query,
+    structs::candidate_lists::{CandidateList, FullCandidateList},
+};
 use askama::Template;
-use axum::{extract::Query, response::IntoResponse};
+use axum::response::IntoResponse;
 
 use crate::{
     AppError, Context, ElectoralDistrict, HtmlTemplate, PgStore, QueryParamState,

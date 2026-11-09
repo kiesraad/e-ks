@@ -1,8 +1,8 @@
 use askama::Template;
-use axum::{extract::Query, response::IntoResponse};
+use axum::response::IntoResponse;
 
 use crate::{
-    AppError, Context, Event, HtmlTemplate, PgStore,
+    AppError, Context, Event, HtmlTemplate, PgStore, Query,
     audit_log::{AuditLogEntry, PgLinks, paths::AuditLogPath},
     filters,
     pagination::Pagination,
@@ -194,12 +194,12 @@ pub async fn audit_log(
 mod tests {
     use super::*;
     use crate::{
-        AppError, Context, PgStore,
+        AppError, Context, PgStore, Query,
         pagination::Pagination,
         structs::persons::PersonId,
         test_utils::{response_body_string, sample_person, sample_political_group},
     };
-    use axum::{extract::Query, http::StatusCode, response::IntoResponse};
+    use axum::{http::StatusCode, response::IntoResponse};
 
     fn no_filter() -> Query<AuditLogFilter> {
         Query(AuditLogFilter::default())

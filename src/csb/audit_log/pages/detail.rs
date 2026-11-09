@@ -1,12 +1,10 @@
 use askama::Template;
-use axum::{
-    extract::{Query, State},
-    response::IntoResponse,
-};
+use axum::{extract::State, response::IntoResponse};
 
 use crate::{
     AppError, AppRequestState, Context, CsbContext, CsbMainStore, CsbMainStoreData, CsbStoreData,
-    ElectoralDistrict, Event, HasCsbUser, HtmlTemplate, Locale, Overlay, QueryParamState, StreamId,
+    ElectoralDistrict, Event, HasCsbUser, HtmlTemplate, Locale, Overlay, Query, QueryParamState,
+    StreamId,
     csb::audit_log::{
         links::{CsbMainLinks, CsbStreamLinks},
         pages::CsbAuditLogDetailPath,
@@ -520,16 +518,12 @@ pub async fn csb_audit_log_detail<S: AppRequestState>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::{
-        extract::{Query, State},
-        http::StatusCode,
-        response::IntoResponse,
-    };
+    use axum::{extract::State, http::StatusCode, response::IntoResponse};
 
     use crate::{
         AppError, AppState, CsbAction, CsbContext, CsbMainAction, CsbMainStore, CsbStream, CsbUser,
-        ElectionConfig, QueryParamState, StreamId, csb::audit_log::pages::CsbAuditLogDetailPath,
-        test_utils::response_body_string,
+        ElectionConfig, Query, QueryParamState, StreamId,
+        csb::audit_log::pages::CsbAuditLogDetailPath, test_utils::response_body_string,
     };
 
     #[tokio::test]

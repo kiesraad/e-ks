@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use askama::Template;
 use axum::{
     Json,
-    extract::{Query, State},
+    extract::State,
     response::{IntoResponse, Response},
 };
 
@@ -12,7 +12,8 @@ use crate::structs::common::HasSeverity;
 use crate::{
     AppError, AppRequestState, Context,
     CsbAction::{self},
-    CsbContext, CsbMainStore, CsbStore, CsbStoreData, HtmlTemplate, Overlay, QueryParamState,
+    CsbContext, CsbMainStore, CsbStore, CsbStoreData, HtmlTemplate, Overlay, Query,
+    QueryParamState,
     csb::{
         examination::{
             extractors::CsbPoliticalGroup,

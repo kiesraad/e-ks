@@ -1,6 +1,9 @@
-use crate::structs::{list_designation::ListDesignation, political_groups::PoliticalGroup};
+use crate::{
+    Query,
+    structs::{list_designation::ListDesignation, political_groups::PoliticalGroup},
+};
 use askama::Template;
-use axum::{extract::Query, response::IntoResponse};
+use axum::response::IntoResponse;
 
 use crate::{
     AppError, Context, HtmlTemplate, PgStore, QueryParamState, filters,
@@ -47,11 +50,11 @@ pub async fn view_list_submitter(
 mod tests {
     use super::*;
     use crate::{
-        AppError, Context, PgStore, QueryParamState,
+        AppError, Context, PgStore, Query, QueryParamState,
         structs::list_submitters::ListSubmitterId,
         test_utils::{response_body_string, sample_list_submitter},
     };
-    use axum::{extract::Query, http::StatusCode, response::IntoResponse};
+    use axum::{http::StatusCode, response::IntoResponse};
 
     #[tokio::test]
     async fn view_list_submitter_shows_current_submitter() -> Result<(), AppError> {

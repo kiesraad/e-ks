@@ -1,10 +1,10 @@
 use crate::{
-    AppError, AppRequestState, Locale, Session,
+    AppError, AppRequestState, Form, Locale, Session,
     common::{PgIndexPath, SwitchLanguagePath},
     redirect_to_referer,
 };
 use axum::{extract::State, response::Redirect};
-use axum_extra::{TypedHeader, extract::Form, headers};
+use axum_extra::{TypedHeader, headers};
 use serde::Deserialize;
 
 #[derive(Default, Deserialize, Clone, Debug)]
@@ -14,7 +14,7 @@ pub struct LanguageSwitch {
 
 pub async fn switch_language<S: AppRequestState>(
     _: SwitchLanguagePath,
-    TypedHeader(referer): TypedHeader<headers::Referer>,
+    referer: Option<TypedHeader<headers::Referer>>,
     State(state): State<S>,
     session: Session,
     Form(form): Form<LanguageSwitch>,
@@ -22,8 +22,11 @@ pub async fn switch_language<S: AppRequestState>(
     state.sessions().set_locale(&session, form.lang).await?;
 
     // Back to the page the switch was made on, never off-site (see
-    // [`redirect_to_referer`]).
-    Ok(redirect_to_referer(&referer, PgIndexPath))
+    // [`redirect_to_referer`]); without a referrer, to the index.
+    Ok(match referer {
+        Some(TypedHeader(referer)) => redirect_to_referer(&referer, PgIndexPath),
+        None => Redirect::to(&PgIndexPath.to_string()),
+    })
 }
 
 #[cfg(test)]
@@ -83,5 +86,38 @@ mod tests {
             .expect("load session")
             .expect("session");
         assert_eq!(session.locale, Locale::En);
+    }
+
+    #[tokio::test]
+    async fn switch_language_without_referer_redirects_to_index() {
+        let state = AppState::new_for_tests().await;
+        let app = Router::new()
+            .typed_post(switch_language::<crate::AppState>)
+            .layer(middleware::from_fn_with_state(
+                state.clone(),
+                crate::session_middleware,
+            ))
+            .with_state(state.clone());
+
+        let session = crate::Session::new_test();
+        let token = session.token_string();
+        let csrf = session.csrf_token().clone();
+        state.sessions().insert(session).await;
+
+        let request = Request::builder()
+            .method("POST")
+            .uri("/language")
+            .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .header(
+                header::COOKIE,
+                format!("{}={}", crate::SESSION_COOKIE_NAME, token),
+            )
+            .body(Body::from(format!("csrf_token={csrf}&lang=en")))
+            .unwrap();
+
+        let response = app.oneshot(request).await.expect("response");
+
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        assert_eq!(response.headers().get(header::LOCATION).unwrap(), "/");
     }
 }

@@ -1,11 +1,9 @@
 use askama::Template;
-use axum::{
-    extract::Query,
-    response::{IntoResponse, Response},
-};
+use axum::response::{IntoResponse, Response};
 
 use crate::{
-    AppError, AppResponse, Context, Form, HtmlTemplate, Overlay, PgStore, QueryParamState, filters,
+    AppError, AppResponse, Context, Form, HtmlTemplate, Overlay, PgStore, Query, QueryParamState,
+    filters,
     form::FormData,
     persons::PersonalDataForm,
     structs::{
@@ -89,14 +87,13 @@ mod tests {
 
     use super::*;
     use crate::{
-        Context, Form, PgStore, QueryParamState,
+        Context, Form, PgStore, Query, QueryParamState,
         structs::{candidate_lists::CandidateListId, common::PlaceOfResidence, persons::PersonId},
         test_utils::{
             response_body_string, sample_candidate_list, sample_person, sample_person_form,
         },
     };
     use axum::{
-        extract::Query,
         http::{StatusCode, header},
         response::IntoResponse,
     };

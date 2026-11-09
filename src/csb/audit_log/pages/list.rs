@@ -1,12 +1,9 @@
 use askama::Template;
-use axum::{
-    extract::{Query, State},
-    response::IntoResponse,
-};
+use axum::{extract::State, response::IntoResponse};
 
 use crate::{
     AppError, AppRequestState, Context, CsbContext, CsbMainStore, Event, HtmlTemplate, Locale,
-    StreamId,
+    Query, StreamId,
     csb::audit_log::{
         links::{CsbMainLinks, CsbStreamLinks, stream_label, streams},
         pages::CsbAuditLogPath,
@@ -301,12 +298,8 @@ mod tests {
     use std::str::FromStr;
 
     use super::*;
-    use crate::{projection::WithCorrections, structs::common::Appellation};
-    use axum::{
-        extract::{Query, State},
-        http::StatusCode,
-        response::IntoResponse,
-    };
+    use crate::{Query, projection::WithCorrections, structs::common::Appellation};
+    use axum::{extract::State, http::StatusCode, response::IntoResponse};
 
     use crate::{
         AppError, AppState, CsbAction, CsbContext, CsbMainAction, CsbMainStore, CsbUser,

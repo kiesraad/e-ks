@@ -16,8 +16,8 @@ use axum::{
 use tracing::warn;
 
 use crate::{
-    Context, ErrorPage, HtmlTemplate, Locale, LocaleValues, auth::csrf_guard::CsrfRejection,
-    filters, trans,
+    Context, ErrorPage, HtmlTemplate, Locale, LocaleValues, Session,
+    auth::csrf_guard::CsrfRejection, filters, trans,
 };
 
 #[derive(Template)]
@@ -62,6 +62,33 @@ pub(crate) fn csrf_rejection_response(rejection: CsrfRejection, locale: Locale) 
     .into_response();
     *response.status_mut() = status_code;
     response
+}
+
+/// Renders the error page of a session-only route (no store, so no
+/// political-group layout) with the session locale.
+pub async fn render_session_error_pages(
+    session: Session,
+    request: Request,
+    next: Next,
+) -> Response {
+    let mut response = next.run(request).await;
+
+    match ErrorPage::take_from(&mut response, session.locale) {
+        None => response,
+        Some(page) => (
+            page.status_code,
+            HtmlTemplate(
+                RequestErrorTemplate {
+                    title: page.title,
+                    message: page.message,
+                },
+                LocaleValues {
+                    locale: session.locale,
+                },
+            ),
+        )
+            .into_response(),
+    }
 }
 
 /// Middleware that renders the error page an `AppError` response carries in
@@ -132,6 +159,34 @@ mod tests {
         let body = test_utils::response_body_string(response).await;
         assert!(body.contains("Foutcode 429"), "{body}");
         assert!(body.contains("Te veel verzoeken"), "{body}");
+    }
+
+    /// A rejected `Query` on a session-only route is rendered as a 400 page
+    /// with the session locale, without a store.
+    #[tokio::test]
+    async fn session_error_page_renders_query_rejection() {
+        #[derive(serde::Deserialize)]
+        struct Params {
+            #[allow(dead_code)]
+            n: u32,
+        }
+        let app = Router::new()
+            .route("/", get(|crate::Query(_): crate::Query<Params>| async {}))
+            .layer(middleware::from_fn(render_session_error_pages));
+
+        let mut request = Request::builder()
+            .uri("/?n=abc")
+            .body(Body::empty())
+            .unwrap();
+        request
+            .extensions_mut()
+            .insert(crate::Session::new_test_with_locale(Locale::Nl));
+        let response = app.oneshot(request).await.expect("response");
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = test_utils::response_body_string(response).await;
+        assert!(body.contains("Ongeldig verzoek"), "{body}");
+        assert!(body.contains("Naar het startscherm"), "{body}");
     }
 
     #[cfg(feature = "database")]
