@@ -27,7 +27,7 @@ exclude:
   - ".*/frontend/icons/.*"
   - ".*/locales/.*"
   - ".*/src/models/fonts/.*"
-  - ".*/src/models/example-inputs/.*"
+  - ".*/src/models/examples/.*"
   - ".*/offline/.*"
   - ".*/src/fixtures/.*"
   - ".*/tools/.*"

@@ -124,7 +124,7 @@ workspace-level dependency list.
 - **`validate/`**: a proc-macro crate exposing the `#[derive(Validate)]` macro.
   It generates the code that turns a submitted *form* struct into a validated
   *domain* struct, driven by `#[validate(...)]` field attributes
-  (`target`, `parse`, `optional`, `not_empty`, `csrf`, `flatten`, `ignore`).
+  (`target`, `parse`, `optional`, `required`, `not_empty`, `flatten`, `ignore`).
   This is what the per-domain `forms/` modules build on.
 - **`auth-service/`**: a small, application-agnostic crate providing the
   `/login` and `/logout` routes and an `AuthState` trait. The `eks` crate
@@ -162,21 +162,20 @@ modules:
 |------|----------------|
 | `src/bin/eks.rs` | Binary entry point; reads the bind address and starts the server. |
 | `src/lib.rs` | Crate root: module wiring, public re-exports, architecture overview. |
-| `src/router.rs` | Top-level Axum router; merges every domain's `router()` and applies middleware. |
-| `src/state.rs` | `AppState`: the shared application state (config, store registry, sessions). |
+| `src/app/` | Application shell: `AppState`, the shared application state (`state.rs`); the top-level Axum router that merges every domain's `router()` and applies middleware (`router.rs`); the auth-service login/logout hooks (`auth.rs`); and the HTTP middleware (`middleware/`). |
 | `src/view/` | Shared view layer: the Askama template filters (display formatting, translation, validation errors), the request-scoped template `Context`, and the error response whose page each web section renders in its own layout. |
 | `src/pg/` | Political group (PG) **domain** modules (see below). |
 | `src/csb/` | Central voting bureau (CSB) section: import, examination, monitoring, audit log, and its own event stores (see [The CSB section](#the-csb-section-srccsb)). |
 | `src/structs/` | Shared domain model structs (persons, political groups, candidate lists, common value types) used by both `src/pg/` and `src/csb/`. |
-| `src/models/` | The official PDF models (H 1, H 3-1, H 3-2, H 4, H 9, I 1, I 4) rendered with `textris-pdf`, plus the embedded fonts and the JSON example inputs. |
+| `src/models/` | The official PDF models (H 1, H 3-1, H 3-2, H 4, H 9, I 1, I 4) rendered with `textris-pdf`, plus the embedded fonts and the example inputs. |
 | `src/auth/` | Authentication: how a login is proven and a session established, for both login methods. The session model and token handling, session/pending-request storage, id derivation, the session cookie helpers + `Session` extractor, the CSB identity (`CsbUser`), and the CSB security-key mechanism (`csb_webauthn/`: challenge lifecycle and WebAuthn assertion verification). The login endpoints live with their section (`src/pg/common/pages/auth.rs`, `src/csb/login/`); the session/store middleware, the CSB access guards and the development login endpoint live in `src/app/middleware/`. |
 | `src/core/` | Cross-cutting infrastructure: `Config`, server startup, logging/tracing, election configuration, Askama rendering, CSV, ZIP, locales. |
-| `src/store/` | The generic event store: persistence backends (memory/file/Postgres), at-rest encryption, the event hash chain, and the per-stream `StoreRegistry`. |
+| `src/store/` | The generic event store: persistence backends (memory/Postgres), at-rest encryption, the event hash chain, and the per-stream `StoreRegistry`. |
+| `src/projection/` | The projections built on the store: `PgStoreData` (`pg_data/`), `CsbStoreData` (`csb_data/`) and `CsbMainStoreData` (`csb_main/`), plus the `PgStore` and `CsbStore` handles which the handlers work with. |
 | `src/error/` | `AppError`, the application-wide error type. Its mapping to a response lives in `src/view/`, the page layouts in `src/pg/` and `src/csb/`. |
 | `src/form/` | Generic form extraction and validation: the `Form<T>` extractor, CSRF tokens, file uploads, string validators. |
-| `src/pagination/` | Reusable list-pagination helpers (params, page links, page info). |
 | `src/fixtures/` | Sample data loaded into the store on startup in development/test (`fixtures` feature). The CSB counterpart, `src/csb/import/fixture.rs`, registers sample political groups with their previous election result and imports several of them, one with omissions, one with paper corrections and one with a list of too many candidates; one is also imported for the pre-submission check, its BRP check done and some candidates found wanting. |
-| `src/utils/` | Small standalone helpers (id newtypes, redirects, health check, embedding helpers, etc.). |
+| `src/utils/` | Small standalone helpers (redirects, list pagination, query-string helpers, embedding helpers, etc.). |
 
 ### `src/pg/` domain modules
 
@@ -184,20 +183,26 @@ modules:
 Alongside the per-domain folders are a few section-level files that tie the
 domains together:
 
-- `store/event.rs`: `PgEvent`, the single enum of all PG domain events.
-- `store/mod.rs`: `PgStoreData`, the in-memory projection built by replaying
+- `extractor.rs`: extracts the per-request `PgStore` from the request
+  extensions, plus the `request_extractor!` macro the per-domain extractors
+  build on.
+- `error_response.rs`: renders error pages in the PG layout.
+
+The data the domains work on lives in `src/projection/`:
+
+- `pg_data/event.rs`: `PgEvent`, the single enum of all PG domain events.
+- `pg_data/mod.rs`: `PgStoreData`, the in-memory projection built by replaying
   `PgEvent`s, including `snapshot_until`, which rebuilds the state as of an
-  earlier event (used by the CSB import); `store/getters.rs` adds the read
+  earlier event (used by the CSB import); `pg_data/getters.rs` adds the read
   accessors, implemented on `PgStoreData` itself so they work on any value of
   it: a live snapshot, a CSB view at a correction level, or an audit-log
   replay. Handlers take one `store.snapshot()` per request and read from
   that.
-- `store_handle.rs`: `PgStore`, the store handle the feature handlers work
+- `pg_store.rs`: `PgStore`, the store handle the feature handlers work
   with (see [The store at runtime](#the-store-at-runtime)).
-- `context.rs`: the request-scoped `Context` passed into templates.
-- `extractor.rs`: extracts the per-request `PgStore` from the request
-  extensions, plus the `request_extractor!` macro the per-domain extractors
-  build on.
+
+The request-scoped `Context` passed into templates lives in
+`src/view/context.rs`.
 
 The current domains are: `audit_log`, `candidate_lists`, `candidates`,
 `common`, `list_designation`, `list_submitters`, `name_authorisations`,
@@ -303,7 +308,7 @@ a `BroadcastChannel`. Once the session is gone the tab navigates to
 The CSB section has two projections of its own on the shared store machinery
 (see [The store at runtime](#the-store-at-runtime)):
 
-- **`CsbStoreData`** (`src/csb/store_csb/`), one stream per imported package
+- **`CsbStoreData`** (`src/projection/csb_data/`), one stream per imported package
   (scope `ImportedByCsb`), driven by `CsbEvent`. The projection holds the
   imported snapshot (`imported_data`), a second projection with the paper
   corrections replayed on top (`paper_corrected_data`), a third with the
@@ -314,7 +319,7 @@ The CSB section has two projections of its own on the shared store machinery
   second registry over the same projection, under scope `PreSubmittedToCsb`,
   holds the packages imported for the pre-submission check; a registry only
   lists streams of its own scope, so the two never see each other's imports.
-- **`CsbMainStoreData`** (`src/csb/store_main/`), a single stream per
+- **`CsbMainStoreData`** (`src/projection/csb_main/`), a single stream per
   election shared by all committee members under the fixed
   `CSB_MAIN_STREAM_ID` (scope `CentralElectoralCommittee`). It records
   committee-wide events (logins, and the registered political groups with
@@ -347,7 +352,7 @@ The CSB section has two projections of its own on the shared store machinery
   render the imported data read-only; omissions and corrections are recorded
   in overlays; and the models **I 1** and **I 4** plus the per-group omission
   letter (*verzuimbrief*) are generated here, their inputs collected in
-  `model_inputs.rs` (I 1 and I 4 across all imported streams, the letter per
+  `src/models/csb_model_inputs.rs` (I 1 and I 4 across all imported streams, the letter per
   group). The finish-examination page lists the groups that get a letter;
   each links to a read-only page with the letter's omissions and its PDF and
   Word downloads, and the page bundles every letter in a ZIP that streams
@@ -428,7 +433,7 @@ already handed in on paper.
 ## Request lifecycle
 
 A request passes through a fixed chain of middleware before it reaches a
-handler. The router (`src/router.rs`) installs the layers; their effective
+handler. The router (`src/app/router.rs`) installs the layers; their effective
 order on an incoming request is:
 
 1. **`eks-key` gate.** If `EKS_KEY` is configured, the request must carry a
@@ -506,7 +511,7 @@ dependencies shape the architecture enough to be worth describing on their own.
 The application *is* an Axum `Router`. The wiring follows a consistent pattern:
 
 - **Per-domain routers.** Each `src/pg/<domain>/` exposes a `router()` that
-  returns a `Router<AppState>`; `src/router.rs::create` merges them all and adds
+  returns a `Router<AppState>`; `src/app/router.rs::create` merges them all and adds
   the cross-cutting layers. Feature-gated routers (development login, the embedded
   BAG endpoints, live-reload, `memory-serve` static assets) are merged in the
   same place.
@@ -548,7 +553,7 @@ with the global layout and macros in `src/pg/common/components/`.
 - The second field is the request-scoped `Context`, which implements
   `askama::Values`. This is how templates reach request state (locale, session,
   query-string flags) that is not part of the template struct itself.
-- Custom **filters** are defined in `src/filters.rs` with
+- Custom **filters** are defined in `src/view/filters.rs` with
   `#[askama::filter_fn]`. They cover i18n (`trans`), formatting (`display`,
   `datetime`, `flag`), validation-error display (`error`), and `*_value`
   accessors that read request-scoped data out of `askama::Values`.
@@ -588,7 +593,7 @@ The output is archival PDF/A-2b; a validation failure (e.g. a character
 without a glyph in the embedded fonts) surfaces as `AppError::PdfError`.
 `src/models/documents.rs` collects the store data for a candidate list,
 renders the documents plus the EML 2.10 nomination export
-(`src/models/eml210.rs`), and streams them to the client as a single ZIP
+(`src/models/eml/eml210.rs`), and streams them to the client as a single ZIP
 download.
 
 Type-checked example inputs live in `src/models/examples/`; the `pdf_diff`
@@ -884,7 +889,7 @@ parameterized over a projection type `D`:
   lookup. The CSB registries hold a handful of streams and are not swept. The
   in-memory backend is exempt, since there the cached projection is the only
   copy of the events.
-- **`PgStore`** (`src/pg/store_handle.rs`) is the handle the feature handlers
+- **`PgStore`** (`src/projection/pg_store.rs`) is the handle the feature handlers
   actually work with: it pairs a `Store<PgStoreData>` projection (reads) with
   a *write target*. For a political group session the target is its own
   stream, and `update(event)` appends `PgEvent`s there. For a committee

@@ -240,18 +240,6 @@ impl<D> Store<D>
 where
     D: StoreData,
 {
-    /// Create a new store scoped to a specific (stream_id, election) pair.
-    pub async fn new_for_stream(
-        storage_url: &str,
-        stream_id: StreamId,
-        election: ElectionConfig,
-        master: &MasterKey,
-    ) -> Result<Self, AppError> {
-        let persistence = StorePersistence::from_storage_url(storage_url)?;
-        persistence.init().await?;
-        Self::new_for_stream_with_persistence(persistence, stream_id, election, master).await
-    }
-
     /// Create a new store for a stream using an already-initialized persistence
     /// backend. Scope and wrapped key are recorded on first creation.
     pub async fn new_for_stream_with_persistence(

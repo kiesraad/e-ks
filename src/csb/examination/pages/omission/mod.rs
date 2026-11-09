@@ -919,6 +919,30 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn delete_appellation_omission_returns_to_the_appellation_overview() {
+        let store = CsbStore::new_for_test();
+        let stream_id = store.stream_id;
+
+        let omission = Omission::new(
+            OmissionCategory::Appellation,
+            "Not registered".parse().unwrap(),
+            "The appellation is not registered.".parse().unwrap(),
+            None,
+        );
+        omission.create(&store).await.unwrap();
+
+        let response =
+            submit_delete_omission(store.clone(), omission.id, QueryParamState::default(), None)
+                .await;
+
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        assert!(store.snapshot().get_appellation_omissions().is_empty());
+        assert!(location(&response).contains(&format!(
+            "/csb/examination/{stream_id}/omission/appellation/{stream_id}/overview"
+        )));
+    }
+
+    #[tokio::test]
     async fn overview_shows_empty_state_without_omissions() {
         let store = CsbStore::new_for_test();
         let stream_id = store.stream_id;

@@ -29,8 +29,8 @@ impl AppState {
         let election = match self.config.default_election {
             Some(election) => election,
             None => {
-                let existing = self.existing_elections_for_stream(stream_id).await.ok();
-                let Some(election) = existing.into_iter().flatten().next() else {
+                let existing = self.existing_elections_for_stream(stream_id).await?;
+                let Some(election) = existing.into_iter().next() else {
                     return Ok(None);
                 };
                 election
