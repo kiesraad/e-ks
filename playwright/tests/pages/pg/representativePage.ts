@@ -1,7 +1,7 @@
 import { expect, type Locator, type Page } from "@playwright/test";
-import type { AuthorisedPerson } from "../../models/authorisedPerson";
+import type { Representative } from "../../models/representative";
 
-export class AuthorisedPersonPage {
+export class RepresentativePage {
   readonly textfieldInitials: Locator;
   readonly textfieldLastNamePrefix: Locator;
   readonly textfieldLastName: Locator;
@@ -38,20 +38,20 @@ export class AuthorisedPersonPage {
     });
   }
 
-  async setAuthorisedPerson(authorisedPerson: AuthorisedPerson) {
-    await this.textfieldInitials.fill(authorisedPerson.initials);
+  async setRepresentative(representative: Representative) {
+    await this.textfieldInitials.fill(representative.initials);
     await this.textfieldLastNamePrefix.fill(
-      authorisedPerson.lastNamePrefix ?? "",
+      representative.lastNamePrefix ?? "",
     );
-    await this.textfieldLastName.fill(authorisedPerson.lastName);
-    await this.textfieldPostalCode.fill(authorisedPerson.postalCode ?? "");
-    await this.textfieldHouseNumber.fill(authorisedPerson.houseNumber ?? "");
+    await this.textfieldLastName.fill(representative.lastName);
+    await this.textfieldPostalCode.fill(representative.postalCode ?? "");
+    await this.textfieldHouseNumber.fill(representative.houseNumber ?? "");
     await this.textfieldHouseNumberAddition.press("Tab");
     await expect(this.textfieldStreetName).toHaveValue(
-      authorisedPerson.streetName ?? "",
+      representative.streetName ?? "",
     );
     await expect(this.selectLocality).toHaveValue(
-      authorisedPerson.locality ?? "",
+      representative.locality ?? "",
     );
     await this.buttonSaveAndClose.click();
   }

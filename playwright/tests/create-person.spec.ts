@@ -4,14 +4,14 @@
 
 import { expect } from "@playwright/test";
 import { test } from "./fixtures.ts";
-import type { AuthorisedPerson } from "./models/authorisedPerson";
 import type { Candidate } from "./models/candidate";
-import { AuthorisedPersonPage } from "./pages/pg/authorisedPersonPage";
+import type { Representative } from "./models/representative";
 import { CandidateListsOverviewPage } from "./pages/pg/candidateListsOverviewPage";
 import { CorrespondenceAddressPage } from "./pages/pg/correspondenceAddressPage";
 import { CreatePersonPage } from "./pages/pg/createPersonPage";
 import { EditListDetailsPage } from "./pages/pg/editListDetailsPage.ts";
 import { ManageCandidateListPage } from "./pages/pg/manageCandidateListPage.ts";
+import { RepresentativePage } from "./pages/pg/representativePage";
 import { randomName } from "./utils/random";
 
 test.describe("create new person", async () => {
@@ -56,16 +56,14 @@ test.describe("create new person", async () => {
     });
   }
 
-  test("living outside NL requires authorised person", async ({
-    login: page,
-  }) => {
+  test("living outside NL requires representative", async ({ login: page }) => {
     await page.goto("/candidate-lists");
     await new CandidateListsOverviewPage(page).buttonAddList.click();
     await new EditListDetailsPage(page).addDistricts(["Groningen"]);
     const manageCandidateListPage = new ManageCandidateListPage(page);
     await manageCandidateListPage.buttonAddNewCandidate.click();
 
-    const authorisedPerson: AuthorisedPerson = {
+    const representative: Representative = {
       initials: "C",
       lastName: "Winter",
     };
@@ -73,13 +71,13 @@ test.describe("create new person", async () => {
       initials: "H",
       lastName: `Jansen ${randomName()}`,
       countryCode: "VA",
-      authorisedPerson: authorisedPerson,
+      representative: representative,
     };
 
     await new CreatePersonPage(page).setPersonalDetails(candidate);
-    await new AuthorisedPersonPage(page).setAuthorisedPerson(
-      // biome-ignore lint/style/noNonNullAssertion: the test should fail if the authorised person is not set
-      candidate.authorisedPerson!,
+    await new RepresentativePage(page).setRepresentative(
+      // biome-ignore lint/style/noNonNullAssertion: the test should fail if the representative is not set
+      candidate.representative!,
     );
     await expect(
       await manageCandidateListPage.getCandidateLocator(candidate.lastName),
