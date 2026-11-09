@@ -125,25 +125,25 @@ impl PgStore {
         }
     }
 
+    /// The limits a `DownloadFile` event would be held to, for checking before
+    /// the documents are generated.
+    pub fn check_download_limit(&self) -> Result<(), AppError> {
+        // Only the variant matters to the limits, not the file it names.
+        self.check_rate_limits(&PgEvent::DownloadFile {
+            file_name: String::new(),
+            download_path: String::new(),
+        })
+    }
+
     /// Refuse the write when one of the configured [`RateLimits`] is reached,
     /// counted from the stream's own event log.
     ///
     /// Every event counts, session events (login/logout) included, but those
     /// are exempt from the absolute cap so a capped stream can still log in.
     fn check_rate_limits(&self, event: &PgEvent) -> Result<(), AppError> {
-        self.check_limits(
-            matches!(event, PgEvent::DownloadFile { .. }),
-            matches!(event, PgEvent::Login | PgEvent::Logout),
-        )
-    }
+        let is_download = matches!(event, PgEvent::DownloadFile { .. });
+        let is_session = matches!(event, PgEvent::Login | PgEvent::Logout);
 
-    /// The limits a `DownloadFile` event would be held to, for checking before
-    /// the documents are generated.
-    pub fn check_download_limit(&self) -> Result<(), AppError> {
-        self.check_limits(true, false)
-    }
-
-    fn check_limits(&self, is_download: bool, is_session: bool) -> Result<(), AppError> {
         let Some(RateLimits {
             downloads,
             events: event_limit,
