@@ -469,14 +469,15 @@ mod tests {
         assert_eq!(all_omissions.candidates[0].omissions.len(), omission_count)
     }
 
-    fn sample_omissions_with_paths(data: Vec<(&str, bool)>) -> Vec<OmissionWithPath> {
+    fn sample_omissions_with_paths(data: Vec<(&str, bool)>) -> Vec<OmissionRow> {
         let mut omissions = Vec::new();
         for (path, recoverable) in data {
             let mut omission = sample_omission(OmissionCategory::DeclarationsOfSupport(Vec::new()));
             omission.recoverable = recoverable;
-            omissions.push(OmissionWithPath {
+            omissions.push(OmissionRow {
                 omission,
-                path: path.to_string(),
+                path: Some(path.to_string()),
+                parts: Vec::new(),
             });
         }
         omissions
@@ -527,19 +528,31 @@ mod tests {
         let (recoverable, irrecoverable) = omissions.split_on_recoverability();
 
         assert_eq!(recoverable.general.len(), 1);
-        assert_eq!(recoverable.general[0].path, "/rec/gen");
+        assert_eq!(recoverable.general[0].path.as_deref(), Some("/rec/gen"));
         assert_eq!(irrecoverable.general.len(), 1);
-        assert_eq!(irrecoverable.general[0].path, "/irr/gen");
+        assert_eq!(irrecoverable.general[0].path.as_deref(), Some("/irr/gen"));
 
         assert_eq!(recoverable.declarations_of_support.len(), 1);
-        assert_eq!(recoverable.declarations_of_support[0].path, "/rec/dec");
+        assert_eq!(
+            recoverable.declarations_of_support[0].path.as_deref(),
+            Some("/rec/dec")
+        );
         assert_eq!(irrecoverable.declarations_of_support.len(), 1);
-        assert_eq!(irrecoverable.declarations_of_support[0].path, "/irr/dec");
+        assert_eq!(
+            irrecoverable.declarations_of_support[0].path.as_deref(),
+            Some("/irr/dec")
+        );
 
         assert_eq!(recoverable.candidate_lists.len(), 1);
-        assert_eq!(recoverable.candidate_lists[0].path, "/rec/cl");
+        assert_eq!(
+            recoverable.candidate_lists[0].path.as_deref(),
+            Some("/rec/cl")
+        );
         assert_eq!(irrecoverable.candidate_lists.len(), 1);
-        assert_eq!(irrecoverable.candidate_lists[0].path, "/irr/cl");
+        assert_eq!(
+            irrecoverable.candidate_lists[0].path.as_deref(),
+            Some("/irr/cl")
+        );
 
         assert_eq!(recoverable.candidates.len(), 2);
         let c0 = recoverable
@@ -548,14 +561,14 @@ mod tests {
             .find(|c| c.person.id == sample_people[0].id)
             .expect("person 0 should be in the recoverable set");
         assert_eq!(c0.omissions.len(), 1);
-        assert_eq!(c0.omissions[0].path, "/rec/c0");
+        assert_eq!(c0.omissions[0].path.as_deref(), Some("/rec/c0"));
         let c1 = recoverable
             .candidates
             .iter()
             .find(|c| c.person.id == sample_people[1].id)
             .expect("person 1 should be in the recoverable set");
         assert_eq!(c1.omissions.len(), 1);
-        assert_eq!(c1.omissions[0].path, "/rec/c1");
+        assert_eq!(c1.omissions[0].path.as_deref(), Some("/rec/c1"));
 
         assert_eq!(irrecoverable.candidates.len(), 2);
         let c0 = irrecoverable
@@ -564,14 +577,14 @@ mod tests {
             .find(|c| c.person.id == sample_people[0].id)
             .expect("person 0 should be in the irrecoverable set");
         assert_eq!(c0.omissions.len(), 1);
-        assert_eq!(c0.omissions[0].path, "/irr/c0");
+        assert_eq!(c0.omissions[0].path.as_deref(), Some("/irr/c0"));
         let c2 = irrecoverable
             .candidates
             .iter()
             .find(|c| c.person.id == sample_people[2].id)
             .expect("person 2 should be in the recoverable set");
         assert_eq!(c2.omissions.len(), 1);
-        assert_eq!(c2.omissions[0].path, "/irr/c2");
+        assert_eq!(c2.omissions[0].path.as_deref(), Some("/irr/c2"));
     }
 
     #[test]
