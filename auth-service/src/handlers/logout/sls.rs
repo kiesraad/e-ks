@@ -128,7 +128,7 @@ fn verified_logout_fields(
     let expected_root = ExpectedRoot {
         namespace: NS_SAMLP,
         local_name: "LogoutResponse",
-        id: fields.id.as_deref(),
+        id: Some(fields.id.as_str()),
     };
     let sig_result = verify_xml_signature(saml_response, &rd.signing_keys, &expected_root);
     if !sig_result.is_valid() {
@@ -257,6 +257,7 @@ mod tests {
     async fn rd_signed_response_to_pending_request_is_consumed_once() {
         let mock = mock_with_rd().with_pending(REQUEST_ID);
         let xml = rd_signed_logout_response(REQUEST_ID);
+        assert!(mock.still_pending(REQUEST_ID));
 
         process(&mock, &xml).await;
         assert!(!mock.still_pending(REQUEST_ID));

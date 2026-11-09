@@ -15,7 +15,7 @@ use crate::{
 pub struct LogoutResponseFields {
     /// The root's `@ID`, so the signature verifier can bind the signed element
     /// to the one these fields were read from.
-    pub id: Option<String>,
+    pub id: MessageId,
     pub in_response_to: MessageId,
     pub status_is_success: bool,
 }
@@ -47,6 +47,14 @@ pub fn validate_logout_response(
     }
     check_logout_response(&doc, root, rd_entity_id, sls_url)?;
 
+    // eID §7.7.2 / SAML core: @ID is required. Mandatory here so the signature
+    // verifier always binds the signed root to this one.
+    let Some(id) = doc.get_attribute(root, "ID") else {
+        return Err("LogoutResponse has no ID".to_string());
+    };
+    let id =
+        MessageId::parse(id).map_err(|e| format!("LogoutResponse ID is not a message ID: {e}"))?;
+
     let Some(in_response_to) = doc.get_attribute(root, "InResponseTo") else {
         return Err("LogoutResponse has no InResponseTo".to_string());
     };
@@ -60,7 +68,7 @@ pub fn validate_logout_response(
         == Some(STATUS_SUCCESS);
 
     Ok(LogoutResponseFields {
-        id: doc.get_attribute(root, "ID").map(str::to_owned),
+        id,
         in_response_to,
         status_is_success,
     })
@@ -159,7 +167,7 @@ mod tests {
             .map(|v| format!(r#" IssueInstant="{v}""#))
             .unwrap_or_default();
         format!(
-            r#"<samlp:{root} xmlns:samlp="{NS_SAMLP}" xmlns:saml="{NS_SAML}" Version="2.0"{instant}{irt}{dest}>
+            r#"<samlp:{root} xmlns:samlp="{NS_SAMLP}" xmlns:saml="{NS_SAML}" ID="_resp1" Version="2.0"{instant}{irt}{dest}>
                  <saml:Issuer>{issuer}</saml:Issuer>
                  <samlp:Status><samlp:StatusCode Value="{status}"/></samlp:Status>
                </samlp:{root}>"#
@@ -177,7 +185,27 @@ mod tests {
         );
         let f = validate_logout_response(&xml, &rd(), &sls()).unwrap();
         assert!(f.status_is_success);
+        assert_eq!(f.id.as_str(), "_resp1");
         assert_eq!(f.in_response_to.as_str(), "_req123");
+    }
+
+    #[test]
+    fn rejects_missing_or_malformed_id() {
+        let xml = logout_response_xml(
+            "LogoutResponse",
+            RD,
+            Some("_req123"),
+            Some(SLS),
+            STATUS_SUCCESS,
+        );
+
+        let missing = xml.replace(r#" ID="_resp1""#, "");
+        let err = validate_logout_response(&missing, &rd(), &sls()).unwrap_err();
+        assert!(err.contains("has no ID"), "{err}");
+
+        let malformed = xml.replace(r#"ID="_resp1""#, r#"ID="1;bad""#);
+        let err = validate_logout_response(&malformed, &rd(), &sls()).unwrap_err();
+        assert!(err.contains("ID is not a message ID"), "{err}");
     }
 
     #[test]

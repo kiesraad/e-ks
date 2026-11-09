@@ -336,8 +336,8 @@ impl fmt::Display for RedirectTarget {
     }
 }
 
-/// The `@ID` of a SAML message this DV issued, and the `@InResponseTo` that
-/// names it on the way back.
+/// The `@ID` of a SAML message (one this DV issued, or an incoming response's
+/// own), and the `@InResponseTo` that names it on the way back.
 ///
 /// Constrained to an XML `NCName`, which is what the SAML schema declares
 /// (`xsd:ID`). That is not cosmetic: an incoming `InResponseTo` becomes a
