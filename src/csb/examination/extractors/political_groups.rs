@@ -143,12 +143,8 @@ impl CsbPoliticalGroup {
     /// The name shown for the group. Once its appellation is scrapped, the
     /// recovery phase names it as the blank list it continues as.
     pub fn csb_appellation(&self) -> String {
-        match self.mode {
-            CsbPhase::Examination => self
-                .political_group
-                .csb_appellation(self.first_candidate_name.as_ref()),
-            CsbPhase::Recovery => self.numbering_appellation(),
-        }
+        self.political_group
+            .csb_appellation(self.first_candidate_name.as_ref())
     }
 
     /// The name the group's lists are numbered under, honouring scrapping:

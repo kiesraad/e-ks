@@ -68,7 +68,7 @@ async fn final_files<S: AppRequestState>(
 
     let mut files = vec![
         (
-            "Overzicht_Kandidatenlijsten.zip".to_string(),
+            "Overzicht_Kandidatenlijsten_per_kieskring.zip".to_string(),
             zip(&lists_per_district).await?,
         ),
         (
@@ -222,7 +222,7 @@ mod tests {
                 "Model_I4_Proces_Verbaal.pdf",
                 "Overzicht_Kandidatenlijsten.docx",
                 "Overzicht_Kandidatenlijsten.pdf",
-                "Overzicht_Kandidatenlijsten.zip",
+                "Overzicht_Kandidatenlijsten_per_kieskring.zip",
                 "Publicatie_Kandidatenlijsten.docx",
                 "Publicatie_Kandidatenlijsten.pdf",
                 "Totaallijsten_EK2027.zip",
