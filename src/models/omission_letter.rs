@@ -28,8 +28,8 @@ pub struct OmissionLetter {
     pub addressee: Person,
     pub appellation: String,
     /// determines whether to either use the text:
-    /// - "lijst met aanduiding **<appellation>**" (non-blank)
-    /// - "blanco lijst met de eerste kandidaat **<name>**" (blank)
+    /// - "lijst met aanduiding **`<appellation>`**" (non-blank)
+    /// - "blanco lijst met de eerste kandidaat **`<name>`**" (blank)
     pub is_blank: bool,
     /// first candidate name to use in case of a blank list
     pub first_candidate_name: String,
