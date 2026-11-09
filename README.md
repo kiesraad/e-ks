@@ -77,7 +77,7 @@ per-machine settings cannot live in the repository:
 - `bin/biome`: format and lint Typescript
 - `bin/setup`: download tools, setup database, load fixtures, etc.
 - `bin/dev`: start development environment (postgres, esbuild, cargo watch, etc.)
-- `bin/test`: run integration tests (playwright) in a docker conmtainer
+- `bin/test`: run integration tests (playwright) in a docker container
 - `bin/init`: build and download development tools
 - `bin/check`: run linter, formatters and Rust tests
 - `bin/build`: build backend and frontend for production
