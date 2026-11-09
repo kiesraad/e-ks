@@ -7,7 +7,7 @@ export class CsbRecoveryGroupPage {
   constructor(protected readonly page: Page) {
     const headerButtons = this.page.locator(".header-buttons");
     this.buttonBack = headerButtons.getByRole("link", { name: "Terug" });
-    this.buttonRecoverOmissions = headerButtons.getByRole("link", {
+    this.buttonRecoverOmissions = this.page.getByRole("link", {
       name: "Verzuimen herstellen",
     });
   }

@@ -1,4 +1,7 @@
-// Mark overlay state in the URL and support closing via Escape.
+import { isInViewport } from "../highlights-alerts/highlight-row";
+
+// Mark overlay state in the URL, support closing via Escape, and bring the
+// first error of a rejected form into view.
 export default function setupOverlay() {
   const overlay: HTMLElement | null = document.querySelector(".overlay");
   const backdrop: HTMLElement | null =
@@ -9,6 +12,11 @@ export default function setupOverlay() {
   if (overlay && backdrop) {
     url.searchParams.set("overlay", "true");
     globalThis.history.replaceState({}, "", url.toString());
+
+    const error = overlay.querySelector(".error");
+    if (error && !isInViewport(error)) {
+      error.scrollIntoView({ block: "center" });
+    }
 
     // Close the overlay (click the close button) when the backdrop is clicked or Escape is pressed.
     const close = () => {

@@ -1,6 +1,10 @@
 // A server-rendered field error or warning describes the value it was submitted
 // with, so drop it once the user has edited that value and left the field.
 export default function staleErrors() {
+  // A script that fills a field (the omission presets) dispatches `change`.
+  // Kept inside: unit tests inject this function via its source text.
+  const EDIT_EVENTS = ["blur", "change"];
+
   for (const field of document.querySelectorAll<HTMLElement>(".form-field")) {
     // Messages hidden at load are script-owned and describe the live value.
     const messages = [
@@ -41,12 +45,16 @@ export default function staleErrors() {
       field.classList.remove("error", "warning");
 
       for (const input of inputs) {
-        input.removeEventListener("blur", dropIfEdited);
+        for (const event of EDIT_EVENTS) {
+          input.removeEventListener(event, dropIfEdited);
+        }
       }
     };
 
     for (const input of inputs) {
-      input.addEventListener("blur", dropIfEdited);
+      for (const event of EDIT_EVENTS) {
+        input.addEventListener(event, dropIfEdited);
+      }
     }
   }
 }

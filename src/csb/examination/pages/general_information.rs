@@ -7,14 +7,14 @@ use crate::{
         extractors::CsbPoliticalGroup,
         pages::CsbGeneralInformationPath,
         structs::{
-            PaperCorrectedNameAuthorisation, PaperCorrectedPoliticalGroupInfo,
+            OmissionRow, PaperCorrectedNameAuthorisation, PaperCorrectedPoliticalGroupInfo,
             PaperCorrectedSubmitter, paper_corrected_list_submitter,
             paper_corrected_name_authorisations, paper_corrected_substitute_submitters,
         },
     },
     filters,
     structs::{
-        csb::{CsbPhase, Omission, RegisteredPoliticalGroup},
+        csb::{CsbPhase, RegisteredPoliticalGroup},
         problems::AllProblems,
     },
 };
@@ -31,8 +31,8 @@ struct CsbGeneralInformationTemplate {
     name_authorisations: Vec<PaperCorrectedNameAuthorisation>,
     list_submitter: Option<PaperCorrectedSubmitter>,
     substitute_submitters: Vec<PaperCorrectedSubmitter>,
-    political_group_omissions: Vec<Omission>,
-    appellation_omissions: Vec<Omission>,
+    political_group_omissions: Vec<OmissionRow>,
+    appellation_omissions: Vec<OmissionRow>,
 }
 
 /// Render the placeholder general information (basisgegevens) page for a
@@ -61,6 +61,10 @@ pub(in crate::csb) async fn render(
         .into_iter()
         .cloned()
         .collect();
+    let political_group_omissions =
+        OmissionRow::unlinked(data.get_political_group_omissions(), &political_group);
+    let appellation_omissions =
+        OmissionRow::unlinked(data.get_appellation_omissions(), &political_group);
     Ok(HtmlTemplate(
         CsbGeneralInformationTemplate {
             political_group,
@@ -69,8 +73,8 @@ pub(in crate::csb) async fn render(
             name_authorisations: paper_corrected_name_authorisations(&data),
             list_submitter: paper_corrected_list_submitter(&data),
             substitute_submitters: paper_corrected_substitute_submitters(&data),
-            political_group_omissions: data.get_political_group_omissions(),
-            appellation_omissions: data.get_appellation_omissions(),
+            political_group_omissions,
+            appellation_omissions,
             all_problems: data.get_all_problems(context.election)?,
         },
         context,
@@ -89,7 +93,7 @@ mod tests {
         CsbAction, CsbMainAction, CsbUser, PgEvent,
         structs::{
             common::{Address, PreviousElectionResults},
-            csb::{OmissionCategory, sample_omission, sample_registered_political_group},
+            csb::{Omission, OmissionCategory, sample_omission, sample_registered_political_group},
             list_designation::ListDesignation,
             list_submitters::ListSubmitterId,
             political_groups::PoliticalGroup,

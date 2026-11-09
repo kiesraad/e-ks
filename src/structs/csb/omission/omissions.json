@@ -78,7 +78,7 @@
     },
     {
       "title": "Kandidaat onjuist vermeld",
-      "description": "Kandidaat nr. {candidate_number}, {candidate_name} is niet op de kandidatenlijst vermeld op de manier waarop dat moet (artikel H 2 van het Kiesbesluit). De kandidaat staat op de lijst vermeld met de nadere aanduiding/het predicaat {appellation}. Dit is op grond van de beleidsregel van de Kiesraad omtrent de vermelding van kandidaten op de kandidatenlijst niet toegestaan.",
+      "description": "Kandidaat nr. {candidate_number}, {candidate_name} is niet op de kandidatenlijst vermeld op de manier waarop dat moet (artikel H 2 van het Kiesbesluit). De kandidaat staat op de lijst vermeld met de nadere aanduiding/het predicaat {nadere aanduiding/predicaat}. Dit is op grond van de beleidsregel van de Kiesraad omtrent de vermelding van kandidaten op de kandidatenlijst niet toegestaan.",
       "help_text": "Dit verzuim is te herstellen door een nieuwe instemmingsverklaring (model H 9) van betreffende kandidaat in te leveren, waar deze nadere aanduiding(en)/het predicaat niet zijn vermeld.",
       "recoverable": true,
       "group": "Over kandidaat en gemachtigde"

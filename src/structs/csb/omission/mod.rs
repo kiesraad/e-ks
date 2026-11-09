@@ -481,12 +481,6 @@ impl Omission {
             && self.category.has_same_scope(&other.category)
     }
 
-    /// Whether the CSB decides on this omission part by part, so it can be
-    /// recovered in some parts and not in others.
-    pub fn is_assessed_per_part(&self, election: &ElectionConfig) -> bool {
-        self.is_actionable() && self.decision_count(election) > 1
-    }
-
     /// The decisions this omission stands for: one per part when assessed part
     /// by part, one otherwise. Keeps the progress stable across a split.
     pub fn decision_count(&self, election: &ElectionConfig) -> usize {
@@ -499,6 +493,22 @@ impl Omission {
             .len()
             .max(self.candidate_lists().len())
             .max(1)
+    }
+
+    /// The parts this omission is decided on, one per district or list it is
+    /// scoped to; none for an omission decided as a whole.
+    pub fn parts(&self, election: &ElectionConfig) -> Vec<OmissionPart> {
+        self.electoral_districts(election)
+            .iter()
+            .copied()
+            .map(OmissionPart::ElectoralDistrict)
+            .chain(
+                self.candidate_lists()
+                    .iter()
+                    .copied()
+                    .map(OmissionPart::CandidateList),
+            )
+            .collect()
     }
 
     /// Whether a decision on `part` applies to this omission.
