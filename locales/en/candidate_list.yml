@@ -14,8 +14,6 @@ actions:
 add_all: Add all candidates
 add_candidate: Add candidate
 add_list_note: "For the {} it is possible to create different lists for different electoral districts."
-candidate:
-  delete_warning_text: "This person is on {} candidate list(s). Are you sure you want to permanently delete this person?"
 candidate_count: "<strong>{}</strong> / {} candidates"
 candidate_list_description:
   add_candidate: Add candidates
@@ -81,7 +79,6 @@ import_export:
 import_warning: This list already contains candidates. The import action will overwrite the current candidates. Are you sure you want to continue?
 not_found: "Candidate list {} not found."
 remove_all_added_candidates: Remove all added candidates
-remove_candidate: Remove from this list
 search_existing_person: Search existing person
 search_placeholder: "Search by name, initials or locality"
 title_plural: Candidate lists

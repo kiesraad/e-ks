@@ -2,6 +2,7 @@ actions:
   add: Add candidate
   delete: Delete candidate
   delete_everywhere: Delete from application
+  delete_from_list: Remove from this list
 autoformat_initials: Auto-format initials
 correspondence_address: Correspondence address
 correspondence_address_info: This is the address to which the letter of appointment will be sent.
@@ -28,7 +29,14 @@ fields:
 form:
   create:
     title: Add candidate
-  delete_warning_text: Are you sure you want to delete this candidate?
+  delete_everywhere: Do you want to delete this candidate completely from the application?
+  delete_everywhere_title: Delete candidate from application
+  delete_everywhere_warning: "The candidate will also be removed from all {} candidate lists they are on."
+  delete_everywhere_warning_one: The candidate will also be removed from the candidate list they are on.
+  delete_everywhere_warning_zero: This candidate is currently not on any candidate list.
+  delete_from_list: Do you want to remove the candidate from this list?
+  delete_from_list_info: The candidate will remain in the candidate register.
+  delete_from_list_title: Remove candidate from this list
 hints:
   country: "For a candidate that does not have a Dutch correspondence address, a representative is required."
   country_code: "A list of countries with corresponding country codes <a href={}>can be found here</a>."

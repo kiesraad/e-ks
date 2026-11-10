@@ -14,8 +14,6 @@ actions:
 add_all: Alle kandidaten toevoegen
 add_candidate: Kandidaat toevoegen
 add_list_note: "Bij de {} is het mogelijk om in verschillende kieskringen met verschillende kandidatenlijsten mee te doen."
-candidate:
-  delete_warning_text: "Deze persoon staat op {} kandidatenlijst(en). Weet je zeker dat je deze persoon definitief wilt verwijderen?"
 candidate_count: "<strong>{}</strong> / {} kandidaten"
 candidate_list_description:
   add_candidate: Voeg kandidaten toe
@@ -81,7 +79,6 @@ import_export:
 import_warning: Deze lijst bevat al kandidaten. Het importeren van kandidaten zal de huidige kandidaten in deze lijst overschrijven. Weet u zeker dat u door wilt gaan?
 not_found: "Kandidatenlijst {} niet gevonden."
 remove_all_added_candidates: Toegevoegde kandidaten verwijderen
-remove_candidate: Uit deze lijst verwijderen
 search_existing_person: Zoek bestaande kandidaat
 search_placeholder: "Zoek op naam, voorletters of woonplaats"
 title_plural: Kandidatenlijsten

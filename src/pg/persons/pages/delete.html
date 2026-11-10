@@ -11,15 +11,24 @@
 {% block overlay_form %}
   <fieldset>
     <legend>
-      <h3>{{ "person.actions.delete_everywhere"|trans }}</h3>
+      <h3>{{ "person.form.delete_everywhere_title"|trans }}</h3>
     </legend>
-    <p>{{ "person.form.delete_warning_text"|trans }}</p>
+    <p>{{ "person.form.delete_everywhere"|trans}}</p>
+    <p>
+      {% if on_candidate_lists == 0 %}
+        {{ "person.form.delete_everywhere_warning_zero"|trans() }}
+      {% else if on_candidate_lists == 1 %}
+        {{ "person.form.delete_everywhere_warning_one"|trans() }}
+      {% else if on_candidate_lists > 1 %}
+        {{ "person.form.delete_everywhere_warning"|trans(&on_candidate_lists.to_string() ) }}
+      {% endif %}
+    </p>
+    <div class="form-actions">
+      <button type="submit" class="button tertiary-destructive icon-trash">
+        {{ "person.actions.delete_everywhere"|trans }}
+      </button>
+    </div>
   </fieldset>
 {% endblock %}
 {% block overlay_actions %}
-  <div class="form-actions">
-    <button type="submit" class="button tertiary-destructive icon-trash">
-      {{ "person.actions.delete_everywhere"|trans }}
-    </button>
-  </div>
 {% endblock %}
