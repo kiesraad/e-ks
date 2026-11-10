@@ -20,7 +20,7 @@ test.describe("add omissions for declarations of support", async () => {
       },
       {
         button: omissionsPage.buttonDeclarationsNotValid,
-        text: "Geen geldige ondersteuningsverklaringen ingeleverd",
+        text: "Ondersteuningsverklaringen komen niet overeen met kandidatenlijst",
         resolvable: true,
       },
     ];
@@ -80,7 +80,7 @@ test.describe("add omissions for declarations of support", async () => {
       },
       {
         button: omissionsPage.buttonDeclarationsNotValid,
-        text: "Geen geldige ondersteuningsverklaringen ingeleverd",
+        text: "Ondersteuningsverklaringen komen niet overeen met kandidatenlijst",
         resolvable: true,
       },
     ];
@@ -144,7 +144,7 @@ test.describe("add omissions for declarations of support", async () => {
       },
       {
         button: omissionsPage.buttonDeclarationsNotValid,
-        text: "Geen geldige ondersteuningsverklaringen ingeleverd",
+        text: "Ondersteuningsverklaringen komen niet overeen met kandidatenlijst",
         resolvable: true,
       },
     ];

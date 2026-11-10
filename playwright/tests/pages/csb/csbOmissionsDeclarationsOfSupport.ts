@@ -33,7 +33,7 @@ export class CsbOmissionsDeclarationsOfSupportPage {
       name: "Voor meerdere kieskringen ontbreken ondersteuningsverklaringen",
     });
     this.buttonDeclarationsNotValid = this.page.getByRole("button", {
-      name: "Geen geldige ondersteuningsverklaringen ingeleverd",
+      name: "Ondersteuningsverklaringen komen niet overeen met kandidatenlijst",
     });
     this.textfieldTitle = this.page.getByRole("textbox", {
       name: "Titel Verzuim",
