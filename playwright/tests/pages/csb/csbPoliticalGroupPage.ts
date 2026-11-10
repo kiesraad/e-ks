@@ -9,6 +9,8 @@ export class CsbPoliticalGroupPage {
   readonly linkGeneralInformation: Locator;
   readonly linkSupportDeclarations: Locator;
   readonly linkSupportDeclarationsOverview: Locator;
+  readonly linkAddAppellationOmission: Locator;
+  readonly linkAddAppellationOmissionOverview: Locator;
   readonly linkCandidateList: Locator;
   readonly linkDelete: Locator;
   readonly buttonDeleteConfirm: Locator;
@@ -35,12 +37,36 @@ export class CsbPoliticalGroupPage {
     this.linkGeneralInformation = this.page.getByRole("link", {
       name: "Basisgegevens controleren",
     });
-    this.linkSupportDeclarations = this.page.getByRole("link", {
-      name: "Verzuim toevoegen",
+
+    const supportDeclarationsOmissionsPanel = this.page.locator(
+      ".examination-panel",
+      {
+        has: this.page.getByRole("heading", {
+          name: "Ondersteuningsverklaringen",
+        }),
+      },
+    );
+    this.linkSupportDeclarations = supportDeclarationsOmissionsPanel.getByRole(
+      "link",
+      {
+        name: "Verzuim toevoegen",
+      },
+    );
+    this.linkSupportDeclarationsOverview =
+      supportDeclarationsOmissionsPanel.getByRole("link", {
+        name: "Overzicht",
+      });
+
+    const appellationOmissionsPanel = this.page.locator(".examination-panel", {
+      has: this.page.getByRole("heading", { name: "Verzuimen aanduiding" }),
     });
-    this.linkSupportDeclarationsOverview = this.page.getByRole("link", {
-      name: "Overzicht",
-    });
+    this.linkAddAppellationOmission = appellationOmissionsPanel.getByRole(
+      "link",
+      { name: "Verzuim toevoegen" },
+    );
+    this.linkAddAppellationOmissionOverview =
+      appellationOmissionsPanel.getByRole("link", { name: "Overzicht" });
+
     this.linkCandidateList = this.page.getByRole("link", {
       name: "Kandidatenlijst controleren",
     });

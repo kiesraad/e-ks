@@ -19,6 +19,7 @@ test.describe("check general information and add appellation corrections and omi
     const omissionsPage = new CsbOmissionsPartyPage(page);
 
     await politicalGroupPage.selectedGroup(groupName);
+
     await politicalGroupPage.linkGeneralInformation.click();
 
     await expect(generalInformationPage.headerGeneralInformation).toBeVisible();
@@ -28,17 +29,19 @@ test.describe("check general information and add appellation corrections and omi
     await expect(generalInformationPage.textCorrectedNameStandalone).toHaveText(
       "KDP",
     );
+    await generalInformationPage.linkBack.click();
+
     // Add each type of omission, verify and then remove
     const omissions = [
       {
-        button: omissionsPage.buttonRegisterAppelation,
+        button: omissionsPage.buttonRegisterAppellation,
         text: "De aanduiding is niet geregistreerd",
         resolvable: false,
       },
     ];
 
     for (const { button, text, resolvable } of omissions) {
-      await generalInformationPage.linkAddAppellationOmission.click();
+      await politicalGroupPage.linkAddAppellationOmission.click();
       await page.waitForURL(/\/omission\//);
       await expect(
         page.getByRole("heading", {
@@ -65,7 +68,7 @@ test.describe("check general information and add appellation corrections and omi
 
       await omissionsPage.buttonAddAndClose.click();
       await expect(page.locator("form.overlay")).toBeHidden();
-      await generalInformationPage.linkManageAppellationOmissions.click();
+      await politicalGroupPage.linkAddAppellationOmissionOverview.click();
       await page.waitForURL(/\/omission\//);
       await expect(page.getByText(text)).toBeVisible();
       if (resolvable) {
@@ -84,7 +87,6 @@ test.describe("check general information and add appellation corrections and omi
     }
 
     // delete political group
-    await generalInformationPage.linkBack.click();
     await politicalGroupPage.deleteGroup();
   });
 
@@ -168,6 +170,7 @@ test.describe("check general information and add appellation corrections and omi
       await expect(page.getByText(text).first()).toBeVisible();
     }
 
+    await generalInformationPage.linkBack.click();
     // Add each type of omission, verify and then remove
     const omissions = [
       {
@@ -178,7 +181,7 @@ test.describe("check general information and add appellation corrections and omi
     ];
 
     for (const { button, text, resolvable } of omissions) {
-      await generalInformationPage.linkAddAppellationOmission.click();
+      await politicalGroupPage.linkAddAppellationOmission.click();
       await page.waitForURL(/\/omission\//);
       await expect(
         page.getByRole("heading", {
@@ -192,7 +195,7 @@ test.describe("check general information and add appellation corrections and omi
       }
       await omissionsPage.buttonAddAndClose.click();
       await expect(page.locator("form.overlay")).toBeHidden();
-      await generalInformationPage.linkManageAppellationOmissions.click();
+      await politicalGroupPage.linkAddAppellationOmissionOverview.click();
       await page.waitForURL(/\/omission\//);
       await expect(page.getByText(text)).toBeVisible();
       if (resolvable) {
@@ -211,7 +214,6 @@ test.describe("check general information and add appellation corrections and omi
     }
 
     // delete political group
-    await generalInformationPage.linkBack.click();
     await politicalGroupPage.deleteGroup();
   });
 });

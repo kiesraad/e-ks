@@ -3,7 +3,7 @@ import type { Locator, Page } from "@playwright/test";
 export class CsbOmissionsPartyPage {
   readonly linkAdd: Locator;
   readonly linkOverview: Locator;
-  readonly buttonRegisterAppelation: Locator;
+  readonly buttonRegisterAppellation: Locator;
   readonly buttonRegisterCombination: Locator;
   readonly textfieldTitle: Locator;
   readonly textfieldDescription: Locator;
@@ -17,7 +17,7 @@ export class CsbOmissionsPartyPage {
   constructor(protected readonly page: Page) {
     this.linkAdd = this.page.getByRole("link", { name: "Verzuimen toevoegen" });
     this.linkOverview = this.page.getByRole("link", { name: "Overzicht" });
-    this.buttonRegisterAppelation = this.page.getByRole("button", {
+    this.buttonRegisterAppellation = this.page.getByRole("button", {
       name: "De aanduiding is niet geregistreerd",
     });
     this.buttonRegisterCombination = this.page.getByRole("button", {
