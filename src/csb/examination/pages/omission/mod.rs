@@ -1077,7 +1077,7 @@ mod tests {
         // The selector is hidden, so the presets name the only district
         let body = render(store.clone()).await;
         assert!(body.contains("Dit betreft de kieskring Utrecht."));
-        assert!(body.contains("Dit betreft de kieskring(en) Utrecht."));
+        assert!(body.contains("Dit betreft de kieskringen Utrecht."));
         assert!(!body.contains("{district"));
 
         // With a second district the tokens are left for the dialog to fill
@@ -1087,7 +1087,7 @@ mod tests {
         store.add_candidate_list(list2);
         let body = render(store.clone()).await;
         assert!(body.contains("Dit betreft de kieskring {district}."));
-        assert!(body.contains("Dit betreft de kieskring(en) {districts}."));
+        assert!(body.contains("Dit betreft de kieskringen {districts}."));
         assert!(body.contains(r#"data-district-nl="Utrecht""#));
         assert!(body.contains(r#"data-district-nl="Drenthe""#));
     }
