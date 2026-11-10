@@ -152,7 +152,7 @@ impl OmissionCategory {
                 election.electoral_districts()
             }
             OmissionCategory::DeclarationsOfSupport(districts) => districts,
-            | OmissionCategory::Appellation
+            OmissionCategory::Appellation
             | OmissionCategory::CandidateList(_)
             | OmissionCategory::Candidate { .. } => &[],
         }
@@ -165,8 +165,7 @@ impl OmissionCategory {
             OmissionCategory::CandidateList(lists) | OmissionCategory::Candidate { lists, .. } => {
                 lists
             }
-            | OmissionCategory::Appellation
-            | OmissionCategory::DeclarationsOfSupport(_) => &[],
+            OmissionCategory::Appellation | OmissionCategory::DeclarationsOfSupport(_) => &[],
         }
     }
 
@@ -280,8 +279,7 @@ impl OmissionCategory {
                 person: *person,
                 lists,
             }),
-            | OmissionCategory::Appellation
-            | OmissionCategory::DeclarationsOfSupport(_) => None,
+            OmissionCategory::Appellation | OmissionCategory::DeclarationsOfSupport(_) => None,
         }
     }
 
@@ -567,7 +565,7 @@ pub mod tests {
         // deserialize as recoverable rather than as errors.
         let json = r#"{
             "id": "00000000-0000-0000-0000-000000000000",
-            "category": "PoliticalGroup",
+            "category": "Appellation",
             "title": "t",
             "description": "d",
             "help_text": "",
@@ -630,10 +628,6 @@ pub mod tests {
             candidate(vec![a]).merged_with(&OmissionCategory::CandidateList(vec![b])),
             None
         );
-        assert_eq!(
-            OmissionCategory::PoliticalGroup.merged_with(&OmissionCategory::PoliticalGroup),
-            None
-        );
     }
 
     #[test]
@@ -661,13 +655,13 @@ pub mod tests {
         without_help_text.help_text = None;
         assert!(without_help_text.has_same_details(&legacy));
 
-        assert!(!omission.has_same_details(&sample_omission(OmissionCategory::PoliticalGroup)));
+        assert!(!omission.has_same_details(&sample_omission(OmissionCategory::Appellation)));
     }
 
     #[tokio::test]
     async fn create_and_get_omission() -> Result<(), AppError> {
         let store = CsbStore::new_for_test();
-        let omission = sample_omission(OmissionCategory::PoliticalGroup);
+        let omission = sample_omission(OmissionCategory::Appellation);
 
         omission.create(&store).await?;
 
@@ -682,7 +676,7 @@ pub mod tests {
     #[tokio::test]
     async fn update_omission_overwrites_fields() -> Result<(), AppError> {
         let store = CsbStore::new_for_test();
-        let mut omission = sample_omission(OmissionCategory::PoliticalGroup);
+        let mut omission = sample_omission(OmissionCategory::Appellation);
 
         omission.create(&store).await?;
 
@@ -699,7 +693,7 @@ pub mod tests {
     #[tokio::test]
     async fn set_status_records_the_decision() -> Result<(), AppError> {
         let store = CsbStore::new_for_test();
-        let omission = sample_omission(OmissionCategory::PoliticalGroup);
+        let omission = sample_omission(OmissionCategory::Appellation);
 
         omission.create(&store).await?;
         omission
@@ -723,7 +717,7 @@ pub mod tests {
     #[tokio::test]
     async fn set_status_rejects_irreparable_omissions() -> Result<(), AppError> {
         let store = CsbStore::new_for_test();
-        let mut omission = sample_omission(OmissionCategory::PoliticalGroup);
+        let mut omission = sample_omission(OmissionCategory::Appellation);
         omission.recoverable = false;
 
         omission.create(&store).await?;
@@ -749,7 +743,7 @@ pub mod tests {
     #[tokio::test]
     async fn delete_omission_removes_record() -> Result<(), AppError> {
         let store = CsbStore::new_for_test();
-        let omission = sample_omission(OmissionCategory::PoliticalGroup);
+        let omission = sample_omission(OmissionCategory::Appellation);
 
         omission.create(&store).await?;
         omission.delete(&store).await?;

@@ -85,7 +85,7 @@ mod tests {
         CsbAction, CsbMainAction, CsbUser, PgEvent,
         structs::{
             common::{Address, PreviousElectionResults},
-            csb::{Omission, OmissionCategory, sample_omission, sample_registered_political_group},
+            csb::sample_registered_political_group,
             list_designation::ListDesignation,
             list_submitters::ListSubmitterId,
             political_groups::PoliticalGroup,
@@ -256,68 +256,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn renders_added_political_group_omissions_as_badges() {
-        let store = CsbStore::new_for_test();
-        let stream_id = store.stream_id;
-        Omission::new(
-            OmissionCategory::PoliticalGroup,
-            "Deposit missing".parse().unwrap(),
-            "The deposit has not been paid.".parse().unwrap(),
-            None,
-        )
-        .create(&store)
-        .await
-        .unwrap();
-
-        let response = overview(
-            CsbGeneralInformationPath { stream_id },
-            CsbContext::new_test(),
-            store,
-            CsbMainStore::new_for_test(),
-        )
-        .await
-        .unwrap()
-        .into_response();
-
-        assert_eq!(response.status(), StatusCode::OK);
-        let body = response_body_string(response).await;
-        assert!(body.contains("restoration-tag"));
-        // The badge shows the short title, not the long description.
-        assert!(body.contains("Deposit missing"));
-        assert!(!body.contains("The deposit has not been paid."));
-        // A recoverable omission is not highlighted as an error.
-        assert!(!body.contains("restoration-tag-unrecoverable"));
-    }
-
-    #[tokio::test]
-    async fn renders_non_recoverable_omission_as_error() {
-        let store = CsbStore::new_for_test();
-        let stream_id = store.stream_id;
-        let mut omission = Omission::new(
-            OmissionCategory::PoliticalGroup,
-            "Unregistered appellation".parse().unwrap(),
-            "The appellation is not registered.".parse().unwrap(),
-            None,
-        );
-        omission.recoverable = false;
-        omission.create(&store).await.unwrap();
-
-        let response = overview(
-            CsbGeneralInformationPath { stream_id },
-            CsbContext::new_test(),
-            store,
-            CsbMainStore::new_for_test(),
-        )
-        .await
-        .unwrap()
-        .into_response();
-
-        assert_eq!(response.status(), StatusCode::OK);
-        let body = response_body_string(response).await;
-        assert!(body.contains("restoration-tag-unrecoverable"));
-    }
-
-    #[tokio::test]
     async fn appellation_labels_for_designation_type() {
         let store = CsbStore::new_for_test();
         let stream_id = store.stream_id;
@@ -376,60 +314,6 @@ mod tests {
         let body = response_body_string(response).await;
 
         assert!(!body.contains("Omissions appellation</h2>"));
-    }
-
-    /// A paper correction can blank a list after appellation omissions were
-    /// added; those stay visible, but no new ones can be added.
-    #[tokio::test]
-    async fn appellation_omission_bar_shows_existing_omissions_of_a_blank_list() {
-        let store = CsbStore::new_for_test();
-        let mut pg = sample_political_group();
-        pg.list_designation = Some(ListDesignation::Blank);
-        store.set_political_group(pg);
-        store
-            .update(CsbAction::CreateOmission(sample_omission(
-                OmissionCategory::Appellation,
-            )))
-            .await
-            .unwrap();
-
-        let stream_id = store.stream_id;
-        let response = overview(
-            CsbGeneralInformationPath { stream_id },
-            CsbContext::new_test(),
-            store,
-            CsbMainStore::new_for_test(),
-        )
-        .await
-        .unwrap()
-        .into_response();
-        let body = response_body_string(response).await;
-
-        assert!(body.contains("Omissions appellation</h2>"));
-        assert!(body.contains("test title"));
-        // The overview is linked, the add dialog is not.
-        assert!(body.contains(&format!("/omission/appellation/{stream_id}/overview")));
-        assert!(!body.contains(&format!("/omission/appellation/{stream_id}\"")));
-    }
-
-    #[tokio::test]
-    async fn appellation_omission_bar_shows_for_non_blank_lists() {
-        let store = CsbStore::new_for_test();
-
-        let response = overview(
-            CsbGeneralInformationPath {
-                stream_id: store.stream_id,
-            },
-            CsbContext::new_test(),
-            store,
-            CsbMainStore::new_for_test(),
-        )
-        .await
-        .unwrap()
-        .into_response();
-        let body = response_body_string(response).await;
-
-        assert!(body.contains("Omissions appellation</h2>"));
     }
 
     #[tokio::test]

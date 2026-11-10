@@ -369,23 +369,6 @@ mod tests {
     }
 
     #[test]
-    fn appellation_is_scrapped_by_appellation_omissions_only() {
-        let appellation = irreparable(OmissionCategory::Appellation);
-        let id = appellation.id;
-
-        let scrapped = derive(
-            &PgStoreData::default(),
-            vec![appellation, irreparable(OmissionCategory::PoliticalGroup)],
-        );
-
-        assert!(scrapped.is_appellation_scrapped());
-        assert_eq!(scrapped.appellation_omissions().len(), 1);
-        assert!(scrapped.appellation_omissions().contains(&id));
-        // A political-group omission has no consequences of its own.
-        assert_eq!(scrapped.omissions.len(), 1);
-    }
-
-    #[test]
     fn blank_list_has_no_appellation_to_scrap() {
         let data = PgStoreData::from_events([PgEvent::UpdatePoliticalGroup(PoliticalGroup {
             list_designation: Some(ListDesignation::Blank),

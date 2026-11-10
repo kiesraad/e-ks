@@ -21,9 +21,7 @@ use super::OmissionTarget;
 /// otherwise the political group examination overview.
 pub(super) fn return_path(target: &OmissionTarget, political_group: &CsbPoliticalGroup) -> String {
     match target.omission_type {
-        OmissionType::Appellation => {
-            political_group.group_path().to_string()
-        }
+        OmissionType::Appellation => political_group.group_path().to_string(),
         OmissionType::CandidateList => political_group
             .candidate_list_path(&CandidateListId::from(target.reference))
             .to_string(),
@@ -139,8 +137,7 @@ pub(super) fn overview_url_for(
         },
         // An omission on a candidate list without lists should not be possible.
         // Let the caller decide on fallback url
-        OmissionCategory::CandidateList(_) => return None
-        
+        OmissionCategory::CandidateList(_) => return None,
     };
     Some(target.overview_url())
 }

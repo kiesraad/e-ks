@@ -59,7 +59,7 @@ mod tests {
         let stream_id = store.stream_id;
 
         Omission::new(
-            OmissionCategory::PoliticalGroup,
+            OmissionCategory::Appellation,
             "Deposit missing".parse().unwrap(),
             "The deposit has not been paid.".parse().unwrap(),
             None,
@@ -67,7 +67,7 @@ mod tests {
         .create(&store)
         .await
         .unwrap();
-        let mut irreparable = sample_omission(OmissionCategory::PoliticalGroup);
+        let mut irreparable = sample_omission(OmissionCategory::Appellation);
         irreparable.recoverable = false;
         irreparable.title = "Unregistered appellation".parse().unwrap();
         irreparable.create(&store).await.unwrap();
@@ -102,7 +102,7 @@ mod tests {
         let store = CsbStore::new_for_test();
         let stream_id = store.stream_id;
 
-        let omission = sample_omission(OmissionCategory::PoliticalGroup);
+        let omission = sample_omission(OmissionCategory::Appellation);
         omission.create(&store).await.unwrap();
         omission
             .set_status(&store, OmissionStatus::Recovered)
@@ -146,7 +146,7 @@ mod tests {
         .await
         .unwrap();
         // Not district-scoped, so it names none.
-        sample_omission(OmissionCategory::PoliticalGroup)
+        sample_omission(OmissionCategory::Appellation)
             .create(&store)
             .await
             .unwrap();

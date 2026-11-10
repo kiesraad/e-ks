@@ -104,7 +104,7 @@ finalise:
   order_title: Political group order
   position: Position
   title: Finalise candidate lists
-  unassessed_warning: There are <strong>{}</strong> unassessed omissions. Go back to phase 3 to assess them.
+  unassessed_warning: "There are <strong>{}</strong> unassessed omissions. Go back to phase 3 to assess them."
 finish_examination:
   download_markdown: Download Markdown
   download_note: Download all letters of omission as Word and PDF files in a single ZIP
@@ -256,7 +256,6 @@ omission:
     appellation: Omissions appellation
     candidate: "Omissions {}"
     candidate_list: Omissions candidate list
-    general: Omissions general information
 omission_letter:
   download_note: Download the letter of omission for this political group as a Word or PDF file.
   explanation: The letter of omission lists every omission found for this political group.

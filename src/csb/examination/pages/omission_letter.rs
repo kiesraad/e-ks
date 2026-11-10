@@ -264,7 +264,7 @@ mod tests {
 
         store.update(import_action(appellation)).await?;
         if with_omission {
-            sample_omission(OmissionCategory::PoliticalGroup)
+            sample_omission(OmissionCategory::Appellation)
                 .create(&store)
                 .await?;
         }
@@ -308,7 +308,7 @@ mod tests {
     #[tokio::test]
     async fn gen_omission_letter_returns_a_pdf_named_after_the_group() -> Result<(), AppError> {
         let store = store_with_group().await;
-        sample_omission(OmissionCategory::PoliticalGroup)
+        sample_omission(OmissionCategory::Appellation)
             .create(&store)
             .await?;
         sample_omission(OmissionCategory::DeclarationsOfSupport(vec![
@@ -354,7 +354,7 @@ mod tests {
     #[tokio::test]
     async fn gen_omission_letter_docx_returns_a_word_document() -> Result<(), AppError> {
         let store = store_with_group().await;
-        sample_omission(OmissionCategory::PoliticalGroup)
+        sample_omission(OmissionCategory::Appellation)
             .create(&store)
             .await?;
 
@@ -395,7 +395,7 @@ mod tests {
         let store = store_with_group().await;
         let stream_id = store.stream_id;
         Omission::new(
-            OmissionCategory::PoliticalGroup,
+            OmissionCategory::Appellation,
             "Deposit missing".parse().unwrap(),
             "The deposit has not been paid.".parse().unwrap(),
             Some("Pay the deposit at the secretariat.".parse().unwrap()),

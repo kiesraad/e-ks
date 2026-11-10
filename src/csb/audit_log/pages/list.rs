@@ -499,7 +499,7 @@ mod tests {
         csb_store
             .update(
                 CsbAction::CreateOmission(Omission::new(
-                    OmissionCategory::PoliticalGroup,
+                    OmissionCategory::Appellation,
                     "test".parse().unwrap(),
                     "test".parse().unwrap(),
                     Some("test".parse().unwrap()),

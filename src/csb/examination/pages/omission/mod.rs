@@ -897,7 +897,7 @@ mod tests {
         let store = CsbStore::new_for_test();
 
         let omission = Omission::new(
-            OmissionCategory::PoliticalGroup,
+            OmissionCategory::Appellation,
             "Deposit missing".parse().unwrap(),
             "The deposit is missing.".parse().unwrap(),
             None,
@@ -914,7 +914,7 @@ mod tests {
         .await;
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
-        assert!(store.snapshot().get_political_group_omissions().is_empty());
+        assert!(store.snapshot().get_appellation_omissions().is_empty());
         let location = location(&response);
         assert!(location.contains("redirect_to=%2Fback%2Fhere"));
         assert!(location.contains("overlay=true"));
@@ -949,7 +949,7 @@ mod tests {
         let store = CsbStore::new_for_test();
         let stream_id = store.stream_id;
 
-        let response = render_overview(store, OmissionType::PoliticalGroup, stream_id).await;
+        let response = render_overview(store, OmissionType::Appellation, stream_id).await;
 
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
@@ -1000,24 +1000,7 @@ mod tests {
         .await;
 
         assert_eq!(response.status(), StatusCode::OK);
-        assert!(store.snapshot().get_political_group_omissions().is_empty());
-    }
-
-    #[tokio::test]
-    async fn add_political_group_omission_persists_category() {
-        let store = CsbStore::new_for_test();
-        let stream_id = store.stream_id;
-
-        submit_add_omission(
-            store.clone(),
-            OmissionType::PoliticalGroup,
-            stream_id,
-            None,
-            sample_form(),
-        )
-        .await;
-
-        assert_eq!(store.snapshot().get_political_group_omissions().len(), 1);
+        assert_eq!(store.snapshot().get_omission_count(), 0);
     }
 
     #[tokio::test]
@@ -1031,7 +1014,7 @@ mod tests {
 
         submit_add_omission(
             store.clone(),
-            OmissionType::PoliticalGroup,
+            OmissionType::Appellation,
             stream_id,
             None,
             form,
@@ -1052,7 +1035,7 @@ mod tests {
 
         let response = submit_add_omission(
             store.clone(),
-            OmissionType::PoliticalGroup,
+            OmissionType::Appellation,
             stream_id,
             None,
             form,
@@ -1060,7 +1043,7 @@ mod tests {
         .await;
 
         assert_eq!(response.status(), StatusCode::OK);
-        assert!(store.snapshot().get_political_group_omissions().is_empty());
+        assert_eq!(store.snapshot().get_omission_count(), 0);
     }
 
     #[tokio::test]

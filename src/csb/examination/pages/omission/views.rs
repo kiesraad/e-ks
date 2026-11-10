@@ -134,9 +134,7 @@ fn placeholders_for(target: &OmissionTarget, data: &CsbStoreData) -> OmissionPla
             },
             ..OmissionPlaceholders::default()
         },
-        OmissionType::CandidateList | OmissionType::Appellation => {
-            OmissionPlaceholders::default()
-        }
+        OmissionType::CandidateList | OmissionType::Appellation => OmissionPlaceholders::default(),
     }
 }
 

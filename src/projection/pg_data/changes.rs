@@ -804,7 +804,7 @@ mod tests {
             fields_of(Some(&sample_candidate_list(CandidateListId::new()))),
             fields_of(Some(&sample_political_group())),
             fields_of(Some(&sample_name_authorisation(NameAuthorisationId::new()))),
-            fields_of(Some(&sample_omission(OmissionCategory::PoliticalGroup))),
+            fields_of(Some(&sample_omission(OmissionCategory::Appellation))),
             fields_of(Some(&sample_registered_political_group("Partij", 10, 1))),
         ];
 

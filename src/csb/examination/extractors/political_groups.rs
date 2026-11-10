@@ -512,7 +512,7 @@ mod tests {
     }
 
     #[test]
-    fn csb_appellation_names_a_scrapped_appellation_as_blank_in_recovery_only() {
+    fn csb_appellation_names_a_scrapped_appellation_as_blank_in_numbering_only() {
         let store = CsbStore::new_for_test();
         store.set_political_group(PoliticalGroup {
             appellation: Some("Kiesraad Demo".parse().unwrap()),
@@ -525,10 +525,10 @@ mod tests {
 
         let group = CsbPoliticalGroup::new_from_csb_store(&store);
         assert_eq!(group.csb_appellation(), "Kiesraad Demo");
-        assert_eq!(
-            group.with_mode(CsbPhase::Recovery).csb_appellation(),
-            "Blanco"
-        );
+        let group = group.with_mode(CsbPhase::Recovery);
+
+        assert_eq!(group.csb_appellation(), "Kiesraad Demo");
+        assert_eq!(group.numbering_appellation(), "Blanco");
     }
 
     #[test]
@@ -563,10 +563,12 @@ mod tests {
     }
 
     #[test]
-    fn recovery_mode_appellation_honours_scrapping() {
+    fn recovery_mode_appellation_shows_original_appellation() {
         let group = CsbPoliticalGroup {
             political_group: PoliticalGroup {
+                appellation: Some("Kiesraad Demo".parse().expect("valid appellation")),
                 // should convert to Blank because of appellation scrapping
+                // but not in recovery mode
                 list_designation: Some(ListDesignation::Standalone { registration: None }),
                 ..Default::default()
             },
@@ -591,7 +593,8 @@ mod tests {
             ),
             ..CsbPoliticalGroup::sample("Kiesraad Demo")
         };
-
-        assert_eq!("Blanco (Present, P.)", group.csb_appellation());
+        dbg!(&group.political_group.appellation);
+        assert_eq!("Kiesraad Demo", group.csb_appellation());
+        assert_eq!("Blanco (Present, P.)", group.numbering_appellation());
     }
 }

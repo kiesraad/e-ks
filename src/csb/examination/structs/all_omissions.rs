@@ -253,24 +253,6 @@ mod tests {
     }
 
     #[test]
-    fn general_path_test() {
-        let store = CsbStore::new_for_test();
-
-        let path = general_path(&CsbPoliticalGroup::new_from_csb_store(&store)).unwrap();
-
-        let pg_type = OmissionType::PoliticalGroup.to_string();
-        let stream_id = store.stream_id;
-        let redirect_param = redirect_param(stream_id);
-        assert!(
-            path.contains(
-                format!("/csb/examination/{stream_id}/omission/{pg_type}/{stream_id}/overview?")
-                    .as_str()
-            )
-        );
-        assert!(path.contains(redirect_param.as_str()));
-    }
-
-    #[test]
     fn candidate_list_omission_path_links_to_the_referenced_list() {
         let store = CsbStore::new_for_test();
         let list_id = CandidateListId::new();

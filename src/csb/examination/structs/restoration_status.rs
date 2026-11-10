@@ -80,11 +80,6 @@ mod tests {
         let store = CsbStore::new_for_test();
 
         store
-            .update(CsbAction::CreateOmission(sample_omission(
-                OmissionCategory::PoliticalGroup,
-            )))
-            .await?;
-        store
             .update(CsbAction::UpdateCorrection(Correction::Appellation(
                 Appellation::from_str("Correction Party").unwrap(),
             )))
@@ -92,7 +87,7 @@ mod tests {
 
         let status = RestorationStatus::for_political_group(&store.snapshot());
 
-        assert!(status.has_omissions());
+        assert!(!status.has_omissions());
         assert!(status.has_corrections());
 
         Ok(())
