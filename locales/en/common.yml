@@ -86,6 +86,6 @@ switch_election:
   submit: Switch election
   water_council: Water authority
 title: Kiesraad - Kandidaatstelling
-to_home: Go to the homepage
+to_home: Back to home
 version: Version
 warning_prefix: Warning

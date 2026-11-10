@@ -186,7 +186,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
         let body = test_utils::response_body_string(response).await;
         assert!(body.contains("Ongeldig verzoek"), "{body}");
-        assert!(body.contains("Naar het startscherm"), "{body}");
+        assert!(body.contains("Terug naar overzicht"), "{body}");
     }
 
     #[cfg(feature = "database")]
