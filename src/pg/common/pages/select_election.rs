@@ -7,7 +7,7 @@ use axum::{
 use axum_extra::extract::CookieJar;
 
 use crate::{
-    AnyLocale, AppError, AppRequestState, Context, Province, Session, SessionPageValues,
+    AnyLocale, AppError, AppRequestState, Context, Form, Province, Session, SessionPageValues,
     SessionUser, WaterCouncil,
     common::{PgIndexPath, SelectElectionForm},
     csb::index::CsbIndexPath,
@@ -58,7 +58,7 @@ pub async fn select_election_submit<S: AppRequestState>(
     State(state): State<S>,
     jar: CookieJar,
     session: Session,
-    axum::Form(form): axum::Form<SelectElectionForm>,
+    Form(form): Form<SelectElectionForm>,
 ) -> Result<Response, AppError> {
     #[cfg(not(all(feature = "fixtures", feature = "dev-features")))]
     let _ = jar;

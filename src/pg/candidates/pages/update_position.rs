@@ -1,9 +1,12 @@
-use crate::structs::{
-    candidates::{Candidate, CandidatePosition},
-    political_groups::PoliticalGroup,
+use crate::{
+    Query,
+    structs::{
+        candidates::{Candidate, CandidatePosition},
+        political_groups::PoliticalGroup,
+    },
 };
 use askama::Template;
-use axum::{extract::Query, response::IntoResponse};
+use axum::response::IntoResponse;
 
 use crate::{
     AppError, Context, Form, HtmlTemplate, Overlay, PgStore, QueryParamState,
@@ -124,14 +127,14 @@ pub async fn update_candidate_position_submit(
 mod tests {
     use super::*;
     use crate::{
-        Context, Form, PgStore, QueryParamState,
+        Context, Form, PgStore, Query, QueryParamState,
         structs::{candidate_lists::CandidateListId, persons::PersonId},
         test_utils::{
             response_body_string, sample_candidate_list, sample_person,
             sample_person_with_last_name,
         },
     };
-    use axum::{extract::Query, http::StatusCode, response::IntoResponse};
+    use axum::{http::StatusCode, response::IntoResponse};
 
     fn sample_position_form(position: usize, action: &str) -> CandidatePositionForm {
         CandidatePositionForm {

@@ -1,13 +1,10 @@
-use crate::structs::name_authorisations::NameAuthorisation;
+use crate::{Query, structs::name_authorisations::NameAuthorisation};
 use askama::Template;
-use axum::{
-    extract::Query,
-    response::{IntoResponse, Response},
-};
+use axum::response::{IntoResponse, Response};
 
 use super::NameAuthorisationCreatePath;
 use crate::{
-    AppError, Context, CsbMainStore, Form, HtmlTemplate, Overlay, PgStore, QueryParamState,
+    AppError, Context, CsbMainStream, Form, HtmlTemplate, Overlay, PgStore, QueryParamState,
     filters, form::FormData, name_authorisations::NameAuthorisationForm,
 };
 
@@ -22,7 +19,7 @@ pub async fn create_name_authorisation(
     _: NameAuthorisationCreatePath,
     context: Context,
     store: PgStore,
-    main_store: CsbMainStore,
+    main_store: CsbMainStream,
     Query(query): Query<QueryParamState>,
 ) -> Result<impl IntoResponse, AppError> {
     // Start from the statutory name of the registration the group is bound to.
@@ -73,7 +70,7 @@ pub async fn create_name_authorisation_submit(
 mod tests {
     use super::*;
     use crate::{
-        AppError, Context, CsbMainAction, CsbUser, Form, PgStore, QueryParamState,
+        AppError, Context, CsbMainAction, CsbUser, Form, PgStore, Query, QueryParamState,
         structs::{
             csb::sample_registered_political_group, list_designation::ListDesignation,
             political_groups::PoliticalGroup,
@@ -81,7 +78,6 @@ mod tests {
         test_utils::{response_body_string, sample_name_authorisation_form},
     };
     use axum::{
-        extract::Query,
         http::{StatusCode, header},
         response::IntoResponse,
     };
@@ -98,7 +94,7 @@ mod tests {
             NameAuthorisationCreatePath {},
             Context::new_test_without_db(),
             PgStore::new_for_test(),
-            CsbMainStore::new_for_test(),
+            CsbMainStream::new_for_test(),
             Query(QueryParamState::default()),
         )
         .await
@@ -123,7 +119,7 @@ mod tests {
     async fn create_name_authorisation_starts_from_the_registered_legal_name()
     -> Result<(), AppError> {
         let registration = sample_registered_political_group("De Partij", 100, 3);
-        let main_store = CsbMainStore::new_for_test();
+        let main_store = CsbMainStream::new_for_test();
         main_store
             .update(
                 CsbMainAction::CreateRegisteredPoliticalGroup(registration.clone())
@@ -166,7 +162,7 @@ mod tests {
                 NameAuthorisationCreatePath {},
                 Context::new_test_without_db(),
                 PgStore::new_for_test(),
-                CsbMainStore::new_for_test(),
+                CsbMainStream::new_for_test(),
                 Query(query),
             )
             .await

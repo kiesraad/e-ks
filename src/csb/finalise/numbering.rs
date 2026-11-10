@@ -6,7 +6,7 @@
 //! finalise page, where the committee records the final order.
 
 use crate::{
-    AppError, CsbContext, CsbMainAction, CsbMainStore, CsbStoreData, StreamId,
+    AppError, CsbMainAction, CsbMainStore, CsbMainStream, CsbStoreData, StreamId,
     csb::examination::extractors::CsbPoliticalGroup,
     store::StoreRegistry,
     structs::csb::{PreviousResult, RegisteredPoliticalGroup},
@@ -133,12 +133,11 @@ impl ListNumbering {
     /// drag event has taken place.
     pub async fn record_if_incomplete(
         &mut self,
-        context: &CsbContext,
         main_store: &CsbMainStore,
     ) -> Result<(), AppError> {
         if !self.is_complete() {
             main_store
-                .update(CsbMainAction::UpdateListOrder(self.stream_ids()).by(context.user()?))
+                .update(CsbMainAction::UpdateListOrder(self.stream_ids()))
                 .await?;
 
             self.groups
@@ -155,7 +154,7 @@ impl ListNumbering {
 /// store.
 pub async fn list_numbering(
     registry: &StoreRegistry<CsbStoreData>,
-    main_store: &CsbMainStore,
+    main_store: &CsbMainStream,
 ) -> Result<ListNumbering, AppError> {
     let groups: Vec<CsbPoliticalGroup> = registry
         .stores_for_election(main_store.election)

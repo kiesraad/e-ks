@@ -1,9 +1,6 @@
-use crate::structs::persons::Person;
+use crate::{Query, structs::persons::Person};
 use askama::Template;
-use axum::{
-    extract::Query,
-    response::{IntoResponse, Response},
-};
+use axum::response::{IntoResponse, Response};
 
 use crate::{
     AppError, AppResponse, Context, HtmlTemplate, Overlay, PgStore, QueryParamState, filters,
@@ -47,12 +44,11 @@ pub async fn delete_person(
 
 #[cfg(test)]
 mod tests {
-    use axum::extract::Query;
     use axum_extra::routing::TypedPath;
 
     use super::*;
     use crate::{
-        AppError, Context, PgStore, QueryParamState,
+        AppError, Context, PgStore, Query, QueryParamState,
         structs::persons::PersonId,
         test_utils::{response_body_string, sample_person},
     };

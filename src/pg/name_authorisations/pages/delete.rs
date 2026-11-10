@@ -1,11 +1,9 @@
 use askama::Template;
-use axum::{
-    extract::Query,
-    response::{IntoResponse, Response},
-};
+use axum::response::{IntoResponse, Response};
 
 use crate::{
-    AppError, AppResponse, Context, HtmlTemplate, Overlay, PgStore, QueryParamState, filters,
+    AppError, AppResponse, Context, HtmlTemplate, Overlay, PgStore, Query, QueryParamState,
+    filters,
     structs::{
         common::{HasSeverity, Problematic},
         name_authorisations::NameAuthorisation,
@@ -50,12 +48,11 @@ pub async fn delete_name_authorisation(
 
 #[cfg(test)]
 mod tests {
-    use axum::extract::Query;
     use axum_extra::routing::TypedPath;
 
     use super::*;
     use crate::{
-        AppError, Context, PgStore, QueryParamState,
+        AppError, Context, PgStore, Query, QueryParamState,
         structs::name_authorisations::NameAuthorisationId,
         test_utils::{response_body_string, sample_name_authorisation},
     };

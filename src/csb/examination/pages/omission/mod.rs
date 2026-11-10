@@ -1,12 +1,9 @@
-use axum::{
-    extract::Query,
-    response::{IntoResponse, Redirect, Response},
-};
+use axum::response::{IntoResponse, Redirect, Response};
 use axum_extra::routing::TypedPath;
 use uuid::Uuid;
 
 use crate::{
-    AppError, CsbContext, CsbStore, CsbStoreData, Form, HtmlTemplate, Locale, Overlay,
+    AppError, CsbContext, CsbStore, CsbStoreData, Form, HtmlTemplate, Locale, Overlay, Query,
     QueryParamState, StreamId,
     csb::examination::{
         CsbPoliticalGroupPath, OmissionForm,
@@ -103,7 +100,7 @@ impl OmissionTarget {
             "candidate_lists",
         )?;
 
-        if self.candidate().is_some() && !lists.iter().all(|id| applicable_lists.contains(id)) {
+        if !lists.iter().all(|id| applicable_lists.contains(id)) {
             return Err(vec![(
                 "candidate_lists".to_string(),
                 ValidationError::InvalidValue,
@@ -957,9 +954,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn add_candidate_list_omission_rejects_an_unknown_list() {
+        let store = CsbStore::new_for_test();
+        let form = OmissionForm {
+            candidate_lists: vec![CandidateListId::new()],
+            ..sample_form()
+        };
+
+        let response = submit_add_omission(
+            store.clone(),
+            OmissionType::CandidateList,
+            CandidateListId::new(),
+            None,
+            form,
+        )
+        .await;
+
+        // The form is re-rendered instead of saving an omission that would
+        // break the models and letters of the whole political group.
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(store.snapshot().get_omissions().is_empty());
+    }
+
+    #[tokio::test]
     async fn add_candidate_list_omission_persists_category() {
         let store = CsbStore::new_for_test();
         let list = CandidateListId::new();
+        store.add_candidate_list(crate::test_utils::sample_candidate_list(list));
         let form = OmissionForm {
             candidate_lists: vec![list],
             ..sample_form()
@@ -1065,7 +1086,7 @@ mod tests {
         // The selector is hidden, so the presets name the only district
         let body = render(store.clone()).await;
         assert!(body.contains("Dit betreft de kieskring Utrecht."));
-        assert!(body.contains("Dit betreft de kieskring(en) Utrecht."));
+        assert!(body.contains("Dit betreft de kieskringen Utrecht."));
         assert!(!body.contains("{district"));
 
         // With a second district the tokens are left for the dialog to fill
@@ -1075,7 +1096,7 @@ mod tests {
         store.add_candidate_list(list2);
         let body = render(store.clone()).await;
         assert!(body.contains("Dit betreft de kieskring {district}."));
-        assert!(body.contains("Dit betreft de kieskring(en) {districts}."));
+        assert!(body.contains("Dit betreft de kieskringen {districts}."));
         assert!(body.contains(r#"data-district-nl="Utrecht""#));
         assert!(body.contains(r#"data-district-nl="Drenthe""#));
     }

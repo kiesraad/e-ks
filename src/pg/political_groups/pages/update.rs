@@ -1,12 +1,9 @@
-use crate::structs::political_groups::PoliticalGroup;
+use crate::{Query, structs::political_groups::PoliticalGroup};
 use askama::Template;
-use axum::{
-    extract::Query,
-    response::{IntoResponse, Response},
-};
+use axum::response::{IntoResponse, Response};
 
 use crate::{
-    AppError, Context, CsbMainStore, HtmlTemplate, PgStore, QueryParamState, filters,
+    AppError, Context, CsbMainStream, HtmlTemplate, PgStore, QueryParamState, filters,
     form::{Form, FormData, ValidationError},
     political_groups::{PoliticalGroupForm, PoliticalGroupStep, PoliticalGroupSteps},
     structs::{
@@ -51,7 +48,7 @@ pub async fn update_political_group(
     _: PoliticalGroupUpdatePath,
     context: Context,
     store: PgStore,
-    main_store: CsbMainStore,
+    main_store: CsbMainStream,
     political_group: PoliticalGroup,
     Query(query): Query<QueryParamState>,
 ) -> Result<Response, AppError> {
@@ -88,7 +85,7 @@ pub async fn update_political_group_submit(
     context: Context,
     political_group: PoliticalGroup,
     store: PgStore,
-    main_store: CsbMainStore,
+    main_store: CsbMainStream,
     Query(query): Query<QueryParamState>,
     Form(form): Form<PoliticalGroupForm>,
 ) -> Result<Response, AppError> {
@@ -139,7 +136,7 @@ pub async fn update_political_group_submit(
 mod tests {
     use super::*;
     use crate::{
-        AppError, Context, CsbMainAction, CsbUser, Form, PgStore, QueryParamState,
+        AppError, Context, CsbMainAction, CsbUser, Form, PgStore, Query, QueryParamState,
         structs::{
             common::{Appellation, PreviousElectionResults},
             csb::{RegisteredPoliticalGroupId, sample_registered_political_group},
@@ -159,8 +156,8 @@ mod tests {
 
     async fn main_store_with(
         groups: &[crate::structs::csb::RegisteredPoliticalGroup],
-    ) -> CsbMainStore {
-        let store = CsbMainStore::new_for_test();
+    ) -> CsbMainStream {
+        let store = CsbMainStream::new_for_test();
         for group in groups {
             store
                 .update(
@@ -187,7 +184,7 @@ mod tests {
             PoliticalGroupUpdatePath {},
             Context::new_test_without_db(),
             store,
-            CsbMainStore::new_for_test(),
+            CsbMainStream::new_for_test(),
             political_group,
             Query(QueryParamState::default()),
         )
@@ -409,7 +406,7 @@ mod tests {
             Context::new_test_without_db(),
             store.snapshot().get_political_group().clone(),
             store.clone(),
-            CsbMainStore::new_for_test(),
+            CsbMainStream::new_for_test(),
             Query(QueryParamState::default()),
             Form(sample_political_group_form()),
         )
@@ -488,7 +485,7 @@ mod tests {
             PoliticalGroupUpdatePath {},
             context,
             store,
-            CsbMainStore::new_for_test(),
+            CsbMainStream::new_for_test(),
             political_group,
             Query(QueryParamState::default()),
         )
@@ -532,7 +529,7 @@ mod tests {
             context,
             political_group,
             store.clone(),
-            CsbMainStore::new_for_test(),
+            CsbMainStream::new_for_test(),
             Query(QueryParamState::default()),
             Form(form),
         )
@@ -584,7 +581,7 @@ mod tests {
             context,
             store.snapshot().get_political_group().clone(),
             store,
-            CsbMainStore::new_for_test(),
+            CsbMainStream::new_for_test(),
             Query(QueryParamState::default()),
             Form(form),
         )

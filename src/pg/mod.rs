@@ -14,6 +14,6 @@ mod error_response;
 mod extractor;
 
 pub(crate) use error_response::csrf_rejection_response;
-pub use error_response::render_error_pages;
+pub use error_response::{render_error_pages, render_session_error_pages};
 
 pub(crate) use extractor::request_extractor;

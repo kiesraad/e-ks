@@ -90,8 +90,10 @@ Een controleronde start in drie situaties:
 
 Het verloop van een ronde:
 
-- Per lijst draait hooguit één ronde tegelijk. Een tweede verzoek terwijl er
-  al een ronde loopt, doet niets.
+- Per lijst draait per applicatie-instantie hooguit één ronde tegelijk. Een
+  tweede verzoek terwijl er op die instantie al een ronde loopt, doet niets.
+  Bij meerdere instanties kan een kandidaat dubbel worden bevraagd; dat
+  verandert de uitkomst niet.
 - De start wordt vastgelegd als status *in uitvoering*, met het tijdstip.
 - De ronde controleert de **gecorrigeerde** gegevens van de kandidaten, dus
   inclusief papieren en ambtshalve correcties, omdat dat de gegevens zijn die

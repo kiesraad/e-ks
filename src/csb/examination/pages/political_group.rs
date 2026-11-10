@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use askama::Template;
 use axum::{
     Json,
-    extract::{Query, State},
+    extract::State,
     response::{IntoResponse, Response},
 };
 
@@ -12,7 +12,8 @@ use crate::structs::common::HasSeverity;
 use crate::{
     AppError, AppRequestState, Context,
     CsbAction::{self},
-    CsbContext, CsbMainStore, CsbStore, CsbStoreData, HtmlTemplate, Overlay, QueryParamState,
+    CsbContext, CsbMainStore, CsbStore, CsbStoreData, HtmlTemplate, Overlay, Query,
+    QueryParamState,
     csb::{
         examination::{
             extractors::CsbPoliticalGroup,
@@ -197,7 +198,7 @@ mod tests {
     use axum::http::StatusCode;
 
     use crate::{
-        AppState, CsbMainAction, CsbUser, ElectoralDistrict, PgEvent,
+        AppState, CsbMainAction, ElectoralDistrict, PgEvent,
         csb::import::claim_sweep_for_test,
         structs::{
             brp::{BrpFindingKind, BrpStatus},
@@ -766,14 +767,9 @@ mod tests {
     async fn main_store_registering_sample_group(seats: u32) -> CsbMainStore {
         let main_store = CsbMainStore::new_for_test();
         main_store
-            .update(
-                CsbMainAction::CreateRegisteredPoliticalGroup(sample_registered_political_group(
-                    "Kiesraad Demo",
-                    1000,
-                    seats,
-                ))
-                .by(CsbUser::new_test()),
-            )
+            .update(CsbMainAction::CreateRegisteredPoliticalGroup(
+                sample_registered_political_group("Kiesraad Demo", 1000, seats),
+            ))
             .await
             .unwrap();
         main_store

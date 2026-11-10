@@ -1,4 +1,4 @@
-import type { AuthorisedPerson } from "./authorisedPerson";
+import type { Representative } from "./representative";
 
 export interface DateOfBirth {
   day?: string;
@@ -20,5 +20,5 @@ export interface Candidate {
   streetName?: string;
   locality?: string;
   countryCode?: string;
-  authorisedPerson?: AuthorisedPerson;
+  representative?: Representative;
 }

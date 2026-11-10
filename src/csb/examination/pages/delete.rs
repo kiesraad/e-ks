@@ -1,11 +1,8 @@
 use askama::Template;
-use axum::{
-    extract::Query,
-    response::{IntoResponse, Redirect, Response},
-};
+use axum::response::{IntoResponse, Redirect, Response};
 
 use crate::{
-    AppError, Context, CsbAction, CsbContext, CsbMainStore, CsbStore, HtmlTemplate, Overlay,
+    AppError, Context, CsbAction, CsbContext, CsbMainStore, CsbStore, HtmlTemplate, Overlay, Query,
     QueryParamState,
     csb::examination::{
         CsbExaminationOverviewPath, extractors::CsbPoliticalGroup,
@@ -60,8 +57,8 @@ mod tests {
     use reqwest::StatusCode;
 
     use crate::{
-        CsbMainAction, CsbUser, StreamId, projection::WithCorrections,
-        structs::common::Appellation, test_utils::response_body_string,
+        CsbMainAction, StreamId, projection::WithCorrections, structs::common::Appellation,
+        test_utils::response_body_string,
     };
 
     use super::*;
@@ -103,10 +100,7 @@ mod tests {
         let main_store = CsbMainStore::new_for_test();
         let other = StreamId::new();
         main_store
-            .update(
-                CsbMainAction::UpdateListOrder(vec![other, store.stream_id])
-                    .by(CsbUser::new_test()),
-            )
+            .update(CsbMainAction::UpdateListOrder(vec![other, store.stream_id]))
             .await?;
 
         let response = delete_submit(

@@ -1,11 +1,8 @@
 use askama::Template;
-use axum::{
-    extract::Query,
-    response::{IntoResponse, Response},
-};
+use axum::response::{IntoResponse, Response};
 
 use crate::{
-    AppError, Context, CsbContext, CsbMainAction, CsbMainStore, Form, HtmlTemplate, Overlay,
+    AppError, Context, CsbContext, CsbMainAction, CsbMainStore, Form, HtmlTemplate, Overlay, Query,
     QueryParamState,
     csb::registered_political_groups::{
         RegisteredPoliticalGroupForm,
@@ -97,7 +94,7 @@ pub async fn add_submit(
         Err(form) => return Ok(render(context, &query, form, None)),
     };
     main_store
-        .update(CsbMainAction::CreateRegisteredPoliticalGroup(group).by(context.user()?))
+        .update(CsbMainAction::CreateRegisteredPoliticalGroup(group))
         .await?;
     Ok(redirect_success(CsbRegisteredPoliticalGroupsPath))
 }
@@ -131,7 +128,7 @@ pub async fn edit_submit(
         Err(form) => return Ok(render(context, &query, form, Some(current))),
     };
     main_store
-        .update(CsbMainAction::UpdateRegisteredPoliticalGroup(group).by(context.user()?))
+        .update(CsbMainAction::UpdateRegisteredPoliticalGroup(group))
         .await?;
     Ok(redirect_success(CsbRegisteredPoliticalGroupsPath))
 }
@@ -141,10 +138,7 @@ pub(super) async fn store_with(groups: &[RegisteredPoliticalGroup]) -> CsbMainSt
     let store = CsbMainStore::new_for_test();
     for group in groups {
         store
-            .update(
-                CsbMainAction::CreateRegisteredPoliticalGroup(group.clone())
-                    .by(crate::CsbUser::new_test()),
-            )
+            .update(CsbMainAction::CreateRegisteredPoliticalGroup(group.clone()))
             .await
             .unwrap();
     }

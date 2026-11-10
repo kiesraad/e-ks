@@ -21,7 +21,7 @@ use crate::{
                 PaperCorrectedPersonDetails, brp_incomplete_reason,
             },
         },
-        import::brp_sweep_running,
+        import::{brp_sweep_running, report_sensitive_lookups},
     },
     filters,
     projection::{PersonVersions, WithCorrections},
@@ -238,6 +238,8 @@ pub async fn check_against_brp<S: AppRequestState>(
         .get_person(path.person_id)?
         .clone();
 
+    report_sensitive_lookups(&store, std::slice::from_ref(&candidate));
+
     let checked = state
         .brp_client()
         .verify_batch(std::slice::from_ref(&candidate))
@@ -345,6 +347,41 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         response_body_string(response).await
+    }
+
+    #[tracing_test::traced_test]
+    #[tokio::test]
+    async fn checking_a_candidate_without_bsn_is_reported_like_in_the_sweep() {
+        use crate::brp_stub::BrpStub;
+
+        let (store, list_id, person_id) = store_with_candidate();
+        let stream_id = store.stream_id;
+        let mut person = store
+            .snapshot()
+            .pg(WithCorrections::All)
+            .get_person(person_id)
+            .unwrap()
+            .clone();
+        person.personal_data.bsn = None;
+        store.add_person(person);
+
+        let stub = BrpStub::serving(Vec::new()).await;
+        let mut state = crate::AppState::new_for_tests().await;
+        state.brp_client = stub.client.clone();
+
+        // The BRP's answer is not the point; the alert comes before the lookup.
+        let _ = check_against_brp(
+            CsbCandidateBrpCheckPath {
+                stream_id,
+                list_id,
+                person_id,
+            },
+            axum::extract::State(state),
+            store,
+        )
+        .await;
+
+        assert!(logs_contain("csb.brp_lookup_without_bsn"));
     }
 
     #[tokio::test]
@@ -660,7 +697,7 @@ mod tests {
         // The corrected house number addition is highlighted.
         assert!(body.contains(r#"<strong class="paper-corrected-value">C</strong>"#));
         // The representative table renders with the corrected name.
-        assert!(body.contains("Authorised person"));
+        assert!(body.contains("Representative"));
         assert!(body.contains("Gemachtigde"));
         assert!(body.contains("Opvolger"));
     }

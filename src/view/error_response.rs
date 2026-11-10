@@ -61,13 +61,21 @@ enum LocalisedMessage {
     Downloads,
     Events,
     Cap,
-    Persons { max: usize },
-    CandidateLists { max: usize },
-    SubstituteSubmitters { max: usize },
+    Persons {
+        max: usize,
+    },
+    CandidateLists {
+        max: usize,
+    },
+    SubstituteSubmitters {
+        max: usize,
+    },
     DuplicateCandidate,
     CandidateSetChanged,
     NotDownloadable,
     Conflict,
+    /// A request axum's extractors could not parse.
+    InvalidRequest,
 }
 
 impl LocalisedMessage {
@@ -85,6 +93,12 @@ impl LocalisedMessage {
             AppError::CandidateSetChanged => Some(Self::CandidateSetChanged),
             AppError::NotDownloadable => Some(Self::NotDownloadable),
             AppError::Conflict => Some(Self::Conflict),
+            AppError::MultipartFormError(_)
+            | AppError::MultipartError(_)
+            | AppError::FormRejection(_)
+            | AppError::PathRejection(_)
+            | AppError::JsonRejection(_)
+            | AppError::QueryRejection(_) => Some(Self::InvalidRequest),
             _ => None,
         }
     }
@@ -104,6 +118,7 @@ impl LocalisedMessage {
                 locale
             )),
             Self::Conflict => Some(trans!("common.request_error.conflict_title", locale)),
+            Self::InvalidRequest => Some(trans!("common.request_error.invalid_title", locale)),
             Self::DuplicateCandidate | Self::CandidateSetChanged | Self::NotDownloadable => None,
         }
     }
@@ -123,6 +138,7 @@ impl LocalisedMessage {
                 max
             ),
             Self::Conflict => trans!("common.request_error.conflict_message", locale),
+            Self::InvalidRequest => trans!("common.request_error.invalid_message", locale),
             Self::DuplicateCandidate => {
                 trans!("candidate_list.errors.duplicate_candidate", locale)
             }
@@ -252,8 +268,8 @@ impl ErrorResponse {
             | AppError::FormRejection(_)
             | AppError::PathRejection(_)
             | AppError::JsonRejection(_)
-            | AppError::QueryRejection(_)
-            | AppError::UserError(_)
+            | AppError::QueryRejection(_) => invalid_request(),
+            AppError::UserError(_)
             | AppError::TooManyCandidates { .. }
             | AppError::TooManyPersons { .. }
             | AppError::TooManyCandidateLists { .. }
@@ -286,7 +302,7 @@ impl ErrorResponse {
             | AppError::MarkdownError(_)
             | AppError::TemplateError(_)
             | AppError::UpstreamError(_)
-            | AppError::ServerError(_)
+            | AppError::IoError(_)
             | AppError::EventDecodeError(_)
             | AppError::BrpError(_)
             | AppError::AuthError(_) => internal(),
@@ -298,6 +314,13 @@ impl ErrorResponse {
             localised: LocalisedMessage::from_error(err),
         }
     }
+}
+
+fn invalid_request() -> (ErrorResponseVariant, String) {
+    (
+        ErrorResponseVariant::BadRequest,
+        LocalisedMessage::InvalidRequest.message(Locale::En),
+    )
 }
 
 fn internal() -> (ErrorResponseVariant, String) {
@@ -326,12 +349,21 @@ fn log_client_error(err: &AppError) {
     if message_is_safe_to_log(err) {
         warn!(error = ?err, "4xx error");
     } else {
-        // Debug of inner extractor errors can echo request input, so
-        // log only the variant name (the prefix of the Debug output).
-        let dbg = format!("{err:?}");
-        let kind = dbg.split_once('(').map_or(dbg.as_str(), |(n, _)| n);
-        warn!(kind, "4xx error");
+        warn!(kind = client_error_kind(err), "4xx error");
     }
+}
+
+/// The nested variant names of an error, e.g.
+/// `FormRejection::FailedToDeserializeForm`. Debug of inner extractor errors
+/// can echo request input, so the walk stops at the first non-identifier.
+fn client_error_kind(err: &AppError) -> String {
+    let dbg = format!("{err:?}");
+    let mut kinds: Vec<&str> = dbg
+        .split('(')
+        .take_while(|part| part.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'))
+        .collect();
+    kinds.dedup();
+    kinds.join("::")
 }
 
 /// Return `true` when the user-facing `ErrorResponse.message` for this
@@ -451,6 +483,38 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn rejections_are_generic_on_the_page_and_specific_in_the_log() {
+        #[derive(Debug, serde::Deserialize)]
+        struct Switch {
+            #[allow(dead_code)]
+            lang: Locale,
+        }
+        let error = Form::<Switch>::from_request(
+            Request::builder()
+                .method("POST")
+                .uri("/language")
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .body(Body::from("lang=bogus"))
+                .unwrap(),
+            &(),
+        )
+        .await
+        .unwrap_err();
+        assert!(error.to_string().contains("bogus"), "{error}");
+
+        assert_eq!(
+            client_error_kind(&error),
+            "FormRejection::FailedToDeserializeFormBody"
+        );
+
+        let mut response = error.into_response();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let page = ErrorPage::take_from(&mut response, Locale::Nl).expect("error page");
+        assert_eq!(page.title, "Ongeldig verzoek");
+        assert!(!page.message.contains("bogus"), "{}", page.message);
+    }
+
     #[test]
     fn conflict_is_a_translated_409() {
         let mut response = AppError::Conflict.into_response();
@@ -534,7 +598,7 @@ mod tests {
             AppError::from(json_rejection),
             AppError::from(path_rejection),
             AppError::ConfigLoadError("bad".to_string()),
-            AppError::ServerError(std::io::Error::other("oh nooo")),
+            AppError::IoError(std::io::Error::other("oh nooo")),
             #[cfg(feature = "database")]
             AppError::from(sqlx::Error::RowNotFound),
         ];

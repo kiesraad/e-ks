@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Query, State},
+    extract::State,
     http::{HeaderName, HeaderValue},
     response::{IntoResponse, Redirect},
 };
@@ -9,7 +9,7 @@ use serde::Deserialize;
 
 use crate::{
     AppError, AppState, CsbMainAction, CsbUser, ElectionConfig, Locale, PgEvent, PgStoreData,
-    Session, SessionUser, StreamId,
+    Query, Session, SessionUser, StreamId,
     auth::session_extractor::{LoginOrigin, establish_session, user_agent_hash},
     common::{PgIndexPath, SelectElectionPath},
     constants::DEV_LOGIN_ELECTION,

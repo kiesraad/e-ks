@@ -1,11 +1,9 @@
 use askama::Template;
-use axum::{
-    extract::Query,
-    response::{IntoResponse, Response},
-};
+use axum::response::{IntoResponse, Response};
 
 use crate::{
-    AppError, AppResponse, Context, Form, HtmlTemplate, Overlay, PgStore, QueryParamState, filters,
+    AppError, AppResponse, Context, Form, HtmlTemplate, Overlay, PgStore, Query, QueryParamState,
+    filters,
     form::FormData,
     persons::AddressForm,
     structs::{
@@ -83,7 +81,7 @@ pub async fn update_person_address_submit(
 mod tests {
     use super::*;
     use crate::{
-        Context, Form, PgStore, QueryParamState,
+        Context, Form, PgStore, Query, QueryParamState,
         structs::{candidate_lists::CandidateListId, persons::PersonId},
         test_utils::{
             response_body_string, sample_address_form, sample_candidate_list,
@@ -91,7 +89,6 @@ mod tests {
         },
     };
     use axum::{
-        extract::Query,
         http::{StatusCode, header},
         response::IntoResponse,
     };

@@ -21,7 +21,7 @@ use crate::{
 
 /// Localities (Kralendijk, Rincon) and municipalities (Bonaire, Saba, Sint
 /// Eustatius) of the Caribbean Netherlands. Residents of these places have
-/// country code NL but need an authorised person (gemachtigde) instead of a
+/// country code NL but need a representative (gemachtigde) instead of a
 /// Dutch correspondence address. Mirrors bagatel's private `CN_LOCALITIES`
 /// and `CN_MUNICIPALITIES` (bagatel 0.8.3).
 pub const CARIBBEAN_NL_PLACES: &[&str] =

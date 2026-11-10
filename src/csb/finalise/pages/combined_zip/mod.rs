@@ -9,7 +9,7 @@ use tokio::io::{AsyncWrite, duplex};
 use tokio_util::io::ReaderStream;
 
 use crate::{
-    AppError, AppRequestState, CsbContext, CsbMainStore,
+    AppError, AppRequestState, CsbMainStore,
     core::ZipResponseWriter,
     csb::finalise::{
         pages::{
@@ -37,11 +37,10 @@ type Files = Vec<(String, Vec<u8>)>;
 /// All finalisation documents in one ZIP available on the CSB finalise page
 pub async fn download_final_zip<S: AppRequestState>(
     _: CsbFinalZipDownloadPath,
-    context: CsbContext,
     main_store: CsbMainStore,
     State(state): State<S>,
 ) -> Result<Response, AppError> {
-    let files = final_files(&context, &main_store, &state).await?;
+    let files = final_files(&main_store, &state).await?;
     let filename = format!(
         "Afronding_Kandidaatstellen_{}.zip",
         main_store.election.filename_slug()
@@ -52,15 +51,14 @@ pub async fn download_final_zip<S: AppRequestState>(
 
 /// The filenames of the final documents, along with the raw bytes that represent them
 async fn final_files<S: AppRequestState>(
-    context: &CsbContext,
     main_store: &CsbMainStore,
     state: &S,
 ) -> Result<Files, AppError> {
     let election_id = ElectionId::try_from(main_store.election)?;
 
-    let (eml230bs, eml230c) = eml230_files(context, state.csb_store_registry(), main_store).await?;
+    let (eml230bs, eml230c) = eml230_files(state.csb_store_registry(), main_store).await?;
     let mut lists_per_district = Vec::new();
-    for model in candidate_list_per_district_model(context, main_store, state, &eml230bs).await? {
+    for model in candidate_list_per_district_model(main_store, state, &eml230bs).await? {
         lists_per_district.extend(pdf_and_docx(&model).await?);
     }
     // The I 4 carries the hash of the EML 230c
@@ -85,16 +83,10 @@ async fn final_files<S: AppRequestState>(
         ),
     ];
 
-    files.extend(
-        pdf_and_docx(&candidate_list_publication_model(context, main_store, state).await?).await?,
-    );
-    files.extend(
-        pdf_and_docx(&candidate_list_overview_model(context, main_store, state).await?).await?,
-    );
-    files.extend(
-        pdf_and_docx(&i4_model(context, main_store, state, I4Status::Final(i4_hash)).await?)
-            .await?,
-    );
+    files.extend(pdf_and_docx(&candidate_list_publication_model(main_store, state).await?).await?);
+    files.extend(pdf_and_docx(&candidate_list_overview_model(main_store, state).await?).await?);
+    files
+        .extend(pdf_and_docx(&i4_model(main_store, state, I4Status::Final(i4_hash)).await?).await?);
 
     Ok(files)
 }
@@ -194,7 +186,6 @@ mod tests {
 
         let response = download_final_zip(
             CsbFinalZipDownloadPath,
-            CsbContext::new_test(),
             CsbMainStore::new_for_test(),
             State(state),
         )
@@ -246,12 +237,7 @@ mod tests {
         let state = AppState::new_for_tests().await;
         seed_group(&state, "Eerste").await;
 
-        let files = final_files(
-            &CsbContext::new_test(),
-            &CsbMainStore::new_for_test(),
-            &state,
-        )
-        .await?;
+        let files = final_files(&CsbMainStore::new_for_test(), &state).await?;
         let file = |name: &str| {
             files
                 .iter()
@@ -299,7 +285,7 @@ mod tests {
         let second = seed_group(&state, "Tweede").await;
         let main_store = CsbMainStore::new_for_test();
 
-        final_files(&CsbContext::new_test(), &main_store, &state).await?;
+        final_files(&main_store, &state).await?;
         assert_eq!(main_store.list_order_events(), 1);
         let mut recorded = main_store.list_order();
         recorded.sort();
@@ -307,7 +293,7 @@ mod tests {
         expected.sort();
         assert_eq!(recorded, expected);
 
-        final_files(&CsbContext::new_test(), &main_store, &state).await?;
+        final_files(&main_store, &state).await?;
         assert_eq!(main_store.list_order_events(), 1);
 
         Ok(())

@@ -1,11 +1,8 @@
 use askama::Template;
-use axum::{
-    extract::Query,
-    response::{IntoResponse, Response},
-};
+use axum::response::{IntoResponse, Response};
 
 use crate::{
-    AppError, Context, CsbContext, CsbStore, Form, HtmlTemplate, Overlay, QueryParamState,
+    AppError, Context, CsbContext, CsbStore, Form, HtmlTemplate, Overlay, Query, QueryParamState,
     csb::examination::{
         extractors::CsbPoliticalGroup,
         pages::{

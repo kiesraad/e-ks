@@ -69,8 +69,7 @@ mod tests {
     use std::collections::BTreeSet;
 
     use crate::{
-        AppState, CsbAction, CsbMainAction, CsbUser, ElectionConfig, PgEvent, PgStoreData,
-        StreamId,
+        AppState, CsbAction, CsbMainAction, ElectionConfig, PgEvent, PgStoreData, StreamId,
         structs::{
             candidate_lists::CandidateList,
             csb::{HearingDetails, OmissionCategory, sample_omission},
@@ -158,20 +157,17 @@ mod tests {
         let state = AppState::new_for_tests().await;
         let main_store = CsbMainStore::new_for_test();
         main_store
-            .update(
-                CsbMainAction::UpdateHearingDetails(
-                    HearingModel::I1,
-                    HearingDetails {
-                        date_time: chrono::NaiveDate::from_ymd_opt(1999, 12, 31)
-                            .expect("valid date")
-                            .and_hms_opt(12, 34, 0)
-                            .expect("valid time"),
-                        chair: "Vera Voorzitter".to_string(),
-                        members: vec!["Jan Klaassen".to_string(), "Malle Babbe".to_string()],
-                    },
-                )
-                .by(CsbUser::new_test()),
-            )
+            .update(CsbMainAction::UpdateHearingDetails(
+                HearingModel::I1,
+                HearingDetails {
+                    date_time: chrono::NaiveDate::from_ymd_opt(1999, 12, 31)
+                        .expect("valid date")
+                        .and_hms_opt(12, 34, 0)
+                        .expect("valid time"),
+                    chair: "Vera Voorzitter".to_string(),
+                    members: vec!["Jan Klaassen".to_string(), "Malle Babbe".to_string()],
+                },
+            ))
             .await?;
 
         let model = i1_model(main_store, &state).await?;

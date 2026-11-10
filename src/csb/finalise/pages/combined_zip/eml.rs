@@ -5,7 +5,7 @@ use eml_nl::utils::ElectionId;
 use sha2::{Digest, Sha256};
 
 use crate::{
-    AppError, CsbContext, CsbMainStore, CsbStoreData, CsbStream, ElectionConfig, ElectoralDistrict,
+    AppError, CsbMainStore, CsbStoreData, CsbStream, ElectionConfig, ElectoralDistrict,
     csb::{
         examination::extractors::CsbPoliticalGroup,
         finalise::{numbering::ListNumbering, pages::combined_zip::Files},
@@ -24,7 +24,6 @@ use crate::{
 ///
 /// Districts without established lists get no 230b file.
 pub(super) async fn eml230_files(
-    context: &CsbContext,
     registry: &StoreRegistry<CsbStoreData>,
     main_store: &CsbMainStore,
 ) -> Result<(Files, Files), AppError> {
@@ -40,7 +39,7 @@ pub(super) async fn eml230_files(
         &main_store.list_order(),
     );
 
-    numbering.record_if_incomplete(context, main_store).await?;
+    numbering.record_if_incomplete(main_store).await?;
 
     // Each group's established, final list number, paired with its store
     let numbered_groups: Vec<(NonZeroU64, &CsbStream)> = numbering
@@ -140,8 +139,8 @@ mod tests {
     use super::*;
 
     use crate::{
-        AppRequestState, AppState, CsbMainAction, CsbUser, ElectionConfig, ElectoralDistrict,
-        Province, StreamId,
+        AppRequestState, AppState, CsbMainAction, ElectionConfig, ElectoralDistrict, Province,
+        StreamId,
         structs::{
             candidate_lists::CandidateList, csb::sample_registered_political_group,
             list_designation::ListDesignation, persons::PersonId, political_groups::PoliticalGroup,
@@ -186,7 +185,6 @@ mod tests {
     async fn eml230_files_blank_list_has_no_registered_name() -> Result<(), AppError> {
         let election = ElectionConfig::PS27(Province::Groningen);
         assert!(election.has_only_one_district());
-        let context = CsbContext::new_test();
 
         let state = AppState::new_for_tests().await;
         let candidate = sample_person(PersonId::new());
@@ -209,8 +207,7 @@ mod tests {
         .await;
 
         let main_store = main_store_for(election);
-        let (eml230bs, eml230c) =
-            eml230_files(&context, state.csb_store_registry(), &main_store).await?;
+        let (eml230bs, eml230c) = eml230_files(state.csb_store_registry(), &main_store).await?;
 
         assert_eq!(eml230bs.len(), 1);
         assert_eq!(eml230c.len(), 1);
@@ -226,7 +223,6 @@ mod tests {
     /// A single-district election yields one 230b, with the `geen` contest.
     #[tokio::test]
     async fn eml230_files_single_district_yields_one_geen_file() -> Result<(), AppError> {
-        let context = CsbContext::new_test();
         let election = ElectionConfig::PS27(Province::Groningen);
         assert!(election.has_only_one_district());
 
@@ -240,8 +236,7 @@ mod tests {
         .await;
         let main_store = main_store_for(election);
 
-        let (eml230bs, eml230c) =
-            eml230_files(&context, state.csb_store_registry(), &main_store).await?;
+        let (eml230bs, eml230c) = eml230_files(state.csb_store_registry(), &main_store).await?;
 
         assert_eq!(eml230bs.len(), 1);
         assert_eq!(eml230bs[0].0, "Kandidatenlijsten_PS2027_Groningen.eml.xml");
@@ -257,7 +252,6 @@ mod tests {
     /// list covers; each file's contest identifies that district only.
     #[tokio::test]
     async fn eml230_files_multi_district_yields_one_file_per_district() -> Result<(), AppError> {
-        let context = CsbContext::new_test();
         let election = ElectionConfig::PS27(Province::Limburg);
         let districts = election.electoral_districts();
         assert!(districts.len() > 1, "province needs multiple districts");
@@ -266,8 +260,7 @@ mod tests {
         sample_group(&state, election, "Alleen Eerste", [districts[0]]).await;
         let main_store = main_store_for(election);
 
-        let (eml230bs, eml230c) =
-            eml230_files(&context, state.csb_store_registry(), &main_store).await?;
+        let (eml230bs, eml230c) = eml230_files(state.csb_store_registry(), &main_store).await?;
 
         // Only the district the group's list covers gets a 230b file
         assert_eq!(eml230c[0].0, "Totaallijsten_PS2027_Limburg.eml.xml");
@@ -293,7 +286,6 @@ mod tests {
     /// district's file, under the same list number in each.
     #[tokio::test]
     async fn eml230_files_group_in_every_district_appears_in_every_file() -> Result<(), AppError> {
-        let context = CsbContext::new_test();
         let election = ElectionConfig::PS27(Province::Limburg);
         let districts = election.electoral_districts();
 
@@ -301,8 +293,7 @@ mod tests {
         sample_group(&state, election, "Overal", districts.iter().copied()).await;
         let main_store = main_store_for(election);
 
-        let (eml230bs, eml230c) =
-            eml230_files(&context, state.csb_store_registry(), &main_store).await?;
+        let (eml230bs, eml230c) = eml230_files(state.csb_store_registry(), &main_store).await?;
 
         // One 230b per district, plus the 230c for the whole election
         assert_eq!(eml230bs.len(), districts.len());
@@ -352,7 +343,6 @@ mod tests {
     /// there.
     #[tokio::test]
     async fn eml230_files_skips_groups_without_valid_candidates() -> Result<(), AppError> {
-        let context = CsbContext::new_test();
         let state = AppState::new_for_tests().await;
         let list = CandidateList {
             electoral_districts: ElectionConfig::EK27.electoral_districts()[0..1]
@@ -371,8 +361,7 @@ mod tests {
         .await;
 
         let main_store = CsbMainStore::new_for_test();
-        let (eml230bs, eml230c) =
-            eml230_files(&context, state.csb_store_registry(), &main_store).await?;
+        let (eml230bs, eml230c) = eml230_files(state.csb_store_registry(), &main_store).await?;
 
         assert!(eml230bs.is_empty());
         assert!(eml230c.is_empty());
@@ -384,7 +373,6 @@ mod tests {
     /// each affiliation's own list number and the print order.
     #[tokio::test]
     async fn eml230_files_numbers_by_the_final_list_order() -> Result<(), AppError> {
-        let context = CsbContext::new_test();
         let state = AppState::new_for_tests().await;
         let all_districts = ElectionConfig::EK27.electoral_districts().to_vec();
         let seated = sample_group(
@@ -398,18 +386,15 @@ mod tests {
 
         let main_store = CsbMainStore::new_for_test();
         main_store
-            .update(
-                CsbMainAction::CreateRegisteredPoliticalGroup(sample_registered_political_group(
-                    "Gezeteld", 1000, 2,
-                ))
-                .by(CsbUser::new_test()),
-            )
+            .update(CsbMainAction::CreateRegisteredPoliticalGroup(
+                sample_registered_political_group("Gezeteld", 1000, 2),
+            ))
             .await?;
         main_store
-            .update(CsbMainAction::UpdateListOrder(vec![by_lot, seated]).by(CsbUser::new_test()))
+            .update(CsbMainAction::UpdateListOrder(vec![by_lot, seated]))
             .await?;
 
-        let (eml230bs, _) = eml230_files(&context, state.csb_store_registry(), &main_store).await?;
+        let (eml230bs, _) = eml230_files(state.csb_store_registry(), &main_store).await?;
 
         // The recorded order puts "Loting" first, so it gets list number 1
         // and prints first; "Gezeteld" is 2 and prints second.
@@ -449,25 +434,11 @@ mod tests {
             assert!(position(r#"<AffiliationIdentifier Id="2">"#) < position("Zebra Partij"));
         };
 
-        assert_numbered(
-            eml230_files(
-                &CsbContext::new_test(),
-                state.csb_store_registry(),
-                &main_store,
-            )
-            .await?,
-        );
+        assert_numbered(eml230_files(state.csb_store_registry(), &main_store).await?);
         assert_eq!(main_store.list_order_events(), 1);
         assert_eq!(main_store.list_order(), [first, second]);
 
-        assert_numbered(
-            eml230_files(
-                &CsbContext::new_test(),
-                state.csb_store_registry(),
-                &main_store,
-            )
-            .await?,
-        );
+        assert_numbered(eml230_files(state.csb_store_registry(), &main_store).await?);
         assert_eq!(main_store.list_order_events(), 1);
 
         Ok(())
@@ -477,7 +448,6 @@ mod tests {
     /// the underlying lists were created in.
     #[tokio::test]
     async fn eml230_files_prints_by_established_list_number() -> Result<(), AppError> {
-        let context = CsbContext::new_test();
         let state = AppState::new_for_tests().await;
         let all_districts = ElectionConfig::EK27.electoral_districts().to_vec();
         // Created first, but alphabetically (and so numbered) last.
@@ -492,7 +462,7 @@ mod tests {
         sample_group(&state, ElectionConfig::EK27, "Andere Partij", all_districts).await;
 
         let main_store = CsbMainStore::new_for_test();
-        let (eml230bs, _) = eml230_files(&context, state.csb_store_registry(), &main_store).await?;
+        let (eml230bs, _) = eml230_files(state.csb_store_registry(), &main_store).await?;
 
         let xml = String::from_utf8(eml230bs[0].1.clone()).unwrap();
         let position = |needle: &str| xml.find(needle).expect("group in export");
