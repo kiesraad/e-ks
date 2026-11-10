@@ -42,7 +42,11 @@ impl LoginOrigin {
 }
 
 /// Cookie with the shared session cookie attributes applied.
-fn build_cookie(name: &'static str, value: String, same_site: SameSite) -> Cookie<'static> {
+pub(crate) fn build_cookie(
+    name: &'static str,
+    value: String,
+    same_site: SameSite,
+) -> Cookie<'static> {
     let mut cookie = Cookie::new(name, value);
     apply_session_cookie_attributes(&mut cookie, same_site);
     cookie
@@ -50,7 +54,7 @@ fn build_cookie(name: &'static str, value: String, same_site: SameSite) -> Cooki
 
 /// Expired twin of a cookie for clearing it. Attributes must match the set
 /// cookie (esp. `Secure` + `Path=/` for the `__Host-` prefix) or it lingers.
-fn build_expired_cookie(name: &'static str) -> Cookie<'static> {
+pub(crate) fn build_expired_cookie(name: &'static str) -> Cookie<'static> {
     let mut cookie = Cookie::from(name);
     apply_session_cookie_attributes(&mut cookie, SameSite::Strict);
     cookie

@@ -56,7 +56,8 @@ pub(crate) enum LoginFailure {
     AssertionMalformed(serde_json::Error),
     /// Not the shape of a challenge this server mints (§13.4.3).
     ChallengeMalformed,
-    /// Not issued by this server, expired, or answered before (§13.4.3).
+    /// Not issued by this server to this browser, expired, or answered
+    /// before (§13.4.3).
     ChallengeNotPending,
     /// `credential.rawId` is not among the configured credentials (step 5).
     UnknownKey,
@@ -84,7 +85,9 @@ impl Display for LoginFailure {
         match self {
             Self::AssertionMalformed(err) => write!(f, "assertion is malformed: {err}"),
             Self::ChallengeMalformed => f.write_str("challenge is not 32 bytes base64url"),
-            Self::ChallengeNotPending => f.write_str("challenge is unknown, expired, or replayed"),
+            Self::ChallengeNotPending => {
+                f.write_str("challenge is unknown, expired, replayed, or from another browser")
+            }
             Self::UnknownKey => f.write_str("assertion is for an unknown security key"),
             Self::NoElection => f.write_str("no election was picked"),
             Self::Rejected { error, .. } => write!(f, "assertion rejected: {error}"),
@@ -95,11 +98,12 @@ impl Display for LoginFailure {
 /// Finds the key that answered, burns the challenge it signed, verifies the
 /// assertion the browser posted and checks its signature counter against
 /// `last_sign_count`, the counter recorded at that key's previous login (0
-/// when there was none). Fails closed (step 25): any error means "login
-/// failed".
+/// when there was none). `binding` is the challenge cookie's value. Fails
+/// closed (step 25): any error means "login failed".
 pub(crate) async fn verify_login(
     pending: &PendingRequestStore,
     config: &CsbWebauthnConfig,
+    binding: &str,
     credential: &str,
     last_sign_count: impl FnOnce(&CredentialId) -> u32,
 ) -> Result<VerifiedLogin, LoginFailure> {
@@ -119,7 +123,7 @@ pub(crate) async fn verify_login(
     // §13.4.3: the challenge the key signed must be one this server issued
     // and not answered before; step 11 then holds the signature to it.
     let challenge = assertion.challenge().map_err(rejected)?;
-    consume_challenge(pending, &challenge).await?;
+    consume_challenge(pending, &challenge, binding).await?;
     let sign_count = assertion
         .verify(&Expected {
             // Step 11: `pkOptions.challenge`, as issued.
@@ -292,15 +296,17 @@ pub(crate) mod test_support {
 #[cfg(test)]
 mod tests {
     use base64::{Engine, prelude::BASE64_URL_SAFE_NO_PAD};
+    use secrecy::ExposeSecret;
 
     use super::{test_support::*, *};
 
-    /// Issues a challenge; the bytes the key signs.
-    async fn started(pending: &PendingRequestStore) -> Vec<u8> {
+    /// Issues a challenge: the bytes the key signs, and its binding.
+    async fn started(pending: &PendingRequestStore) -> (Vec<u8>, String) {
         let challenge = Challenge::issue(pending).await;
-        BASE64_URL_SAFE_NO_PAD
+        let raw = BASE64_URL_SAFE_NO_PAD
             .decode(challenge.as_str())
-            .expect("base64url")
+            .expect("base64url");
+        (raw, challenge.binding.expose_secret().to_string())
     }
 
     /// No earlier login: nothing recorded for any key.
@@ -313,9 +319,15 @@ mod tests {
         let config = webauthn_test_config();
         let config = config.csb_webauthn.as_ref().expect("config");
         let pending = PendingRequestStore::default();
-        let challenge = started(&pending).await;
+        let (challenge, binding) = started(&pending).await;
 
-        let login = verify_login(&pending, config, &signed_assertion(&challenge), no_counter)
+        let assertion = signed_assertion(&challenge);
+        // Not without the browser's cookie.
+        assert!(matches!(
+            verify_login(&pending, config, "", &assertion, no_counter).await,
+            Err(LoginFailure::ChallengeNotPending)
+        ));
+        let login = verify_login(&pending, config, &binding, &assertion, no_counter)
             .await
             .expect("valid login");
         assert_eq!(login.username, alice());
@@ -331,22 +343,22 @@ mod tests {
         let config = config.csb_webauthn.as_ref().expect("config");
         let pending = PendingRequestStore::default();
 
-        let challenge = started(&pending).await;
+        let (challenge, binding) = started(&pending).await;
         let assertion = signed_assertion(&challenge);
         assert!(
-            verify_login(&pending, config, &assertion, no_counter)
+            verify_login(&pending, config, &binding, &assertion, no_counter)
                 .await
                 .is_ok()
         );
         assert!(matches!(
-            verify_login(&pending, config, &assertion, no_counter).await,
+            verify_login(&pending, config, &binding, &assertion, no_counter).await,
             Err(LoginFailure::ChallengeNotPending)
         ));
 
-        let challenge = started(&pending).await;
+        let (challenge, binding) = started(&pending).await;
         let mut bad = TestAssertion::new(&challenge);
         bad.origin = "https://evil.example".to_string();
-        let failure = verify_login(&pending, config, &bad.json(), no_counter)
+        let failure = verify_login(&pending, config, &binding, &bad.json(), no_counter)
             .await
             .expect_err("wrong origin");
         assert!(matches!(
@@ -359,7 +371,7 @@ mod tests {
         assert_eq!(failure.username(), Some(&alice()));
         let good = signed_assertion(&challenge);
         assert!(matches!(
-            verify_login(&pending, config, &good, no_counter).await,
+            verify_login(&pending, config, &binding, &good, no_counter).await,
             Err(LoginFailure::ChallengeNotPending)
         ));
     }
@@ -380,10 +392,10 @@ mod tests {
             (10, 9, false),
             (10, 0, false),
         ] {
-            let challenge = started(&pending).await;
+            let (challenge, binding) = started(&pending).await;
             let mut assertion = TestAssertion::new(&challenge);
             assertion.sign_count = reported;
-            let result = verify_login(&pending, config, &assertion.json(), |id| {
+            let result = verify_login(&pending, config, &binding, &assertion.json(), |id| {
                 assert_eq!(id, &test_credential_id());
                 recorded
             })
@@ -407,28 +419,42 @@ mod tests {
         let config = config.csb_webauthn.as_ref().expect("config");
         let pending = PendingRequestStore::default();
 
-        let challenge = started(&pending).await;
+        let (challenge, binding) = started(&pending).await;
         let mut unknown = TestAssertion::new(&challenge);
         unknown.credential_id = vec![0x22; 64].into();
         assert!(matches!(
-            verify_login(&pending, config, &unknown.json(), no_counter).await,
+            verify_login(&pending, config, &binding, &unknown.json(), no_counter).await,
             Err(LoginFailure::UnknownKey)
         ));
 
         // A challenge this server never issued, and one of the wrong size.
         assert!(matches!(
-            verify_login(&pending, config, &signed_assertion(&[9; 32]), no_counter).await,
+            verify_login(
+                &pending,
+                config,
+                &binding,
+                &signed_assertion(&[9; 32]),
+                no_counter
+            )
+            .await,
             Err(LoginFailure::ChallengeNotPending)
         ));
         assert!(matches!(
-            verify_login(&pending, config, &signed_assertion(&[9; 31]), no_counter).await,
+            verify_login(
+                &pending,
+                config,
+                &binding,
+                &signed_assertion(&[9; 31]),
+                no_counter
+            )
+            .await,
             Err(LoginFailure::ChallengeMalformed)
         ));
 
         for credential in ["", "{}", "not json", r#"{"rawId":"AAAA","response":{}}"#] {
             assert!(
                 matches!(
-                    verify_login(&pending, config, credential, no_counter).await,
+                    verify_login(&pending, config, &binding, credential, no_counter).await,
                     Err(LoginFailure::AssertionMalformed(_))
                 ),
                 "{credential}"

@@ -20,6 +20,13 @@ pub use paths::{CsbLoginFinishPath, CsbLoginPath};
 
 use crate::{AppError, Config, CsbWebauthnConfig};
 
+/// Cookie binding the login challenge to the browser; prefixed like
+/// [`crate::SESSION_COOKIE_NAME`].
+#[cfg(feature = "dev-features")]
+const CHALLENGE_COOKIE_NAME: &str = "EKS_CSB_LOGIN";
+#[cfg(not(feature = "dev-features"))]
+const CHALLENGE_COOKIE_NAME: &str = "__Host-EKS_CSB_LOGIN";
+
 /// The security-key config, or 404 when this deployment has no CSB login.
 fn require_webauthn(config: &Config) -> Result<&CsbWebauthnConfig, AppError> {
     config
