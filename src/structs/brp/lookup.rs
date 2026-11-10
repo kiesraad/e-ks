@@ -48,10 +48,10 @@ pub struct BrpLookup {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BrpLookupOutcome {
-    /// The BRP answered with these persons, each by the burgerservicenummer
-    /// it returned for them. Kept as the BRP wrote them: a number this
-    /// application cannot read is still a person the BRP returned.
-    Returned { bsns: Vec<String> },
+    /// The BRP answered with this many persons. Their burgerservicenummers are
+    /// not kept: a search that resolves to one person records it in the
+    /// finding, and for several matches no number is shown anywhere.
+    Returned { count: usize },
     /// The request failed, so nothing was compared.
     Failed { error: String },
 }

@@ -15,7 +15,7 @@ detail:
     query_consult: Raadpleging op burgerservicenummer
     query_search: Zoeken op achternaam en geboortedatum
     result: Resultaat
-    returned: "Teruggegeven personen, op burgerservicenummer"
+    returned: Teruggegeven personen
     returned_none: Geen
   collections:
     to: naar

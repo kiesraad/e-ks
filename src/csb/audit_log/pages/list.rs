@@ -384,7 +384,7 @@ mod tests {
                         bsn: vec!["999992806".parse().unwrap()],
                         fields: vec![BrpField::Bsn],
                     },
-                    outcome: BrpLookupOutcome::Returned { bsns: vec![] },
+                    outcome: BrpLookupOutcome::Returned { count: 0 },
                 })
                 .by(CsbUser::new_test()),
             )

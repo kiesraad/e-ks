@@ -294,8 +294,9 @@ vastgelegd vóór de bevindingen die eruit volgen, met:
 
 - voor welke kandidaten de bevraging is gedaan;
 - het bericht precies zoals het is verstuurd (hoofdstuk 4);
-- de uitkomst: ofwel de burgerservicenummers van de personen die de
-  tussenpartij teruggaf, ofwel de foutmelding als de bevraging mislukte.
+- de uitkomst: ofwel het aantal personen dat de tussenpartij teruggaf (de
+  burgerservicenummers worden niet bewaard), ofwel de foutmelding als de
+  bevraging mislukte.
 
 Het auditlog bevat daarmee elk moment waarop gegevens van een kandidaat naar de
 tussenpartij zijn gestuurd, inclusief bevragingen die de tussenpartij heeft
