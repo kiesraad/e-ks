@@ -93,6 +93,8 @@ pub(super) struct PresetView {
     help_text: String,
     /// Whether this preset describes a recoverable omission ("herstelbaar").
     recoverable: bool,
+    /// The district variants as JSON, for the dialog to pick from.
+    district_variants: Option<String>,
 }
 
 /// The presets of one category, listed together under [`Self::title`].
@@ -125,8 +127,8 @@ fn placeholders_for(target: &OmissionTarget, data: &CsbStoreData) -> OmissionPla
             }
         }
         // With a single district the district selector is hidden, so the
-        // district tokens are filled here; otherwise the dialog fills them from
-        // the selected checkboxes.
+        // district tokens are filled here and the dialog picks the one-district
+        // variant; otherwise the dialog fills them from the selected checkboxes.
         OmissionType::DeclarationsOfSupport => OmissionPlaceholders {
             districts: match available_electoral_districts(data).as_slice() {
                 [district] => Some(district.title().to_string()),
@@ -193,6 +195,10 @@ pub(super) fn preset_views(target: &OmissionTarget, data: &CsbStoreData) -> Vec<
             description: placeholders.interpolate(&preset.description),
             help_text: placeholders.interpolate(&preset.help_text),
             recoverable: preset.recoverable,
+            district_variants: preset.district_variants.as_ref().map(|variants| {
+                serde_json::to_string(&variants.interpolate(&placeholders))
+                    .expect("district variants should serialize")
+            }),
         };
 
         match groups.iter_mut().find(|group| group.title == preset.group) {

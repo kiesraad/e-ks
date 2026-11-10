@@ -69,7 +69,7 @@ test.describe("create documents", async () => {
     await politicalGroupPage.selectedGroup(groupName);
     await politicalGroupPage.linkSupportDeclarations.click();
     await omissionPage.checkboxAllLists.check();
-    await omissionPage.buttonMissingAllDistricts.click();
+    await omissionPage.buttonMissing.click();
     await omissionPage.buttonAddAndClose.click();
     await expect(
       page.getByText(

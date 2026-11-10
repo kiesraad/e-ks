@@ -37,7 +37,7 @@ test("finalize examination with omissions", async ({ csbImport }) => {
   await page.waitForURL(/\/omission\//);
 
   await page.getByRole("checkbox", { name: "1. Groningen" }).check();
-  await omissionsPage.buttonMissingAllDistricts.click();
+  await omissionsPage.buttonMissing.click();
   await expect(omissionsPage.checkboxRecoverable).toBeChecked();
   await omissionsPage.textfieldLetter.fill("Testtoevoeging");
   await omissionsPage.buttonAddAndClose.click();

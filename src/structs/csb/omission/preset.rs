@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::LazyLock};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// A predefined omission ("verzuim") offered as a quick-fill suggestion in the
 /// add-omission dialog, split into the model I 1 [`Self::description`] and the
@@ -9,12 +9,69 @@ use serde::Deserialize;
 pub struct PresetOmission {
     /// Short title shown in the quick-fill pill.
     pub title: String,
+    /// Empty when the texts come from [`Self::district_variants`].
+    #[serde(default)]
     pub description: String,
+    #[serde(default)]
     pub help_text: String,
     #[serde(default = "super::recoverable_by_default")]
     pub recoverable: bool,
     #[serde(default)]
     pub group: Option<String>,
+    /// Texts that depend on how many districts are selected; the dialog picks
+    /// one whenever the district selection changes.
+    #[serde(default)]
+    pub district_variants: Option<DistrictVariants>,
+}
+
+/// The title and texts an omission is filled with.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct PresetText {
+    pub title: String,
+    pub description: String,
+    pub help_text: String,
+}
+
+impl PresetText {
+    fn interpolate(&self, placeholders: &OmissionPlaceholders) -> Self {
+        PresetText {
+            title: self.title.clone(),
+            description: placeholders.interpolate(&self.description),
+            help_text: placeholders.interpolate(&self.help_text),
+        }
+    }
+}
+
+/// The texts for one, several or all of the available districts.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct DistrictVariants {
+    pub one: PresetText,
+    pub multiple: PresetText,
+    pub all: PresetText,
+}
+
+impl DistrictVariants {
+    pub fn interpolate(&self, placeholders: &OmissionPlaceholders) -> Self {
+        DistrictVariants {
+            one: self.one.interpolate(placeholders),
+            multiple: self.multiple.interpolate(placeholders),
+            all: self.all.interpolate(placeholders),
+        }
+    }
+}
+
+impl PresetOmission {
+    /// Every title and text set this preset can fill the form with.
+    pub fn texts(&self) -> Vec<PresetText> {
+        match &self.district_variants {
+            Some(v) => vec![v.one.clone(), v.multiple.clone(), v.all.clone()],
+            None => vec![PresetText {
+                title: self.title.clone(),
+                description: self.description.clone(),
+                help_text: self.help_text.clone(),
+            }],
+        }
+    }
 }
 
 /// Values used to interpolate the `{token}` placeholders in an omission
@@ -74,7 +131,7 @@ pub mod tests {
     fn presets_are_loaded_from_json_per_type() {
         assert_eq!(OmissionType::Appellation.presets().len(), 2);
         assert_eq!(OmissionType::CandidateList.presets().len(), 4);
-        assert_eq!(OmissionType::DeclarationsOfSupport.presets().len(), 4);
+        assert_eq!(OmissionType::DeclarationsOfSupport.presets().len(), 2);
         assert_eq!(OmissionType::Candidate.presets().len(), 12);
 
         // Every preset carries a title and description;
@@ -160,9 +217,14 @@ pub mod tests {
                     .title
                     .parse::<OmissionTitle>()
                     .unwrap_or_else(|e| panic!("preset title {:?}: {e:?}", preset.title));
-                assert_fits(&preset.description);
-                if !preset.help_text.is_empty() {
-                    assert_fits(&preset.help_text);
+                for text in preset.texts() {
+                    text.title
+                        .parse::<OmissionTitle>()
+                        .unwrap_or_else(|e| panic!("preset title {:?}: {e:?}", text.title));
+                    assert_fits(&text.description);
+                    if !text.help_text.is_empty() {
+                        assert_fits(&text.help_text);
+                    }
                 }
             }
         }
@@ -171,18 +233,18 @@ pub mod tests {
     #[test]
     fn declarations_of_support_presets_name_the_districts_in_the_help_text_only() {
         // Model I 1 never names districts, the omission letter does.
-        for preset in OmissionType::DeclarationsOfSupport.presets() {
-            assert!(
-                !preset.description.contains("{district"),
-                "{:?}",
-                preset.title
-            );
-        }
-        let with_districts: Vec<_> = OmissionType::DeclarationsOfSupport
+        let texts: Vec<_> = OmissionType::DeclarationsOfSupport
             .presets()
             .iter()
-            .filter(|p| p.help_text.contains("{district}") || p.help_text.contains("{districts}"))
-            .map(|p| p.title.as_str())
+            .flat_map(PresetOmission::texts)
+            .collect();
+        for text in &texts {
+            assert!(!text.description.contains("{district"), "{:?}", text.title);
+        }
+        let with_districts: Vec<_> = texts
+            .iter()
+            .filter(|t| t.help_text.contains("{district}") || t.help_text.contains("{districts}"))
+            .map(|t| t.title.as_str())
             .collect();
         assert_eq!(
             with_districts,

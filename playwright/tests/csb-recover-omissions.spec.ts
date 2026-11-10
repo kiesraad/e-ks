@@ -31,7 +31,7 @@ test.describe("recover omissions", async () => {
     await expect(omissionsPage.headerDeclarationsOfSupport).toBeVisible();
     await page.getByRole("checkbox", { name: "1. Groningen" }).check();
     await page.getByRole("checkbox", { name: "2. Fryslân" }).check();
-    await omissionsPage.buttonMissingMultipleDistricts.click();
+    await omissionsPage.buttonMissing.click();
     await omissionsPage.buttonAddAndClose.click();
     await politicalGroupPage.buttonHome.click();
 
