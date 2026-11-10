@@ -187,7 +187,7 @@ fn appellation_path(political_group: &CsbPoliticalGroup) -> Option<String> {
                 political_group.all_restorations_path(),
             ))
             .to_string(),
-        CsbPhase::Recovery => political_group.general_information_path(),
+        CsbPhase::Recovery => political_group.group_path(),
     })
 }
 

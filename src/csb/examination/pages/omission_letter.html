@@ -5,7 +5,7 @@
     <p class="font-italic">{{ "csb.omission.overview.no_omissions"|trans }}</p>
   {% else %}
     {% if !all_omissions.general.is_empty() %}
-      <h3 class="examination-panel-group">{{ "common.general_information"|trans }}</h3>
+      <h3 class="examination-panel-group">{{ "political_group.appellation_any"|trans }}</h3>
       <ul class="omission-status-list">
         {% for view in all_omissions.general %}{{ restorations::omission_row(political_group, view.omission) }}{% endfor %}
       </ul>

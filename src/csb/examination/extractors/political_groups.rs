@@ -593,7 +593,6 @@ mod tests {
             ),
             ..CsbPoliticalGroup::sample("Kiesraad Demo")
         };
-        dbg!(&group.political_group.appellation);
         assert_eq!("Kiesraad Demo", group.csb_appellation());
         assert_eq!("Blanco (Present, P.)", group.numbering_appellation());
     }

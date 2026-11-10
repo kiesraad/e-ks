@@ -75,7 +75,7 @@ fn omission_letter_model(
     Ok(OmissionLetter {
         election_name: election.formal_title(ModelLocale::Nl),
         location: session.location.to_string(),
-        // Sent on the day of the examination ("vergadering van heden").
+        // The day of the examination, named in the letter ("vergadering van ...").
         date: election.document_review_date(),
         addressee: Person::from(pg.get_list_submitter().clone()),
         appellation: pg.get_appellation(),

@@ -103,6 +103,7 @@ finalise:
   order_note: "Politieke groeperingen die bij de laatstgehouden verkiezing een of meer zetels hebben behaald, staan vooraan op volgorde van het aantal stemmen. Versleep de lijsten in de volgorde die tijdens de zitting is vastgesteld."
   order_title: Partij volgorde
   position: Positie
+  session_results_title: Resultaten zitting
   title: Vaststellen kandidatenlijsten
   unassessed_warning: "Er zijn nog <strong>{}</strong> niet beoordeelde verzuimen. Ga terug naar Fase 3 om ze te beoordelen."
 finish_examination:

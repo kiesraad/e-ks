@@ -76,7 +76,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn for_political_group_omission_and_correction() -> Result<(), AppError> {
+    async fn for_political_group_correction() -> Result<(), AppError> {
         let store = CsbStore::new_for_test();
 
         store

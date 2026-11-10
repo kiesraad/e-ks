@@ -103,6 +103,7 @@ finalise:
   order_note: "Political groups that obtained one or more seats at the previous election start at the top, in the order of their votes. Drag the lists into the order determined during the session."
   order_title: Political group order
   position: Position
+  session_results_title: Results of the public session
   title: Finalise candidate lists
   unassessed_warning: "There are <strong>{}</strong> unassessed omissions. Go back to phase 3 to assess them."
 finish_examination:
