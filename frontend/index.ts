@@ -29,6 +29,7 @@ import setupStepNav from "./scripts/generic-ui/step-nav";
 import setupStickyNav from "./scripts/generic-ui/sticky-nav";
 import highlightActiveLinks from "./scripts/highlights-alerts/active-link";
 import alertSuccess from "./scripts/highlights-alerts/alert-success";
+import setupConfetti from "./scripts/highlights-alerts/confetti";
 import setupDownloadWarning from "./scripts/highlights-alerts/download-warning";
 import highlightRow from "./scripts/highlights-alerts/highlight-row";
 import setupClickCard from "./scripts/generic-ui/click-card";
@@ -47,6 +48,7 @@ setupClickCard();
 // highlights and alerts
 highlightActiveLinks();
 alertSuccess();
+setupConfetti();
 setupDownloadWarning();
 highlightRow();
 
