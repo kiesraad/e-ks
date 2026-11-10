@@ -1,7 +1,8 @@
-use std::path::Path;
+use std::{collections::HashMap, path::Path};
 
 use anyhow::{Context, Result};
 use serde::Deserialize;
+use sha2::{Digest, Sha256};
 use tokio::{fs, process::Command};
 
 use eks_development::{
@@ -68,6 +69,8 @@ struct ToolConfig {
     name: String,
     version: String,
     base_url: String,
+    /// sha256 of the download, keyed by platform suffix
+    sha256: HashMap<String, String>,
 }
 
 #[derive(Deserialize)]
@@ -166,6 +169,28 @@ impl ToolConfig {
         Ok(())
     }
 
+    async fn verify_sha256(&self, platform_suffix: &str, file: &Path) -> Result<()> {
+        let expected = self.sha256.get(platform_suffix).with_context(|| {
+            format!("no sha256 for {} {platform_suffix} in setup.yml", self.name)
+        })?;
+        let bytes = fs::read(file)
+            .await
+            .with_context(|| format!("read downloaded {}", self.name))?;
+        let actual: String = Sha256::digest(&bytes)
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect();
+
+        if &actual != expected {
+            anyhow::bail!(
+                "sha256 mismatch for {} {platform_suffix}: expected {expected}, got {actual}",
+                self.name
+            );
+        }
+
+        Ok(())
+    }
+
     async fn install(&self, platform: &str, target: &Path) -> Result<()> {
         match self.name.as_str() {
             "esbuild" => install_esbuild(platform, target, self).await,
@@ -185,6 +210,7 @@ async fn install_esbuild(platform: &str, target: &Path, tool: &ToolConfig) -> Re
     );
 
     run("curl", &["-fo", pts(&temp_esbuild)?, &url]).await?;
+    tool.verify_sha256(platform_suffix, &temp_esbuild).await?;
 
     println!("📂 Extracting esbuild...");
     run(
@@ -214,20 +240,28 @@ async fn install_biome(platform: &str, target: &Path, tool: &ToolConfig) -> Resu
     let platform_suffix = platform_suffix(platform, &BIOME_SUFFIXES)?;
     let url = format!("{}{}/{}", tool.base_url, tool.version, platform_suffix);
 
-    download_executable(&url, target, &tool.name).await
+    run("curl", &["-Lfo", pts(target)?, &url])
+        .await
+        .with_context(|| format!("download {}", tool.name))?;
+    if let Err(e) = tool.verify_sha256(platform_suffix, target).await {
+        // never leave an unverified binary behind
+        fs::remove_file(target).await.ok();
+        return Err(e);
+    }
+    run("chmod", &["+x", pts(target)?])
+        .await
+        .with_context(|| format!("mark {} as executable", tool.name))
 }
 
-const ESBUILD_SUFFIXES: [(&str, &str); 5] = [
+const ESBUILD_SUFFIXES: [(&str, &str); 4] = [
     ("Darwin arm64", "darwin-arm64"),
-    ("Darwin x86_64", "darwin-x64"),
     ("Linux arm64", "linux-arm64"),
     ("Linux aarch64", "linux-arm64"),
     ("Linux x86_64", "linux-x64"),
 ];
 
-const BIOME_SUFFIXES: [(&str, &str); 5] = [
+const BIOME_SUFFIXES: [(&str, &str); 4] = [
     ("Darwin arm64", "biome-darwin-arm64"),
-    ("Darwin x86_64", "biome-darwin-x64"),
     ("Linux arm64", "biome-linux-arm64-musl"),
     ("Linux aarch64", "biome-linux-arm64-musl"),
     ("Linux x86_64", "biome-linux-x64-musl"),
@@ -238,15 +272,4 @@ fn platform_suffix<'a>(platform: &str, suffixes: &'a [(&str, &'a str)]) -> Resul
         .iter()
         .find_map(|(key, suffix)| (*key == platform).then_some(*suffix))
         .ok_or_else(|| anyhow::anyhow!("unsupported platform: {platform}"))
-}
-
-async fn download_executable(url: &str, target: &Path, tool_name: &str) -> Result<()> {
-    run("curl", &["-Lfo", pts(target)?, url])
-        .await
-        .with_context(|| format!("download {tool_name}"))?;
-    run("chmod", &["+x", pts(target)?])
-        .await
-        .with_context(|| format!("mark {tool_name} as executable"))?;
-
-    Ok(())
 }

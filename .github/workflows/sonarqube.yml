@@ -26,22 +26,16 @@ jobs:
     env:
       CARGO_TERM_COLOR: always
       TZ: "Europe/Amsterdam"
-    # For the sqlx tests; mirrors compose.yml
-    services:
-      postgres:
-        image: postgres:18-alpine
-        env:
-          POSTGRES_USER: eks
-          POSTGRES_DB: eks
-          POSTGRES_HOST_AUTH_METHOD: trust
-        ports: ['5432:5432']
-        options: --health-cmd "pg_isready -U eks" --health-interval 1s --health-timeout 5s --health-retries 30
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: '0'
           persist-credentials: false
+
+      # For the sqlx tests; uses compose.yml so Dependabot keeps one image pin up to date
+      - name: Start postgres
+        run: docker compose up --detach --wait --quiet-pull psql
 
       # Branch coverage requires Rust nightly: https://github.com/taiki-e/cargo-llvm-cov/issues/8
       - name: Setup Rust Nightly
@@ -64,7 +58,9 @@ jobs:
       - name: Install esbuild
         run: |
           version=$(yq '.tools[] | select(.name == "esbuild") | .version' development/setup.yml)
+          sha256=$(yq '.tools[] | select(.name == "esbuild") | .sha256["linux-x64"]' development/setup.yml)
           curl -fsSo esbuild.tgz "https://registry.npmjs.org/@esbuild/linux-x64/-/linux-x64-${version}.tgz"
+          echo "${sha256}  esbuild.tgz" | sha256sum -c -
           tar -xzf esbuild.tgz --strip-components=2 -C bin package/bin/esbuild
           rm esbuild.tgz
           bin/esbuild --version

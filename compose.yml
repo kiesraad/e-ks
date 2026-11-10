@@ -1,6 +1,6 @@
 services:
   psql:
-    image: postgres:18-alpine
+    image: postgres:18-alpine@sha256:123b17998ccaf47e53b502e8c6a1e79afd8f579c6f3eec83c563da026f957395
     command: ["postgres", "-c", "log_min_messages=fatal"]
     environment:
       POSTGRES_USER: eks
@@ -8,10 +8,15 @@ services:
       POSTGRES_HOST_AUTH_METHOD: trust
       TZ: Europe/Amsterdam
     ports: ['127.0.0.1:5432:5432']
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "eks"]
+      interval: 1s
+      timeout: 5s
+      retries: 30
     networks: [default]
 
   personen-mock:
-    image: ghcr.io/brp-api/personen-mock:2.7.0-latest
+    image: ghcr.io/brp-api/personen-mock:2.7.0-latest@sha256:613605a8e613e0610d5209b67e8371ea5355085834951bfe105d9e4229d4571a
     environment:
       - ASPNETCORE_ENVIRONMENT=Release
       - ASPNETCORE_URLS=http://+:5010
