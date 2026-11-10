@@ -41,6 +41,7 @@ super::define_elections! {
         presubmission_end_date: const { date(2027, 4, 16) },
         nomination_day_date: const { date(2027, 4, 20) },
         document_review_date: const { date(2027, 4, 21) },
+        omission_period_start_date: const { date(2027, 4, 22) },
         omission_period_end_date: const { date(2027, 4, 26) },
         omission_period_end_time: const { time(17, 0) },
         public_session: PublicSession {
@@ -78,6 +79,7 @@ super::define_elections! {
         presubmission_end_date: const { date(2027, 1, 28) },
         nomination_day_date: const { date(2027, 2, 1) },
         document_review_date: const { date(2027, 2, 2) },
+        omission_period_start_date: const { date(2027, 2, 3) },
         omission_period_end_date: const { date(2027, 2, 4) },
         omission_period_end_time: const { time(17, 0) },
         public_session: PublicSession {
@@ -124,6 +126,7 @@ super::define_elections! {
         presubmission_end_date: const { date(2027, 1, 28) },
         nomination_day_date: const { date(2027, 2, 1) },
         document_review_date: const { date(2027, 2, 2) },
+        omission_period_start_date: const { date(2027, 2, 3) },
         omission_period_end_date: const { date(2027, 2, 4) },
         omission_period_end_time: const { time(17, 0) },
         public_session: PublicSession {

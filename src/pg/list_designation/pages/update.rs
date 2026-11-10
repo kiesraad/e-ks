@@ -1,9 +1,9 @@
-use crate::structs::{list_designation::ListDesignation, political_groups::PoliticalGroup};
-use askama::Template;
-use axum::{
-    extract::Query,
-    response::{IntoResponse, Response},
+use crate::{
+    Query,
+    structs::{list_designation::ListDesignation, political_groups::PoliticalGroup},
 };
+use askama::Template;
+use axum::response::{IntoResponse, Response};
 
 use crate::{
     AppError, Context, Form, HtmlTemplate, PgStore, QueryParamState, filters,
@@ -91,7 +91,7 @@ pub async fn update_list_designation_submit(
 mod tests {
     use super::*;
     use crate::{
-        AppError, Context, Form, PgStore, QueryParamState,
+        AppError, Context, Form, PgStore, Query, QueryParamState,
         structs::csb::RegisteredPoliticalGroupId, test_utils::response_body_string,
     };
     use axum::{

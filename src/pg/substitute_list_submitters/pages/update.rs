@@ -1,9 +1,9 @@
-use crate::structs::list_submitters::{ListSubmitter, ListSubmitterData};
-use askama::Template;
-use axum::{
-    extract::Query,
-    response::{IntoResponse, Response},
+use crate::{
+    Query,
+    structs::list_submitters::{ListSubmitter, ListSubmitterData},
 };
+use askama::Template;
+use axum::response::{IntoResponse, Response};
 
 use crate::{
     AppError, Context, Form, HtmlTemplate, Overlay, PgStore, QueryParamState, filters,
@@ -71,7 +71,7 @@ pub async fn update_substitute_submitter_submit(
 mod tests {
     use super::*;
     use crate::{
-        QueryParamState,
+        Query, QueryParamState,
         structs::list_submitters::ListSubmitterId,
         test_utils::{sample_list_submitter, sample_list_submitter_form},
     };

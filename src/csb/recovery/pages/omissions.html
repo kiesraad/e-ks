@@ -33,16 +33,14 @@
         {% if !all_omissions.general.is_empty() %}
           <h3 class="examination-panel-group">{{ "common.general_information"|trans }}</h3>
           <ul class="omission-status-list">
-            {% for view in all_omissions.general %}
-              {{ restorations::status_row(political_group, view.omission, view.path, redirect) }}
-            {% endfor %}
+            {% for view in all_omissions.general %}{{ restorations::status_row(political_group, view, redirect) }}{% endfor %}
           </ul>
         {% endif %}
         {% if !all_omissions.declarations_of_support.is_empty() %}
           <h3 class="examination-panel-group">{{ "csb.declarations_of_support.title"|trans }}</h3>
           <ul class="omission-status-list">
             {% for view in all_omissions.declarations_of_support %}
-              {{ restorations::status_row(political_group, view.omission, view.path, redirect) }}
+              {{ restorations::status_row(political_group, view, redirect) }}
             {% endfor %}
           </ul>
         {% endif %}
@@ -50,7 +48,7 @@
           <h3 class="examination-panel-group">{{ "candidate_list.title_plural"|trans }}</h3>
           <ul class="omission-status-list">
             {% for view in all_omissions.candidate_lists %}
-              {{ restorations::status_row(political_group, view.omission, view.path, redirect) }}
+              {{ restorations::status_row(political_group, view, redirect) }}
             {% endfor %}
           </ul>
         {% endif %}
@@ -58,7 +56,7 @@
           <h3 class="examination-panel-group">{{ candidate.person.name.display() }}</h3>
           <ul class="omission-status-list">
             {% for view in candidate.omissions %}
-              {{ restorations::status_row(political_group, view.omission, view.path, redirect) }}
+              {{ restorations::status_row(political_group, view, redirect) }}
             {% endfor %}
           </ul>
         {% endfor %}

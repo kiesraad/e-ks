@@ -13,6 +13,7 @@ import { CsbOverviewPage } from "./pages/csb/csbOverviewPage.ts";
 import { CsbPoliticalGroupPage } from "./pages/csb/csbPoliticalGroupPage.ts";
 import { CsbRecoveredListsPage } from "./pages/csb/csbRecoveredListsPage.ts";
 import { CsbRecoveryGroupPage } from "./pages/csb/csbRecoveryGroupPage.ts";
+import { CsbRecoveryOmissionsPage } from "./pages/csb/csbRecoveryOmissionsPage.ts";
 
 test.describe("recover omissions", async () => {
   test("recoverable", async ({ csbImport }) => {
@@ -22,6 +23,7 @@ test.describe("recover omissions", async () => {
     const omissionsPage = new CsbOmissionsDeclarationsOfSupportPage(page);
     const recoveredListsPage = new CsbRecoveredListsPage(page);
     const recoveryGroupPage = new CsbRecoveryGroupPage(page);
+    const recoveryOmissionsPage = new CsbRecoveryOmissionsPage(page);
 
     // add omissions for two electoral districts
     await politicalGroupPage.selectedGroup(groupName);
@@ -39,6 +41,10 @@ test.describe("recover omissions", async () => {
     await expect(recoveredListsPage.headerRecoveredLists).toBeVisible();
     await recoveredListsPage.selectPoliticalGroup(groupName);
     await recoveryGroupPage.selectedGroup(groupName);
+    await expect(page.getByText("Nog 2 te beoordelen")).toBeVisible();
+    // the declarations of support are decided on the omissions page, in one row
+    await recoveryGroupPage.buttonRecoverOmissions.click();
+    await expect(recoveryOmissionsPage.headerRecoveryOmissions).toBeVisible();
     await expect(
       page.getByText(
         "Voor meerdere kieskringen ontbreken ondersteuningsverklaringen",
@@ -46,6 +52,10 @@ test.describe("recover omissions", async () => {
     ).toBeVisible();
     await recoveryGroupPage.recoverOmission("1. Groningen", true);
     await recoveryGroupPage.recoverOmission("2. Fryslân", false);
+    await expect(page.locator("li.omission-status-row")).toHaveCount(1);
+    await recoveryOmissionsPage.buttonBack.click();
+    await recoveryGroupPage.selectedGroup(groupName);
+    await expect(page.getByText("Nog 0 te beoordelen")).toBeVisible();
     await expect(
       page
         .locator(".examination-panel")

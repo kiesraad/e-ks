@@ -23,9 +23,9 @@ signed_out:
   message: "You have been logged out. Close your browser to end the session completely, or log in again."
   title: You have been logged out
 start:
-  app_description: This application helps you generate the paper documents needed for the nomination day.
+  app_description: Use this application to create the paper documents needed for nomination day.
   app_title: Candidate nomination
-  intro: You log in first. After that you have access to the Candidate Nomination application of the Kiesraad. Click the button below to log in; you will be guided through the login process step by step.
+  intro: Log in via the button below to access the Candidate Nomination application of the Kiesraad.
   title: Log in
 unavailable:
   message: The login service is currently unavailable. Please try again in a few minutes.

@@ -226,7 +226,7 @@
 
 .restoration-tag-ok {
   --restoration-tag-color: var(--green-700);
-  --restoration-tag-icon: url("../icons/checkmarkSmall.svg");
+  --restoration-tag-icon: url("../icons/checkmark-small.svg");
 }
 
 .restoration-tag-icon-only {
@@ -318,7 +318,7 @@
     background-color: currentColor;
     content: "";
     height: var(--space-5);
-    mask-image: url("../icons/chevronRight.svg");
+    mask-image: url("../icons/chevron-right.svg");
     mask-position: center;
     mask-repeat: no-repeat;
     width: var(--space-5);

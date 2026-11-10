@@ -1,12 +1,9 @@
-use axum::{
-    extract::Query,
-    response::{IntoResponse, Redirect, Response},
-};
+use axum::response::{IntoResponse, Redirect, Response};
 use axum_extra::routing::TypedPath;
 use uuid::Uuid;
 
 use crate::{
-    AppError, CsbContext, CsbStore, CsbStoreData, Form, HtmlTemplate, Locale, Overlay,
+    AppError, CsbContext, CsbStore, CsbStoreData, Form, HtmlTemplate, Locale, Overlay, Query,
     QueryParamState, StreamId,
     csb::examination::{
         OmissionForm,
@@ -919,6 +916,30 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn delete_appellation_omission_returns_to_the_appellation_overview() {
+        let store = CsbStore::new_for_test();
+        let stream_id = store.stream_id;
+
+        let omission = Omission::new(
+            OmissionCategory::Appellation,
+            "Not registered".parse().unwrap(),
+            "The appellation is not registered.".parse().unwrap(),
+            None,
+        );
+        omission.create(&store).await.unwrap();
+
+        let response =
+            submit_delete_omission(store.clone(), omission.id, QueryParamState::default(), None)
+                .await;
+
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        assert!(store.snapshot().get_appellation_omissions().is_empty());
+        assert!(location(&response).contains(&format!(
+            "/csb/examination/{stream_id}/omission/appellation/{stream_id}/overview"
+        )));
+    }
+
+    #[tokio::test]
     async fn overview_shows_empty_state_without_omissions() {
         let store = CsbStore::new_for_test();
         let stream_id = store.stream_id;
@@ -1094,7 +1115,7 @@ mod tests {
         // The candidate's name and position are interpolated into the preset.
         assert!(body.contains("Kandidaat nr. 1, Jansen, H.A.H.A. (Henk)"));
         // The unresolved token is left for the committee to fill in manually.
-        assert!(body.contains("{appellation}"));
+        assert!(body.contains("{nadere aanduiding/predicaat}"));
         assert!(!body.contains("{candidate_name}"));
         // Both former "candidate" and "person" presets are shown.
         assert!(body.contains("Kopie ID ontbreekt"));

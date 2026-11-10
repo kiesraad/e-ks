@@ -1,46 +1,56 @@
 collection:
-  gather_h9: Collect the signatures on the H\u00A09 declarations of consent from all candidates. Also ensure that all copies of identity documents are included and legible.
-  pre_submission: "In the week before nomination day, you can have the documents reviewed in advance by the central electoral committee, known as a 'pre-submission'. Please make an appointment for this."
+  gather_h9: Collect the signature of all candidates on the declarations of consent (H\u00A09). Also include legible copies of the required identity documents.
+  pre_submission: "In the week before nomination day, you can have the documents reviewed in advance by the central electoral committee during the so-called 'pre-submission'. Please make an appointment with the central electoral committee for this."
   title: "Gather, review and sign"
 complete_list:
+  no_problems_description: The documents are now ready to be submitted on paper to the central electoral committee. They will check the paper documents and the personal details.
+  no_problems_title: No errors were found by this application.
   title: Complete your list
 correction:
-  deadline: "The missing documents must be received by the central electoral committee by <strong>{}</strong> at <strong>17:00</strong>."
-  description: "If you have received an omission letter, the political group has three days to rectify the omissions and resubmit the documents."
-  title: Omission period
-  until: "Omissions can be rectified until <strong>{}</strong>"
+  description: "If you have received an omission letter, the political group has a few days to rectify the omissions and resubmit the documents."
+  title: Rectify and resubmit
+  until: "Resubmit at the central electoral committee from <strong>{}</strong> until <strong>{}</strong>, <strong>{}</strong>"
 delivery:
   appointment: "Please make an appointment for this. The address is:"
-  description: "On nomination day you must submit your documents to the central electoral committee between <strong>09:00</strong> and <strong>17:00</strong> ."
+  description: "On nomination day you must submit your documents to the central electoral committee between <strong>09:00</strong> and <strong>17:00</strong>."
   only_on: "Nomination day is on <strong>{}</strong>"
   title: Submit documents
 follow_up_steps:
-  description: "After printing the documents, there are a few more steps to take outside of this application. Below, the rest of the nomination process up to and including the public session is described."
-  title: Follow-up steps outside this system
+  description: "Below, the rest of the nomination process up to and including the public session is described."
+  title: The next steps outside this application
 hearing:
   date: "The session is on <strong>{}</strong> at <strong>{}</strong>"
-  description: "During this session, the central electoral committee determines which parties will appear on the ballot, and if necessary, the order of the parties will be decided by lot."
+  description: "The central electoral committee determines in a public session which parties will appear on the ballot, and in what order."
   open_to_public: You may attend the session.
-  title: Public session
+  title: Final determination of candidate lists
+intro:
+  description: "You have entered your candidates and candidate lists. To finish, there are a few more steps to go through. These steps are set out on this page."
+  title: A few more steps
+omission_letter:
+  description: You will receive the letter listing missing or incorrect documents by post.
+  sent: "The letter will be sent on <strong>{}</strong>"
+  title: Receiving the omission letter
+omission_steps:
+  title: Extra steps for missing or incorrect documents
 print:
-  download_description: Keep in mind that the latest changes in this system match the most recently downloaded zip.
+  download_description: Make sure the latest changes made in this application match the most recently downloaded zip.
   download_title: Download the files here and print them.
-  eml: "For each candidate list, an EML file of the candidate list is also included. EML is a file format that is processable with software. It is not required to submit this document."
-  eml_title: EML210 Candidate list
+  eml_not_required: The included EML file does not need to be printed and does not need to be submitted to the central electoral committee.
   errors_warning: "Before you can print the documents, you must first resolve all errors in step 1."
   h1_description: "With the H\u00A01, as the submitter of the list of candidates, you nominate candidates for an election."
-  h1_title: H\u00A01 List of candidates
+  h1_title: List of candidates (H\u00A01)
   h3_1_description: "With the H\u00A03-1, the submitter of the list of candidates receives permission to place the appellation registered by your political group above the list of candidates. This permission can only be granted by a person authorised to do so by the political group."
-  h3_1_title: H\u00A03-1 Authorisation to use appellation
+  h3_1_title: Authorisation to use appellation (H\u00A03-1)
   h3_2_description: "With the H\u00A03-2, the submitter of the list of candidates receives permission to place the combined appellation above the list of candidates. This permission must be granted by a person authorised to do so by each of the political groups involved."
-  h3_2_title: H\u00A03-2 Authorisation to use combined appellation
-  h4_description: "With the H\u00A04, your political group collects declarations of support from eligible voters. This is required for political groups that are not currently represented in the relevant body or are participating with a blank list."
-  h4_title: H\u00A04 Declarations of support
+  h3_2_title: Authorisation to use combined appellation (H\u00A03-2)
+  h4_description: "With the H\u00A04, your political group collects declarations of support from eligible voters. This is required for political groups that are not currently represented in {} or are participating with a blank list."
+  h4_title: Declarations of support (H\u00A04)
   h9_consent: "With this form, candidates agree to being placed on the list of candidates. They also agree to their position on the list."
-  h9_identity: "When submitting this H\u00A09, a legible copy of the identity document must also be included."
-  h9_title: H\u00A09 Declarations of consent
-  incomplete_warning: "Attention! You can print the documents, but they will be considered incomplete by the central electoral committee. Resolve the warnings in step 1 to complete the list."
+  h9_identity: "Is the candidate not yet a member of {}? Then add a copy of a valid identity document to the declaration of consent."
+  h9_title: Declarations of consent (H\u00A09)
+  incomplete_warning: "<strong>Attention!</strong> You can print the documents, but they will be considered incomplete by the central electoral committee. Resolve the warnings in step 1 to complete the list."
   title: Print the documents
+  usb_not_required: These documents <strong>no longer</strong> need to be handed over digitally on a USB stick.
 verification:
   correction_notice: "If anything is missing, you will receive a letter from us listing the omissions."
   description: The central electoral committee reviews the submitted documents for completeness and correctness.

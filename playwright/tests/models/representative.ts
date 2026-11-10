@@ -1,4 +1,4 @@
-export interface AuthorisedPerson {
+export interface Representative {
   initials: string;
   lastNamePrefix?: string;
   lastName: string;

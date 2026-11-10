@@ -36,7 +36,8 @@ export default function localitySuggestions() {
   const countryInput = document.getElementById(
     "country",
   ) as HTMLInputElement | null;
-  const isNl = () => countryInput == null || countryInput.value === "NL";
+  const isNl = () =>
+    countryInput == null || countryInput.value.toUpperCase() === "NL";
 
   // `warn` distinguishes "user is actively typing" (false) from "user has
   // committed by blurring, or the form just loaded with a prefilled value"

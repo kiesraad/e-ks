@@ -278,7 +278,7 @@
 
   /* Add custom SVG */
   summary::before {
-    content: url("../icons/chevronRight.svg");
+    content: url("../icons/chevron-right.svg");
     display: inline-block;
     width: 16px;
     height: 16px;

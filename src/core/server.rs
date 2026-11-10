@@ -35,7 +35,7 @@ pub async fn serve(
         ));
     }
 
-    let addr = listener.local_addr().map_err(AppError::ServerError)?;
+    let addr = listener.local_addr().map_err(AppError::IoError)?;
 
     tracing::info!("Starting server on http://{addr}");
 
@@ -46,7 +46,7 @@ pub async fn serve(
     )
     .with_graceful_shutdown(shutdown_signal())
     .await
-    .map_err(AppError::ServerError)?;
+    .map_err(AppError::IoError)?;
 
     Ok(())
 }
@@ -108,7 +108,7 @@ mod tls {
         config: RustlsConfig,
         proxies: Option<ProxyProtocolPeers>,
     ) -> Result<(), AppError> {
-        let addr = listener.local_addr().map_err(AppError::ServerError)?;
+        let addr = listener.local_addr().map_err(AppError::IoError)?;
 
         // HSTS: served only over TLS, so the header is meaningful here.
         // 1 year + includeSubDomains matches NCSC HTTPS guidance; preload is
@@ -121,7 +121,7 @@ mod tls {
 
         tracing::info!("Starting server on https://{addr}");
 
-        let std_listener = listener.into_std().map_err(AppError::ServerError)?;
+        let std_listener = listener.into_std().map_err(AppError::IoError)?;
 
         let handle: Handle<SocketAddr> = Handle::new();
         tokio::spawn(graceful_shutdown_handle(handle.clone()));
@@ -129,12 +129,12 @@ mod tls {
         // The acceptor records the peer address before the TLS handshake.
         let acceptor = RustlsAcceptor::new(config).acceptor(PeerAddressAcceptor::new(proxies));
         axum_server::from_tcp(std_listener)
-            .map_err(AppError::ServerError)?
+            .map_err(AppError::IoError)?
             .acceptor(acceptor)
             .handle(handle)
             .serve(router.into_make_service())
             .await
-            .map_err(AppError::ServerError)?;
+            .map_err(AppError::IoError)?;
 
         Ok(())
     }
@@ -229,10 +229,10 @@ mod tls {
     async fn build_server_config(tls: &TlsConfig) -> Result<ServerConfig, AppError> {
         let cert_bytes = tokio::fs::read(&tls.cert_path)
             .await
-            .map_err(AppError::ServerError)?;
+            .map_err(AppError::IoError)?;
         let key_bytes = tokio::fs::read(&tls.key_path)
             .await
-            .map_err(AppError::ServerError)?;
+            .map_err(AppError::IoError)?;
 
         server_config_from_pem(&cert_bytes, &key_bytes)
     }
@@ -489,7 +489,7 @@ mod tests {
         let err = super::serve(axum::Router::new(), listener, &config, None)
             .await
             .expect_err("missing cert");
-        assert!(matches!(err, crate::AppError::ServerError(_)));
+        assert!(matches!(err, crate::AppError::IoError(_)));
     }
 
     #[tokio::test]

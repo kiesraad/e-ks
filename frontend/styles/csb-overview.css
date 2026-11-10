@@ -16,7 +16,7 @@
     background-color: currentColor;
     content: "";
     height: var(--space-6);
-    mask-image: url("../icons/chevronRight.svg");
+    mask-image: url("../icons/chevron-right.svg");
     mask-size: contain;
     width: var(--space-6);
   }
@@ -284,7 +284,6 @@
 
   .steps-nav ul li a.active {
     background-color: var(--orange-200);
-    background-image: url("../icons/arrowNarrowRight-orange.svg");
     color: var(--orange-900);
   }
 }

@@ -17,6 +17,7 @@ pub type AppResponse<T> = Result<T, AppError>;
 pub enum AppError {
     // Request level errors
     Unauthorised,
+    /// A broken invariant with no underlying error worth reporting.
     InternalServerError,
     #[default]
     GenericNotFound,
@@ -36,7 +37,8 @@ pub enum AppError {
 
     // Application level errors
     ConfigLoadError(String),
-    ServerError(std::io::Error),
+    /// An I/O failure, e.g. binding the listener or writing TLS files.
+    IoError(std::io::Error),
     UpstreamError(reqwest::Error),
 
     /// Missing or invalid data when generating a PDF.
@@ -52,7 +54,6 @@ pub enum AppError {
     #[cfg(feature = "acme")]
     AcmeError(instant_acme::Error),
 
-    NoStorageConfigured,
     IntegrityViolation,
 
     /// A person-creating write would take the stream past the maximum number
@@ -165,7 +166,6 @@ impl Display for AppError {
             AppError::JsonRejection(err) => write!(f, "JSON error: {err}"),
             AppError::MultipartError(err) => write!(f, "Multipart error: {err}"),
             AppError::MultipartFormError(err) => write!(f, "Multipart form error: {err}"),
-            AppError::NoStorageConfigured => write!(f, "No event storage configured"),
             AppError::PdfError(err) => write!(f, "PDF error: {err}"),
             AppError::DocxError(err) => write!(f, "Word export error: {err}"),
             AppError::MarkdownError(err) => write!(f, "Markdown template error: {err}"),
@@ -173,7 +173,7 @@ impl Display for AppError {
             AppError::UserError(msg) => write!(f, "{msg}"),
             AppError::PathRejection(err) => write!(f, "Path error: {err}"),
             AppError::QueryRejection(err) => write!(f, "Query error: {err}"),
-            AppError::ServerError(err) => write!(f, "Server error: {err}"),
+            AppError::IoError(err) => write!(f, "I/O error: {err}"),
             AppError::TemplateError(err) => write!(f, "Template error: {err}"),
             AppError::Unauthorised => write!(f, "Unauthorised"),
             AppError::UpstreamError(err) => write!(f, "Upstream error: {err}"),

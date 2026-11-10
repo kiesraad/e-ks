@@ -1,12 +1,9 @@
 use askama::Template;
-use axum::{
-    extract::{Query, State},
-    response::IntoResponse,
-};
+use axum::{extract::State, response::IntoResponse};
 
 use crate::{
     AppError, AppRequestState, Context, CsbContext, CsbMainStore, Event, HtmlTemplate, Locale,
-    StreamId,
+    Query, StreamId,
     csb::audit_log::{
         links::{CsbMainLinks, CsbStreamLinks, stream_label, streams},
         pages::CsbAuditLogPath,
@@ -301,12 +298,8 @@ mod tests {
     use std::str::FromStr;
 
     use super::*;
-    use crate::{projection::WithCorrections, structs::common::Appellation};
-    use axum::{
-        extract::{Query, State},
-        http::StatusCode,
-        response::IntoResponse,
-    };
+    use crate::{Query, projection::WithCorrections, structs::common::Appellation};
+    use axum::{extract::State, http::StatusCode, response::IntoResponse};
 
     use crate::{
         AppError, AppState, CsbAction, CsbContext, CsbMainAction, CsbMainStore, CsbUser,
@@ -319,6 +312,19 @@ mod tests {
 
     fn no_filter() -> Query<CsbAuditLogFilter> {
         Query(CsbAuditLogFilter::default())
+    }
+
+    /// Paper corrections delegate `key()` to the wrapped `PgEvent` and are
+    /// filtered by their category instead.
+    #[test]
+    fn filter_offers_every_event_key() {
+        crate::structs::audit_log::assert_lists_every_key(
+            EVENT_TYPES_BY_CATEGORY,
+            &[
+                include_str!("../../../projection/csb_data/event.rs"),
+                include_str!("../../../projection/csb_main/event.rs"),
+            ],
+        );
     }
 
     async fn call(
@@ -524,9 +530,7 @@ mod tests {
     async fn paginates_results() -> Result<(), AppError> {
         let main_store = CsbMainStore::new_for_test();
         for _ in 0..PER_PAGE + 5 {
-            main_store
-                .update(CsbMainAction::Login.by(CsbUser::Developer))
-                .await?;
+            main_store.update(CsbMainAction::Login).await?;
         }
 
         let response = call(main_store, AppState::new_for_tests().await, no_filter()).await?;
@@ -542,9 +546,7 @@ mod tests {
     #[tokio::test]
     async fn filters_by_main_stream() -> Result<(), AppError> {
         let main_store = CsbMainStore::new_for_test();
-        main_store
-            .update(CsbMainAction::Login.by(CsbUser::Developer))
-            .await?;
+        main_store.update(CsbMainAction::Login).await?;
 
         let state = AppState::new_for_tests().await;
         let csb_store = state
@@ -569,9 +571,7 @@ mod tests {
     #[tokio::test]
     async fn filters_by_import_stream() -> Result<(), AppError> {
         let main_store = CsbMainStore::new_for_test();
-        main_store
-            .update(CsbMainAction::Login.by(CsbUser::Developer))
-            .await?;
+        main_store.update(CsbMainAction::Login).await?;
 
         let state = AppState::new_for_tests().await;
         let import_stream_id = StreamId::new();
@@ -602,9 +602,7 @@ mod tests {
     #[tokio::test]
     async fn filters_by_event_type() -> Result<(), AppError> {
         let main_store = CsbMainStore::new_for_test();
-        main_store
-            .update(CsbMainAction::Login.by(CsbUser::Developer))
-            .await?;
+        main_store.update(CsbMainAction::Login).await?;
 
         let state = AppState::new_for_tests().await;
         let import_stream_id = StreamId::new();
@@ -636,9 +634,7 @@ mod tests {
     #[tokio::test]
     async fn searches_by_description() -> Result<(), AppError> {
         let main_store = CsbMainStore::new_for_test();
-        main_store
-            .update(CsbMainAction::Login.by(CsbUser::Developer))
-            .await?;
+        main_store.update(CsbMainAction::Login).await?;
 
         let state = AppState::new_for_tests().await;
         let csb_store = state
@@ -668,9 +664,7 @@ mod tests {
     #[tokio::test]
     async fn reset_button_only_shown_when_filter_active() -> Result<(), AppError> {
         let main_store = CsbMainStore::new_for_test();
-        main_store
-            .update(CsbMainAction::Login.by(CsbUser::Developer))
-            .await?;
+        main_store.update(CsbMainAction::Login).await?;
 
         let state = AppState::new_for_tests().await;
 
@@ -696,9 +690,7 @@ mod tests {
     #[tokio::test]
     async fn detail_links_preserve_filter_as_redirect() -> Result<(), AppError> {
         let main_store = CsbMainStore::new_for_test();
-        main_store
-            .update(CsbMainAction::Login.by(CsbUser::Developer))
-            .await?;
+        main_store.update(CsbMainAction::Login).await?;
 
         let response = call(
             main_store,

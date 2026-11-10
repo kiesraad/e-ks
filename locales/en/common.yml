@@ -12,12 +12,12 @@ development:
 download_warning: "Warning: the documents have already been downloaded. The data on paper is leading. If any changes are still needed, make sure to reprint the documents and submit the correct version."
 electoral_districts: Electoral districts
 error_code: "Error code {}"
-finalise: Finalise
+finalise: Print and submit
 finalise_description:
   download_documents: Download all required documents
   review_problems: Review potential problems
   view_follow_up_steps: View follow-up steps
-finalise_instruction: Perform this step at the latest on nomination day
+finalise_instruction: Hand in on nomination day
 gender:
   empty: (empty)
   female: Female
@@ -60,6 +60,8 @@ request_error:
   conflict_title: Data changed
   csrf_message: "The submitted form could not be verified because it was invalid or had expired. Go back, refresh the page, and try again."
   csrf_title: Form expired
+  invalid_message: The request contained invalid data and could not be processed. Go back and try again.
+  invalid_title: Invalid request
   too_large_message: The submitted file is larger than allowed.
   too_large_title: Upload too large
   unreadable_message: The request was not received completely. Please try again.

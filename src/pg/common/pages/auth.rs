@@ -5,7 +5,7 @@
 use askama::Template;
 use auth_service::{AuthFailure, AuthServiceState, AuthState, RedirectTarget, handle_logout};
 use axum::{
-    extract::{FromRef, Query, State},
+    extract::{FromRef, State},
     http::{HeaderName, HeaderValue},
     response::{IntoResponse, Response},
 };
@@ -15,7 +15,7 @@ use axum_extra::routing::TypedPath;
 
 use super::{LoggedOutPath, LogoutPath};
 use crate::{
-    AppRequestState, Context, HtmlTemplate, Locale, LocaleValues, QueryParamState, Session,
+    AppRequestState, Context, HtmlTemplate, Locale, LocaleValues, Query, QueryParamState, Session,
     SessionPageValues, auth::session::session_idle_timeout, filters,
 };
 
@@ -135,6 +135,7 @@ mod tests {
     use crate::common::PgIndexPath;
 
     use crate::{
+        Query,
         auth::session_extractor::SESSION_COOKIE_NAME,
         common::{LoginStartPath, SelectElectionPath},
         test_utils::response_body_string,

@@ -1,7 +1,7 @@
 //! Read accessors over the CSB main projection.
 
 use crate::{
-    AppError, CredentialId, CsbMainStore, StreamId,
+    AppError, CredentialId, CsbMainStream, StreamId,
     structs::{
         common::Appellation,
         csb::{
@@ -11,7 +11,7 @@ use crate::{
     },
 };
 
-impl CsbMainStore {
+impl CsbMainStream {
     /// The signature counter the security key reported at its last login, 0
     /// when it never logged in (the `credentialRecord.signCount` of WebAuthn
     /// §7.2 step 22).
@@ -84,7 +84,9 @@ impl CsbMainStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{CsbMainAction, CsbUser, structs::csb::sample_registered_political_group};
+    use crate::{
+        CsbMainAction, CsbMainStore, CsbUser, structs::csb::sample_registered_political_group,
+    };
 
     /// The counter check and the record are one step: a counter that does
     /// not advance past the recorded one is refused, a higher one recorded.
@@ -108,10 +110,7 @@ mod tests {
         let store = CsbMainStore::new_for_test();
         for group in groups {
             store
-                .update(
-                    CsbMainAction::CreateRegisteredPoliticalGroup(group.clone())
-                        .by(CsbUser::new_test()),
-                )
+                .update(CsbMainAction::CreateRegisteredPoliticalGroup(group.clone()))
                 .await
                 .unwrap();
         }
@@ -142,10 +141,7 @@ mod tests {
 
         group.previous_votes = 200.into();
         store
-            .update(
-                CsbMainAction::UpdateRegisteredPoliticalGroup(group.clone())
-                    .by(CsbUser::new_test()),
-            )
+            .update(CsbMainAction::UpdateRegisteredPoliticalGroup(group.clone()))
             .await?;
         assert_eq!(
             store
@@ -156,7 +152,7 @@ mod tests {
         );
 
         store
-            .update(CsbMainAction::DeleteRegisteredPoliticalGroup(group.id).by(CsbUser::new_test()))
+            .update(CsbMainAction::DeleteRegisteredPoliticalGroup(group.id))
             .await?;
         assert!(matches!(
             store.get_registered_political_group(group.id),
@@ -175,12 +171,12 @@ mod tests {
         let first = StreamId::new();
         let second = StreamId::new();
         store
-            .update(CsbMainAction::UpdateListOrder(vec![first, second]).by(CsbUser::new_test()))
+            .update(CsbMainAction::UpdateListOrder(vec![first, second]))
             .await?;
         assert_eq!(store.list_order(), vec![first, second]);
 
         store
-            .update(CsbMainAction::UpdateListOrder(vec![second, first]).by(CsbUser::new_test()))
+            .update(CsbMainAction::UpdateListOrder(vec![second, first]))
             .await?;
         assert_eq!(store.list_order(), vec![second, first]);
 
@@ -193,7 +189,7 @@ mod tests {
         let group = sample_registered_political_group("Partij", 100, 1);
 
         store
-            .update(CsbMainAction::UpdateRegisteredPoliticalGroup(group).by(CsbUser::new_test()))
+            .update(CsbMainAction::UpdateRegisteredPoliticalGroup(group))
             .await?;
 
         assert!(store.registered_political_groups().is_empty());

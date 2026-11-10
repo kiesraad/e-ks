@@ -35,7 +35,7 @@ mod tests {
     use axum::http::StatusCode;
 
     use crate::{
-        CsbMainAction, CsbUser, structs::csb::sample_registered_political_group,
+        CsbMainAction, structs::csb::sample_registered_political_group,
         test_utils::response_body_string,
     };
 
@@ -63,10 +63,7 @@ mod tests {
         let large = sample_registered_political_group("Grote Partij", 5000, 7);
         for group in [&small, &large] {
             store
-                .update(
-                    CsbMainAction::CreateRegisteredPoliticalGroup(group.clone())
-                        .by(CsbUser::new_test()),
-                )
+                .update(CsbMainAction::CreateRegisteredPoliticalGroup(group.clone()))
                 .await
                 .unwrap();
         }

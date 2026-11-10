@@ -1,9 +1,9 @@
 use crate::{
-    core::ModelLocale, models::documents::DocumentData, structs::problems::AllProblems,
+    Query, core::ModelLocale, models::documents::DocumentData, structs::problems::AllProblems,
     utils::format_hash,
 };
 use askama::Template;
-use axum::{extract::Query, response::IntoResponse};
+use axum::response::IntoResponse;
 
 use crate::{
     AppError, Context, EventHashPrefix, HtmlTemplate, Overlay, PgEvent, PgStore, PgStoreData,

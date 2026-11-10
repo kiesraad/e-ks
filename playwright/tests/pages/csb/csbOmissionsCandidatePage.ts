@@ -6,7 +6,7 @@ export class CsbOmissionsCandidatePage {
   readonly buttonWrongAppelation: Locator;
   readonly buttonWrongGender: Locator;
   readonly buttonDifferenceH1: Locator;
-  readonly buttonAuthorisedPerson: Locator;
+  readonly buttonRepresentative: Locator;
   readonly buttonMissingSupportDeclaration: Locator;
   readonly buttonMissingCopyID: Locator;
   readonly buttonMissingAddress: Locator;
@@ -36,7 +36,7 @@ export class CsbOmissionsCandidatePage {
     this.buttonDifferenceH1 = this.page.getByRole("button", {
       name: "De kandidatenlijst op Model H 1 en op de instemmingsverklaring komen niet overeen",
     });
-    this.buttonAuthorisedPerson = this.page.getByRole("button", {
+    this.buttonRepresentative = this.page.getByRole("button", {
       name: "Gemachtigde kandidaat ontbreekt",
     });
     this.buttonMissingSupportDeclaration = this.page.getByRole("button", {

@@ -1,4 +1,4 @@
-{% macro omission_panel(title, explanation, add_url, overview_url, omissions, can_add=true, show_go_to_all=true) %}
+{% macro omission_panel(title, explanation, add_url, overview_url, rows, can_add=true, show_go_to_all=true) %}
   <div class="examination-panel">
     <div class="examination-panel-header">
       <div>
@@ -9,7 +9,7 @@
         <a class="button secondary icon-plus-end" href="{{ add_url }}">{{ "csb.omission.action.add"|trans }}</a>
       {% endif %}
     </div>
-    {{ omission_strip(overview_url, omissions) }}
+    {{ omission_strip(overview_url, rows) }}
     {% if show_go_to_all %}
       <div class="float-right mt-md">
         <a class="button secondary icon-chevron-end"
@@ -24,8 +24,12 @@
     <ul class="restoration-tags">
       {% for view in omissions %}
         <li>
-          <a class="restoration-tag{% if !view.omission.recoverable %} restoration-tag-unrecoverable{% endif %}"
-             href="{{ view.path }}">{{ view.omission.title }}</a>
+          {% if let Some(path) = view.path %}
+            <a class="restoration-tag{% if !view.omission.recoverable %} restoration-tag-unrecoverable{% endif %}"
+               href="{{ path }}">{{ view.omission.title }}</a>
+          {% else %}
+            <span class="restoration-tag{% if !view.omission.recoverable %} restoration-tag-unrecoverable{% endif %}">{{ view.omission.title }}</span>
+          {% endif %}
         </li>
       {% endfor %}
     </ul>
@@ -54,41 +58,35 @@
     </button>
   </form>
 {% endmacro status_buttons %}
-{% macro status_control(political_group, omission, redirect, districts, lists, scope_list) %}
-  {% if !omission.is_actionable() %}
+{% macro status_control(political_group, row, redirect, scope_list) %}
+  {% if !row.omission.is_actionable() %}
     <span class="restoration-tag restoration-tag-unrecoverable">{{ "csb.omission.overview.not_recoverable"|trans }}</span>
   {% else if !scope_list.is_empty() %}
-    {{ status_buttons(political_group, omission, redirect, scope_list, part_field="candidate_list") }}
-  {% else if districts.len() > 1 %}
+    {{ status_buttons(political_group, row.omission, redirect, scope_list, part_field="candidate_list") }}
+  {% else if row.parts.len() > 1 %}
     <table class="omission-part-table">
       <tbody>
-        {% for district in districts %}
-          <tr>
-            <th scope="row">{{ district|district_name }}</th>
-            <td>{{ status_buttons(political_group, omission, redirect, district.serde_name() , size="xs") }}</td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  {% else if lists.len() > 1 %}
-    <table class="omission-part-table">
-      <tbody>
-        {% for list_id in lists %}
+        {% for part_row in row.parts %}
           <tr>
             <th scope="row">
+              {% match part_row.part %}
+              {% when crate::structs::csb::OmissionPart::ElectoralDistrict(district) %}
+              {{ district|district_name }}
+              {% when crate::structs::csb::OmissionPart::CandidateList(list_id) %}
               {% for district in political_group.candidate_list_districts(list_id) %}
                 {% if !loop.first %}<span class="districts-separator" aria-hidden="true">|</span>{% endif %}
                 {{ district|district_name }}
               {% endfor %}
-            </th>
-            <td>{{ status_buttons(political_group, omission, redirect, list_id.to_string() , size="xs", part_field="candidate_list") }}</td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  {% else %}
-    {{ status_buttons(political_group, omission, redirect, "") }}
-  {% endif %}
+            {% endmatch %}
+          </th>
+          <td>{{ status_buttons(political_group, part_row.omission, redirect, part_row.value() , size="xs", part_field=part_row.field()) }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  {{ status_buttons(political_group, row.omission, redirect, "") }}
+{% endif %}
 {% endmacro status_control %}
 {% macro districts_line(districts) %}
   {% let election = "election"|election_value %}
@@ -120,25 +118,24 @@
     </p>
   {% endif %}
 {% endmacro lists_line %}
-{% macro status_row(political_group, omission, path, redirect, scope_list="") %}
+{% macro status_row(political_group, row, redirect, scope_list="") %}
   {% let election = "election"|election_value %}
-  {% let districts = omission.electoral_districts(election) %}
-  {% let lists = omission.candidate_lists() %}
-  {% let per_part = scope_list.is_empty() && omission.is_assessed_per_part(election) %}
-  <li class="omission-status-row{% if per_part %} omission-status-row-per-part{% endif %}{% if omission.is_pending() %} omission-status-row-pending{% endif %}"
-      data-id="{{ omission.id }}">
+  {% let lists = row.omission.candidate_lists() %}
+  {% let per_part = scope_list.is_empty() && row.omission.is_actionable() && row.parts.len() > 1 %}
+  <li class="omission-status-row{% if per_part %} omission-status-row-per-part{% endif %}"
+      data-id="{{ row.omission.id }}{% for part in row.parts %} {{ part.omission.id }}{% endfor %}">
     <div class="omission-status-text">
-      {% if path.is_empty() %}
-        <span class="restoration-tag{% if !omission.recoverable %} restoration-tag-unrecoverable{% endif %}">{{ omission.title }}</span>
+      {% if let Some(path) = row.path %}
+        <a class="restoration-tag{% if !row.omission.recoverable %} restoration-tag-unrecoverable{% endif %}"
+           href="{{ path }}">{{ row.omission.title }}</a>
       {% else %}
-        <a class="restoration-tag{% if !omission.recoverable %} restoration-tag-unrecoverable{% endif %}"
-           href="{{ path }}">{{ omission.title }}</a>
+        <span class="restoration-tag{% if !row.omission.recoverable %} restoration-tag-unrecoverable{% endif %}">{{ row.omission.title }}</span>
       {% endif %}
-      {% if !per_part %}{{ districts_line(districts) }}{% endif %}
+      {% if !per_part %}{{ districts_line(row.omission.electoral_districts(election) ) }}{% endif %}
       {% if scope_list.is_empty() && lists.len() == 1 %}{{ lists_line(political_group, lists) }}{% endif %}
-      <p>{{ omission.description }}</p>
+      <p>{{ row.omission.description }}</p>
     </div>
-    {{ status_control(political_group, omission, redirect, districts, lists, scope_list) }}
+    {{ status_control(political_group, row, redirect, scope_list) }}
   </li>
 {% endmacro status_row %}
 {% macro omission_row(political_group, omission) %}
@@ -160,7 +157,7 @@
     </div>
   </li>
 {% endmacro omission_row %}
-{% macro status_panel(political_group, title, explanation, omissions, redirect, scope_list="", show_go_to_all=true) %}
+{% macro status_panel(political_group, title, explanation, rows, redirect, scope_list="", show_go_to_all=true) %}
   <div class="examination-panel">
     <div class="examination-panel-header">
       <div>
@@ -168,15 +165,16 @@
         <p>{{ explanation }}</p>
       </div>
     </div>
-    {% if omissions.is_empty() %}
+    {% if rows.is_empty() %}
       <div class="restoration-strip restoration-strip-omission">
         <span class="restoration-strip-empty">{{ "csb.omission.overview.no_omissions"|trans }}</span>
       </div>
     {% else %}
       <ul class="omission-status-list">
-        {% for omission in omissions %}{{ status_row(political_group, omission, "", redirect, scope_list=scope_list) }}{% endfor %}
+        {% for row in rows %}{{ status_row(political_group, row, redirect, scope_list=scope_list) }}{% endfor %}
       </ul>
     {% endif %}
+    {{ caller() }}
     {% if show_go_to_all %}
       <div class="float-right mt-md">
         <a class="button secondary icon-chevron-end"
@@ -185,15 +183,15 @@
     {% endif %}
   </div>
 {% endmacro status_panel %}
-{% macro omission_strip(overview_url, omissions) %}
+{% macro omission_strip(overview_url, rows) %}
   <div class="restoration-strip restoration-strip-omission">
-    {% if omissions.is_empty() %}
+    {% if rows.is_empty() %}
       <span class="restoration-strip-empty">{{ "csb.omission.overview.no_omissions"|trans }}</span>
     {% else %}
       <ul class="restoration-tags">
-        {% for omission in omissions %}
+        {% for row in rows %}
           <li>
-            <span class="restoration-tag{% if !omission.recoverable %} restoration-tag-unrecoverable{% endif %}">{{ omission.title }}</span>
+            <span class="restoration-tag{% if !row.omission.recoverable %} restoration-tag-unrecoverable{% endif %}">{{ row.omission.title }}</span>
           </li>
         {% endfor %}
       </ul>

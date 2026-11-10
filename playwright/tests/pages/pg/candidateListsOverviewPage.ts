@@ -20,7 +20,7 @@ export class CandidateListsOverviewPage {
       name: "Adresboek",
     });
     this.linkFinalize = this.page.getByRole("link", {
-      name: "Afronden",
+      name: "Printen en inleveren",
       exact: true,
     });
   }

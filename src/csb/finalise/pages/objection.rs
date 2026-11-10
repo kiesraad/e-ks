@@ -1,11 +1,8 @@
 use askama::Template;
-use axum::{
-    extract::Query,
-    response::{IntoResponse, Response},
-};
+use axum::response::{IntoResponse, Response};
 
 use crate::{
-    AppError, Context, CsbContext, CsbMainAction, CsbMainStore, Form, HtmlTemplate, Overlay,
+    AppError, Context, CsbContext, CsbMainAction, CsbMainStore, Form, HtmlTemplate, Overlay, Query,
     QueryParamState,
     csb::finalise::{
         CsbFinalisePath,
@@ -71,7 +68,7 @@ pub async fn add_objection_submit(
         Err(form) => return Ok(render(context, &query, form, None)),
     };
     main_store
-        .update(CsbMainAction::AddObjection(objection).by(context.user()?))
+        .update(CsbMainAction::AddObjection(objection))
         .await?;
     Ok(redirect_success(CsbFinalisePath))
 }
@@ -104,20 +101,19 @@ pub async fn update_objection_submit(
         Err(form) => return Ok(render(context, &query, form, Some(current))),
     };
     main_store
-        .update(CsbMainAction::UpdateObjection(objection).by(context.user()?))
+        .update(CsbMainAction::UpdateObjection(objection))
         .await?;
     Ok(redirect_success(CsbFinalisePath))
 }
 
 pub async fn delete_objection(
     CsbDeleteObjectionPath { id }: CsbDeleteObjectionPath,
-    context: CsbContext,
     main_store: CsbMainStore,
 ) -> Result<Response, AppError> {
     // Deleting an objection that is already gone is a stale form, not a change.
     main_store.get_objection(id)?;
     main_store
-        .update(CsbMainAction::DeleteObjection(id).by(context.user()?))
+        .update(CsbMainAction::DeleteObjection(id))
         .await?;
     Ok(redirect_success(CsbFinalisePath))
 }
@@ -128,20 +124,17 @@ mod tests {
     use axum_extra::routing::TypedPath;
     use reqwest::{StatusCode, header};
 
-    use crate::{CsbUser, structs::csb::ObjectionId, test_utils::response_body_string};
+    use crate::{Query, structs::csb::ObjectionId, test_utils::response_body_string};
 
     use super::*;
 
     async fn add_objection_to_store(store: &CsbMainStore, text: &str) -> ObjectionId {
         let id = ObjectionId::new();
         store
-            .update(
-                CsbMainAction::AddObjection(Objection {
-                    id,
-                    objection_text: text.parse().expect("Valid objection text"),
-                })
-                .by(CsbUser::Developer),
-            )
+            .update(CsbMainAction::AddObjection(Objection {
+                id,
+                objection_text: text.parse().expect("Valid objection text"),
+            }))
             .await
             .expect("Add objection");
         id
@@ -352,13 +345,9 @@ mod tests {
         let main_store = CsbMainStore::new_for_test();
         let id = add_objection_to_store(&main_store, "objection text").await;
 
-        let response = delete_objection(
-            CsbDeleteObjectionPath { id },
-            CsbContext::new_test(),
-            main_store.clone(),
-        )
-        .await
-        .expect("Delete objection response");
+        let response = delete_objection(CsbDeleteObjectionPath { id }, main_store.clone())
+            .await
+            .expect("Delete objection response");
 
         assert_redirect(response).await;
 
@@ -371,7 +360,6 @@ mod tests {
             CsbDeleteObjectionPath {
                 id: ObjectionId::new(),
             },
-            CsbContext::new_test(),
             CsbMainStore::new_for_test(),
         )
         .await;

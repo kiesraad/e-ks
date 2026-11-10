@@ -240,18 +240,6 @@ impl<D> Store<D>
 where
     D: StoreData,
 {
-    /// Create a new store scoped to a specific (stream_id, election) pair.
-    pub async fn new_for_stream(
-        storage_url: &str,
-        stream_id: StreamId,
-        election: ElectionConfig,
-        master: &MasterKey,
-    ) -> Result<Self, AppError> {
-        let persistence = StorePersistence::from_storage_url(storage_url)?;
-        persistence.init().await?;
-        Self::new_for_stream_with_persistence(persistence, stream_id, election, master).await
-    }
-
     /// Create a new store for a stream using an already-initialized persistence
     /// backend. Scope and wrapped key are recorded on first creation.
     pub async fn new_for_stream_with_persistence(
@@ -375,9 +363,7 @@ where
                 let created_at = Utc::now();
                 let prev_hash = data.last_event_hash();
                 // Nothing is persisted, so the chain hash is over the plain encoding.
-                let body = encoding::encode(&event).map_err(|e| {
-                    AppError::ServerError(std::io::Error::new(std::io::ErrorKind::InvalidData, e))
-                })?;
+                let body = encoding::encode(&event)?;
                 let hash = chain_hash(&prev_hash, event_id, created_at, &body);
                 // Record the hash in the shared index so cross-stream lookups
                 // (by scope, by hash prefix) resolve like the other backends.

@@ -90,8 +90,8 @@ config = { version = "0.15.27", default-features = false } # 100M downloads (rus
 
 # development tooling
 dotenvy = "0.15.7"
-saphyr = { version = "0.2.1", default-features = false }
-serde-saphyr = { version = "1.0.0", default-features = false, features = ["deserialize"] }
+saphyr = { version = "0.3.3", default-features = false }
+serde-saphyr = { version = "2.0.0", default-features = false, features = ["deserialize"] }
 
 # tweedegolf
 memory-serve = "2.4.0"
@@ -147,6 +147,8 @@ net-tests = []
 # Verify the per-event hash chain when replaying persisted events. Adds a
 # SHA-256 over every event's stored bytes on load; off by default.
 verify-event-hash-chain = []
+# Example model inputs, for the `pdf_diff` development tool.
+examples = []
 # Live-reload assets/templates during development.
 livereload = []
 # Serve embedded static assets from memory.

@@ -1,11 +1,9 @@
 use askama::Template;
-use axum::{
-    extract::Query,
-    response::{IntoResponse, Response},
-};
+use axum::response::{IntoResponse, Response};
 
 use crate::{
-    AppError, AppResponse, Context, Form, HtmlTemplate, Overlay, PgStore, QueryParamState, filters,
+    AppError, AppResponse, Context, Form, HtmlTemplate, Overlay, PgStore, Query, QueryParamState,
+    filters,
     form::FormData,
     persons::RepresentativeForm,
     structs::{
@@ -94,7 +92,7 @@ pub async fn update_representative_submit(
 mod tests {
     use super::*;
     use crate::{
-        AppError, Context, Form, PgStore, QueryParamState,
+        AppError, Context, Form, PgStore, Query, QueryParamState,
         structs::{candidate_lists::CandidateListId, persons::PersonId},
         test_utils::{
             extract_csrf_token, response_body_string, sample_candidate_list, sample_person,
@@ -102,7 +100,6 @@ mod tests {
         },
     };
     use axum::{
-        extract::Query,
         http::{StatusCode, header},
         response::IntoResponse,
     };

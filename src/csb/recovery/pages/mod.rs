@@ -302,6 +302,46 @@ mod tests {
         assert!(body.contains("Scrapped"));
     }
 
+    /// The declarations of support are decided on the omissions page; a list
+    /// shows the ones touching its districts, read-only.
+    #[tokio::test]
+    async fn recovery_candidate_list_shows_the_declarations_of_support_of_its_districts() {
+        let store = CsbStore::new_for_test();
+        let stream_id = store.stream_id;
+        let (list_id, _) = add_list(&store, &[ElectoralDistrict::Utrecht]);
+        for (district, title) in [
+            (
+                ElectoralDistrict::Utrecht,
+                "Declarations missing in Utrecht",
+            ),
+            (
+                ElectoralDistrict::Groningen,
+                "Declarations missing in Groningen",
+            ),
+        ] {
+            let mut omission =
+                sample_omission(OmissionCategory::DeclarationsOfSupport(vec![district]));
+            omission.title = title.parse().unwrap();
+            omission.create(&store).await.unwrap();
+        }
+
+        let response = candidate_list(
+            CsbRecoveryCandidateListPath { stream_id, list_id },
+            CsbContext::new_test(),
+            store,
+        )
+        .await
+        .unwrap()
+        .into_response();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response_body_string(response).await;
+        assert!(body.contains("Declarations missing in Utrecht"), "{body}");
+        assert!(!body.contains("Declarations missing in Groningen"));
+        // Listed, not decided here: no status control for it.
+        assert!(!body.contains(r#"name="electoral_district""#));
+    }
+
     #[tokio::test]
     async fn recovery_candidate_list_renumbers_around_a_scrapped_candidate() {
         let store = CsbStore::new_for_test();
@@ -554,6 +594,75 @@ mod tests {
         assert!(body.contains("7. Utrecht"));
         // ...but not the omission reported on the other list only.
         assert!(!body.contains("Missing identity document"));
+    }
+
+    /// Deciding the omission for one list splits it; the candidate page
+    /// keeps both lists in the one row.
+    #[tokio::test]
+    async fn recovery_candidate_page_keeps_a_split_omission_in_one_row() {
+        use crate::{ElectoralDistrict, structs::csb::OmissionPart};
+
+        let store = CsbStore::new_for_test();
+        let stream_id = store.stream_id;
+
+        let person = sample_person(PersonId::new());
+        let person_id = person.id;
+        store.add_person(person);
+
+        let mut lists = Vec::new();
+        for district in [ElectoralDistrict::Groningen, ElectoralDistrict::Utrecht] {
+            let list_id = CandidateListId::new();
+            let mut list = sample_candidate_list(list_id);
+            list.electoral_districts = BTreeSet::from([district]);
+            list.candidates = vec![person_id];
+            store.add_candidate_list(list);
+            lists.push(list_id);
+        }
+
+        let omission = Omission::new(
+            OmissionCategory::Candidate {
+                person: person_id,
+                lists: lists.clone(),
+            },
+            "Missing consent".parse().unwrap(),
+            "The document is missing.".parse().unwrap(),
+            None,
+        );
+        omission.create(&store).await.unwrap();
+        omission
+            .set_part_status(
+                &store,
+                OmissionPart::CandidateList(lists[0]),
+                OmissionStatus::Recovered,
+            )
+            .await
+            .unwrap();
+        assert_eq!(store.snapshot().get_omissions().len(), 2);
+
+        let response = candidate(
+            CsbRecoveryCandidatePath {
+                stream_id,
+                list_id: lists[0],
+                person_id,
+            },
+            CsbContext::new_test(),
+            store,
+        )
+        .await
+        .unwrap()
+        .into_response();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response_body_string(response).await;
+        assert_eq!(
+            body.matches("<li class=\"omission-status-row").count(),
+            1,
+            "{body}"
+        );
+        assert_eq!(body.matches(r#"name="candidate_list""#).count(), 2);
+        assert!(body.contains(&format!(r#"value="{}""#, lists[0])));
+        assert!(body.contains(&format!(r#"value="{}""#, lists[1])));
+        assert_eq!(body.matches("selected").count(), 1);
     }
 
     #[tokio::test]
