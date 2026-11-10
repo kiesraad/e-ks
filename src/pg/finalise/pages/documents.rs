@@ -328,6 +328,63 @@ mod tests {
         Ok(())
     }
 
+    /// Throughput benchmark: how many final documents zips the fixtures yield
+    /// in one minute. Run with
+    /// `cargo test --release --features fixtures zip_throughput -- --ignored --nocapture`.
+    #[tokio::test(flavor = "multi_thread")]
+    #[cfg(feature = "fixtures")]
+    #[ignore = "benchmark, takes a minute"]
+    async fn zip_throughput() -> Result<(), AppError> {
+        use axum::response::IntoResponse;
+        use std::time::{Duration, Instant};
+
+        let store = PgStore::new_for_test();
+        crate::fixtures::load(&store, None).await?;
+        let context = Context::new(
+            &store,
+            crate::Session::new_test_with_locale(crate::Locale::En),
+        );
+        // one concurrent download per core, like simultaneous users
+        let workers = std::thread::available_parallelism().map_or(1, std::num::NonZero::get);
+        let start = Instant::now();
+        let tasks: Vec<_> = (0..workers)
+            .map(|_| {
+                let (store, context) = (store.clone(), context.clone());
+                tokio::spawn(async move {
+                    let data = store.snapshot();
+                    let mut count = 0u32;
+                    while start.elapsed() < Duration::from_secs(60) {
+                        // bypasses the rate limit and audit event in `gen_documents`: only generation is timed
+                        let (bundles, filename) =
+                            DocumentData::from_store_and_context(&data, &context, ModelLocale::Nl)?;
+                        let response =
+                            DocumentData::to_zip_response(bundles, filename)?.into_response();
+                        assert!(
+                            !crate::test_utils::zip_entry_names(response)
+                                .await
+                                .is_empty()
+                        );
+                        count += 1;
+                    }
+                    Ok::<_, AppError>(count)
+                })
+            })
+            .collect();
+        let mut count = 0;
+        for task in tasks {
+            count += task.await.expect("worker panicked")?;
+        }
+        println!("{workers} workers");
+
+        println!(
+            "generated {count} zips in {:.1?} ({:.2?} per zip)",
+            start.elapsed(),
+            start.elapsed() / count
+        );
+
+        Ok(())
+    }
+
     #[tokio::test]
     async fn gen_documents_returns_zip_response() -> Result<(), AppError> {
         use axum::{http::StatusCode, response::IntoResponse};
