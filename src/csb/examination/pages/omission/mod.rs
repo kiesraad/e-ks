@@ -9,7 +9,7 @@ use crate::{
     AppError, CsbContext, CsbStore, CsbStoreData, Form, HtmlTemplate, Locale, Overlay,
     QueryParamState, StreamId,
     csb::examination::{
-        OmissionForm,
+        CsbPoliticalGroupPath, OmissionForm,
         extractors::CsbPoliticalGroup,
         pages::{
             CsbAddOmissionPath, CsbDeleteOmissionPath, CsbOmissionOverviewPath, OmissionListQuery,
@@ -169,7 +169,6 @@ impl OmissionTarget {
     ) -> Result<String, AppError> {
         let appellation = data.pg(WithCorrections::All).get_appellation();
         let first_part = match self.omission_type {
-            OmissionType::PoliticalGroup => trans!("common.general_information", locale),
             OmissionType::Appellation => {
                 match data
                     .pg(WithCorrections::All)
@@ -360,11 +359,14 @@ pub async fn delete_omission(
     omission.delete(&store).await?;
     Ok(Redirect::to(
         &overview
-            .with_query_params(QueryParamState::overlay(
-                query.redirect_url().map(str::to_owned),
-                query.is_initial(),
-            ))
-            .to_string(),
+            .map(|url| {
+                url.with_query_params(QueryParamState::overlay(
+                    query.redirect_url().map(str::to_owned),
+                    query.is_initial(),
+                ))
+                .to_string()
+            })
+            .unwrap_or(CsbPoliticalGroupPath { stream_id }.to_string()),
     )
     .into_response())
 }

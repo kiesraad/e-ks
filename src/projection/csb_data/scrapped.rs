@@ -75,7 +75,6 @@ impl Scrapped {
                 OmissionCategory::Appellation => {
                     scrapped.appellation.insert(omission.id);
                 }
-                OmissionCategory::PoliticalGroup => continue,
                 OmissionCategory::DeclarationsOfSupport(districts) if districts.is_empty() => {
                     scrapped.all_districts = true;
                 }

@@ -404,25 +404,6 @@ impl CsbPoliticalGroup {
         }
     }
 
-    /// Path to the dialog that adds a general (political group level) omission.
-    pub fn add_political_group_omission_path(&self) -> impl TypedPath {
-        CsbAddOmissionPath {
-            stream_id: self.stream_id,
-            omission_type: OmissionType::PoliticalGroup,
-            reference: self.stream_id.into(),
-        }
-    }
-
-    /// Path to the overview page listing the general (political group level)
-    /// omissions already added.
-    pub fn manage_political_group_omissions_path(&self) -> impl TypedPath {
-        CsbOmissionOverviewPath {
-            stream_id: self.stream_id,
-            omission_type: OmissionType::PoliticalGroup,
-            reference: self.stream_id.into(),
-        }
-    }
-
     /// Path to the dialog that adds a appellation (political group level) omission.
     pub fn add_appellation_omission_path(&self) -> impl TypedPath {
         CsbAddOmissionPath {

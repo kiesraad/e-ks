@@ -39,9 +39,7 @@ impl CsbStoreData {
 
         for omission in self.get_omissions() {
             match omission.category {
-                OmissionCategory::PoliticalGroup | OmissionCategory::Appellation => {
-                    general.push(omission)
-                }
+                OmissionCategory::Appellation => general.push(omission),
                 OmissionCategory::CandidateList(ref lists) => {
                     lists.first().ok_or(AppError::InternalServerError)?;
                     candidate_lists.push(omission)
@@ -66,11 +64,8 @@ impl CsbStoreData {
         let candidates = self.candidate_omissions(political_group, candidates)?;
 
         Ok(AllOmissions {
-            general: OmissionRow::rows(general, political_group, |omission| {
-                match omission.category {
-                    OmissionCategory::Appellation => appellation_path(political_group),
-                    _ => general_path(political_group),
-                }
+            general: OmissionRow::rows(general, political_group, |_| {
+                appellation_path(political_group)
             }),
             declarations_of_support: OmissionRow::rows(
                 declarations_of_support,
@@ -183,18 +178,6 @@ fn split_rows(rows: Vec<OmissionRow>) -> (Vec<OmissionRow>, Vec<OmissionRow>) {
 // In examination mode an omission links to the manage-omissions overlay it can
 // be edited in; in recovery mode there is nothing to edit, so it links to the
 // page of the item it applies to instead.
-
-fn general_path(political_group: &CsbPoliticalGroup) -> Option<String> {
-    Some(match political_group.mode {
-        CsbPhase::Examination => political_group
-            .manage_political_group_omissions_path()
-            .with_query_params(QueryParamState::redirect_to(
-                political_group.all_restorations_path(),
-            ))
-            .to_string(),
-        CsbPhase::Recovery => political_group.general_information_path(),
-    })
-}
 
 fn appellation_path(political_group: &CsbPoliticalGroup) -> Option<String> {
     Some(match political_group.mode {

@@ -163,10 +163,6 @@ impl CsbStoreData {
             .collect()
     }
 
-    pub fn get_political_group_omissions(&self) -> Vec<Omission> {
-        self.omissions_where(|o| matches!(o.category, OmissionCategory::PoliticalGroup))
-    }
-
     pub fn get_appellation_omissions(&self) -> Vec<Omission> {
         self.omissions_where(|o| matches!(o.category, OmissionCategory::Appellation))
     }

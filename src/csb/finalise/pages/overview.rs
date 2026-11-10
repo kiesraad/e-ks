@@ -180,7 +180,12 @@ mod tests {
         group.recovery.pending = 0;
         let assessed_response = render(main_store, vec![group]).await;
 
-        assert!(unassessed_response.contains("unassessed omissions. Go back to phase 3 to assess them."));
-        assert!(!assessed_response.contains("unassessed omissions. Go back to phase 3 to assess them."));
+        assert!(
+            unassessed_response
+                .contains("unassessed omissions. Go back to phase 3 to assess them.")
+        );
+        assert!(
+            !assessed_response.contains("unassessed omissions. Go back to phase 3 to assess them.")
+        );
     }
 }

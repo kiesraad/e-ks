@@ -208,10 +208,6 @@ fn scope_facts(category: &OmissionCategory, before: &CsbStoreData, locale: Local
             .join("; "),
     };
     let (kind, scope) = match category {
-        OmissionCategory::PoliticalGroup => (
-            trans!("audit_log.detail.omission.kind_political_group", locale),
-            None,
-        ),
         OmissionCategory::Appellation => (
             trans!("audit_log.detail.omission.kind_appellation", locale),
             None,

@@ -134,7 +134,7 @@ fn placeholders_for(target: &OmissionTarget, data: &CsbStoreData) -> OmissionPla
             },
             ..OmissionPlaceholders::default()
         },
-        OmissionType::CandidateList | OmissionType::PoliticalGroup | OmissionType::Appellation => {
+        OmissionType::CandidateList | OmissionType::Appellation => {
             OmissionPlaceholders::default()
         }
     }
@@ -219,7 +219,6 @@ pub(super) fn omission_views(
     election: ElectionConfig,
 ) -> Result<Vec<OmissionView>, AppError> {
     let omissions = match target.omission_type {
-        OmissionType::PoliticalGroup => data.get_political_group_omissions(),
         OmissionType::CandidateList => {
             data.get_candidate_list_omissions(CandidateListId::from(target.reference), election)?
         }

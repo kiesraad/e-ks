@@ -46,6 +46,7 @@ struct CsbPoliticalGroupTemplate {
     candidate_lists: Vec<CsbCandidateList>,
     political_group_status: RestorationStatus,
     declarations_of_support_omissions: Vec<OmissionRow>,
+    appellation_omissions: Vec<OmissionRow>,
     /// One pill per list, district or candidate added or removed on paper.
     paper_corrections: PaperCorrectionsOverview,
     /// What the unresolved omissions scrapped; only shown in the recovery
@@ -109,6 +110,8 @@ pub(in crate::csb) async fn render(
         data.get_all_declarations_of_support_omissions(context.election),
         &political_group,
     );
+    let appellation_omissions =
+        OmissionRow::unlinked(data.get_appellation_omissions(), &political_group);
     Ok(HtmlTemplate(
         CsbPoliticalGroupTemplate {
             political_group,
@@ -122,6 +125,7 @@ pub(in crate::csb) async fn render(
             paper_corrections,
             scrapped,
             all_problems,
+            appellation_omissions,
         },
         context,
     )

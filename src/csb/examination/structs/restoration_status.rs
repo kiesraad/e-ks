@@ -11,7 +11,7 @@ pub struct RestorationStatus {
 impl RestorationStatus {
     pub fn for_political_group(data: &CsbStoreData) -> Self {
         RestorationStatus {
-            has_omissions: !data.get_political_group_omissions().is_empty(),
+            has_omissions: false,
             has_corrections: data.get_political_group_csb_corrections_count() > 0,
         }
     }

@@ -20,7 +20,6 @@ use crate::{
 };
 
 // constants to use for `as_str` and `from_str` implementations of `OmissionType`
-const POLITICAL_GROUP: &str = "political-group";
 const CANDIDATE_LIST: &str = "candidate-list";
 const DECLARATION_OF_SUPPORT: &str = "declarations-of-support";
 const CANDIDATE: &str = "candidate";
@@ -61,7 +60,6 @@ impl FromStr for OmissionText {
 /// referenced item id (see [`OmissionCategory::from_type_and_reference`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OmissionType {
-    PoliticalGroup,
     Appellation,
     CandidateList,
     DeclarationsOfSupport,
@@ -71,7 +69,6 @@ pub enum OmissionType {
 impl OmissionType {
     fn as_str(self) -> &'static str {
         match self {
-            OmissionType::PoliticalGroup => POLITICAL_GROUP,
             OmissionType::CandidateList => CANDIDATE_LIST,
             OmissionType::DeclarationsOfSupport => DECLARATION_OF_SUPPORT,
             OmissionType::Candidate => CANDIDATE,
@@ -93,7 +90,6 @@ impl FromStr for OmissionType {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            POLITICAL_GROUP => Ok(OmissionType::PoliticalGroup),
             APPELLATION => Ok(OmissionType::Appellation),
             CANDIDATE_LIST => Ok(OmissionType::CandidateList),
             DECLARATION_OF_SUPPORT => Ok(OmissionType::DeclarationsOfSupport),
@@ -123,13 +119,9 @@ impl<'de> Deserialize<'de> for OmissionType {
 
 #[derive(Default, Debug, Serialize, Eq, PartialEq, Deserialize, Clone)]
 pub enum OmissionCategory {
-    /// Anything else about the group as a whole, e.g. a missing deposit
-    /// ("waarborgsom") or an unidentified submitter. Has no presets; the CSB
-    /// describes these itself.
-    #[default]
-    PoliticalGroup,
     /// The appellation, e.g. not registered (H 3-1 / H 3-2). Unresolved, it
     /// scraps the appellation: the list continues as a blank list.
+    #[default]
     Appellation,
     /// Omissions scoped to one or more specific candidate lists.
     CandidateList(Vec<CandidateListId>),
@@ -160,7 +152,6 @@ impl OmissionCategory {
                 election.electoral_districts()
             }
             OmissionCategory::DeclarationsOfSupport(districts) => districts,
-            OmissionCategory::PoliticalGroup
             | OmissionCategory::Appellation
             | OmissionCategory::CandidateList(_)
             | OmissionCategory::Candidate { .. } => &[],
@@ -174,7 +165,6 @@ impl OmissionCategory {
             OmissionCategory::CandidateList(lists) | OmissionCategory::Candidate { lists, .. } => {
                 lists
             }
-            OmissionCategory::PoliticalGroup
             | OmissionCategory::Appellation
             | OmissionCategory::DeclarationsOfSupport(_) => &[],
         }
@@ -290,7 +280,6 @@ impl OmissionCategory {
                 person: *person,
                 lists,
             }),
-            OmissionCategory::PoliticalGroup
             | OmissionCategory::Appellation
             | OmissionCategory::DeclarationsOfSupport(_) => None,
         }
@@ -305,7 +294,6 @@ impl OmissionCategory {
         lists: Vec<CandidateListId>,
     ) -> Self {
         match omission_type {
-            OmissionType::PoliticalGroup => OmissionCategory::PoliticalGroup,
             OmissionType::Appellation => OmissionCategory::Appellation,
             OmissionType::CandidateList => OmissionCategory::CandidateList(lists),
             OmissionType::DeclarationsOfSupport => {

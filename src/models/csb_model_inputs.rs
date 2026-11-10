@@ -426,7 +426,7 @@ fn omission_order(
     omission: &Omission,
 ) -> (u8, usize, UtcDateTime, OmissionId) {
     let (rank, position) = match &omission.category {
-        OmissionCategory::PoliticalGroup | OmissionCategory::Appellation => (0, 0),
+        OmissionCategory::Appellation => (0, 0),
         OmissionCategory::DeclarationsOfSupport(_) => (1, 0),
         OmissionCategory::CandidateList(_) => (2, 0),
         OmissionCategory::Candidate { person, lists } => (
@@ -668,7 +668,7 @@ impl OmissionCategory {
         election: &ElectionConfig,
     ) -> Result<String, AppError> {
         let districts = match self {
-            OmissionCategory::PoliticalGroup | OmissionCategory::Appellation => {
+            OmissionCategory::Appellation => {
                 group_districts(data)
             }
             OmissionCategory::CandidateList(lists) | OmissionCategory::Candidate { lists, .. } => {
