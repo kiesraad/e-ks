@@ -27,7 +27,7 @@
       <h3 class="mt-xl mb-sm">{{ "csb.finalise.final_title"|trans }}</h3>
       <div class="examination-strip">
         <a class="button primary icon-download{% if !has_hearing_details %} disabled{% endif %}"
-           {% if has_hearing_details %}href="{{ crate::csb::finalise::paths::CsbFinalZipDownloadPath }}"{% else %}aria-disabled="true"{% endif %}
+           {% if has_hearing_details %}href="{{ crate::csb::finalise::paths::CsbFinalZipDownloadPath }}" data-confetti{% else %}aria-disabled="true"{% endif %}
            id="final-zip">{{ "csb.finalise.download_final_zip"|trans }}</a>
       </div>
     </div>
