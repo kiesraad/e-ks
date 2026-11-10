@@ -28,8 +28,13 @@ struct SelectElectionTemplate {
 pub async fn select_election<S: AppRequestState>(
     _: SelectElectionPath,
     session: Session,
-    _: State<S>,
+    State(state): State<S>,
 ) -> Result<Response, AppError> {
+    // With `DEFAULT_ELECTION` pinned the election is set at login, never chosen.
+    if state.config().default_election.is_some() {
+        return Err(AppError::GenericNotFound);
+    }
+
     if session.user.election().is_some() {
         return Ok(Redirect::to(&PgIndexPath.to_string()).into_response());
     }
@@ -62,6 +67,10 @@ pub async fn select_election_submit<S: AppRequestState>(
 ) -> Result<Response, AppError> {
     #[cfg(not(all(feature = "fixtures", feature = "dev-features")))]
     let _ = jar;
+
+    if state.config().default_election.is_some() {
+        return Err(AppError::GenericNotFound);
+    }
 
     // Committee sessions use CSB stores, not app stores; never create an
     // `PgStore` in their `(stream_id, election)` partition.
