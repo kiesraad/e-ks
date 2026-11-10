@@ -421,7 +421,7 @@ async fn record_brp_result(
 
 /// Warn, before the lookups in `batch` are sent, on candidates whose details
 /// were corrected and on candidates without a burgerservicenummer.
-fn report_sensitive_lookups(store: &CsbStore, batch: &[Person]) {
+pub(in crate::csb) fn report_sensitive_lookups(store: &CsbStore, batch: &[Person]) {
     let data = store.snapshot();
     for person in batch {
         let paper = data.is_person_paper_corrected(person.id);
@@ -464,11 +464,10 @@ fn report_sensitive_lookups(store: &CsbStore, batch: &[Person]) {
 async fn verify_candidates(store: CsbStore, brp_client: BrpClient) -> Result<(), AppError> {
     let data = store.snapshot();
     let unchecked: Vec<Person> = data
-        .pg(WithCorrections::All)
-        .get_persons()
+        .listed_candidates()
         .into_iter()
+        .map(|candidate| candidate.person)
         .filter(|person| !data.is_brp_checked(person.id))
-        .cloned()
         .collect();
 
     for batch in unchecked.chunks(BRP_BSN_BATCH_SIZE) {
@@ -515,10 +514,13 @@ mod tests {
         brp_stub::{BrpStub, matching_record},
         structs::{
             brp::{BrpFindingKind, BrpLookup, BrpLookupOutcome, BrpQuery, BrpValue},
+            candidate_lists::CandidateListId,
             csb::{Correction, PersonCorrection},
             persons::PersonId,
         },
-        test_utils::{response_body_string, sample_person, sample_person_from_brp},
+        test_utils::{
+            response_body_string, sample_candidate_list, sample_person, sample_person_from_brp,
+        },
         utils::format_hash,
     };
 
@@ -934,12 +936,20 @@ mod tests {
     }
 
     /// A store holding `person`, ready for a sweep.
+    /// Add `person` as a candidate: the sweep only looks up persons on a list.
+    fn add_listed_candidate(store: &CsbStore, person: Person) {
+        let mut list = sample_candidate_list(CandidateListId::new());
+        list.candidates = vec![person.id];
+        store.add_person(person);
+        store.add_candidate_list(list);
+    }
+
     async fn store_with_candidate(state: &AppState, person: Person) -> Result<CsbStore, AppError> {
         let csb_store = state
             .csb_store_for_stream(StreamId::new(), ElectionConfig::EK27)
             .await?
             .acting_as_test_user();
-        csb_store.add_person(person);
+        add_listed_candidate(&csb_store, person);
         Ok(csb_store)
     }
 
@@ -1118,7 +1128,7 @@ mod tests {
         // Two batches, so the sweep waits out the request interval at least
         // once; the call should return well before that.
         for _ in 0..=BRP_BSN_BATCH_SIZE {
-            csb_store.add_person(sample_person_from_brp());
+            add_listed_candidate(&csb_store, sample_person_from_brp());
         }
 
         let interval = Duration::from_millis(20);
@@ -1138,6 +1148,28 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_person_who_is_on_no_list_is_not_looked_up() -> Result<(), AppError> {
+        let state = AppState::new_for_tests().await;
+        let csb_store = store_with_candidate(&state, sample_person_from_brp()).await?;
+        let unlisted = sample_person_from_brp();
+        let unlisted_id = unlisted.id;
+        csb_store.add_person(unlisted);
+
+        let stub = BrpStub::serving(Vec::new()).await;
+        do_brp_verification(&csb_store, &stub.client).await?;
+        wait_for_brp_status(&csb_store, |status| matches!(status, BrpStatus::Finished)).await;
+
+        assert!(!csb_store.snapshot().is_brp_checked(unlisted_id));
+        assert!(
+            recorded_lookups(&csb_store)
+                .iter()
+                .all(|lookup| !lookup.persons.contains(&unlisted_id))
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn candidates_are_looked_up_in_batches() -> Result<(), AppError> {
         let state = AppState::new_for_tests().await;
         let csb_store = state
@@ -1146,7 +1178,7 @@ mod tests {
             .acting_as_test_user();
 
         for _ in 0..BRP_BSN_BATCH_SIZE {
-            csb_store.add_person(sample_person_from_brp());
+            add_listed_candidate(&csb_store, sample_person_from_brp());
         }
 
         let stub = BrpStub::serving(Vec::new()).await;
@@ -1251,7 +1283,7 @@ mod tests {
         // Two batches, so the first sweep is still waiting out the request
         // interval when the second call arrives.
         for _ in 0..=BRP_BSN_BATCH_SIZE {
-            csb_store.add_person(sample_person_from_brp());
+            add_listed_candidate(&csb_store, sample_person_from_brp());
         }
 
         let stub = BrpStub::serving_with_interval(Vec::new(), Duration::from_millis(20)).await;

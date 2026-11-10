@@ -367,9 +367,10 @@ The CSB section has two projections of its own on the shared store machinery
   instead.
 - **`monitoring`**: an overview of the political-group streams built from
   `StreamMeta`: event counts and timestamps read from the backend's index.
-  This deliberately reads no payloads: no stream key is unwrapped and nothing
-  is decrypted, so monitoring works without touching any political group's
-  data.
+  This deliberately loads nothing: no stream key is unwrapped and nothing is
+  decrypted for it. A political group's name is only shown for a stream that
+  is already loaded in memory, so monitoring works without touching any
+  political group's data.
 - **`audit_log`**: the CSB audit log, a read view over either the main
   committee stream or a single imported stream. Every request to the BRP is
   on the stream as a `CsbAction::BrpLookup` (the candidates it was for, the
@@ -1013,8 +1014,10 @@ consequences:
 - The wrap binds the `(stream_id, election)` pair into the GCM associated
   data, so a wrapped key (and with it, payloads) cannot be transplanted
   between streams or elections.
-- Rotating the master secret only requires re-wrapping each stream's key; the
-  event payloads never have to be re-encrypted.
+- The master secret is never rotated in place. A deployment serves a single
+  election: afterwards the database is wiped, and the next election gets a
+  fresh database with a new master secret. Wrapped keys therefore carry no
+  key identifier, and there is no rotation tool.
 - A payload is CBOR-serialized, then AES-256-GCM encrypted under a fresh
   random 12-byte nonce, and stored as `nonce ‖ ciphertext ‖ tag`. The GCM
   *associated data* additionally binds each ciphertext to its event metadata and

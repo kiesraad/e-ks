@@ -100,7 +100,7 @@ impl OmissionTarget {
             "candidate_lists",
         )?;
 
-        if self.candidate().is_some() && !lists.iter().all(|id| applicable_lists.contains(id)) {
+        if !lists.iter().all(|id| applicable_lists.contains(id)) {
             return Err(vec![(
                 "candidate_lists".to_string(),
                 ValidationError::InvalidValue,
@@ -952,9 +952,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn add_candidate_list_omission_rejects_an_unknown_list() {
+        let store = CsbStore::new_for_test();
+        let form = OmissionForm {
+            candidate_lists: vec![CandidateListId::new()],
+            ..sample_form()
+        };
+
+        let response = submit_add_omission(
+            store.clone(),
+            OmissionType::CandidateList,
+            CandidateListId::new(),
+            None,
+            form,
+        )
+        .await;
+
+        // The form is re-rendered instead of saving an omission that would
+        // break the models and letters of the whole political group.
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(store.snapshot().get_omissions().is_empty());
+    }
+
+    #[tokio::test]
     async fn add_candidate_list_omission_persists_category() {
         let store = CsbStore::new_for_test();
         let list = CandidateListId::new();
+        store.add_candidate_list(crate::test_utils::sample_candidate_list(list));
         let form = OmissionForm {
             candidate_lists: vec![list],
             ..sample_form()

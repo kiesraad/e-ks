@@ -10,7 +10,9 @@ pub use pages::{
     BrpSweepStatus, brp_sweep_running, brp_sweep_status, do_brp_verification, is_brp_status_poll,
     router,
 };
-pub(in crate::csb) use pages::{ImportForm, ImportResult, import_package};
+pub(in crate::csb) use pages::{
+    ImportForm, ImportResult, import_package, report_sensitive_lookups,
+};
 
 #[cfg(test)]
 pub use pages::claim_sweep_for_test;
