@@ -236,7 +236,10 @@ async fn do_import<S: AppRequestState>(
         .find(|e| e.event_id == event_id)
         .map(|e| e.hash)
         .ok_or(AppError::GenericNotFound)?;
-    let snapshot = PgStoreData::snapshot_until(&events, event_id);
+
+    // filter out persons that are not on a candidate list
+    // to avoid them being unnecessarily checked by the BRP
+    let snapshot = PgStoreData::snapshot_until_without_unused_persons(&events, event_id);
 
     // Persist the import under a fresh stream.
     let csb_store = CsbStore::acting_as(

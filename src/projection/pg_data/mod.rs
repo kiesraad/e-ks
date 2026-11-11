@@ -7,7 +7,7 @@ mod problems;
 pub use event::{CandidateImport, PgEvent};
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::{
     Scope,
@@ -129,6 +129,24 @@ impl PgStoreData {
     pub fn snapshot_until(events: &[StoreEvent<PgEvent>], target_event_id: usize) -> Self {
         let mut snapshot = Self::replay_onto(PgStoreData::default(), events, target_event_id);
         snapshot.events.clear();
+        snapshot
+    }
+
+    /// equivalent to [Self::snapshot_until] but additionally removes persons from store that are
+    /// not listed on any candidate list.
+    ///
+    /// This is useful to prevent unnecessary BRP checks on persons.
+    pub fn snapshot_until_without_unused_persons(
+        events: &[StoreEvent<PgEvent>],
+        target_event_id: usize,
+    ) -> Self {
+        let mut snapshot = Self::snapshot_until(events, target_event_id);
+        let used: HashSet<PersonId> = snapshot
+            .candidate_lists
+            .values()
+            .flat_map(|list| list.candidates.iter().copied())
+            .collect();
+        snapshot.persons.retain(|id, _| used.contains(id));
         snapshot
     }
 
@@ -695,6 +713,39 @@ mod tests {
         let snapshot = PgStoreData::snapshot_until(&events, 1);
         assert!(snapshot.persons.contains_key(&person_a));
         assert!(!snapshot.persons.contains_key(&person_b));
+    }
+
+    #[test]
+    fn snapshot_until_without_unused_persons_removes_unused_persons() {
+        let person_a = PersonId::new();
+        let person_b = PersonId::new();
+        let list = CandidateListId::new();
+        let events = vec![
+            StoreEvent::new(1, PgEvent::CreatePerson(Box::new(sample_person(person_a)))),
+            StoreEvent::new(2, PgEvent::CreatePerson(Box::new(sample_person(person_b)))),
+            StoreEvent::new(
+                3,
+                PgEvent::CreateCandidateList(Box::new(sample_candidate_list(list))),
+            ),
+            StoreEvent::new(
+                4,
+                PgEvent::AddCandidateToCandidateList {
+                    list_id: list,
+                    person_id: person_a,
+                },
+            ),
+        ];
+
+        let snapshot = PgStoreData::snapshot_until(&events, 4);
+        let snapshot_filtered = PgStoreData::snapshot_until_without_unused_persons(&events, 4);
+
+        assert_eq!(snapshot.persons.len(), 2);
+        assert!(snapshot.persons.contains_key(&person_a));
+        assert!(snapshot.persons.contains_key(&person_b));
+
+        assert_eq!(snapshot_filtered.persons.len(), 1);
+        assert!(snapshot_filtered.persons.contains_key(&person_a));
+        assert!(!snapshot_filtered.persons.contains_key(&person_b));
     }
 
     /// In paper-corrections mode the handle reads the CSB stream's corrected
