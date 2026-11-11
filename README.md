@@ -1,7 +1,7 @@
-[![Quality gate status](https://sonarcloud.io/api/project_badges/measure?project=kiesraad_e-ks&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=kiesraad_e-ks)
-[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=kiesraad_e-ks&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=kiesraad_e-ks)
-[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=kiesraad_e-ks&metric=coverage)](https://sonarcloud.io/summary/new_code?id=kiesraad_e-ks)
-[![Lines of code](https://sonarcloud.io/api/project_badges/measure?project=kiesraad_e-ks&metric=ncloc)](https://sonarcloud.io/summary/new_code?id=kiesraad_e-ks)
+[![Quality gate status](https://sonarcloud.io/api/project_badges/measure?project=kiesraad_e-ks&metric=alert_status)](https://sonarcloud.io/summary/overall?id=kiesraad_e-ks)
+[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=kiesraad_e-ks&metric=reliability_rating)](https://sonarcloud.io/summary/overall?id=kiesraad_e-ks)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=kiesraad_e-ks&metric=coverage)](https://sonarcloud.io/summary/overall?id=kiesraad_e-ks)
+[![Lines of code](https://sonarcloud.io/api/project_badges/measure?project=kiesraad_e-ks&metric=ncloc)](https://sonarcloud.io/summary/overall?id=kiesraad_e-ks)
 
 
 # e-KS
