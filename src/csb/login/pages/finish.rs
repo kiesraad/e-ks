@@ -11,7 +11,7 @@ use axum::{
     http::HeaderMap,
     response::{IntoResponse, Redirect, Response},
 };
-use axum_extra::extract::CookieJar;
+use axum_extra::extract::{CookieJar, cookie::Cookie};
 use serde::Deserialize;
 use tracing::{info, warn};
 
@@ -20,11 +20,15 @@ use crate::{
     Session, SwitchElectionForm,
     auth::{
         csb_webauthn::{AssertionError, LoginFailure, VerifiedLogin, verify_login},
-        session_extractor::{LoginOrigin, establish_session, user_agent_hash},
+        session_extractor::{
+            LoginOrigin, build_expired_cookie, establish_session, user_agent_hash,
+        },
     },
     csb::{
         index::CsbIndexPath,
-        login::{CsbLoginFinishPath, pages::login::login_failed, require_webauthn},
+        login::{
+            CHALLENGE_COOKIE_NAME, CsbLoginFinishPath, pages::login::login_failed, require_webauthn,
+        },
     },
     utils::peer_ip_label,
 };
@@ -61,9 +65,14 @@ pub async fn login_finish<S: AppRequestState>(
     // catch the cached projection up with logins recorded elsewhere.
     store.load().await?;
 
+    let binding = jar
+        .get(CHALLENGE_COOKIE_NAME)
+        .map(Cookie::value)
+        .unwrap_or_default();
     let verified = verify_login(
         state.pending_requests(),
         config,
+        binding,
         &form.credential,
         |credential_id| store.last_sign_count(credential_id),
     )
@@ -123,7 +132,9 @@ async fn establish_committee_session<S: AppRequestState>(
         return Ok(login_failed_with(failure, peer));
     }
 
-    let jar = establish_session(state.sessions(), jar, session, LoginOrigin::SameSite).await?;
+    let jar = establish_session(state.sessions(), jar, session, LoginOrigin::SameSite)
+        .await?
+        .remove(build_expired_cookie(CHALLENGE_COOKIE_NAME));
 
     info!("committee member {username} logged in to the CSB");
     Ok((jar, Redirect::to(&CsbIndexPath {}.to_string())).into_response())
@@ -132,7 +143,11 @@ async fn establish_committee_session<S: AppRequestState>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::{Router, http::StatusCode};
+    use axum::{
+        Router,
+        body::Body,
+        http::{HeaderValue, Request, StatusCode, header},
+    };
     use tower::ServiceExt;
     use tracing_test::traced_test;
 
@@ -145,9 +160,38 @@ mod tests {
 
     const LOGIN_ERROR_LOCATION: &str = "/csb/login?error=1";
 
-    async fn finish_login(app: &Router, credential: &str) -> Response {
-        let request = form_post("/csb/login/finish", &[("credential", credential)]);
+    async fn finish_login(app: &Router, cookie: &str, credential: &str) -> Response {
+        let request = with_cookie(
+            form_post("/csb/login/finish", &[("credential", credential)]),
+            cookie,
+        );
         app.clone().oneshot(request).await.expect("response")
+    }
+
+    fn with_cookie(mut request: Request<Body>, cookie: &str) -> Request<Body> {
+        let cookie = HeaderValue::from_str(cookie).expect("cookie header");
+        request.headers_mut().insert(header::COOKIE, cookie);
+        request
+    }
+
+    /// Only the browser the challenge was issued to can finish the login.
+    #[tokio::test]
+    async fn assertion_from_another_browser_is_rejected() {
+        let (_state, app) = test_app().await;
+        let (challenge, cookie) = start_login(&app).await;
+        let (_, other_cookie) = start_login(&app).await;
+        let assertion = test_support::signed_assertion(&challenge);
+
+        assert_login_failed(&finish_login(&app, "", &assertion).await);
+        assert_login_failed(&finish_login(&app, &other_cookie, &assertion).await);
+
+        let response = finish_login(&app, &cookie, &assertion).await;
+        assert_eq!(location(&response), "/csb");
+        // The spent cookie is cleared.
+        assert_eq!(
+            cookie_value(&response, CHALLENGE_COOKIE_NAME).as_deref(),
+            Some("")
+        );
     }
 
     fn assert_login_failed(response: &Response) {
@@ -159,9 +203,10 @@ mod tests {
     #[tokio::test]
     async fn valid_assertion_establishes_committee_session() {
         let (state, app) = test_app().await;
-        let challenge = start_login(&app).await;
+        let (challenge, cookie) = start_login(&app).await;
 
-        let response = finish_login(&app, &test_support::signed_assertion(&challenge)).await;
+        let response =
+            finish_login(&app, &cookie, &test_support::signed_assertion(&challenge)).await;
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
         assert_eq!(location(&response), "/csb");
@@ -205,20 +250,23 @@ mod tests {
         let app = crate::app::router::create(state.clone()).with_state(state.clone());
         let election = ElectionConfig::PS27(crate::Province::Groningen);
 
-        let challenge = start_login(&app).await;
+        let (challenge, cookie) = start_login(&app).await;
         let assertion = test_support::signed_assertion(&challenge);
-        assert_login_failed(&finish_login(&app, &assertion).await);
+        assert_login_failed(&finish_login(&app, &cookie, &assertion).await);
 
-        let challenge = start_login(&app).await;
+        let (challenge, cookie) = start_login(&app).await;
         let assertion = test_support::signed_assertion(&challenge);
-        let request = form_post(
-            "/csb/login/finish",
-            &[
-                ("credential", assertion.as_str()),
-                ("election", "PS27"),
-                ("domain_province", "prov1"),
-                ("domain_water_council", ""),
-            ],
+        let request = with_cookie(
+            form_post(
+                "/csb/login/finish",
+                &[
+                    ("credential", assertion.as_str()),
+                    ("election", "PS27"),
+                    ("domain_province", "prov1"),
+                    ("domain_water_council", ""),
+                ],
+            ),
+            &cookie,
         );
         let response = app.clone().oneshot(request).await.expect("response");
 
@@ -240,10 +288,10 @@ mod tests {
         let (state, app) = test_app().await;
         let app = &app;
         let login = |count: u32| async move {
-            let challenge = start_login(app).await;
+            let (challenge, cookie) = start_login(app).await;
             let mut assertion = TestAssertion::new(&challenge);
             assertion.sign_count = count;
-            finish_login(app, &assertion.json()).await
+            finish_login(app, &cookie, &assertion.json()).await
         };
 
         assert_eq!(location(&login(7).await), "/csb");
@@ -265,27 +313,27 @@ mod tests {
     #[tokio::test]
     async fn replayed_assertion_is_rejected() {
         let (_state, app) = test_app().await;
-        let challenge = start_login(&app).await;
+        let (challenge, cookie) = start_login(&app).await;
         let assertion = test_support::signed_assertion(&challenge);
 
-        let first = finish_login(&app, &assertion).await;
+        let first = finish_login(&app, &cookie, &assertion).await;
         assert_eq!(location(&first), "/csb");
 
-        assert_login_failed(&finish_login(&app, &assertion).await);
+        assert_login_failed(&finish_login(&app, &cookie, &assertion).await);
     }
 
     /// A failed attempt burns the challenge too: the browser has to reload.
     #[tokio::test]
     async fn failed_attempt_burns_the_challenge() {
         let (_state, app) = test_app().await;
-        let challenge = start_login(&app).await;
+        let (challenge, cookie) = start_login(&app).await;
 
         let mut bad = TestAssertion::new(&challenge);
         bad.origin = "https://evil.example".to_string();
-        assert_login_failed(&finish_login(&app, &bad.json()).await);
+        assert_login_failed(&finish_login(&app, &cookie, &bad.json()).await);
 
         let good = test_support::signed_assertion(&challenge);
-        assert_login_failed(&finish_login(&app, &good).await);
+        assert_login_failed(&finish_login(&app, &cookie, &good).await);
     }
 
     #[tokio::test]
@@ -302,10 +350,10 @@ mod tests {
             },
         ];
         for tamper in tampers {
-            let challenge = start_login(&app).await;
+            let (challenge, cookie) = start_login(&app).await;
             let mut assertion = TestAssertion::new(&challenge);
             tamper(&mut assertion);
-            assert_login_failed(&finish_login(&app, &assertion.json()).await);
+            assert_login_failed(&finish_login(&app, &cookie, &assertion.json()).await);
         }
     }
 
@@ -313,11 +361,14 @@ mod tests {
     #[tokio::test]
     async fn failed_attempt_is_reported() {
         let (_state, app) = test_app().await;
-        let challenge = start_login(&app).await;
+        let (challenge, cookie) = start_login(&app).await;
 
         let mut assertion = TestAssertion::new(&challenge);
         assertion.user_verified = false;
-        let mut request = form_post("/csb/login/finish", &[("credential", &assertion.json())]);
+        let mut request = with_cookie(
+            form_post("/csb/login/finish", &[("credential", &assertion.json())]),
+            &cookie,
+        );
         let peer: SocketAddr = "203.0.113.9:4000".parse().expect("socket address");
         request.extensions_mut().insert(ConnectInfo(peer));
         assert_login_failed(&app.oneshot(request).await.expect("response"));
@@ -333,11 +384,11 @@ mod tests {
     #[tokio::test]
     async fn unknown_security_key_is_rejected() {
         let (_state, app) = test_app().await;
-        let challenge = start_login(&app).await;
+        let (challenge, cookie) = start_login(&app).await;
 
         let mut assertion = TestAssertion::new(&challenge);
         assertion.credential_id = vec![0x22; 64].into();
-        assert_login_failed(&finish_login(&app, &assertion.json()).await);
+        assert_login_failed(&finish_login(&app, &cookie, &assertion.json()).await);
     }
 
     /// The key must have signed a challenge this server issued: one it never
@@ -346,12 +397,17 @@ mod tests {
     #[tokio::test]
     async fn unissued_challenge_is_rejected() {
         let (_state, app) = test_app().await;
-        let challenge = start_login(&app).await;
+        let (challenge, cookie) = start_login(&app).await;
 
-        assert_login_failed(&finish_login(&app, &test_support::signed_assertion(&[9; 32])).await);
-        assert_login_failed(&finish_login(&app, &test_support::signed_assertion(&[9; 31])).await);
+        assert_login_failed(
+            &finish_login(&app, &cookie, &test_support::signed_assertion(&[9; 32])).await,
+        );
+        assert_login_failed(
+            &finish_login(&app, &cookie, &test_support::signed_assertion(&[9; 31])).await,
+        );
 
-        let response = finish_login(&app, &test_support::signed_assertion(&challenge)).await;
+        let response =
+            finish_login(&app, &cookie, &test_support::signed_assertion(&challenge)).await;
         assert_eq!(location(&response), "/csb");
     }
 
@@ -360,7 +416,7 @@ mod tests {
         let (_state, app) = test_app().await;
 
         for credential in ["", "{}", "not json", r#"{"rawId":"AAAA","response":{}}"#] {
-            assert_login_failed(&finish_login(&app, credential).await);
+            assert_login_failed(&finish_login(&app, "", credential).await);
         }
     }
 

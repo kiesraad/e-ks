@@ -93,16 +93,19 @@ pub(super) mod tests {
         (options, challenge)
     }
 
-    /// Loads the login page: the challenge the key must sign.
-    pub(in crate::csb::login) async fn start_login(app: &Router) -> Vec<u8> {
+    /// Loads the login page: the challenge the key must sign, and the
+    /// `Cookie` header binding it.
+    pub(in crate::csb::login) async fn start_login(app: &Router) -> (Vec<u8>, String) {
         let request = Request::builder()
             .uri("/csb/login")
             .body(Body::empty())
             .expect("valid request");
         let response = app.clone().oneshot(request).await.expect("response");
         assert_eq!(response.status(), StatusCode::OK);
+        let name = crate::csb::login::CHALLENGE_COOKIE_NAME;
+        let binding = cookie_value(&response, name).expect("challenge cookie");
         let (_, challenge) = ceremony_options(&response_body_string(response).await);
-        challenge
+        (challenge, format!("{name}={binding}"))
     }
 
     #[tokio::test]

@@ -9,13 +9,15 @@ use axum::{
     extract::State,
     response::{IntoResponse, Redirect, Response},
 };
+use axum_extra::extract::{CookieJar, cookie::SameSite};
+use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     AnyLocale, AppError, AppRequestState, Context, CsbWebauthnConfig, ElectionConfig, HtmlTemplate,
     Locale, LocaleValues, Province, Query, WaterCouncil,
-    auth::csb_webauthn::Challenge,
-    csb::login::{CsbLoginPath, require_webauthn},
+    auth::{csb_webauthn::Challenge, session_extractor::build_cookie},
+    csb::login::{CHALLENGE_COOKIE_NAME, CsbLoginPath, require_webauthn},
     filters,
 };
 
@@ -118,13 +120,19 @@ pub async fn login_page<S: AppRequestState>(
         water_councils: WaterCouncil::ALL,
     };
 
-    Ok(HtmlTemplate(
+    let jar = CookieJar::new().add(build_cookie(
+        CHALLENGE_COOKIE_NAME,
+        challenge.binding.expose_secret().to_string(),
+        SameSite::Strict,
+    ));
+    let page = HtmlTemplate(
         template,
         LocaleValues {
             locale: Locale::default(),
         },
-    )
-    .into_response())
+    );
+
+    Ok((jar, page).into_response())
 }
 
 /// Sends the browser back to the login page with a generic error,
@@ -135,7 +143,10 @@ pub(super) fn login_failed() -> Response {
 
 #[cfg(test)]
 mod tests {
-    use axum::{body::Body, http::Request};
+    use axum::{
+        body::Body,
+        http::{Request, header},
+    };
     use tower::ServiceExt;
 
     use base64::{Engine, prelude::BASE64_URL_SAFE_NO_PAD};
@@ -143,7 +154,7 @@ mod tests {
     use crate::{
         Query,
         auth::csb_webauthn::{consume_challenge, test_support},
-        csb::login::pages::tests::{ceremony_options, test_app},
+        csb::login::pages::tests::{ceremony_options, cookie_value, test_app},
         test_utils::response_body_string,
     };
 
@@ -161,7 +172,15 @@ mod tests {
             .expect("valid request");
         let response = app.oneshot(request).await.expect("response");
 
+        let binding = cookie_value(&response, CHALLENGE_COOKIE_NAME).expect("challenge cookie");
+        let set_cookie = response.headers()[header::SET_COOKIE]
+            .to_str()
+            .expect("ascii cookie");
+        assert!(set_cookie.contains("HttpOnly"));
+        assert!(set_cookie.contains("SameSite=Strict"));
+
         let body = response_body_string(response).await;
+        assert!(!body.contains(&binding));
         assert!(body.contains("action=\"/csb/login/finish\""));
         let failed_message = crate::trans!("csb.auth.error.message", Locale::default());
         assert!(!body.contains(&failed_message));
@@ -191,7 +210,7 @@ mod tests {
         assert_eq!(challenge.len(), 32);
         let issued = BASE64_URL_SAFE_NO_PAD.encode(&challenge);
         assert!(
-            consume_challenge(&state.pending_requests, &issued)
+            consume_challenge(&state.pending_requests, &issued, &binding)
                 .await
                 .is_ok()
         );
