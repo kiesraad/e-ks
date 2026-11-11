@@ -649,7 +649,7 @@ mod tests {
     #[test]
     fn from_env_rejects_blank_and_short_secrets() {
         let short = "a".repeat(MIN_SECRET_LENGTH - 1);
-        let padded = format!("{short}  ");
+        let padded = format!("  {short}  ");
         for name in [
             "ID_DERIVATION_KEY",
             "MASTER_ENCRYPTION_KEY",
@@ -667,11 +667,12 @@ mod tests {
 
     #[test]
     fn from_env_accepts_secrets_of_the_minimum_length() {
-        let secret = "a".repeat(MIN_SECRET_LENGTH);
+        let secret = "number four but secure this time";
+        assert_eq!(secret.len(), MIN_SECRET_LENGTH);
         let config = config_from(&[
-            ("ID_DERIVATION_KEY", &secret),
-            ("MASTER_ENCRYPTION_KEY", &secret),
-            ("EKS_KEY", &secret),
+            ("ID_DERIVATION_KEY", secret),
+            ("MASTER_ENCRYPTION_KEY", secret),
+            ("EKS_KEY", secret),
         ])
         .expect("config");
 
