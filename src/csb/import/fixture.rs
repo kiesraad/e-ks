@@ -622,10 +622,16 @@ fn preset_omission(
     category: OmissionCategory,
     tokens: &[(&str, String)],
 ) -> Omission {
-    let preset = omission_type
+    let (preset, text) = omission_type
         .presets()
         .iter()
-        .find(|preset| preset.title == title)
+        .flat_map(|preset| {
+            preset
+                .all_texts()
+                .into_iter()
+                .map(move |text| (preset, text))
+        })
+        .find(|(_, text)| text.title == title)
         .unwrap_or_else(|| panic!("no {omission_type} preset titled {title:?}"));
     let fill = |template: &str| {
         tokens
@@ -637,12 +643,10 @@ fn preset_omission(
 
     let mut omission = Omission::new(
         category,
-        preset.title.parse().expect("preset title"),
-        fill(&preset.description)
-            .parse()
-            .expect("preset description"),
-        (!preset.help_text.is_empty())
-            .then(|| fill(&preset.help_text).parse().expect("preset help text")),
+        text.title.parse().expect("preset title"),
+        fill(&text.description).parse().expect("preset description"),
+        (!text.help_text.is_empty())
+            .then(|| fill(&text.help_text).parse().expect("preset help text")),
     );
     omission.id = Uuid::new_v5(&Uuid::NAMESPACE_OID, key).into();
     omission.recoverable = preset.recoverable;

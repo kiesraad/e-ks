@@ -14,7 +14,7 @@ test.describe("add omissions for declarations of support", async () => {
     // Add each type of omission, verify and then remove
     const omissions = [
       {
-        button: omissionsPage.buttonMissingOneDistrict,
+        button: omissionsPage.buttonMissing,
         text: "Voor één kieskring ontbreken ondersteuningsverklaringen",
         resolvable: true,
       },
@@ -32,7 +32,7 @@ test.describe("add omissions for declarations of support", async () => {
 
       await page.getByRole("checkbox", { name: "1. Groningen" }).check();
       await button.click();
-      if (button === omissionsPage.buttonMissingOneDistrict) {
+      if (button === omissionsPage.buttonMissing) {
         await expect(omissionsPage.textfieldLetter).toHaveValue(/Groningen/);
         await expect(omissionsPage.textfieldDescription).not.toHaveValue(
           /Groningen/,
@@ -74,7 +74,7 @@ test.describe("add omissions for declarations of support", async () => {
     // Add each type of omission, verify and then remove
     const omissions = [
       {
-        button: omissionsPage.buttonMissingMultipleDistricts,
+        button: omissionsPage.buttonMissing,
         text: "Voor meerdere kieskringen ontbreken ondersteuningsverklaringen",
         resolvable: true,
       },
@@ -93,7 +93,7 @@ test.describe("add omissions for declarations of support", async () => {
       await page.getByRole("checkbox", { name: "1. Groningen" }).check();
       await page.getByRole("checkbox", { name: "2. Fryslân" }).check();
       await button.click();
-      if (button === omissionsPage.buttonMissingMultipleDistricts) {
+      if (button === omissionsPage.buttonMissing) {
         await expect(omissionsPage.textfieldLetter).toHaveValue(
           /Groningen en Fryslân/,
         );
@@ -138,7 +138,7 @@ test.describe("add omissions for declarations of support", async () => {
     // Add each type of omission, verify and then remove
     const omissions = [
       {
-        button: omissionsPage.buttonMissingAllDistricts,
+        button: omissionsPage.buttonMissing,
         text: "Voor alle kieskringen ontbreken ondersteuningsverklaringen",
         resolvable: true,
       },
@@ -186,5 +186,51 @@ test.describe("add omissions for declarations of support", async () => {
       ).toBeVisible();
       await omissionsPage.linkClose.click();
     }
+  });
+
+  test("missing preset follows the district selection", async ({
+    csbImport,
+  }) => {
+    const { page, groupName } = csbImport;
+    const politicalGroupPage = new CsbPoliticalGroupPage(page);
+    const omissionsPage = new CsbOmissionsDeclarationsOfSupportPage(page);
+
+    await politicalGroupPage.selectedGroup(groupName);
+    await politicalGroupPage.linkSupportDeclarations.click();
+    await page.waitForURL(/\/omission\//);
+
+    const groningen = page.getByRole("checkbox", { name: "1. Groningen" });
+    const fryslan = page.getByRole("checkbox", { name: "2. Fryslân" });
+
+    await groningen.check();
+    await omissionsPage.buttonMissing.click();
+    await expect(omissionsPage.textfieldTitle).toHaveValue(
+      "Voor één kieskring ontbreken ondersteuningsverklaringen",
+    );
+    await expect(omissionsPage.textfieldLetter).toHaveValue(
+      /kieskring Groningen\./,
+    );
+
+    await fryslan.check();
+    await expect(omissionsPage.textfieldTitle).toHaveValue(
+      "Voor meerdere kieskringen ontbreken ondersteuningsverklaringen",
+    );
+    await expect(omissionsPage.textfieldLetter).toHaveValue(
+      /kieskringen Groningen en Fryslân\./,
+    );
+
+    await omissionsPage.checkboxAllLists.check();
+    await expect(omissionsPage.textfieldTitle).toHaveValue(
+      "Voor alle kieskringen ontbreken ondersteuningsverklaringen",
+    );
+    await expect(omissionsPage.textfieldLetter).not.toHaveValue(/Groningen/);
+
+    // A manually edited text is left alone on a new selection
+    await omissionsPage.textfieldLetter.fill("Eigen tekst");
+    await fryslan.uncheck();
+    await expect(omissionsPage.textfieldTitle).toHaveValue(
+      "Voor meerdere kieskringen ontbreken ondersteuningsverklaringen",
+    );
+    await expect(omissionsPage.textfieldLetter).toHaveValue("Eigen tekst");
   });
 });

@@ -79,7 +79,8 @@
                         data-title="{{ preset.title }}"
                         data-description="{{ preset.description }}"
                         data-help-text="{{ preset.help_text }}"
-                        data-recoverable="{{ preset.recoverable }}">{{ preset.title }}</button>
+                        data-recoverable="{{ preset.recoverable }}"
+                        {% if let Some(variants) = preset.district_variants %}data-district-variants="{{ variants }}"{% endif %}>{{ preset.title }}</button>
               </li>
             {% endfor %}
           </ul>

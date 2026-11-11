@@ -4,9 +4,7 @@ export class CsbOmissionsDeclarationsOfSupportPage {
   readonly headerDeclarationsOfSupport: Locator;
   readonly linkAdd: Locator;
   readonly linkOverview: Locator;
-  readonly buttonMissingOneDistrict: Locator;
-  readonly buttonMissingAllDistricts: Locator;
-  readonly buttonMissingMultipleDistricts: Locator;
+  readonly buttonMissing: Locator;
   readonly buttonDeclarationsNotValid: Locator;
   readonly textfieldTitle: Locator;
   readonly textfieldDescription: Locator;
@@ -23,14 +21,8 @@ export class CsbOmissionsDeclarationsOfSupportPage {
     });
     this.linkAdd = this.page.getByRole("link", { name: "Verzuimen toevoegen" });
     this.linkOverview = this.page.getByRole("link", { name: "Overzicht" });
-    this.buttonMissingOneDistrict = this.page.getByRole("button", {
-      name: "Voor één kieskring ontbreken ondersteuningsverklaringen",
-    });
-    this.buttonMissingAllDistricts = this.page.getByRole("button", {
-      name: "Voor alle kieskringen ontbreken ondersteuningsverklaringen",
-    });
-    this.buttonMissingMultipleDistricts = this.page.getByRole("button", {
-      name: "Voor meerdere kieskringen ontbreken ondersteuningsverklaringen",
+    this.buttonMissing = this.page.getByRole("button", {
+      name: "Ondersteuningsverklaringen ontbreken",
     });
     this.buttonDeclarationsNotValid = this.page.getByRole("button", {
       name: "Ondersteuningsverklaringen komen niet overeen met kandidatenlijst",
