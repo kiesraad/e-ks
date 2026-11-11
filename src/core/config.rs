@@ -176,6 +176,7 @@ struct Env {
     acme_account_credentials: Option<SecretString>,
     acme_root_ca_path: Option<PathBuf>,
     server_name: Option<String>,
+    #[serde(default, deserialize_with = "optional_secret")]
     eks_key: Option<SecretString>,
     bind_address: Option<String>,
     #[serde(default, deserialize_with = "bind_address")]
@@ -198,6 +199,7 @@ struct Env {
     preselected_ad: Option<PreselectedAd>,
     base_url: Option<String>,
     brp_url: String,
+    #[serde(default, deserialize_with = "optional_secret")]
     brp_api_key: Option<SecretString>,
     brp_timeout: Option<u64>,
     brp_request_interval_ms: Option<u64>,
@@ -215,14 +217,27 @@ struct Env {
     log_format: LogFormat,
 }
 
-/// Secret key material. HKDF would accept whitespace as a key, so that
-/// stops startup instead; a value set to nothing counts as unset.
+/// Shortest secret accepted, in characters not counting surrounding whitespace.
+const MIN_SECRET_LENGTH: usize = 32;
+
+/// A secret that is free-form text. HKDF would accept one character
+/// (or whitespace) as a key, so a short value stops startup instead; a value
+/// set to nothing counts as unset.
 fn secret<'de, D: Deserializer<'de>>(deserializer: D) -> Result<SecretString, D::Error> {
     let secret = SecretString::deserialize(deserializer)?;
-    if secret.expose_secret().trim().is_empty() {
-        return Err(D::Error::custom("blank secret key material"));
+    if secret.expose_secret().trim().chars().count() < MIN_SECRET_LENGTH {
+        return Err(D::Error::custom(format!(
+            "secret must be at least {MIN_SECRET_LENGTH} characters"
+        )));
     }
     Ok(secret)
+}
+
+/// [`secret`] for a variable that may be unset.
+fn optional_secret<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<SecretString>, D::Error> {
+    secret(deserializer).map(Some)
 }
 
 /// An optional setting parsed with `FromStr`, so the type keeps its own error
@@ -585,8 +600,11 @@ mod tests {
     /// so a test about any other setting passes with the features off.
     const REQUIRED: [(&str, &str); 7] = [
         ("STORAGE_URL", "memory://test"),
-        ("ID_DERIVATION_KEY", "id-derivation-key-123"),
-        ("MASTER_ENCRYPTION_KEY", "master-encryption-key-123"),
+        ("ID_DERIVATION_KEY", "id-derivation-key-of-32-characters"),
+        (
+            "MASTER_ENCRYPTION_KEY",
+            "master-encryption-key-32-characters",
+        ),
         (
             "BRP_URL",
             "http://localhost:5010/haalcentraal/api/brp/personen",
@@ -622,23 +640,49 @@ mod tests {
         assert_eq!(config.storage_url.expose_secret(), "memory://from-env");
         assert_eq!(
             config.master_encryption_key.expose_secret(),
-            "master-encryption-key-123"
+            "master-encryption-key-32-characters"
         );
     }
 
-    /// A secret set to whitespace must stop startup, not be accepted as key
-    /// material.
+    /// A blank or short secret must stop startup, not be accepted as key
+    /// material; padding with whitespace does not make it long enough.
     #[test]
-    fn from_env_rejects_blank_secrets() {
-        for (name, blank) in [
-            ("ID_DERIVATION_KEY", "   "),
-            ("MASTER_ENCRYPTION_KEY", "\t\n"),
+    fn from_env_rejects_blank_and_short_secrets() {
+        let short = "a".repeat(MIN_SECRET_LENGTH - 1);
+        let padded = format!("  {short}  ");
+        for name in [
+            "ID_DERIVATION_KEY",
+            "MASTER_ENCRYPTION_KEY",
+            "EKS_KEY",
+            "BRP_API_KEY",
         ] {
-            assert!(
-                rejected_naming(config_from(&[(name, blank)]), &name.to_lowercase()),
-                "{name}={blank:?} must be rejected"
-            );
+            for weak in ["   ", "\t\n", "x", &short, &padded] {
+                assert!(
+                    rejected_naming(config_from(&[(name, weak)]), &name.to_lowercase()),
+                    "{name}={weak:?} must be rejected"
+                );
+            }
         }
+    }
+
+    #[test]
+    fn from_env_accepts_secrets_of_the_minimum_length() {
+        let secret = "number four but secure this time";
+        assert_eq!(secret.len(), MIN_SECRET_LENGTH);
+        let config = config_from(&[
+            ("ID_DERIVATION_KEY", secret),
+            ("MASTER_ENCRYPTION_KEY", secret),
+            ("EKS_KEY", secret),
+        ])
+        .expect("config");
+
+        assert_eq!(config.eks_key.expect("eks key").expose_secret(), secret);
+        assert!(
+            config_from(&[("EKS_KEY", "")])
+                .expect("config")
+                .eks_key
+                .is_none()
+        );
     }
 
     #[cfg(feature = "dev-features")]
@@ -715,10 +759,14 @@ mod tests {
 
     #[test]
     fn from_env_reads_the_brp_api_key_when_set() {
-        let config = config_from(&[("BRP_API_KEY", "brp-api-key-123")]).expect("config");
+        let config = config_from(&[("BRP_API_KEY", "brp-api-key-of-at-least-32-characters")])
+            .expect("config");
 
         let api_key = config.brp_client.api_key.expect("api key present");
-        assert_eq!(api_key.expose_secret(), "brp-api-key-123");
+        assert_eq!(
+            api_key.expose_secret(),
+            "brp-api-key-of-at-least-32-characters"
+        );
     }
 
     #[test]

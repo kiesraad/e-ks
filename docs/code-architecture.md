@@ -624,19 +624,19 @@ the variable in lowercase, so an error names that field (e.g. ``missing field
 | Variable | Purpose |
 |----------|---------|
 | `STORAGE_URL` | Persistence backend: `memory://` or `postgres://<connection_string>`. |
-| `ID_DERIVATION_KEY` | Master secret for stream-id derivation. |
-| `MASTER_ENCRYPTION_KEY` | Master secret from which the key-wrapping key for the per-stream encryption keys is derived. |
+| `ID_DERIVATION_KEY` | Master secret for stream-id derivation; at least 32 characters. |
+| `MASTER_ENCRYPTION_KEY` | Master secret from which the key-wrapping key for the per-stream encryption keys is derived; at least 32 characters. |
 | `TLS_CERT_PATH` / `TLS_KEY_PATH` | HTTPS certificate and key; both or neither. |
 | `ACME_DIRECTORY_URL` / `ACME_DOMAIN` | Enable ACME certificate renewal (`acme` feature): the CA directory (e.g. Let's Encrypt production or staging) and the FQDN to order for; both or neither, requires TLS. |
 | `ACME_ACCOUNT_CREDENTIALS` | ACME account credentials JSON from the `create_acme_account` tool; contains the account's private key, so supply it like the master secrets. Required when ACME is enabled. |
 | `ACME_ROOT_CA_PATH` | Optional extra trust root for the ACME directory's own TLS (pebble testing only). |
 | `BRP_URL` | Complete URL of the BRP "personen" resource at the intermediary (dev builds default to the `personen-mock` container). The intermediary's server certificate must chain to the PKIoverheid Private Root CA - G1, which is built in with its intermediates (`pkioverheid/`). |
-| `BRP_API_KEY` | Optional bearer token for the BRP intermediary; omitted from the request when unset. |
+| `BRP_API_KEY` | Optional bearer token for the BRP intermediary; omitted from the request when unset; at least 32 characters when set. |
 | `BRP_CLIENT_CERT_PATH` / `BRP_CLIENT_KEY_PATH` | PEM client certificate and key presented to the BRP over mTLS; both or neither. |
 | `BRP_TIMEOUT` | Seconds before a BRP request is given up on; defaults to 30. |
 | `BRP_REQUEST_INTERVAL_MS` | Minimum pause between the starts of two BRP requests, shared by all callers so concurrent checks queue up; defaults to 100, `0` disables it. |
 | `SERVER_NAME` | Short server identifier shown in the page footer. |
-| `EKS_KEY` | Optional shared secret for the `x-eks-key` request gate. |
+| `EKS_KEY` | Optional shared secret for the `x-eks-key` request gate; at least 32 characters when set. |
 | `CSB_WEBAUTHN_ORIGIN` | Enable the CSB security-key (WebAuthn) login (`/csb/login`): the origin the CSB section is served on, e.g. `https://csb.example.nl` (`http://localhost:3000` in development). Its host is the WebAuthn relying-party id, so keys enrolled for one host only work there. Outside `dev-features` builds it requires `CSB_BIND_ADDRESS` (startup fails without it), so the login is never served on the main listener. |
 | `CSB_WEBAUTHN_USERS` | Comma-separated `username:credential-id:public-key` entries (blobs base64url without padding), one per committee member allowed to log in, as printed by `bin/enrol_csb_user` (see [docs/csb-enrolment.md](csb-enrolment.md)). Requires `CSB_WEBAUTHN_ORIGIN`. One malformed entry, a duplicate username, or a key listed for two users refuses the whole configuration. The entries are public keys, not secrets. |
 | `DEFAULT_ELECTION` | Pins the application to one election: the election code, with the election domain appended after a colon where the type needs one (e.g. `EK27`, `PS27:prov1`). A political group's first login then gets a stream for that election without the `/select-election` page, `/switch-election` answers 404, and CSB and dev logins land on it. Unset, a political group picks its election at login and can switch later, the CSB login page asks which election to sign in to, and the dev login lands on `EK27`. |
@@ -662,7 +662,9 @@ deployment can supply these variables from a file (e.g. systemd
 `EnvironmentFile=`, Docker `--env-file`, Kubernetes secret mounts). This is the
 preferred way to provide the master secrets (`ID_DERIVATION_KEY`,
 `MASTER_ENCRYPTION_KEY`, `EKS_KEY`) so they never end up in shell history or
-process listings.
+process listings. Each of them, and `BRP_API_KEY`, must be at least 32
+characters (surrounding whitespace not counted); a shorter value is a startup
+error, also for the optional ones once they are set.
 
 In `dev-features` builds a missing variable falls back to a built-in development
 default; in a production build a missing required variable is a startup error
