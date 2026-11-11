@@ -96,6 +96,7 @@ pub enum PotentialProblems {
     CandidatesWithProblems {
         count: usize,
     },
+    BlankWithDifferentFirstCandidates,
 
     // political group
     NoLegalName,
@@ -203,6 +204,9 @@ impl PotentialProblems {
             PotentialProblems::CandidatesWithProblems { count } => {
                 candidates_with_problems(*count, locale)
             }
+            PotentialProblems::BlankWithDifferentFirstCandidates => {
+                trans!("problems.blank_with_diff_first_candidate", *locale)
+            }
 
             // political group
             PotentialProblems::NoLegalName => trans!("problems.no_legal_name", *locale),
@@ -265,6 +269,7 @@ impl PotentialProblems {
             PotentialProblems::DuplicateDistricts => Severity::Error,
             PotentialProblems::NoDistricts => Severity::Error,
             PotentialProblems::CandidatesWithProblems { .. } => Severity::Warn,
+            PotentialProblems::BlankWithDifferentFirstCandidates => Severity::Error,
 
             // political group
             PotentialProblems::NoLegalName => Severity::Warn,
