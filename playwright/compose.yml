@@ -50,7 +50,7 @@ services:
     networks: [pw_network]
 
   personen-mock:
-    image: ghcr.io/brp-api/personen-mock:2.7.0-latest
+    image: ghcr.io/brp-api/personen-mock:2.7.0-latest@sha256:613605a8e613e0610d5209b67e8371ea5355085834951bfe105d9e4229d4571a
     environment:
       ASPNETCORE_ENVIRONMENT: Release
       ASPNETCORE_URLS: http://+:5010

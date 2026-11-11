@@ -3,11 +3,21 @@ tools:
     # https://github.com/evanw/esbuild/releases
     # The workflows in .github/workflows read this version
     version: "0.28.2"
+    # sha256 per download, keyed by platform; update together with the version
+    sha256:
+      darwin-arm64: "1980cde09749094452b20d36ff267585ccb3f72749c7bc97291cd9996ccf5a2a"
+      linux-arm64: "a96dbfa41d3ef5dbd1ef22b1c10d5187be9267e86093a870f06402a7ec931596"
+      linux-x64: "9573bb2233aab0f9ea7647d5cca9726113cc1768de61d66b17267f4db84488f6"
     base_url: "https://registry.npmjs.org/@esbuild"
   - name: biome
     # https://github.com/biomejs/biome/releases
     # The workflows in .github/workflows read this version
     version: "2.5.12"
+    # sha256 per download, keyed by platform; update together with the version
+    sha256:
+      biome-darwin-arm64: "0e8d513eb6c612236b47ccf0e218ac3917d863d41f853c65c38410774daa26ed"
+      biome-linux-arm64-musl: "8de4de4b3225f89d5596ccb85a071aac2173d8af2a5f21f2fbc3837e9765d455"
+      biome-linux-x64-musl: "0c4da931bcfd70be34e49aba3296ab0c51d177ae55da67190a4371bd1c89d0ad"
     base_url: "https://github.com/biomejs/biome/releases/download/@biomejs/biome@"
 commands:
   docker_compose_rm:
