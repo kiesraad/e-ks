@@ -9,7 +9,7 @@ use crate::{
     projection::WithCorrections,
     structs::{
         candidate_lists::CandidateListId,
-        csb::{Omission, OmissionPlaceholders, OmissionType},
+        csb::{Omission, OmissionPlaceholders, OmissionType, PresetTexts},
         persons::PersonId,
     },
 };
@@ -190,15 +190,30 @@ pub(super) fn preset_views(target: &OmissionTarget, data: &CsbStoreData) -> Vec<
 
     let mut groups: Vec<PresetGroupView> = Vec::new();
     for preset in target.omission_type.presets() {
+        let (description, help_text, district_variants) = match &preset.texts {
+            PresetTexts::Fixed {
+                description,
+                help_text,
+            } => (
+                placeholders.interpolate(description),
+                placeholders.interpolate(help_text),
+                None,
+            ),
+            PresetTexts::DistrictVariants { district_variants } => (
+                String::new(),
+                String::new(),
+                Some(
+                    serde_json::to_string(&district_variants.interpolate(&placeholders))
+                        .expect("district variants should serialize"),
+                ),
+            ),
+        };
         let view = PresetView {
             title: preset.title.clone(),
-            description: placeholders.interpolate(&preset.description),
-            help_text: placeholders.interpolate(&preset.help_text),
+            description,
+            help_text,
             recoverable: preset.recoverable,
-            district_variants: preset.district_variants.as_ref().map(|variants| {
-                serde_json::to_string(&variants.interpolate(&placeholders))
-                    .expect("district variants should serialize")
-            }),
+            district_variants,
         };
 
         match groups.iter_mut().find(|group| group.title == preset.group) {

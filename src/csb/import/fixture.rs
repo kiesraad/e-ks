@@ -625,7 +625,12 @@ fn preset_omission(
     let (preset, text) = omission_type
         .presets()
         .iter()
-        .flat_map(|preset| preset.texts().into_iter().map(move |text| (preset, text)))
+        .flat_map(|preset| {
+            preset
+                .all_texts()
+                .into_iter()
+                .map(move |text| (preset, text))
+        })
         .find(|(_, text)| text.title == title)
         .unwrap_or_else(|| panic!("no {omission_type} preset titled {title:?}"));
     let fill = |template: &str| {

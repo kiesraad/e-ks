@@ -10,7 +10,7 @@ pub use hearing_details::{HearingDetails, HearingModel};
 pub use objection::{Objection, ObjectionId, ObjectionText};
 pub use omission::{
     Omission, OmissionCategory, OmissionDecision, OmissionId, OmissionPart, OmissionPlaceholders,
-    OmissionStatus, OmissionText, OmissionTitle, OmissionType, RecoveryProgress,
+    OmissionStatus, OmissionText, OmissionTitle, OmissionType, PresetTexts, RecoveryProgress,
 };
 pub use phase::CsbPhase;
 pub use registered_political_group::{

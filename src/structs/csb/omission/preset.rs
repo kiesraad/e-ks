@@ -3,25 +3,33 @@ use std::{collections::HashMap, sync::LazyLock};
 use serde::{Deserialize, Serialize};
 
 /// A predefined omission ("verzuim") offered as a quick-fill suggestion in the
-/// add-omission dialog, split into the model I 1 [`Self::description`] and the
-/// [`Self::help_text`] telling the political group how to restore it.
+/// add-omission dialog.
 #[derive(Debug, Clone, Deserialize)]
 pub struct PresetOmission {
     /// Short title shown in the quick-fill pill.
     pub title: String,
-    /// Empty when the texts come from [`Self::district_variants`].
-    #[serde(default)]
-    pub description: String,
-    #[serde(default)]
-    pub help_text: String,
+    #[serde(flatten)]
+    pub texts: PresetTexts,
     #[serde(default = "super::recoverable_by_default")]
     pub recoverable: bool,
     #[serde(default)]
     pub group: Option<String>,
+}
+
+/// The texts a preset fills the form with: either fixed, or depending on the
+/// district selection.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+pub enum PresetTexts {
+    /// The model I 1 `description` and the `help_text` telling the political
+    /// group how to restore it.
+    Fixed {
+        description: String,
+        help_text: String,
+    },
     /// Texts that depend on how many districts are selected; the dialog picks
     /// one whenever the district selection changes.
-    #[serde(default)]
-    pub district_variants: Option<DistrictVariants>,
+    DistrictVariants { district_variants: DistrictVariants },
 }
 
 /// The title and texts an omission is filled with.
@@ -62,13 +70,18 @@ impl DistrictVariants {
 
 impl PresetOmission {
     /// Every title and text set this preset can fill the form with.
-    pub fn texts(&self) -> Vec<PresetText> {
-        match &self.district_variants {
-            Some(v) => vec![v.one.clone(), v.multiple.clone(), v.all.clone()],
-            None => vec![PresetText {
+    pub fn all_texts(&self) -> Vec<PresetText> {
+        match &self.texts {
+            PresetTexts::DistrictVariants {
+                district_variants: v,
+            } => vec![v.one.clone(), v.multiple.clone(), v.all.clone()],
+            PresetTexts::Fixed {
+                description,
+                help_text,
+            } => vec![PresetText {
                 title: self.title.clone(),
-                description: self.description.clone(),
-                help_text: self.help_text.clone(),
+                description: description.clone(),
+                help_text: help_text.clone(),
             }],
         }
     }
@@ -140,7 +153,8 @@ pub mod tests {
             OmissionType::Appellation
                 .presets()
                 .iter()
-                .any(|p| p.help_text.is_empty())
+                .flat_map(PresetOmission::all_texts)
+                .any(|t| t.help_text.is_empty())
         );
     }
 
@@ -217,7 +231,7 @@ pub mod tests {
                     .title
                     .parse::<OmissionTitle>()
                     .unwrap_or_else(|e| panic!("preset title {:?}: {e:?}", preset.title));
-                for text in preset.texts() {
+                for text in preset.all_texts() {
                     text.title
                         .parse::<OmissionTitle>()
                         .unwrap_or_else(|e| panic!("preset title {:?}: {e:?}", text.title));
@@ -236,7 +250,7 @@ pub mod tests {
         let texts: Vec<_> = OmissionType::DeclarationsOfSupport
             .presets()
             .iter()
-            .flat_map(PresetOmission::texts)
+            .flat_map(PresetOmission::all_texts)
             .collect();
         for text in &texts {
             assert!(!text.description.contains("{district"), "{:?}", text.title);

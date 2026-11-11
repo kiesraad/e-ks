@@ -1,6 +1,6 @@
 mod preset;
 
-pub use preset::OmissionPlaceholders;
+pub use preset::{OmissionPlaceholders, PresetTexts};
 
 use std::str::FromStr;
 
