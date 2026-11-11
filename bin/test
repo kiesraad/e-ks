@@ -24,7 +24,10 @@ pushd playwright
     export UID GID="$(id -g)"
     mkdir -p playwright-report
 
-    docker compose build --quiet
+    # Edge is only installed in the image when it is asked for.
+    [[ " $* " == *"--project=edge "* ]] && export INSTALL_EDGE=1
+
+    docker compose build
 
     # The playwright service waits for the application's healthcheck, so a
     # failure here is either a broken app or a failing test; either way the
