@@ -163,10 +163,6 @@ impl CsbStoreData {
             .collect()
     }
 
-    pub fn get_political_group_omissions(&self) -> Vec<Omission> {
-        self.omissions_where(|o| matches!(o.category, OmissionCategory::PoliticalGroup))
-    }
-
     pub fn get_appellation_omissions(&self) -> Vec<Omission> {
         self.omissions_where(|o| matches!(o.category, OmissionCategory::Appellation))
     }
@@ -530,16 +526,16 @@ mod tests {
     #[test]
     fn recovery_progress_skips_irreparable_omissions() {
         let store = CsbStore::new_for_test();
-        insert(&store, OmissionCategory::PoliticalGroup);
+        insert(&store, OmissionCategory::Appellation);
         insert_with_status(
             &store,
-            OmissionCategory::PoliticalGroup,
+            OmissionCategory::Appellation,
             true,
             OmissionStatus::Recovered,
         );
         insert_with_status(
             &store,
-            OmissionCategory::PoliticalGroup,
+            OmissionCategory::Appellation,
             false,
             OmissionStatus::Pending,
         );
@@ -600,35 +596,6 @@ mod tests {
     }
 
     #[test]
-    fn get_political_group_omissions_returns_only_political_group() {
-        let store = CsbStore::new_for_test();
-        insert(&store, OmissionCategory::PoliticalGroup);
-        insert(
-            &store,
-            OmissionCategory::CandidateList(vec![CandidateListId::new()]),
-        );
-
-        let result = store.snapshot().get_political_group_omissions();
-
-        assert_eq!(result.len(), 1);
-        assert!(matches!(
-            result[0].category,
-            OmissionCategory::PoliticalGroup
-        ));
-    }
-
-    #[test]
-    fn get_political_group_omissions_returns_empty_when_none() {
-        let store = CsbStore::new_for_test();
-        insert(
-            &store,
-            OmissionCategory::CandidateList(vec![CandidateListId::new()]),
-        );
-
-        assert!(store.snapshot().get_political_group_omissions().is_empty());
-    }
-
-    #[test]
     fn get_candidate_omissions_returns_only_omissions_for_the_given_person() {
         let person_a = PersonId::new();
         let person_b = PersonId::new();
@@ -647,7 +614,7 @@ mod tests {
                 lists: Vec::new(),
             },
         );
-        insert(&store, OmissionCategory::PoliticalGroup);
+        insert(&store, OmissionCategory::Appellation);
 
         let data = store.snapshot();
         let result = data.get_candidate_omissions(person_a, None, store.election);
@@ -727,7 +694,7 @@ mod tests {
         });
         insert(&store, OmissionCategory::CandidateList(vec![list_a]));
         insert(&store, OmissionCategory::CandidateList(vec![list_b]));
-        insert(&store, OmissionCategory::PoliticalGroup);
+        insert(&store, OmissionCategory::Appellation);
 
         let data = store.snapshot();
         let result_a = data

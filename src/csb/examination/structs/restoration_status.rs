@@ -11,7 +11,7 @@ pub struct RestorationStatus {
 impl RestorationStatus {
     pub fn for_political_group(data: &CsbStoreData) -> Self {
         RestorationStatus {
-            has_omissions: !data.get_political_group_omissions().is_empty(),
+            has_omissions: false,
             has_corrections: data.get_political_group_csb_corrections_count() > 0,
         }
     }
@@ -76,14 +76,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn for_political_group_omission_and_correction() -> Result<(), AppError> {
+    async fn for_political_group_correction() -> Result<(), AppError> {
         let store = CsbStore::new_for_test();
 
-        store
-            .update(CsbAction::CreateOmission(sample_omission(
-                OmissionCategory::PoliticalGroup,
-            )))
-            .await?;
         store
             .update(CsbAction::UpdateCorrection(Correction::Appellation(
                 Appellation::from_str("Correction Party").unwrap(),
@@ -92,7 +87,7 @@ mod tests {
 
         let status = RestorationStatus::for_political_group(&store.snapshot());
 
-        assert!(status.has_omissions());
+        assert!(!status.has_omissions());
         assert!(status.has_corrections());
 
         Ok(())

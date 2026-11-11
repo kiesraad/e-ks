@@ -87,7 +87,6 @@ detail:
     kind_candidate: Candidate
     kind_candidate_list: Candidate list
     kind_declarations_of_support: Declarations of support
-    kind_political_group: Political group
     part: Part
   subject_events: All events of this subject
   subject_link: Subject page

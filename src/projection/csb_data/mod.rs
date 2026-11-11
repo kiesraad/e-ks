@@ -842,7 +842,7 @@ mod tests {
         use crate::structs::csb::{OmissionCategory, OmissionStatus, sample_omission};
 
         let mut data = CsbStoreData::default();
-        let omission = sample_omission(OmissionCategory::PoliticalGroup);
+        let omission = sample_omission(OmissionCategory::Appellation);
         data.apply(StoreEvent::new(
             1,
             CsbAction::CreateOmission(omission.clone()).by(CsbUser::new_test()),

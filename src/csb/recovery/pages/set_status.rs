@@ -202,7 +202,7 @@ mod tests {
     async fn records_the_decision_and_redirects_to_the_todo_page() {
         let store = CsbStore::new_for_test();
         let stream_id = store.stream_id;
-        let omission = sample_omission(OmissionCategory::PoliticalGroup);
+        let omission = sample_omission(OmissionCategory::Appellation);
         omission.create(&store).await.unwrap();
 
         let response = set_status(
@@ -238,7 +238,7 @@ mod tests {
     async fn honours_the_redirect_to() {
         let store = CsbStore::new_for_test();
         let stream_id = store.stream_id;
-        let omission = sample_omission(OmissionCategory::PoliticalGroup);
+        let omission = sample_omission(OmissionCategory::Appellation);
         omission.create(&store).await.unwrap();
 
         let response = set_status(
@@ -269,7 +269,7 @@ mod tests {
     async fn rejects_irreparable_omissions() {
         let store = CsbStore::new_for_test();
         let stream_id = store.stream_id;
-        let mut omission = sample_omission(OmissionCategory::PoliticalGroup);
+        let mut omission = sample_omission(OmissionCategory::Appellation);
         omission.recoverable = false;
         omission.create(&store).await.unwrap();
 

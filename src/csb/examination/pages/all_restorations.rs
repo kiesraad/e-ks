@@ -99,7 +99,7 @@ mod tests {
 
         let dos_title = "declarations of support title".to_string();
 
-        create_omission(&store, OmissionCategory::PoliticalGroup, &pg_title).await?;
+        create_omission(&store, OmissionCategory::Appellation, &pg_title).await?;
         create_omission(
             &store,
             OmissionCategory::CandidateList(vec![list_id]),

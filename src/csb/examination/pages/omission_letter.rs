@@ -35,8 +35,8 @@ use crate::{
 #[template(path = "csb/examination/pages/omission_letter.html")]
 struct CsbOmissionLetterTemplate {
     political_group: CsbPoliticalGroup,
-    all_omissions: AllOmissions,
-    omission_count: usize,
+    recoverable_omissions: AllOmissions,
+    irrecoverable_omissions: AllOmissions,
 }
 
 /// The omission letter page of one political group: the letter's downloads
@@ -48,13 +48,15 @@ pub async fn overview(
 ) -> Result<Response, AppError> {
     let data = store.snapshot();
     let political_group = CsbPoliticalGroup::new(&store, &data);
-    let all_omissions = data.get_all_omissions(&political_group)?;
+    let (recoverable_omissions, irrecoverable_omissions) = data
+        .get_all_omissions(&political_group)?
+        .split_on_recoverability();
 
     Ok(HtmlTemplate(
         CsbOmissionLetterTemplate {
-            omission_count: data.get_omission_count(),
             political_group,
-            all_omissions,
+            recoverable_omissions,
+            irrecoverable_omissions,
         },
         context,
     )
@@ -68,14 +70,20 @@ fn omission_letter_model(
     election: ElectionConfig,
 ) -> Result<OmissionLetter, AppError> {
     let session = election.public_session();
+    let pg = data.pg(WithCorrections::All);
 
     Ok(OmissionLetter {
         election_name: election.formal_title(ModelLocale::Nl),
         location: session.location.to_string(),
-        // Sent on the day of the examination ("vergadering van heden").
+        // The day of the examination, named in the letter ("vergadering van ...").
         date: election.document_review_date(),
-        addressee: Person::from(data.pg(WithCorrections::All).get_list_submitter().clone()),
-        appellation: data.pg(WithCorrections::All).get_appellation(),
+        addressee: Person::from(pg.get_list_submitter().clone()),
+        appellation: pg.get_appellation(),
+        is_blank: pg.get_political_group().is_blank(),
+        first_candidate_name: pg
+            .get_first_candidate_name()
+            .ok_or(AppError::IncompleteData("no first candidate"))?
+            .last_name_with_prefix(),
         election_code: election.filename_slug(),
         omission_groups: omission_letter_sections(data, &election)?,
         recovery_deadline_date: election.omission_period_end_date(),
@@ -83,10 +91,9 @@ fn omission_letter_model(
             .omission_period_end_time()
             .format("%H:%M")
             .to_string(),
-        // TODO: use the committee's street address once configured.
         recovery_address: format!(
-            "het secretariaat van het centraal stembureau te {}",
-            session.location
+            "het secretariaat van het centraal stembureau, {} {}, {} te {}",
+            session.street_name, session.house_number, session.postal_code, session.location
         ),
         // Blank: signed by hand, as the models are.
         chair: String::new(),
@@ -200,7 +207,11 @@ fn unique_stem(used: &mut HashSet<String>, pdf_filename: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::DOCX_CONTENT_TYPE;
+    use crate::{
+        models::DOCX_CONTENT_TYPE,
+        structs::{candidate_lists::CandidateListId, persons::PersonId},
+        test_utils::{sample_candidate_list, sample_person},
+    };
     use axum::{
         body::to_bytes,
         http::{StatusCode, header},
@@ -239,6 +250,7 @@ mod tests {
 
     /// Seed an imported group in the registry of `state`, optionally with an
     /// omission and a finished examination.
+    /// Additionally includes one list with one candidate such that the list has a first candidate.
     async fn seed_group(
         state: &AppState,
         appellation: &str,
@@ -249,12 +261,28 @@ mod tests {
             .csb_store_for_stream(StreamId::new(), ElectionConfig::EK27)
             .await?
             .acting_as_test_user();
+
         store.update(import_action(appellation)).await?;
         if with_omission {
-            sample_omission(OmissionCategory::PoliticalGroup)
+            sample_omission(OmissionCategory::Appellation)
                 .create(&store)
                 .await?;
         }
+
+        let person_id = PersonId::new();
+        store
+            .update(CsbAction::PaperCorrectedUpdate(Box::new(
+                PgEvent::CreatePerson(Box::new(sample_person(person_id))),
+            )))
+            .await?;
+        let mut list = sample_candidate_list(CandidateListId::new());
+        list.candidates.push(person_id);
+        store
+            .update(CsbAction::PaperCorrectedUpdate(Box::new(
+                PgEvent::CreateCandidateList(Box::new(list)),
+            )))
+            .await?;
+
         if finished {
             store.update(CsbAction::SetFinished(true)).await?;
         }
@@ -262,19 +290,25 @@ mod tests {
     }
 
     /// An imported group with an appellation and a list submitter to address.
+    /// Additionally includes one list with one candidate such that the list has a first candidate.
     async fn store_with_group() -> CsbStore {
         let store = CsbStore::new_for_test();
         store
             .update(import_action("Kiesraad Demo"))
             .await
             .expect("import the political group");
+        let person_id = PersonId::new();
+        store.add_person(sample_person(person_id));
+        let mut list = sample_candidate_list(CandidateListId::new());
+        list.candidates.push(person_id);
+        store.add_candidate_list(list);
         store
     }
 
     #[tokio::test]
     async fn gen_omission_letter_returns_a_pdf_named_after_the_group() -> Result<(), AppError> {
         let store = store_with_group().await;
-        sample_omission(OmissionCategory::PoliticalGroup)
+        sample_omission(OmissionCategory::Appellation)
             .create(&store)
             .await?;
         sample_omission(OmissionCategory::DeclarationsOfSupport(vec![
@@ -320,7 +354,7 @@ mod tests {
     #[tokio::test]
     async fn gen_omission_letter_docx_returns_a_word_document() -> Result<(), AppError> {
         let store = store_with_group().await;
-        sample_omission(OmissionCategory::PoliticalGroup)
+        sample_omission(OmissionCategory::Appellation)
             .create(&store)
             .await?;
 
@@ -361,7 +395,7 @@ mod tests {
         let store = store_with_group().await;
         let stream_id = store.stream_id;
         Omission::new(
-            OmissionCategory::PoliticalGroup,
+            OmissionCategory::Appellation,
             "Deposit missing".parse().unwrap(),
             "The deposit has not been paid.".parse().unwrap(),
             Some("Pay the deposit at the secretariat.".parse().unwrap()),

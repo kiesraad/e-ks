@@ -129,12 +129,15 @@ fn omission_letter_example(
             postal_address: postal_address("Grotestraat 3", "3000 AA", "Rotterdam"),
         },
         appellation: "Kiesraad Demo".to_string(),
+        is_blank: false,
+        first_candidate_name: "Nagelhout".to_string(),
         election_code: "ek27".to_string(),
         omission_groups,
         recovery_deadline_date: date(2027, 4, 29),
         recovery_deadline_time: "17:00".to_string(),
-        recovery_address: "het secretariaat van het centraal stembureau te 's-Gravenhage"
-            .to_string(),
+        recovery_address:
+            "het secretariaat van het centraal stembureau, Muzenstraat 85, 2511 WB te 's-Gravenhage"
+                .to_string(),
         chair: String::new(),
         secretary: String::new(),
         declarations_of_support,

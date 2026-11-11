@@ -72,20 +72,13 @@ pub mod tests {
 
     #[test]
     fn presets_are_loaded_from_json_per_type() {
-        assert_eq!(OmissionType::PoliticalGroup.presets().len(), 0);
         assert_eq!(OmissionType::Appellation.presets().len(), 2);
         assert_eq!(OmissionType::CandidateList.presets().len(), 4);
         assert_eq!(OmissionType::DeclarationsOfSupport.presets().len(), 4);
         assert_eq!(OmissionType::Candidate.presets().len(), 12);
 
-        // Every preset carries a title and description; irreparable defects have
-        // no help text.
-        assert!(
-            OmissionType::PoliticalGroup
-                .presets()
-                .iter()
-                .all(|p| !p.title.is_empty() && !p.description.is_empty())
-        );
+        // Every preset carries a title and description;
+        // irreparable defects have no help text.
         assert!(
             OmissionType::Appellation
                 .presets()
@@ -110,12 +103,6 @@ pub mod tests {
                 .presets()
                 .iter()
                 .any(|p| !p.recoverable)
-        );
-        assert!(
-            OmissionType::PoliticalGroup
-                .presets()
-                .iter()
-                .all(|p| p.recoverable || p.help_text.is_empty())
         );
     }
 

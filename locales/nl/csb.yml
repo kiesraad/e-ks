@@ -93,8 +93,8 @@ finalise:
   add_objection: Bezwaar toevoegen
   district_count: Kieskringen
   download_final_zip: Download afrondings ZIP
-  draft_title: Concept versie
-  final_title: Definitieve versie
+  draft_title: "Versie 1: zitting"
+  final_title: "Versie 2: na zitting"
   i4_note: Proces-verbaal over geldigheid en nummering kandidatenlijsten. Maak het document aan van het verslag van de openbare zitting.
   i4_title: I\u00A04 Proces-verbaal
   no_lists: Er zijn geen lijsten om te nummeren.
@@ -103,7 +103,9 @@ finalise:
   order_note: "Politieke groeperingen die bij de laatstgehouden verkiezing een of meer zetels hebben behaald, staan vooraan op volgorde van het aantal stemmen. Versleep de lijsten in de volgorde die tijdens de zitting is vastgesteld."
   order_title: Partij volgorde
   position: Positie
+  session_results_title: Resultaten zitting
   title: Vaststellen kandidatenlijsten
+  unassessed_warning: "Er zijn nog <strong>{}</strong> niet beoordeelde verzuimen. Ga terug naar Fase 3 om ze te beoordelen."
 finish_examination:
   download_markdown: Download Markdown
   download_note: Download hier alle verzuimbrieven als Word en PDF in één ZIP
@@ -255,12 +257,13 @@ omission:
     appellation: Verzuimen aanduiding
     candidate: "Verzuimen {}"
     candidate_list: Verzuimen kandidatenlijst
-    general: Verzuimen basisgegevens
 omission_letter:
   download_note: Download de verzuimbrief voor deze politieke groepering als Word- of PDF-bestand.
   explanation: In de verzuimbrief staan alle verzuimen die bij deze politieke groepering zijn vastgesteld.
   omissions_explanation: "Alle vastgestelde verzuimen van deze politieke groepering, zoals ze in de verzuimbrief staan."
-  omissions_title: Verzuimen in de brief
+  omissions_explanation_no_letter: "Alle verzuimen die niet in de verzuimbrief staan, omdat ze onherstelbaar zijn."
+  omissions_letter_title: Verzuimen in de brief (herstelbaar)
+  omissions_no_letter_title: Verzuimen niet in de brief (onherstelbaar)
   title: Verzuimbrief
 paper_corrections:
   added: Papieren correctie toegevoegd

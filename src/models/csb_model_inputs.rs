@@ -426,7 +426,7 @@ fn omission_order(
     omission: &Omission,
 ) -> (u8, usize, UtcDateTime, OmissionId) {
     let (rank, position) = match &omission.category {
-        OmissionCategory::PoliticalGroup | OmissionCategory::Appellation => (0, 0),
+        OmissionCategory::Appellation => (0, 0),
         OmissionCategory::DeclarationsOfSupport(_) => (1, 0),
         OmissionCategory::CandidateList(_) => (2, 0),
         OmissionCategory::Candidate { person, lists } => (
@@ -668,9 +668,7 @@ impl OmissionCategory {
         election: &ElectionConfig,
     ) -> Result<String, AppError> {
         let districts = match self {
-            OmissionCategory::PoliticalGroup | OmissionCategory::Appellation => {
-                group_districts(data)
-            }
+            OmissionCategory::Appellation => group_districts(data),
             OmissionCategory::CandidateList(lists) | OmissionCategory::Candidate { lists, .. } => {
                 list_districts(data, lists)?
             }
@@ -854,7 +852,7 @@ mod tests {
     fn political_group_without_lists_maps_to_all_districts() {
         let store = CsbStore::new_for_test();
         assert_eq!(
-            OmissionCategory::PoliticalGroup
+            OmissionCategory::Appellation
                 .electoral_district(&store.snapshot(), &EK)
                 .unwrap(),
             "alle kieskringen"
@@ -873,7 +871,7 @@ mod tests {
         });
 
         assert_eq!(
-            OmissionCategory::PoliticalGroup
+            OmissionCategory::Appellation
                 .electoral_district(&store.snapshot(), &EK)
                 .unwrap(),
             "kieskring 1 (Groningen), 13 (Bonaire)"
@@ -1139,7 +1137,7 @@ mod tests {
             "Ondersteuningsverklaringen",
         )
         .await;
-        create_omission(&store, OmissionCategory::PoliticalGroup, "Groepering").await;
+        create_omission(&store, OmissionCategory::Appellation, "Aanduiding").await;
 
         let descriptions: Vec<String> = sorted_omissions(&store.snapshot())
             .iter()
@@ -1149,7 +1147,7 @@ mod tests {
         assert_eq!(
             descriptions,
             [
-                "Groepering",
+                "Aanduiding",
                 "Ondersteuningsverklaringen",
                 "Lijst",
                 "Kandidaat 1",
@@ -1240,8 +1238,8 @@ mod tests {
             vec![],
         )
         .await;
-        create_omission(&store, OmissionCategory::PoliticalGroup, "Eerste verzuim").await;
-        create_omission(&store, OmissionCategory::PoliticalGroup, "Tweede verzuim").await;
+        create_omission(&store, OmissionCategory::Appellation, "Eerste verzuim").await;
+        create_omission(&store, OmissionCategory::Appellation, "Tweede verzuim").await;
         create_omission(
             &store,
             OmissionCategory::DeclarationsOfSupport(vec![ElectoralDistrict::Bonaire]),
@@ -1279,8 +1277,7 @@ mod tests {
             vec![],
         )
         .await;
-        create_irreparable_omission(&without, OmissionCategory::PoliticalGroup, "Onherstelbaar")
-            .await;
+        create_irreparable_omission(&without, OmissionCategory::Appellation, "Onherstelbaar").await;
 
         let with = seed_csb_group(
             &state,
@@ -1292,7 +1289,7 @@ mod tests {
         .await;
         create_omission(
             &with,
-            OmissionCategory::PoliticalGroup,
+            OmissionCategory::Appellation,
             "Een herstelbaar verzuim",
         )
         .await;
@@ -1353,8 +1350,7 @@ mod tests {
             OmissionStatus::NotRecovered,
         )
         .await;
-        create_irreparable_omission(&store, OmissionCategory::PoliticalGroup, "Onherstelbaar")
-            .await;
+        create_irreparable_omission(&store, OmissionCategory::Appellation, "Onherstelbaar").await;
 
         let inputs = i4_inputs(state.csb_store_registry(), &EK, &[])
             .await
@@ -1782,8 +1778,8 @@ mod tests {
             "Ondersteuningsverklaringen ontbreken",
         )
         .await;
-        create_omission(&store, OmissionCategory::PoliticalGroup, "Eerste verzuim").await;
-        create_omission(&store, OmissionCategory::PoliticalGroup, "Tweede verzuim").await;
+        create_omission(&store, OmissionCategory::Appellation, "Eerste verzuim").await;
+        create_omission(&store, OmissionCategory::Appellation, "Tweede verzuim").await;
 
         let sections = omission_letter_sections(&store.snapshot(), &EK).unwrap();
 
@@ -1802,7 +1798,7 @@ mod tests {
         assert!(!sections[1].covers_all_districts);
         assert_eq!(
             sections[1].heading(),
-            "Een deel van de kieskringen: kieskring 13 (Bonaire)"
+            "De volgende kieskringen: kieskring 13 (Bonaire)"
         );
         assert_eq!(
             sections[1].omissions[0].description,
@@ -1828,7 +1824,7 @@ mod tests {
         .await;
         create_omission(
             &store,
-            OmissionCategory::PoliticalGroup,
+            OmissionCategory::Appellation,
             "Waarborgsom ontbreekt",
         )
         .await;
@@ -1897,7 +1893,7 @@ mod tests {
         .await;
         create_omission(
             store,
-            OmissionCategory::PoliticalGroup,
+            OmissionCategory::Appellation,
             "Waarborgsom ontbreekt",
         )
         .await;
@@ -1916,7 +1912,7 @@ mod tests {
         let section = &sections[0];
         assert_eq!(
             section.heading(),
-            "Een deel van de kieskringen: kieskring 1 (Groningen), 13 (Bonaire)"
+            "De volgende kieskringen: kieskring 1 (Groningen), 13 (Bonaire)"
         );
         // The plain bullets: group first, declarations of support last.
         assert_eq!(
@@ -1956,7 +1952,7 @@ mod tests {
     #[tokio::test]
     async fn omission_letter_sections_skip_irreparable_omissions() {
         let store = CsbStore::new_for_test();
-        let mut irreparable = sample_omission(OmissionCategory::PoliticalGroup);
+        let mut irreparable = sample_omission(OmissionCategory::Appellation);
         irreparable.recoverable = false;
         irreparable.create(&store).await.unwrap();
 

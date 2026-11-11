@@ -93,8 +93,8 @@ finalise:
   add_objection: Add objection
   district_count: Electoral districts
   download_final_zip: Download final ZIP
-  draft_title: Draft version
-  final_title: Final version
+  draft_title: "Version 1: public session"
+  final_title: "Version 2: after public session"
   i4_note: Official report on the validity and numbering of the candidate lists. Create the form for the report of the public session.
   i4_title: I\u00A04 Official report
   no_lists: There are no lists to number.
@@ -103,7 +103,9 @@ finalise:
   order_note: "Political groups that obtained one or more seats at the previous election start at the top, in the order of their votes. Drag the lists into the order determined during the session."
   order_title: Political group order
   position: Position
+  session_results_title: Results of the public session
   title: Finalise candidate lists
+  unassessed_warning: "There are <strong>{}</strong> unassessed omissions. Go back to phase 3 to assess them."
 finish_examination:
   download_markdown: Download Markdown
   download_note: Download all letters of omission as Word and PDF files in a single ZIP
@@ -255,12 +257,13 @@ omission:
     appellation: Omissions appellation
     candidate: "Omissions {}"
     candidate_list: Omissions candidate list
-    general: Omissions general information
 omission_letter:
   download_note: Download the letter of omission for this political group as a Word or PDF file.
   explanation: The letter of omission lists every omission found for this political group.
   omissions_explanation: "All omissions found for this political group, as they are listed in the letter of omission."
-  omissions_title: Omissions in the letter
+  omissions_explanation_no_letter: "All omissions not presented in the letter of omissions, as they are irrecoverable."
+  omissions_letter_title: Omissions in the letter (recoverable)
+  omissions_no_letter_title: Omissions not in the letter (irrecoverable)
   title: Letter of omission
 paper_corrections:
   added: Paper correction added

@@ -21,9 +21,7 @@ use super::OmissionTarget;
 /// otherwise the political group examination overview.
 pub(super) fn return_path(target: &OmissionTarget, political_group: &CsbPoliticalGroup) -> String {
     match target.omission_type {
-        OmissionType::PoliticalGroup | OmissionType::Appellation => {
-            political_group.general_information_path().to_string()
-        }
+        OmissionType::Appellation => political_group.group_path().to_string(),
         OmissionType::CandidateList => political_group
             .candidate_list_path(&CandidateListId::from(target.reference))
             .to_string(),
@@ -105,7 +103,7 @@ pub(super) fn overview_url_for(
     category: &OmissionCategory,
     stream_id: StreamId,
     list: Option<CandidateListId>,
-) -> impl TypedPath {
+) -> Option<impl TypedPath> {
     let pick_list = |lists: &[CandidateListId]| {
         list.filter(|list| lists.contains(list))
             .or_else(|| lists.first().copied())
@@ -137,12 +135,9 @@ pub(super) fn overview_url_for(
             reference: stream_id.into(),
             list: None,
         },
-        OmissionCategory::PoliticalGroup | OmissionCategory::CandidateList(_) => OmissionTarget {
-            stream_id,
-            omission_type: OmissionType::PoliticalGroup,
-            reference: stream_id.into(),
-            list: None,
-        },
+        // An omission on a candidate list without lists should not be possible.
+        // Let the caller decide on fallback url
+        OmissionCategory::CandidateList(_) => return None,
     };
-    target.overview_url()
+    Some(target.overview_url())
 }

@@ -66,11 +66,11 @@ async fn final_files<S: AppRequestState>(
 
     let mut files = vec![
         (
-            "Overzicht_Kandidatenlijsten.zip".to_string(),
+            "Overzicht_Kandidatenlijsten_per_kieskring_voor_Drukker.zip".to_string(),
             zip(&lists_per_district).await?,
         ),
         (
-            format!("Kandidatenlijsten_{}.zip", election_id.value()),
+            format!("Kandidatenlijsten_{}_voor_Drukker.zip", election_id.value()),
             zip(&eml230bs).await?,
         ),
         (
@@ -208,12 +208,12 @@ mod tests {
         assert_eq!(
             names,
             [
-                "Kandidatenlijsten_EK2027.zip",
+                "Kandidatenlijsten_EK2027_voor_Drukker.zip",
                 "Model_I4_Proces_Verbaal.docx",
                 "Model_I4_Proces_Verbaal.pdf",
                 "Overzicht_Kandidatenlijsten.docx",
                 "Overzicht_Kandidatenlijsten.pdf",
-                "Overzicht_Kandidatenlijsten.zip",
+                "Overzicht_Kandidatenlijsten_per_kieskring_voor_Drukker.zip",
                 "Publicatie_Kandidatenlijsten.docx",
                 "Publicatie_Kandidatenlijsten.pdf",
                 "Totaallijsten_EK2027.zip",
@@ -261,11 +261,11 @@ mod tests {
         assert!(!i4_footer.contains(&eml_hash(&eml110a)));
 
         let eml230b = zip_entry(
-            file("Kandidatenlijsten_EK2027.zip"),
+            file("Kandidatenlijsten_EK2027_voor_Drukker.zip"),
             "Kandidatenlijsten_EK2027_Groningen.eml.xml",
         )
         .await;
-        let lists = file("Overzicht_Kandidatenlijsten.zip");
+        let lists = file("Overzicht_Kandidatenlijsten_per_kieskring_voor_Drukker.zip");
         let groningen = zip_entry(lists, "Kandidatenlijsten_EK2027_Groningen.docx").await;
         assert!(docx_footer(&groningen).await.contains(&eml_hash(&eml230b)));
 

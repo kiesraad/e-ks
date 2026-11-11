@@ -222,7 +222,7 @@ mod tests {
                 snapshot: Box::new(snapshot),
             })
             .await?;
-        sample_omission(OmissionCategory::PoliticalGroup)
+        sample_omission(OmissionCategory::Appellation)
             .create(&store)
             .await?;
 

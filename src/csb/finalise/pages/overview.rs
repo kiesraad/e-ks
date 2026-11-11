@@ -24,6 +24,7 @@ struct CsbFinaliseTemplate {
     objections: Vec<Objection>,
     /// The I 4 can only be downloaded once its hearing details are recorded.
     has_hearing_details: bool,
+    unassessed_omission_count: usize,
 }
 
 /// The finalise page: the I 4 downloads, the sortable list order, and the
@@ -41,6 +42,11 @@ pub async fn overview(
     );
     let has_multiple_districts = !context.election.has_only_one_district();
     let objections = main_store.get_all_objections();
+    let unassessed_omission_count = political_groups
+        .into_iter()
+        .filter(|political_group| !political_group.is_deleted)
+        .map(|political_group| political_group.recovery.pending)
+        .sum();
 
     Ok(HtmlTemplate(
         CsbFinaliseTemplate {
@@ -48,6 +54,7 @@ pub async fn overview(
             has_multiple_districts,
             objections,
             has_hearing_details: main_store.get_hearing_details(HearingModel::I4).is_some(),
+            unassessed_omission_count,
         },
         context,
     )
@@ -155,5 +162,28 @@ mod tests {
         let position = |name: &str| body.find(name).expect("group in table");
         assert!(position("Gezeteld") < position("Nieuwkomer"));
         assert!(body.contains(r#"<span class="badge position-badge">2</span>"#));
+    }
+
+    #[tokio::test]
+    async fn overview_warns_when_there_are_unassessed_omissions() {
+        let main_store = CsbMainStore::new_for_test();
+
+        let mut group = CsbPoliticalGroup::sample("Sample Group");
+        group.recovery.total = 1;
+        group.recovery.pending = 1;
+        let unassessed_response = render(main_store.clone(), vec![group]).await;
+
+        let mut group = CsbPoliticalGroup::sample("Sample Group");
+        group.recovery.total = 1;
+        group.recovery.pending = 0;
+        let assessed_response = render(main_store, vec![group]).await;
+
+        assert!(
+            unassessed_response
+                .contains("unassessed omissions. Go back to phase 3 to assess them.")
+        );
+        assert!(
+            !assessed_response.contains("unassessed omissions. Go back to phase 3 to assess them.")
+        );
     }
 }

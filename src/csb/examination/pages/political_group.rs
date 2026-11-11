@@ -47,6 +47,7 @@ struct CsbPoliticalGroupTemplate {
     candidate_lists: Vec<CsbCandidateList>,
     political_group_status: RestorationStatus,
     declarations_of_support_omissions: Vec<OmissionRow>,
+    appellation_omissions: Vec<OmissionRow>,
     /// One pill per list, district or candidate added or removed on paper.
     paper_corrections: PaperCorrectionsOverview,
     /// What the unresolved omissions scrapped; only shown in the recovery
@@ -110,6 +111,8 @@ pub(in crate::csb) async fn render(
         data.get_all_declarations_of_support_omissions(context.election),
         &political_group,
     );
+    let appellation_omissions =
+        OmissionRow::unlinked(data.get_appellation_omissions(), &political_group);
     Ok(HtmlTemplate(
         CsbPoliticalGroupTemplate {
             political_group,
@@ -123,6 +126,7 @@ pub(in crate::csb) async fn render(
             paper_corrections,
             scrapped,
             all_problems,
+            appellation_omissions,
         },
         context,
     )
@@ -200,7 +204,7 @@ mod tests {
             brp::{BrpFindingKind, BrpStatus},
             candidate_lists::{CandidateList, CandidateListId},
             common::{Address, PreviousElectionResults, UtcDateTime},
-            csb::{Omission, OmissionCategory, sample_registered_political_group},
+            csb::{Omission, OmissionCategory, sample_omission, sample_registered_political_group},
             list_designation::ListDesignation,
             list_submitters::ListSubmitterId,
             persons::PersonId,
@@ -658,35 +662,6 @@ mod tests {
         let body = response_body_string(response).await;
         // The card counts the corrected candidates, not the imported ones.
         assert!(body.contains("<strong>2</strong> candidates"));
-    }
-
-    #[tokio::test]
-    async fn renders_political_group_omission_count_badge() {
-        let store = CsbStore::new_for_test();
-        let stream_id = store.stream_id;
-        Omission::new(
-            OmissionCategory::PoliticalGroup,
-            "Deposit missing".parse().unwrap(),
-            "The deposit has not been paid.".parse().unwrap(),
-            None,
-        )
-        .create(&store)
-        .await
-        .unwrap();
-
-        let response = overview(
-            CsbPoliticalGroupPath { stream_id },
-            CsbContext::new_test(),
-            store,
-            CsbMainStore::new_for_test(),
-        )
-        .await
-        .unwrap()
-        .into_response();
-
-        assert_eq!(response.status(), StatusCode::OK);
-        let body = response_body_string(response).await;
-        assert!(body.contains("Omissions added"));
     }
 
     #[tokio::test]
@@ -1174,6 +1149,88 @@ mod tests {
             "{card}"
         );
         assert!(card.contains(r#"title="Warnings""#), "{card}");
+    }
+
+    /// A paper correction can blank a list after appellation omissions were
+    /// added; those stay visible, but no new ones can be added.
+    #[tokio::test]
+    async fn appellation_omission_bar_shows_existing_omissions_of_a_blank_list() {
+        let store = CsbStore::new_for_test();
+        let mut pg = sample_political_group();
+        pg.list_designation = Some(ListDesignation::Blank);
+        store.set_political_group(pg);
+        store
+            .update(CsbAction::CreateOmission(sample_omission(
+                OmissionCategory::Appellation,
+            )))
+            .await
+            .unwrap();
+
+        let stream_id = store.stream_id;
+        let response = overview(
+            CsbPoliticalGroupPath { stream_id },
+            CsbContext::new_test(),
+            store,
+            CsbMainStore::new_for_test(),
+        )
+        .await
+        .unwrap()
+        .into_response();
+        let body = response_body_string(response).await;
+
+        assert!(body.contains("Omissions appellation</h2>"));
+        assert!(body.contains("test title"));
+        // The overview is linked, the add dialog is not.
+        assert!(body.contains(&format!("/omission/appellation/{stream_id}/overview")));
+        assert!(!body.contains(&format!("/omission/appellation/{stream_id}\"")));
+    }
+
+    #[tokio::test]
+    async fn renders_non_recoverable_omission_as_error() {
+        let store = CsbStore::new_for_test();
+        let stream_id = store.stream_id;
+        let mut omission = Omission::new(
+            OmissionCategory::Appellation,
+            "Unregistered appellation".parse().unwrap(),
+            "The appellation is not registered.".parse().unwrap(),
+            None,
+        );
+        omission.recoverable = false;
+        omission.create(&store).await.unwrap();
+
+        let response = overview(
+            CsbPoliticalGroupPath { stream_id },
+            CsbContext::new_test(),
+            store,
+            CsbMainStore::new_for_test(),
+        )
+        .await
+        .unwrap()
+        .into_response();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response_body_string(response).await;
+        assert!(body.contains("restoration-tag-unrecoverable"));
+    }
+
+    #[tokio::test]
+    async fn appellation_omission_bar_shows_for_non_blank_lists() {
+        let store = CsbStore::new_for_test();
+
+        let response = overview(
+            CsbPoliticalGroupPath {
+                stream_id: store.stream_id,
+            },
+            CsbContext::new_test(),
+            store,
+            CsbMainStore::new_for_test(),
+        )
+        .await
+        .unwrap()
+        .into_response();
+        let body = response_body_string(response).await;
+
+        assert!(body.contains("Omissions appellation</h2>"));
     }
 
     /// The card of candidate list `list_id` on the group page.

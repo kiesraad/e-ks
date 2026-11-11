@@ -75,7 +75,6 @@ impl Scrapped {
                 OmissionCategory::Appellation => {
                     scrapped.appellation.insert(omission.id);
                 }
-                OmissionCategory::PoliticalGroup => continue,
                 OmissionCategory::DeclarationsOfSupport(districts) if districts.is_empty() => {
                     scrapped.all_districts = true;
                 }
@@ -367,23 +366,6 @@ mod tests {
             scrapped.districts(&ElectionConfig::EK27),
             [ElectoralDistrict::Groningen, ElectoralDistrict::Drenthe]
         );
-    }
-
-    #[test]
-    fn appellation_is_scrapped_by_appellation_omissions_only() {
-        let appellation = irreparable(OmissionCategory::Appellation);
-        let id = appellation.id;
-
-        let scrapped = derive(
-            &PgStoreData::default(),
-            vec![appellation, irreparable(OmissionCategory::PoliticalGroup)],
-        );
-
-        assert!(scrapped.is_appellation_scrapped());
-        assert_eq!(scrapped.appellation_omissions().len(), 1);
-        assert!(scrapped.appellation_omissions().contains(&id));
-        // A political-group omission has no consequences of its own.
-        assert_eq!(scrapped.omissions.len(), 1);
     }
 
     #[test]

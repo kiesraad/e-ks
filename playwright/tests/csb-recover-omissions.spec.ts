@@ -6,7 +6,6 @@
 
 import { expect } from "@playwright/test";
 import { test } from "./fixtures.ts";
-import { CsbGeneralInformationPage } from "./pages/csb/csbGeneralInformationPage.ts";
 import { CsbOmissionsDeclarationsOfSupportPage } from "./pages/csb/csbOmissionsDeclarationsOfSupport.ts";
 import { CsbOmissionsPartyPage } from "./pages/csb/csbOmissionsPartyPage.ts";
 import { CsbOverviewPage } from "./pages/csb/csbOverviewPage.ts";
@@ -77,22 +76,21 @@ test.describe("recover omissions", async () => {
     const omissionsPage = new CsbOmissionsPartyPage(page);
     const recoveredListsPage = new CsbRecoveredListsPage(page);
     const recoveryGroupPage = new CsbRecoveryGroupPage(page);
-    const generalInformationPage = new CsbGeneralInformationPage(page);
 
     // add omission for non registered appellation
     await politicalGroupPage.selectedGroup(groupName);
-    await politicalGroupPage.linkGeneralInformation.click();
-    await generalInformationPage.linkAddAppellationOmission.click();
+    await politicalGroupPage.linkAddAppellationOmission.click();
     await page.waitForURL(/\/omission\//);
-    await omissionsPage.buttonRegisterAppelation.click();
+    await omissionsPage.buttonRegisterAppellation.click();
     await omissionsPage.buttonAddAndClose.click();
     await politicalGroupPage.buttonHome.click();
 
-    // verify omission is unrecoverable, appellation is scrapped and list is now blank
+    // verify omission is unrecoverable,
+    // appellation is scrapped but should still shows original appellation
     await overviewPage.linkRecoveredLists.click();
     await expect(recoveredListsPage.headerRecoveredLists).toBeVisible();
-    await recoveredListsPage.selectPoliticalGroup("Blanco (de Goede, Z.)");
-    await recoveryGroupPage.selectedGroup("Blanco (de Goede, Z.)");
+    await recoveredListsPage.selectPoliticalGroup(groupName);
+    await recoveryGroupPage.selectedGroup(groupName);
     await expect(
       page
         .locator(".examination-panel")

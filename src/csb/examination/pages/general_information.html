@@ -36,31 +36,15 @@
 {% endmacro %}
 {% block content %}
   <section class="general-information">
-    {% let show_appellation_omissions = !group_info.is_blank || !appellation_omissions.is_empty() %}
-    {% if political_group.mode.is_examination() %}
-      {{ restorations::omission_panel("csb.omission.title_for.general"|trans, "csb.general.add_text"|trans, political_group.add_political_group_omission_path() , political_group.manage_political_group_omissions_path() , political_group_omissions.as_slice(), show_go_to_all=false) }}
-      {% if show_appellation_omissions %}
-        {{ restorations::omission_panel("csb.omission.title_for.appellation"|trans, "csb.general.add_text"|trans, political_group.add_appellation_omission_path() , political_group.manage_appellation_omissions_path() , appellation_omissions.as_slice() , can_add=!group_info.is_blank, show_go_to_all=false) }}
-      {% endif %}
-    {% else %}
-      {% call restorations::status_panel(political_group, "csb.omission.title_for.general"|trans, "csb.recovery.omissions_explanation"|trans, political_group_omissions.as_slice() , political_group.general_information_path(), show_go_to_all=false) %}
-      {% endcall %}
-      {% if show_appellation_omissions %}
-        {% call restorations::status_panel(political_group, "csb.omission.title_for.appellation"|trans, "csb.recovery.omissions_explanation"|trans, appellation_omissions.as_slice() , political_group.general_information_path(), show_go_to_all=false) %}
-        {% endcall %}
-      {% endif %}
-    {% endif %}
     {% let examining = political_group.mode.is_examination() %}
     <h2>{{ "csb.general.group_info"|trans }}</h2>
     {% set combined_problems = all_problems.general.get_general_name_authorisation_problems_combined() %}
-    {% if political_group.mode.is_examination() && !combined_problems.is_empty() %}
-      {{ restorations::problems(combined_problems) }}
-    {% endif %}
+    {% if examining && !combined_problems.is_empty() %}{{ restorations::problems(combined_problems) }}{% endif %}
     <table class="detail-table">
       {{ paper_corrected::columns_head("common.general_information"|trans, examining) }}
       <tbody>
         {% if let Some(appellation_label) = group_info.appellation_label %}
-          {% if political_group.mode.is_examination() %}
+          {% if examining %}
             <tr class="clickable">
               <td>{{ appellation_label }}: {{ paper_corrected::value(group_info.appellation) }}</td>
               <td></td>
@@ -143,7 +127,7 @@
       {% endfor %}
     {% endif %}
     <h2>{{ "political_group.list_submitter_data"|trans }}</h2>
-    {% if political_group.mode.is_examination() && let Some(ls) = all_problems.general.list_submitter && !ls.problems.is_empty() %}
+    {% if examining && let Some(ls) = all_problems.general.list_submitter && !ls.problems.is_empty() %}
       {{ restorations::problems(ls.problems.clone() ) }}
     {% endif %}
     {% if let Some(submitter) = list_submitter %}
@@ -157,7 +141,7 @@
     {% else %}
       {% for submitter in substitute_submitters %}
         <h3 class="mt-md">{{ submitter.heading }}</h3>
-        {% if political_group.mode.is_examination() && let Some(id) = submitter.id && let Some(problems) = all_problems.general.get_substitute_submitter_problems(**id) %}
+        {% if examining && let Some(id) = submitter.id && let Some(problems) = all_problems.general.get_substitute_submitter_problems(**id) %}
           {{ restorations::problems(problems) }}
         {% endif %}
         {{ submitter_tables(submitter, examining) }}

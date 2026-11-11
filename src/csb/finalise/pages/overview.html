@@ -7,6 +7,9 @@
 {% block content %}
   <div class="examination-panels">
     <div class="examination-panel">
+      {% if unassessed_omission_count > 0 %}
+        <div class="alert alert-warning">{{ "csb.finalise.unassessed_warning"|trans(&unassessed_omission_count.to_string() )|safe }}</div>
+      {% endif %}
       <div class="examination-panel-header">
         <div>
           <h3>{{ "csb.finalise.i4_title"|trans }}</h3>
@@ -24,17 +27,14 @@
            {% if has_hearing_details %}href="{{ crate::csb::finalise::paths::CsbI4DraftDownloadPath }}"{% else %}aria-disabled="true"{% endif %}
            id="i4-draft-pdf">{{ "csb.finish_examination.download_pdf"|trans }}</a>
       </div>
-      <h3 class="mt-xl mb-sm">{{ "csb.finalise.final_title"|trans }}</h3>
-      <div class="examination-strip">
-        <a class="button primary icon-download{% if !has_hearing_details %} disabled{% endif %}"
-           {% if has_hearing_details %}href="{{ crate::csb::finalise::paths::CsbFinalZipDownloadPath }}" data-confetti{% else %}aria-disabled="true"{% endif %}
-           id="final-zip">{{ "csb.finalise.download_final_zip"|trans }}</a>
-      </div>
     </div>
     <div class="examination-panel">
       <div class="examination-panel-header">
+        <h3>{{ "csb.finalise.session_results_title"|trans }}</h3>
+      </div>
+      <div class="examination-panel-header">
         <div>
-          <h3>{{ "csb.finalise.order_title"|trans }}</h3>
+          <h4>{{ "csb.finalise.order_title"|trans }}</h4>
           <p>{{ "csb.finalise.order_note"|trans }}</p>
         </div>
       </div>
@@ -70,17 +70,17 @@
                   {% if let Some(votes) = group.previous_votes && group.numbered_on_votes %}{{ votes }}{% endif %}
                 </td>
                 <td class="font-number statistic">{% if let Some(seats) = group.previous_seats %}{{ seats }}{% endif %}</td>
-                {% if has_multiple_districts %}<td class="font-number statistic">{{ group.district_count }}</td>{% endif %}
+                {% if has_multiple_districts %}
+                  <td class="font-number statistic">{{ group.district_count }}</td>
+                {% endif %}
               </tr>
             {% endfor %}
           </tbody>
         </table>
       {% endif %}
-    </div>
-    <div class="examination-panel">
       <div class="examination-panel-header">
         <div>
-          <h3>{{ "csb.finalise.objections_title"|trans }}</h3>
+          <h4>{{ "csb.finalise.objections_title"|trans }}</h4>
           <p>{{ "csb.finalise.objections_note"|trans }}</p>
         </div>
       </div>
@@ -92,6 +92,12 @@
         {% endfor %}
         <a class="button secondary icon-plus"
            href="{{ crate::csb::finalise::paths::CsbAddObjectionPath }}">{{ "csb.finalise.add_objection"|trans }}</a>
+      </div>
+      <h4 class="mt-xl mb-sm">{{ "csb.finalise.final_title"|trans }}</h4>
+      <div class="examination-strip">
+        <a class="button primary icon-download{% if !has_hearing_details %} disabled{% endif %}"
+           {% if has_hearing_details %}href="{{ crate::csb::finalise::paths::CsbFinalZipDownloadPath }}" data-confetti{% else %}aria-disabled="true"{% endif %}
+           id="final-zip">{{ "csb.finalise.download_final_zip"|trans }}</a>
       </div>
     </div>
   </div>
