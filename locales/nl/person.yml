@@ -19,7 +19,7 @@ fields:
   last_name_info: "Kandidaten kunnen zelf kiezen vermeld te worden met: <ul> <li>De eigen achternaam;</li> <li>De achternaam van de (ex) echtgenoot, (ex) echtgenote, of (ex) geregistreerde partner;</li> <li>Beide achternamen, eerst de eigen achternaam en dan (verbonden door een koppelteken) de achternaam van de (ex) echtgenoot, (ex) echtgenote, of (ex) geregistreerde partner;</li> <li>Beide achternamen, eerst de achternaam van de (ex) echtgenoot, (ex) echtgenote of (ex) geregistreerde partner en dan (verbonden door een koppelteken) de eigen achternaam.</li> </ul> <p>Wel moet de kandidaat bevoegd zijn om de naam van de (ex) echtgenoot, (ex) echtgenote of (ex) geregistreerde partner te voeren (artikel 1:9 BW).</p>"
   last_name_prefix: Voorvoegsel
   locality: Woonplaats
-  locality_suggestion: "Bedoel je:"
+  locality_suggestion: "Bedoelt u:"
   name: Naam
   place_of_residence: Woonplaats
   postal_code: Postcode
@@ -29,12 +29,12 @@ fields:
 form:
   create:
     title: Kandidaat toevoegen
-  delete_everywhere: Wil je deze kandidaat volledig uit de applicatie verwijderen?
+  delete_everywhere: Weet u zeker dat u deze kandidaat volledig uit de applicatie verwijderen?
   delete_everywhere_title: Kandidaat uit applicatie verwijderen
   delete_everywhere_warning: "De kandidaat zal ook verwijderd worden van alle {} de kandidatenlijsten waar deze op staat."
   delete_everywhere_warning_one: De kandidaat zal ook verwijderd worden van de kandidatenlijst waar deze op staat.
   delete_everywhere_warning_zero: Deze kandidaat komt momenteel op geen enkele kandidatenlijst voor.
-  delete_from_list: Wil je de kandidaat uit deze lijst verwijderen?
+  delete_from_list: Wilt u de kandidaat uit deze lijst verwijderen?
   delete_from_list_info: De kandidaat blijft wel in het adresboek staan.
   delete_from_list_title: Kandidaat uit deze lijst verwijderen
 hints:

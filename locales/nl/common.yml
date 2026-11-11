@@ -69,7 +69,7 @@ request_error:
 save_and_go_home: Opslaan en naar overzicht
 save_success: Opgeslagen
 select_election:
-  description: Kies de verkiezing waar je mee wilt werken om verder te gaan.
+  description: Kies de verkiezing waar u mee wilt werken om verder te gaan.
   label: Kies een verkiezing
   load_fixtures: Voorbeelddata laden voor deze verkiezing
   submit: Verder
