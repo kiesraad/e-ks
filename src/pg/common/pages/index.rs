@@ -81,7 +81,7 @@ pub async fn index(
             general_list_problems,
             problematic_lists,
             problematic_lists_severity,
-            has_downloaded_latest_version: store.snapshot().has_downloaded_latest_version(),
+            has_downloaded_latest_version: data.has_downloaded_latest_version(),
         },
         context,
     ))
