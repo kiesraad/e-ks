@@ -6,7 +6,7 @@ We gebruiken deze termen onder andere voor variabelen, functienamen en teksten i
 ## Bronnen
 
 - De Engelstalige website van de Kiesraad: <https://english.kiesraad.nl/>
-- De Engelstalige versie van de Kieswet: <https://english.kiesraad.nl/publications/publications/2019/4/english-version-electoral-act/english-version-electoral-act>
+- De Engelstalige versie van de Kieswet: <https://www.rijksoverheid.nl/documenten/2026/03/31/electoral-act>
 - De Europese terminologiedatabase IATE (Interactive Terminology for Europe): <https://iate.europa.eu>
 - De Amerikaanse Glossary of Election Terminology: <https://www.eac.gov/sites/default/files/glossary_files/Glossary_of_Election_Terms_EAC.pdf>
 - Woordenlijst NL-EN voor Abacus software voor verkiezingsuitslagen: <https://github.com/kiesraad/abacus/blob/665d49b10d7dd9bf32233730338b8b06b2d22467/documentatie/referentie/woordenlijst-NL-EN.md>
