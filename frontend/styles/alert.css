@@ -35,6 +35,10 @@
     width: 100%;
   }
 
+  &.text-balance {
+    text-wrap: balance;
+  }
+
   &.alert-info {
     --alert-bg: var(--blue-100);
     --alert-border-color: var(--blue-600);

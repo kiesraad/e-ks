@@ -26,6 +26,8 @@
                 {{ "common.possible_problems"|trans(&general_problems.to_string() ) }}
               {% endif %}
             </p>
+          {% else %}
+            <p class="success">{{ "common.general_information_complete"|trans }}</p>
           {% endif %}
         </div>
       </div>
@@ -61,6 +63,8 @@
                 {{ "common.possible_problems"|trans(&general_list_problems.to_string() ) }}
               {% endif %}
             </p>
+          {% else %}
+            <p class="success">{{ "common.candidate_lists_complete"|trans }}</p>
           {% endif %}
         </div>
       </div>
@@ -76,9 +80,10 @@
     {% if !("paper_correction_mode"|value_true) %}
       <a href="{{ crate::finalise::FinalisePath{}.to_string() }}" class="card">
         <div class="card-header">
-          <div class="badge badge-finalise"></div>
+          <div class="badge badge-finalise {% if has_downloaded_latest_version %}success{% endif %}"></div>
           <div>
             <h4>{{ "common.step"|trans("3") }}</h4>
+            {% if has_downloaded_latest_version %}<p class="success">{{ "common.documents_downloaded"|trans }}</p>{% endif %}
           </div>
         </div>
         <div class="card-content">
@@ -89,11 +94,11 @@
             <li>{{ "common.finalise_description.view_follow_up_steps"|trans }}</li>
           </ul>
         </div>
-        <div class="alert alert-info">
-          {{ "common.finalise_instruction"|trans }}:
+        <div class="alert alert-info text-balance">
+          {{ "common.finalise_instruction"|trans }}
           <strong>
             {% let election = "election"|election_value %}
-            {{ election.nomination_day_date() |long_date }}
+            {{ election.nomination_day_date() |extra_long_date }}
           </strong>
         </div>
         <p class="card-footer">{{ "action.review_and_download"|trans }}</p>

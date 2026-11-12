@@ -20,6 +20,7 @@ pub struct IndexTemplate {
     general_list_problems: usize,
     problematic_lists: usize,
     problematic_lists_severity: &'static str,
+    has_downloaded_latest_version: bool,
 }
 
 pub async fn index(
@@ -80,6 +81,7 @@ pub async fn index(
             general_list_problems,
             problematic_lists,
             problematic_lists_severity,
+            has_downloaded_latest_version: store.snapshot().has_downloaded_latest_version(),
         },
         context,
     ))

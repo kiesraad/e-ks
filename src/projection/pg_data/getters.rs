@@ -183,6 +183,17 @@ impl PgStoreData {
             })
             .is_some_and(|e| matches!(e.payload, crate::PgEvent::DownloadFile { .. }))
     }
+
+    pub fn has_downloaded_latest_version(&self) -> bool {
+        self.events
+            .iter()
+            .rev()
+            .find(|e| {
+                e.payload.is_data_change()
+                    || matches!(e.payload, crate::PgEvent::DownloadFile { .. })
+            })
+            .is_some_and(|e| matches!(e.payload, crate::PgEvent::DownloadFile { .. }))
+    }
 }
 
 #[cfg(test)]
@@ -251,6 +262,7 @@ mod tests {
 
         // start without warning
         assert!(!store.snapshot().should_show_download_warning());
+        assert!(!store.snapshot().has_downloaded_latest_version());
 
         // after download, the warning should show
         store
@@ -261,10 +273,21 @@ mod tests {
             .await
             .unwrap();
         assert!(store.snapshot().should_show_download_warning());
+        assert!(store.snapshot().has_downloaded_latest_version());
 
         // after hiding, the warning should no longer show
         store.update(PgEvent::HideDownloadWarning).await.unwrap();
         assert!(!store.snapshot().should_show_download_warning());
+        assert!(store.snapshot().has_downloaded_latest_version());
+
+        // after making a change, we no longer have the latest version
+        store
+            .update(PgEvent::CreatePerson(Box::new(sample_person(
+                PersonId::new(),
+            ))))
+            .await
+            .unwrap();
+        assert!(!store.snapshot().has_downloaded_latest_version());
 
         // after downloading again, the warning should show again
         store
@@ -275,5 +298,6 @@ mod tests {
             .await
             .unwrap();
         assert!(store.snapshot().should_show_download_warning());
+        assert!(store.snapshot().has_downloaded_latest_version());
     }
 }

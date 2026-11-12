@@ -133,4 +133,38 @@ impl PgEvent {
             _ => 0,
         }
     }
+
+    /// Returns true for events that may change data on the documents
+    pub fn is_data_change(&self) -> bool {
+        match self {
+            PgEvent::UpdatePoliticalGroup(_)
+            | PgEvent::CreatePerson(_)
+            | PgEvent::CreatePersonPersonalData { .. }
+            | PgEvent::UpdatePerson(_)
+            | PgEvent::UpdatePersonPersonalData { .. }
+            | PgEvent::UpdatePersonAddress { .. }
+            | PgEvent::UpdatePersonRepresentative { .. }
+            | PgEvent::DeletePerson { .. }
+            | PgEvent::CreateCandidateList(_)
+            | PgEvent::UpdateCandidateListDistricts { .. }
+            | PgEvent::UpdateCandidateListOrder { .. }
+            | PgEvent::AddCandidateToCandidateList { .. }
+            | PgEvent::RemoveCandidateFromCandidateList { .. }
+            | PgEvent::DeleteCandidateList(_)
+            | PgEvent::CreateNameAuthorisation(_)
+            | PgEvent::UpdateNameAuthorisation(_)
+            | PgEvent::DeleteNameAuthorisation(_)
+            | PgEvent::UpdateListSubmitter(_)
+            | PgEvent::CreateSubstituteSubmitter(_)
+            | PgEvent::UpdateSubstituteSubmitter(_)
+            | PgEvent::DeleteSubstituteSubmitter { .. } => true,
+            PgEvent::DeveloperLogin { .. }
+            | PgEvent::Login
+            | PgEvent::Logout
+            | PgEvent::DownloadFile { .. }
+            | PgEvent::HideDownloadWarning
+            | PgEvent::ExportCsv { .. } => false,
+            PgEvent::ImportCandidates(_) | PgEvent::Import { .. } => true,
+        }
+    }
 }

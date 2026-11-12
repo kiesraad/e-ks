@@ -125,6 +125,10 @@
       font-weight: normal;
     }
 
+    .success {
+      color: var(--green-600);
+    }
+
     .info {
       color: var(--blue-600);
     }
