@@ -16,6 +16,15 @@ impl Severity {
             Severity::Error => "error",
         }
     }
+
+    /// Modifier of the `restoration-tag` a problem of this severity is shown
+    /// with; there is no info tag, so anything below an error is a warning.
+    pub fn restoration_tag_modifier(&self) -> &'static str {
+        match self {
+            Severity::Info | Severity::Warn => "warning",
+            Severity::Error => "error",
+        }
+    }
 }
 
 pub trait HasSeverity {
