@@ -8,6 +8,9 @@
     </aside>
     <main class="auth-container">
       <h2>{{ "auth.start.title"|trans }}</h2>
+      {% if login_cancelled %}
+        <div class="alert alert-warning">{{ "auth.cancelled.message"|trans }}</div>
+      {% endif %}
       {% if session_expired %}
         <div class="alert alert-warning">{{ "auth.session_expiry.expired"|trans(idle_minutes) }}</div>
       {% endif %}
