@@ -26,7 +26,7 @@
                 {{ "common.possible_problems"|trans(&general_problems.to_string() ) }}
               {% endif %}
             </p>
-          {% else %}
+          {% else if general_problems_severity == "success" %}
             <p class="success">{{ "common.general_information_complete"|trans }}</p>
           {% endif %}
         </div>
@@ -63,7 +63,7 @@
                 {{ "common.possible_problems"|trans(&general_list_problems.to_string() ) }}
               {% endif %}
             </p>
-          {% else %}
+          {% else if problematic_lists_severity == "success" %}
             <p class="success">{{ "common.candidate_lists_complete"|trans }}</p>
           {% endif %}
         </div>
