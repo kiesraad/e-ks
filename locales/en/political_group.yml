@@ -8,7 +8,7 @@ appellation: Appellation
 appellation_any: Appellation
 appellation_combined: Combined appellation
 authorised_agent: Authorised agent
-authorised_agent_data: (Deputy) authorised agent data
+authorised_agent_data: Authorised agent data
 authorised_agent_data_hint: Enter the details of the (deputy) authorised agent registered with the central electoral committee.
 authorised_agent_info: Add the statutory name and its authorised agent here.
 authorised_agent_info_hint: The statutory name is the name of the political group as registered in the notarial deed and with the Chamber of Commerce. The authorised agent or deputy authorised agent is registered with the central electoral committee together with the appellation. The (deputy) authorised agent grants the list submitter permission to place the name of the political group above the candidate list.

@@ -34,7 +34,7 @@ omission_steps:
   title: Extra steps for missing or incorrect documents
 print:
   download_description: Make sure the latest changes made in this application match the most recently downloaded zip.
-  download_title: Download the files here and print them.
+  download_title: Download the files here and print them
   eml_not_required: The included EML file does not need to be printed and does not need to be submitted to the central electoral committee.
   errors_warning: "Before you can print the documents, you must first resolve all errors in step 1."
   h1_description: "With the H\u00A01, as the submitter of the list of candidates, you nominate candidates for an election."

@@ -15,8 +15,8 @@
           {{ "political_group.legal_name_title"|trans }}
         {% endif %}
       </h3>
-      <p class="text-body-width">{{ "political_group.authorised_agent_info"|trans }}</p>
-      <span class="hint mb-lg">{{ "political_group.authorised_agent_info_hint"|trans }}</span>
+      <p class="text-body-width mb-md">{{ "political_group.authorised_agent_info"|trans }}</p>
+      <p class="help-text text-body-width mb-lg">{{ "political_group.authorised_agent_info_hint"|trans }}</p>
       {% if !(steps.initial && name_authorisations.is_empty()) && let Some(size_problem) = size_problem %}
         <p class="alert alert-{{ size_problem.severity().class() }}">
           {% if steps.is_combined() %}

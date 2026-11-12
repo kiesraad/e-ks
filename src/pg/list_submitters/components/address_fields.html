@@ -1,5 +1,7 @@
 <h3>{{ "person.correspondence_address"|trans }}</h3>
-{% if show_list_submitter_address_info|default(false) %}<span class="alert alert-info">{{ "political_group.list_submitter_address_info"|trans }}</span>{% endif %}
+{% if show_list_submitter_address_info|default(false) %}
+  <p class="text-body-width mb-ml">{{ "political_group.list_submitter_address_info"|trans }}</p>
+{% endif %}
 {% include "pg/common/components/address_fields.html" %}
 <div class="form-row">
   <div class="form-field hide-nl">

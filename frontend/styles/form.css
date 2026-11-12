@@ -199,7 +199,7 @@
     font-size: var(--font-size-md);
     line-height: var(--leading-md);
     font-weight: var(--font-weight-light);
-    color: var(--gray-500);
+    color: var(--color-help-text);
     text-wrap: balance;
     display: block;
 
