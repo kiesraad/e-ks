@@ -3,5 +3,5 @@ import { test } from "./fixtures.ts";
 
 test("homepage loads", async ({ login: page }) => {
   await page.goto("/");
-  await expect(page).toHaveTitle("Kiesraad - Kandidaatstelling");
+  await expect(page).toHaveTitle(/^Overzicht - Kandidaatstelling/);
 });

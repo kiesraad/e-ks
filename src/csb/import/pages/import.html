@@ -4,7 +4,7 @@
   {{ breadcrumb(crate::csb::examination::CsbExaminationOverviewPath, "csb.examination") }}
   {{ breadcrumb(crate::csb::import::CsbImportPath, "csb.form.import_political_group") }}
 {% endblock %}
-{% block page_title %}{{ "csb.form.import_political_group"|trans }}{% endblock %}
+{% set page_title = "csb.form.import_political_group"|trans %}
 {% block back_navigation %}{{ macros::back_link(CsbExaminationOverviewPath, "csb.examination"|trans|lower) }}{% endblock %}
 {% block content %}
   {% set import_action = CsbImportPath{}.to_string() %}

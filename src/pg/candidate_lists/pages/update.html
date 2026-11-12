@@ -1,7 +1,7 @@
 {% extends "pg/common/components/overlay.html" %}
 {% import "pg/common/components/macros.html" as macros %}
 {% set close_action = candidate_list.view_path() %}
-{% block overlay_title %}{{ "candidate_list.form.update.title"|trans }}{% endblock %}
+{% set overlay_title = "candidate_list.form.update.title"|trans %}
 {% block overlay_steps %}
   {% include "pg/candidate_lists/components/update_steps.html" %}
 {% endblock %}

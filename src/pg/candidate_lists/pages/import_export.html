@@ -1,6 +1,6 @@
 {% extends "pg/common/components/overlay.html" %}
 {% set close_action = list.view_path() %}
-{% block overlay_title %}{{ "candidate_list.actions.import_export"|trans }}{% endblock %}
+{% set overlay_title = "candidate_list.actions.import_export"|trans %}
 {% block overlay_content %}
   <div class="form overlay-content overlay-csv">
     <h2 class="mb-sm">{{ "candidate_list.import_export.import_title"|trans }}</h2>

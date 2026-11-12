@@ -1,6 +1,6 @@
 {% extends "pg/common/components/layout.html" %}
 {% import "pg/common/components/macros.html" as macros %}
-{% block page_title %}{{ "common.switch_election.label"|trans }}{% endblock %}
+{% set page_title = "common.switch_election.label"|trans %}
 {% block content %}
   {% if !existing_elections.is_empty() %}
     <section class="election-switch-existing">

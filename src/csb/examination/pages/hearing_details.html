@@ -25,7 +25,7 @@
     {{ macros::back_link(crate::csb::finalise::CsbFinalisePath, "csb.finalise.title"|trans|lower) }}
   {% endif %}
 {% endblock %}
-{% block page_title %}{{ "csb.finish_examination.hearing_details"|trans }}{% endblock %}
+{% set page_title = "csb.finish_examination.hearing_details"|trans %}
 {% block content %}
   <form method="post" class="page-form form">
     {{ macros::csrf_field() }}

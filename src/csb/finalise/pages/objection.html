@@ -1,11 +1,5 @@
 {% extends "csb/components/overlay.html" %}
-{% block overlay_title %}
-  {% if objection.is_some() %}
-    {{ "csb.objection.form.update_title"|trans }}
-  {% else %}
-    {{ "csb.objection.form.add_title"|trans }}
-  {% endif %}
-{% endblock %}
+{% set overlay_title = objection.is_some().then_some("csb.objection.form.update_title"|trans).unwrap_or("csb.objection.form.add_title"|trans) %}
 {% block overlay_steps %}<div class="hidden"></div>{% endblock %}
 {% block overlay_form %}
   <div class="form-row">

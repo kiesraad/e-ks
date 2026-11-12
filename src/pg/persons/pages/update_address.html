@@ -1,7 +1,8 @@
 {% extends "pg/common/components/overlay.html" %}
-{% block overlay_title %}
+{% set overlay_title = person.name.display() %}
+{% block overlay_heading %}
   <span class="person-badge"></span>
-  {{ person.name.display() }}
+  {{ overlay_title }}
 {% endblock %}
 {% set close_action = person.highlight_path() %}
 {% block overlay_steps %}

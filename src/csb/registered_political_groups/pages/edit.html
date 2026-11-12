@@ -1,11 +1,5 @@
 {% extends "csb/components/overlay.html" %}
-{% block overlay_title %}
-  {% if group.is_some() %}
-    {{ "csb.registered_political_groups.edit"|trans }}
-  {% else %}
-    {{ "csb.action.add_political_group"|trans }}
-  {% endif %}
-{% endblock %}
+{% set overlay_title = group.is_some().then_some("csb.registered_political_groups.edit"|trans).unwrap_or("csb.action.add_political_group"|trans) %}
 {% block overlay_form %}
   <fieldset>
     <div class="form-row">

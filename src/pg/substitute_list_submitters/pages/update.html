@@ -1,7 +1,7 @@
 {% extends "pg/common/components/overlay.html" %}
 {% import "pg/common/components/macros.html" as macros %}
 {% set close_action = ListSubmitter::view_path() %}
-{% block overlay_title %}{{ "political_group.edit_substitute_submitter"|trans }}{% endblock %}
+{% set overlay_title = "political_group.edit_substitute_submitter"|trans %}
 {% block overlay_steps %}
   {% include "pg/substitute_list_submitters/components/update_steps.html" %}
 {% endblock %}

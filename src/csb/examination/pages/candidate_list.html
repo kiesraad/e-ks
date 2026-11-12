@@ -7,11 +7,12 @@
   {{ breadcrumb(political_group.group_path() , political_group.csb_appellation(), is_translatable=false) }}
   {{ breadcrumb(political_group.candidate_list_path(list_id) , "candidate_list.title_single") }}
 {% endblock %}
-{% block page_title %}
+{% set page_title = "candidate_list.title_single"|trans %}
+{% block page_heading %}
   {% if political_group.mode.is_recovery() && is_scrapped %}
-    <s class="imported-value">{{ "candidate_list.title_single"|trans }}</s>
+    <s class="imported-value">{{ page_title }}</s>
   {% else %}
-    {{ "candidate_list.title_single"|trans }}
+    {{ page_title }}
   {% endif %}
 {% endblock %}
 {% block page_sub_title %}

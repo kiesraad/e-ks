@@ -2,7 +2,7 @@
 {% block breadcrumbs %}
   {{ breadcrumb(crate::csb::examination::CsbExaminationOverviewPath, "csb.examination") }}
 {% endblock %}
-{% block page_title %}{{ "csb.examination"|trans }}{% endblock %}
+{% set page_title = "csb.examination"|trans %}
 {% block back_navigation %}{{ macros::back_link(crate::csb::index::CsbIndexPath, "common.page_names.home"|trans|lower) }}{% endblock %}
 {% block content %}
   <div class="examination">
