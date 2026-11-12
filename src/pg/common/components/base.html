@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="{{ "common.description"|trans }}" />
     <meta name="keywords" content="{{ "common.keywords"|trans }}" />
-    <title>{{ "common.title"|trans }}</title>
+    <title>{{ "common.title"|trans }}{% if let Some(election) = "election"|optional_election_value %} {{ election.code() }} {{ election.domain_title().unwrap_or_default() }}{% endif %}</title>
     <link rel="icon" href="/static/favicon.svg" />
     <link rel="stylesheet" href="{{ filters::asset_path("/index.css") }}" />
     {% if Context::livereload_enabled() %}<script src="/livereload/poll.js"></script>{% endif %}
