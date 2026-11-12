@@ -34,6 +34,9 @@ pub struct QueryParamState {
     #[serde(default)]
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     session_expired: bool,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    login_cancelled: bool,
 }
 
 /// Column names come from an upload; keep the `Location` header bounded.
@@ -58,6 +61,10 @@ impl QueryParamState {
 
     pub fn is_session_expired(&self) -> bool {
         self.session_expired
+    }
+
+    pub fn is_login_cancelled(&self) -> bool {
+        self.login_cancelled
     }
 
     pub fn ignored_columns(&self) -> Vec<&str> {
@@ -131,6 +138,13 @@ impl QueryParamState {
     pub fn session_expired() -> Self {
         Self {
             session_expired: true,
+            ..Default::default()
+        }
+    }
+
+    pub fn login_cancelled() -> Self {
+        Self {
+            login_cancelled: true,
             ..Default::default()
         }
     }

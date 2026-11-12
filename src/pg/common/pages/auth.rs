@@ -7,13 +7,13 @@ use auth_service::{AuthFailure, AuthServiceState, AuthState, RedirectTarget, han
 use axum::{
     extract::{FromRef, State},
     http::{HeaderName, HeaderValue},
-    response::{IntoResponse, Response},
+    response::{IntoResponse, Redirect, Response},
 };
 use axum_extra::extract::CookieJar;
 
 use axum_extra::routing::TypedPath;
 
-use super::{LoggedOutPath, LogoutPath};
+use super::{LoggedOutPath, LoginStartPath, LogoutPath};
 use crate::{
     AppRequestState, Context, HtmlTemplate, Locale, LocaleValues, Query, QueryParamState, Session,
     SessionPageValues, auth::session::session_idle_timeout, filters,
@@ -27,6 +27,9 @@ struct LoginStartTemplate {
     session_expired: bool,
     /// Minutes of inactivity after which a session expires, for that notice.
     idle_minutes: String,
+    /// Tell the user they cancelled the login at the authentication service
+    /// (TVS T3); a cancelled attempt is redirected back here.
+    login_cancelled: bool,
 }
 
 #[derive(Template)]
@@ -42,21 +45,19 @@ struct LogoutConfirmTemplate;
 struct AuthErrorTemplate;
 
 #[derive(Template)]
-#[template(path = "pg/common/pages/auth_cancelled.html")]
-struct AuthCancelledTemplate;
-
-#[derive(Template)]
 #[template(path = "pg/common/pages/auth_unavailable.html")]
 struct AuthUnavailableTemplate;
 
 /// GET `/login`: DigiD start page with login button and flow explanation.
 /// With the flag of [`super::LoginStartPath::expired_url`] it also tells the
-/// user their session expired through inactivity.
+/// user their session expired through inactivity, and with that of
+/// [`super::LoginStartPath::cancelled_url`] that they cancelled the login.
 pub async fn login_start(Query(query): Query<QueryParamState>) -> impl IntoResponse {
     HtmlTemplate(
         LoginStartTemplate {
             session_expired: query.is_session_expired(),
             idle_minutes: session_idle_timeout().num_minutes().to_string(),
+            login_cancelled: query.is_login_cancelled(),
         },
         LocaleValues {
             locale: Locale::default(),
@@ -110,11 +111,15 @@ pub async fn logged_out(_: LoggedOutPath) -> Response {
     response
 }
 
-/// Response page for a cancelled (T3), failed (L10), or unavailable auth attempt.
+/// Response for a cancelled (T3), failed (L10), or unavailable auth attempt.
+/// A cancellation goes back to the login page it started from, with a notice;
+/// the other two render their own page.
 pub fn auth_failure_response(failure: AuthFailure, locale: Locale) -> Response {
     let values = LocaleValues { locale };
     match failure {
-        AuthFailure::Cancelled => HtmlTemplate(AuthCancelledTemplate, values).into_response(),
+        AuthFailure::Cancelled => {
+            Redirect::to(&LoginStartPath::cancelled_url().to_string()).into_response()
+        }
         AuthFailure::Error => HtmlTemplate(AuthErrorTemplate, values).into_response(),
         AuthFailure::Unavailable => HtmlTemplate(AuthUnavailableTemplate, values).into_response(),
     }
@@ -135,9 +140,7 @@ mod tests {
     use crate::common::PgIndexPath;
 
     use crate::{
-        Query,
-        auth::session_extractor::SESSION_COOKIE_NAME,
-        common::{LoginStartPath, SelectElectionPath},
+        Query, auth::session_extractor::SESSION_COOKIE_NAME, common::SelectElectionPath,
         test_utils::response_body_string,
     };
 
@@ -153,6 +156,7 @@ mod tests {
         assert!(body.contains("method=\"post\""));
         assert!(body.contains("Kandidaatstelling van de Kiesraad"));
         assert!(!body.contains("sessie is verlopen"));
+        assert!(!body.contains("Het inloggen is geannuleerd"));
     }
 
     /// The URL the expiry-warning script navigates to explains why the user
@@ -619,11 +623,28 @@ mod tests {
         assert!(body.contains(L10_MESSAGE), "{body}");
     }
 
+    /// TVS T3: a cancelled login returns to the login page it started from,
+    /// which then says the login was cancelled.
     #[tokio::test]
-    async fn cancelled_page_shows_cancellation_notice() {
+    async fn cancelled_login_redirects_to_login_page_with_notice() {
         let response = auth_failure_response(AuthFailure::Cancelled, Locale::Nl);
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        let location = response.headers().get(header::LOCATION).unwrap();
+        let location = location.to_str().unwrap().to_string();
+        assert_eq!(location, LoginStartPath::cancelled_url().to_string());
+
+        let state = crate::AppState::new_for_tests().await;
+        let app = crate::app::router::create(state.clone()).with_state(state);
+        let request = Request::builder()
+            .uri(location)
+            .body(Body::empty())
+            .unwrap();
+        let response = app.oneshot(request).await.expect("response");
+
+        assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
-        assert!(body.contains("Inloggen geannuleerd"));
+        assert!(body.contains("Het inloggen is geannuleerd"));
+        assert!(body.contains("action=\"/login\""));
     }
 
     #[tokio::test]

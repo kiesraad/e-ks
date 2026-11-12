@@ -14,6 +14,12 @@ impl LoginStartPath {
     pub fn expired_url() -> impl TypedPath {
         Self.with_query_params(QueryParamState::session_expired())
     }
+
+    /// The login start page with the "login cancelled" notice, where a
+    /// cancelled authentication lands (TVS "Checklist Testen" T3).
+    pub fn cancelled_url() -> impl TypedPath {
+        Self.with_query_params(QueryParamState::login_cancelled())
+    }
 }
 
 #[derive(TypedPath)]

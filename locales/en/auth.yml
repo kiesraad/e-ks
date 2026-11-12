@@ -1,8 +1,7 @@
 button:
   digid: Inloggen
 cancelled:
-  message: You cancelled the login. You are not logged in to Candidate Nomination of the Kiesraad. Log in again to continue.
-  title: Login cancelled
+  message: The login was cancelled. You are not logged in to Candidate Nomination of the Kiesraad. Log in again to continue.
 confirm_logout:
   cancel: Back
   message: Do you want to log out?
