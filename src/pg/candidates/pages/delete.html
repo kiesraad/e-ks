@@ -9,33 +9,22 @@
   {% include "pg/candidates/components/update_steps.html" %}
 {% endblock %}
 {% block overlay_form %}
-  <fieldset>
+  <fieldset class="mb-xxl">
     <legend>
-      <h3>{{ "person.actions.delete_everywhere"|trans }}</h3>
+      <h3>{{ "person.form.delete_from_list_title"|trans }}</h3>
     </legend>
-    {% decl delete_warning -%}
-    {% if on_candidate_lists > 0 -%}
-      {% let delete_warning = "candidate_list.candidate.delete_warning_text"|trans(&on_candidate_lists.to_string()) -%}
-    {% else -%}
-      {% let delete_warning = "person.form.delete_warning_text"|trans -%}
-    {% endif -%}
-    <p>{{ delete_warning }}</p>
     <input type="hidden" name="position" value="{{ candidate.position }}">
-  </fieldset>
-{% endblock %}
-{% block overlay_actions %}
-  <div class="form-actions-stack mt-xl">
+    <p>{{ "person.form.delete_from_list"|trans}}</p>
+    <p>{{ "person.form.delete_from_list_info"|trans}}</p>
     <div class="form-actions">
       <button type="submit"
               class="button tertiary-destructive icon-trash"
               formaction="{{ candidate.update_position_path() }}"
               name="action"
-              value="remove">{{ "candidate_list.remove_candidate"|trans }}</button>
+              value="remove">{{ "person.actions.delete_from_list"|trans }}</button>
     </div>
-    <div class="form-actions">
-      <button type="submit" class="button tertiary-destructive icon-trash">
-        {{ "person.actions.delete_everywhere"|trans }}
-      </button>
-    </div>
-  </div>
+  </fieldset>
+  {% include "pg/persons/components/delete_everywhere_form.html" %}
+{% endblock %}
+{% block overlay_actions %}
 {% endblock %}

@@ -9,17 +9,7 @@
   {% include "pg/persons/components/update_steps.html" %}
 {% endblock %}
 {% block overlay_form %}
-  <fieldset>
-    <legend>
-      <h3>{{ "person.actions.delete_everywhere"|trans }}</h3>
-    </legend>
-    <p>{{ "person.form.delete_warning_text"|trans }}</p>
-  </fieldset>
+  {% include "pg/persons/components/delete_everywhere_form.html" %}
 {% endblock %}
 {% block overlay_actions %}
-  <div class="form-actions">
-    <button type="submit" class="button tertiary-destructive icon-trash">
-      {{ "person.actions.delete_everywhere"|trans }}
-    </button>
-  </div>
 {% endblock %}

@@ -13,16 +13,20 @@ use crate::{
 struct DeletePersonTemplate {
     person: Person,
     overlay: Overlay,
+    on_candidate_lists: usize,
 }
 
 pub async fn delete_person_confirm(
     _: DeletePersonPath,
     context: Context,
+    store: PgStore,
     person: Person,
     Query(query): Query<QueryParamState>,
 ) -> AppResponse<impl IntoResponse> {
+    let data = store.snapshot();
     Ok(HtmlTemplate(
         DeletePersonTemplate {
+            on_candidate_lists: data.count_candidate_lists(person.id),
             person,
             overlay: Overlay::new_edit(&query),
         },
@@ -55,12 +59,14 @@ mod tests {
 
     #[tokio::test]
     async fn delete_person_confirm_contains_delete_button() -> Result<(), AppError> {
+        let store = PgStore::new_for_test();
         let person_id = PersonId::new();
         let person = sample_person(person_id);
 
         let response = delete_person_confirm(
             DeletePersonPath { person_id },
             Context::new_test_without_db(),
+            store,
             person.clone(),
             Query(QueryParamState::default()),
         )

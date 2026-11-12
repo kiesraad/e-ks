@@ -2,6 +2,7 @@ actions:
   add: Kandidaat toevoegen
   delete: Kandidaat verwijderen
   delete_everywhere: Uit applicatie verwijderen
+  delete_from_list: Uit deze lijst verwijderen
 autoformat_initials: Automatisch opmaken
 correspondence_address: Correspondentie\u00ADadres
 correspondence_address_info: Dit adres wordt gebruikt om de benoemingsbrief naartoe te sturen.
@@ -18,7 +19,7 @@ fields:
   last_name_info: "Kandidaten kunnen zelf kiezen vermeld te worden met: <ul> <li>De eigen achternaam;</li> <li>De achternaam van de (ex) echtgenoot, (ex) echtgenote, of (ex) geregistreerde partner;</li> <li>Beide achternamen, eerst de eigen achternaam en dan (verbonden door een koppelteken) de achternaam van de (ex) echtgenoot, (ex) echtgenote, of (ex) geregistreerde partner;</li> <li>Beide achternamen, eerst de achternaam van de (ex) echtgenoot, (ex) echtgenote of (ex) geregistreerde partner en dan (verbonden door een koppelteken) de eigen achternaam.</li> </ul> <p>Wel moet de kandidaat bevoegd zijn om de naam van de (ex) echtgenoot, (ex) echtgenote of (ex) geregistreerde partner te voeren (artikel 1:9 BW).</p>"
   last_name_prefix: Voorvoegsel
   locality: Woonplaats
-  locality_suggestion: "Bedoel je:"
+  locality_suggestion: "Bedoelt u:"
   name: Naam
   place_of_residence: Woonplaats
   postal_code: Postcode
@@ -28,7 +29,14 @@ fields:
 form:
   create:
     title: Kandidaat toevoegen
-  delete_warning_text: Weet je zeker dat je deze kandidaat wilt verwijderen?
+  delete_everywhere: Weet u zeker dat u deze kandidaat volledig uit de applicatie wilt verwijderen?
+  delete_everywhere_title: Kandidaat uit applicatie verwijderen
+  delete_everywhere_warning: "De kandidaat wordt ook verwijderd van alle {} de kandidatenlijsten waarop deze staat."
+  delete_everywhere_warning_one: De kandidaat wordt ook verwijderd van de kandidatenlijst waarop deze staat.
+  delete_everywhere_warning_zero: Deze kandidaat komt momenteel op geen enkele kandidatenlijst voor.
+  delete_from_list: Wilt u de kandidaat uit deze lijst verwijderen?
+  delete_from_list_info: De kandidaat blijft wel in het adresboek staan.
+  delete_from_list_title: Kandidaat uit deze lijst verwijderen
 hints:
   country: "Voor een kandidaat die geen Nederlands correspondentie\u00ADadres heeft, is een gemachtigde nodig."
   country_code: "Een lijst met landen en bijhorende landcodes <a href={}>vindt u hier</a>."
