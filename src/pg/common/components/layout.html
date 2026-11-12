@@ -72,7 +72,15 @@
     <div class="header-content">
       <div>
         {% block back_navigation %}{% endblock %}
-        <h1>{% block page_title %}{{ "common.title"|trans }}{% endblock %}</h1>
+        <h1>
+          {% block page_heading %}
+            {% if page_title is defined %}
+              {{ page_title }}
+            {% else %}
+              {{ "common.title"|trans }}
+            {% endif %}
+          {% endblock %}
+        </h1>
         {% block page_sub_title %}{% endblock %}
       </div>
       {% block header_action %}{% endblock %}

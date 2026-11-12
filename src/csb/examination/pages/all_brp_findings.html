@@ -7,9 +7,7 @@
   {{ breadcrumb(political_group.group_path() , political_group.csb_appellation(), is_translatable=false) }}
   {{ breadcrumb(political_group.all_brp_findings_path() , "csb.all_findings.title") }}
 {% endblock %}
-{% block page_title %}
-  {{ "csb.all_findings.title"|trans }}
-{% endblock %}
+{% set page_title = "csb.all_findings.title"|trans %}
 {% block page_sub_title %}
   <span class="subtitle">{{ "csb.all_findings.explanation"|trans }}</span>
 {% endblock %}

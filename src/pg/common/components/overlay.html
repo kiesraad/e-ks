@@ -8,9 +8,7 @@
           {% if overlay.is_create() %}data-create{% endif %}>
       {{ macros::csrf_field() }}
       <header>
-        <h2>
-          {% block overlay_title %}{% endblock %}
-        </h2>
+        <h2>{% block overlay_heading %}{{ overlay_title }}{% endblock %}</h2>
         <a href="{{ overlay.close_url(close_action) }}"
            class="close-overlay"
            aria-label="{{ "action.close"|trans }}">

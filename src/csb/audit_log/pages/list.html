@@ -1,6 +1,6 @@
 {% extends "csb/components/layout.html" %}
 {% import "pg/common/components/subject_id.html" as subject_id %}
-{% block page_title %}{{ "audit_log.title"|trans }}{% endblock %}
+{% set page_title = "audit_log.title"|trans %}
 {% block content %}
   {% set audit_log_path = crate::csb::audit_log::CsbAuditLogPath{}.to_string() %}
   <section>

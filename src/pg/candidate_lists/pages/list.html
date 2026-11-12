@@ -1,8 +1,6 @@
 {% extends "pg/common/components/layout.html" %}
 {% import "pg/common/components/macros.html" as macros %}
-{% block page_title %}
-  {{ "candidate_list.title_plural"|trans }}
-{% endblock %}
+{% set page_title = "candidate_list.title_plural"|trans %}
 {% block candidate_lists_nav_class %}active{% endblock %}
 {% block back_navigation %}{{ macros::back_link("/", "common.page_names.home"|trans) }}{% endblock %}
 {% block content %}

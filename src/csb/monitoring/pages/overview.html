@@ -1,5 +1,5 @@
 {% extends "csb/components/layout.html" %}
-{% block page_title %}{{ "csb.monitoring.title"|trans }}{% endblock %}
+{% set page_title = "csb.monitoring.title"|trans %}
 {% block content %}
   {% if monitor.rows.is_empty() %}
     <p>{{ "csb.monitoring.no_streams"|trans }}</p>

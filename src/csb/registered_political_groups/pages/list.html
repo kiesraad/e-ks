@@ -2,9 +2,7 @@
 {% block breadcrumbs %}
   {{ breadcrumb(crate::csb::registered_political_groups::CsbRegisteredPoliticalGroupsPath, "csb.registered_political_groups.title") }}
 {% endblock %}
-{% block page_title %}
-  {{ "csb.registered_political_groups.title"|trans }}
-{% endblock %}
+{% set page_title = "csb.registered_political_groups.title"|trans %}
 {% block back_navigation %}{{ macros::back_link(crate::csb::index::CsbIndexPath, "common.page_names.home"|trans|lower) }}{% endblock %}
 {% block content %}
   <div class="examination-main card card-plain">

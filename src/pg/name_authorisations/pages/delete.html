@@ -1,5 +1,5 @@
 {% extends "pg/common/components/overlay.html" %}
-{% block overlay_title %}{{ "political_group.edit_legal_name"|trans }}{% endblock %}
+{% set overlay_title = "political_group.edit_legal_name"|trans %}
 {% set close_action = NameAuthorisation::list_path() %}
 {% block overlay_steps %}
   {% include "pg/name_authorisations/components/update_steps.html" %}

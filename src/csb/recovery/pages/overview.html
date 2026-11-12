@@ -2,9 +2,7 @@
 {% block breadcrumbs %}
   {{ breadcrumb(crate::csb::recovery::CsbRecoveryOverviewPath, "csb.recovery.title") }}
 {% endblock %}
-{% block page_title %}
-  {{ "csb.recovery.title"|trans }}
-{% endblock %}
+{% set page_title = "csb.recovery.title"|trans %}
 {% block page_sub_title %}
   <span class="subtitle">{{ "csb.recovery.explanation"|trans }}</span>
 {% endblock %}
