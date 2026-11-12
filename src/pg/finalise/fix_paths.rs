@@ -62,7 +62,10 @@ impl PotentialProblems {
             PotentialProblems::NoListSubmitter => ListSubmitter::update_path()
                 .with_query_params(QueryParamState::redirect_to(finalise))
                 .to_string(),
-            PotentialProblems::NoCandidateList => CandidateList::list_path().to_string(),
+            PotentialProblems::NoCandidateList
+            | PotentialProblems::BlankWithDifferentFirstCandidates => {
+                CandidateList::list_path().to_string()
+            }
 
             PotentialProblems::TooFewAuthorizedNames { .. } => NameAuthorisation::create_path()
                 .with_query_params(QueryParamState::redirect_to(finalise))

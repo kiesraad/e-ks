@@ -52,12 +52,13 @@
                 {{ "common.lists_have_problems"|trans(&problematic_lists.to_string() ) }}
               {% endif %}
             </p>
-          {% else if general_list_problems > 0 %}
+          {% endif %}
+          {% if general_list_problems > 0 %}
             <p class="{{ problematic_lists_severity }}">
               {% if general_list_problems == 1 %}
                 {{ "common.possible_problems_one"|trans }}
               {% else %}
-                {{ "common.possible_problems"|trans(&general_problems.to_string() ) }}
+                {{ "common.possible_problems"|trans(&general_list_problems.to_string() ) }}
               {% endif %}
             </p>
           {% endif %}

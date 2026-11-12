@@ -236,16 +236,31 @@ impl AllProblems {
             }
         }
 
-        let general = if data.get_candidate_list_count() == 0 {
-            vec![PotentialProblems::NoCandidateList]
-        } else {
-            Vec::new()
-        };
+        let general = Self::find_general_list_problems(data);
 
         ListProblems {
             general,
             per_list: list_problems,
         }
+    }
+
+    fn find_general_list_problems(data: &PgStoreData) -> Vec<PotentialProblems> {
+        let mut general = Vec::new();
+        if data.get_candidate_list_count() == 0 {
+            general.push(PotentialProblems::NoCandidateList);
+        }
+        if data.get_political_group().is_blank() {
+            let lists = data.get_candidate_lists();
+            let mut first_candidates = lists.iter().filter_map(|l| l.candidates.first());
+            let all_same = match first_candidates.next() {
+                Some(candidate) => first_candidates.all(|c| c == candidate),
+                None => true,
+            };
+            if !all_same {
+                general.push(PotentialProblems::BlankWithDifferentFirstCandidates);
+            }
+        }
+        general
     }
 }
 
