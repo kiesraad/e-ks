@@ -10,9 +10,7 @@
 {% block overlay_form %}
   <fieldset>
     <h3>{{ "person.correspondence_address"|trans }}</h3>
-    <div class="alert alert-info">
-      <p>{{ "person.correspondence_address_info"|trans }}</p>
-    </div>
+    <p class="text-body-width mb-ml">{{ "person.correspondence_address_info"|trans }}</p>
     {% include "pg/common/components/address_fields.html" %}
   </fieldset>
 {% endblock %}

@@ -34,7 +34,7 @@ omission_steps:
   title: Extra stappen bij ontbrekende of onjuiste stukken
 print:
   download_description: Zorg ervoor dat de laatst gemaakte wijzigingen in deze applicatie overeenkomen met de laatst gedownloade zip.
-  download_title: Download hier de bestanden en print ze uit.
+  download_title: Download hier de bestanden en print ze
   eml_not_required: Het bijgevoegde EML-bestand hoeft niet geprint te worden en hoeft ook niet ingeleverd te worden bij het centraal stembureau.
   errors_warning: "Voordat u de documenten kunt printen, moet u eerst alle fouten in stap 1 oplossen."
   h1_description: "Met de H\u00A01 stelt u, als inleveraar van de kandidatenlijst, kandidaten verkiesbaar voor een verkiezing."
@@ -49,7 +49,7 @@ print:
   h9_identity: "Is de kandidaat nog geen lid van {}? Voeg dan een kopie van een geldig identiteitsbewijs bij de instemmings\u00ADverklaring toe."
   h9_title: Instemmings\u00ADverklaringen (H\u00A09)
   incomplete_warning: "<strong>Let op!</strong> U kunt de documenten wel printen, maar ze zullen als incompleet worden beschouwd door het centraal stembureau. Los de waarschuwingen in stap 1 op om de lijst compleet te maken."
-  title: Print de documenten uit
+  title: Print de documenten
   usb_not_required: Deze documenten hoeven <strong>niet</strong> meer met een usb-stick digitaal overhandigd te worden.
 verification:
   correction_notice: "Mocht er iets ontbreken, dan krijgt u van ons per brief een bericht met de verzuimen."
