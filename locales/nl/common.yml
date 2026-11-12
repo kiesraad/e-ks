@@ -1,3 +1,4 @@
+candidate_lists_complete: Ingevulde gegevens zijn compleet
 candidates: Kandidaten
 date_field:
   date: Datum
@@ -9,6 +10,7 @@ date_field:
 description: Kandidaatstellen voor verkiezingen in Nederland
 development:
   login_as_csb: Login als CSB
+documents_downloaded: De documenten zijn gedownload
 download_warning: "Let op: de documenten zijn al gedownload. De gegevens op papier zijn leidend. Zorg ervoor dat u de documenten opnieuw print en de juiste versie inlevert als er nog wijzigingen nodig zijn."
 electoral_districts: Kieskringen
 error_code: "Foutcode {}"
@@ -17,12 +19,13 @@ finalise_description:
   download_documents: Download alle benodigde documenten
   review_problems: Controleer mogelijke problemen
   view_follow_up_steps: Bekijk de vervolgstappen
-finalise_instruction: Lever in op de dag van kandidaatstelling
+finalise_instruction: Lever de documenten in op
 gender:
   empty: (leeg)
   female: vrouw
   male: man
 general_information: Basisgegevens
+general_information_complete: Alles is ingevuld
 general_information_description:
   basic: Vul gegevens van de politieke groepering in
   submitter: Vul gegevens van de lijstinleveraar in

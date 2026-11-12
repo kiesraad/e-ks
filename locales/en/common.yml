@@ -1,3 +1,4 @@
+candidate_lists_complete: The entered data is complete
 candidates: Candidates
 date_field:
   date: Date
@@ -9,6 +10,7 @@ date_field:
 description: Candidate nomination for elections in the Netherlands
 development:
   login_as_csb: Login as CSB
+documents_downloaded: The documents have been downloaded
 download_warning: "Warning: the documents have already been downloaded. The data on paper is leading. If any changes are still needed, make sure to reprint the documents and submit the correct version."
 electoral_districts: Electoral districts
 error_code: "Error code {}"
@@ -17,12 +19,13 @@ finalise_description:
   download_documents: Download all required documents
   review_problems: Review potential problems
   view_follow_up_steps: View follow-up steps
-finalise_instruction: Hand in on nomination day
+finalise_instruction: Hand in the documents on
 gender:
   empty: (empty)
   female: Female
   male: Male
 general_information: General Information
+general_information_complete: Everything has been filled in
 general_information_description:
   basic: Provide information about the political group
   submitter: Provide information about the submitter of the list
