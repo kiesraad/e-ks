@@ -15,7 +15,8 @@ bin/test --project=firefox tests/csb-brp-check.spec.ts
 
 `bin/test` builds the frontend and the `eks` binary, starts the application and
 the BRP mock in docker, and runs the suite against them. Arguments are passed
-to `playwright test`. The HTML report lands in `playwright/playwright-report`.
+to `playwright test`. Edge is only installed in the image when `--project=edge`
+is passed (or `INSTALL_EDGE=1` is set). The HTML report lands in `playwright/playwright-report`.
 
 ## UI mode in development
 

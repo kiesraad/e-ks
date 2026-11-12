@@ -2,6 +2,8 @@ services:
   playwright:
     build:
       dockerfile: docker/playwright.Dockerfile
+      args:
+        INSTALL_EDGE: ${INSTALL_EDGE:-}
     user: "${UID:-1000}:${GID:-1000}"
     volumes:
       - ./tests:/app/tests

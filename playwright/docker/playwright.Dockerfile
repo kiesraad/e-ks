@@ -4,12 +4,14 @@ COPY playwright.config.ts /app/playwright.config.ts
 
 # The image ships the browsers but not the test runner; install the runner at
 # the exact version the image records so the two never drift apart.
-# Edge is not part of the image; `playwright install` adds Microsoft's apt repo
-# and installs it.
+# Edge is not part of the image and comes unpinned from Microsoft's apt repo,
+# so it is only installed on request (INSTALL_EDGE=1).
+ARG INSTALL_EDGE=
 RUN version="$(node -p 'JSON.parse(require("fs").readFileSync("/ms-playwright/.docker-info")).driverVersion')" \
     && npm install --no-audit --no-fund "@playwright/test@$version" \
-    && npx playwright install --with-deps msedge \
-    && rm -rf /var/lib/apt/lists/* \
+    && if [ -n "$INSTALL_EDGE" ]; then \
+        npx playwright install --with-deps msedge && rm -rf /var/lib/apt/lists/*; \
+    fi \
     && chmod a+w /app
 USER pwuser
 
