@@ -1,14 +1,6 @@
 #candidate-table {
   color: var(--gray-600);
 
-  tr:nth-child(even) {
-    background-color: var(--gray-50);
-  }
-
-  tr:nth-child(odd) {
-    background-color: var(--gray-25);
-  }
-
   tr:hover {
     background-color: var(--blue-100);
   }
