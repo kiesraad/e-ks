@@ -12,7 +12,7 @@ Hierdoor is het te vroeg voor concrete bijdragen aan de broncode. Op enig moment
 
 ## Hoe kun je bijdragen?
 
-- Je kunt een [issue aanmaken](https://github.com/kiesraad/e-KS/issues) op deze repository. Klik rechtsboven op **New issue** en kies dan **Blank issue**. Vervolgens geef je het issue een heldere titel en een duidelijke beschrijving. Selecteer bij **Label** ook het type issue, vooral bij een bug is dit handig. Klik tot slot op **Create**.
+- Je kunt een [issue aanmaken](https://github.com/kiesraad/e-KS/issues) op deze repository. Klik rechtsboven op **New issue** en kies dan **Blank issue**. Vervolgens geef je het issue een heldere titel en een duidelijke beschrijving. Klik tot slot op **Create**.
 - Als je naar een specifieke pull request of issue kijkt, kun je vragen of opmerkingen daar toevoegen in een comment.
 
 ## Beveiliging
