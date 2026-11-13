@@ -33,6 +33,7 @@
 @import "sticky-nav.css" layer(components);
 @import "table.css" layer(components);
 @import "tags.css" layer(components);
+@import "tooltip.css" layer(components);
 @import "finalise.css" layer(components);
 @import "csb-overview.css" layer(components);
 @import "examination.css" layer(components);

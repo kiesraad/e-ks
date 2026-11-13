@@ -52,11 +52,15 @@
         <td>{{ person.data.personal_data.place_of_residence|display }}</td>
         <td>{{ person.data.updated_at|datetime }}</td>
         <td>
+          {% let summary = person.problems.problem_summary(locale) %}
           <a href="{{ person.data.update_path() }}"
              aria-label="{{ "action.edit"|trans }}"
-             {% if let Some(summary) = person.problems.problem_summary(locale) %}title="{{ summary }}"{% endif %}>
+             {% if summary.is_some() %}aria-describedby="person-{{ person.data.id }}-help"{% endif %}>
             <span>{{ "action.edit"|trans }}</span>
           </a>
+          {% if let Some(summary) = summary %}
+            <span class="help" id="person-{{ person.data.id }}-help" role="tooltip">{{ summary }}</span>
+          {% endif %}
         </td>
       </tr>
     {% endfor %}
