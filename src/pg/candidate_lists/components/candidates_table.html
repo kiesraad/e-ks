@@ -33,11 +33,18 @@
             ({{ country }})
           {% endif %}
         </td>
-        <td {% if let Some(summary) = candidate.problems.problem_summary(locale) %}title="{{ summary }}"{% endif %}>
+        <td>
+          {% let summary = candidate.problems.problem_summary(locale) %}
           <a href="{{ candidate.data.update_position_path() }}"
-             aria-label="{{ "action.edit"|trans }}">
+             aria-label="{{ "action.edit"|trans }}"
+             {% if summary.is_some() %}aria-describedby="candidate-{{ candidate.data.person.id }}-help"{% endif %}>
             <span>{{ "action.edit"|trans }}</span>
           </a>
+          {% if let Some(summary) = summary %}
+            <span class="help"
+                  id="candidate-{{ candidate.data.person.id }}-help"
+                  role="tooltip">{{ summary }}</span>
+          {% endif %}
         </td>
       </tr>
     {% endfor %}
