@@ -1,0 +1,49 @@
+[aria-describedby]:is(:hover, :focus-visible) + .help[role="tooltip"],
+:is(#persons-table, #candidate-table) tr.clickable:hover .help[role="tooltip"] {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  pointer-events: auto;
+  transition-delay: 0s;
+}
+
+.help[role="tooltip"] {
+  --arrow: 0.5rem;
+  display: block;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(calc(-1 * var(--space-1)));
+  pointer-events: none;
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease,
+    visibility 0s linear 150ms;
+  position: absolute;
+  top: calc(100% + var(--arrow) + var(--space-xs));
+  right: 0;
+  z-index: 10;
+  width: 28ch;
+  padding: var(--space-md);
+  background-color: var(--blue-900);
+  border-radius: var(--rounded-lg);
+  color: white;
+  white-space: normal;
+  text-wrap: balance;
+
+  &::before {
+    content: "";
+    position: absolute;
+    bottom: 100%;
+    right: var(--tooltip-arrow-right, 0.75rem);
+    border: var(--arrow) solid transparent;
+    border-top: 0;
+    border-bottom-color: var(--blue-900);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .help[role="tooltip"] {
+    transition: none;
+    transform: none;
+  }
+}

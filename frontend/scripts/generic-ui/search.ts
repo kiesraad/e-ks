@@ -24,11 +24,7 @@ export default function setupTextSearch() {
       const row = element as HTMLTableRowElement;
       const rowText = row.textContent?.toLowerCase() || "";
 
-      if (rowText.includes(searchValue)) {
-        row.style.display = "";
-      } else {
-        row.style.display = "none";
-      }
+      row.hidden = !rowText.includes(searchValue);
     });
   });
 }
