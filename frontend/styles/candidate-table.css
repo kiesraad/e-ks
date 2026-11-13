@@ -38,13 +38,15 @@
     tr:nth-child(n + 51):not(.dragging, .highlighted, .flash-success),
   &[data-max="80"]
     tr:nth-child(n + 81):not(.dragging, .highlighted, .flash-success) {
+    --limit-row-background: var(--gray-50);
+    --limit-row-stripe: var(--red-200);
     background-image:
       var(--row-icon, none),
       repeating-linear-gradient(
         -45deg,
-        var(--red-200),
-        var(--gray-50) 2px,
-        var(--gray-50) 17px
+        var(--limit-row-stripe),
+        var(--limit-row-background) 2px,
+        var(--limit-row-background) 17px
       );
     background-repeat: no-repeat, repeat;
     background-position:
@@ -58,6 +60,11 @@
         color: var(--red-200);
         background-color: var(--red-100);
       }
+    }
+
+    &:is(:hover, :focus-within) {
+      --limit-row-background: var(--red-100);
+      --limit-row-stripe: var(--red-300);
     }
   }
 
