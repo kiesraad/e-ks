@@ -24,6 +24,11 @@ for arg in "$@"; do
     esac
 done
 
+if ! docker compose exec -T psql pg_isready -U eks >/dev/null 2>&1; then
+    echo "==> PostgreSQL is not up, running bin/setup"
+    ./bin/setup
+fi
+
 echo "==> Rust checks"
 if [ "$FULL" = true ]; then
     cargo check --locked --workspace --all-features

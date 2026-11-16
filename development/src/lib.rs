@@ -50,11 +50,31 @@ pub async fn run(command: &str, args: &[&str]) -> Result<()> {
     Ok(())
 }
 
+/// Host ports published by `compose.yml` (psql, personen-mock).
+const DEV_PORTS: [u16; 2] = [5432, 5010];
+
+/// `ports` is the `{{.Ports}}` column of `docker ps`, e.g. `127.0.0.1:5432->5432/tcp`.
+fn publishes_dev_port(ports: &str) -> bool {
+    DEV_PORTS
+        .iter()
+        .any(|port| ports.contains(&format!(":{port}->")))
+}
+
+/// Kills the containers occupying the host ports our compose services need.
 pub async fn stop_running_containers() -> Result<()> {
-    let output = Command::new("docker").args(["ps", "-q"]).output().await?;
+    // not `--filter publish=`: that matches the container port, not the host port
+    let output = Command::new("docker")
+        .args(["ps", "--format", "{{.ID}} {{.Ports}}"])
+        .output()
+        .await?;
     if output.status.success() {
-        let ids = String::from_utf8_lossy(&output.stdout);
-        let ids: Vec<&str> = ids.split_whitespace().collect();
+        let lines = String::from_utf8_lossy(&output.stdout);
+        let ids: Vec<&str> = lines
+            .lines()
+            .filter_map(|line| line.split_once(' '))
+            .filter(|(_, ports)| publishes_dev_port(ports))
+            .map(|(id, _)| id)
+            .collect();
         if !ids.is_empty() {
             let mut args = Vec::with_capacity(ids.len() + 1);
             args.push("kill");
@@ -116,4 +136,20 @@ pub async fn temp_dir() -> Result<PathBuf> {
     Ok(PathBuf::from(
         String::from_utf8_lossy(&output.stdout).trim(),
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::publishes_dev_port;
+
+    #[test]
+    fn matches_host_port_only() {
+        assert!(publishes_dev_port("127.0.0.1:5432->5432/tcp"));
+        assert!(publishes_dev_port(
+            "0.0.0.0:80->80/tcp, [::]:5010->8080/tcp"
+        ));
+        assert!(!publishes_dev_port("127.0.0.1:15432->5432/tcp"));
+        assert!(!publishes_dev_port("5432/tcp"));
+        assert!(!publishes_dev_port(""));
+    }
 }
