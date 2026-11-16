@@ -7,9 +7,7 @@
   {{ breadcrumb(political_group.group_path() , political_group.csb_appellation(), is_translatable=false) }}
   {{ breadcrumb(political_group.general_information_path() , "common.general_information") }}
 {% endblock %}
-{% block page_title %}
-  {{ "common.general_information"|trans }}
-{% endblock %}
+{% set page_title = "common.general_information"|trans %}
 {% block back_navigation %}{{ macros::back_link(political_group.group_path() , political_group.csb_appellation()) }}{% endblock %}
 {% block header_action %}{{ header::header_actions(political_group, include_all_restorations=true) }}{% endblock %}
 {% macro submitter_tables(submitter, examining) %}

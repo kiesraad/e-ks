@@ -1,8 +1,7 @@
 {% extends "csb/components/layout.html" %}
-{% block page_title %}
-  {% let election = "election"|election_value %}
-  {{ (&election)|election_title }}
-{% endblock %}
+{% set browser_title = "common.overview"|trans %}
+{% let election = "election"|election_value %}
+{% set page_title = (&election)|election_title %}
 {% block content %}
   {% let election = "election"|election_value %}
   <div class="cards cards-csb-phases">

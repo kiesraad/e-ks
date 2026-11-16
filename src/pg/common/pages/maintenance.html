@@ -1,9 +1,10 @@
 {% extends "pg/common/components/base.html" %}
+{% set page_title = "common.maintenance.title"|trans %}
 {% block body %}
   {% include "pg/common/components/public_header.html" %}
   <main>
     <div class="container auth-container">
-      <h2>{{ "common.maintenance.title"|trans }}</h2>
+      <h2>{{ page_title }}</h2>
       <p>{{ "common.maintenance.message"|trans }}</p>
       <p class="mt-lg">
         <a href="{{ retry_path }}" class="button">{{ "common.maintenance.retry"|trans }}</a>

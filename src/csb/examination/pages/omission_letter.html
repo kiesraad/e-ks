@@ -47,9 +47,7 @@
   {{ breadcrumb(CsbFinishExaminationPath, "csb.finish_examination.title") }}
   {{ breadcrumb(political_group.omission_letter_path() , political_group.csb_appellation(), is_translatable=false) }}
 {% endblock %}
-{% block page_title %}
-  {{ political_group.csb_appellation() }}
-{% endblock %}
+{% set page_title = political_group.csb_appellation() %}
 {% block page_sub_title %}
   <span class="subtitle">{{ "csb.omission_letter.explanation"|trans }}</span>
 {% endblock %}

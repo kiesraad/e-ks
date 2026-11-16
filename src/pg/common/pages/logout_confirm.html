@@ -1,10 +1,11 @@
 {% extends "pg/common/components/base.html" %}
+{% set page_title = "auth.confirm_logout.title"|trans %}
 {% import "pg/common/components/macros.html" as macros %}
 {% block body %}
   {% include "pg/common/components/public_header.html" %}
   <main>
     <div class="container auth-container">
-      <h2>{{ "auth.confirm_logout.title"|trans }}</h2>
+      <h2>{{ page_title }}</h2>
       <p>{{ "auth.confirm_logout.message"|trans }}</p>
       <form method="post" action="{{ crate::common::LogoutPath }}" class="form">
         {{ macros::csrf_field() }}

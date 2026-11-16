@@ -1,8 +1,9 @@
 {% extends "pg/persons/pages/update.html" %}
 {% import "pg/common/components/macros.html" as macros %}
-{% block overlay_title %}
+{% set overlay_title = candidate.person.name.display() %}
+{% block overlay_heading %}
   <span class="badge position-badge">{{ candidate.position }}</span>
-  {{ candidate.person.name.display() }}
+  {{ overlay_title }}
 {% endblock %}
 {% set close_action = full_list.list.highlight_path(*candidate.person.id) %}
 {% block overlay_steps %}

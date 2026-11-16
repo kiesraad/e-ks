@@ -1,7 +1,8 @@
 {% extends "csb/components/overlay.html" %}
 {% set submit_label = "csb.correction.form.submit"|trans %}
 {% block overlay_class %}correction-overlay{% endblock %}
-{% block overlay_title %}<span class="correction-icon" aria-hidden="true"></span>{{ "csb.correction.overlay.title"|trans }}: {{ label }}{% endblock %}
+{% set overlay_title = "{}: {}"|format("csb.correction.overlay.title"|trans, label) %}
+{% block overlay_heading %}<span class="correction-icon" aria-hidden="true"></span>{{ overlay_title }}{% endblock %}
 {% block overlay_content %}
   <div class="overlay-content">
     <div class="form">

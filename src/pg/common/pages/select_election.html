@@ -1,4 +1,5 @@
 {% extends "pg/common/components/base.html" %}
+{% set page_title = "common.select_election.label"|trans %}
 {% import "pg/common/components/macros.html" as macros %}
 {% block body %}
   <header>
@@ -15,7 +16,7 @@
   </header>
   <main>
     <div class="container">
-      <h2>{{ "common.select_election.label"|trans }}</h2>
+      <h2>{{ page_title }}</h2>
       <p>{{ "common.select_election.description"|trans }}</p>
       <form method="post"
             action="{{ crate::common::SelectElectionPath.to_string() }}"

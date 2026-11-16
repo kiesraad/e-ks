@@ -1,6 +1,6 @@
 {% extends "pg/persons/pages/create.html" %}
 {% set close_action = full_list.list.view_path() %}
-{% block overlay_title %}{{ "person.actions.add"|trans }}{% endblock %}
+{% set overlay_title = "person.actions.add"|trans %}
 {% block overlay_steps %}
   {% include "pg/candidates/components/create_steps.html" %}
 {% endblock %}

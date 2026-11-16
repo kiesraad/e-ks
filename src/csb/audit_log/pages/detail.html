@@ -2,7 +2,7 @@
 {% import "pg/common/components/diff_table.html" as diff %}
 {% import "pg/common/components/subject_id.html" as subject_id %}
 {% set close_action = crate::csb::audit_log::CsbAuditLogPath{}.to_string() %}
-{% block overlay_title %}{{ detail.entry.description }}{% endblock %}
+{% set overlay_title = detail.entry.description %}
 {% block overlay_content %}
   <div class="overlay-content">
     <dl class="event-meta">

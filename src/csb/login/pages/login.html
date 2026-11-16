@@ -1,9 +1,10 @@
 {% extends "pg/common/components/base.html" %}
+{% set page_title = "csb.auth.start.title"|trans %}
 {% block body %}
   {% include "pg/common/components/public_header.html" %}
   <main>
     <div class="container auth-container">
-      <h2>{{ "csb.auth.start.title"|trans }}</h2>
+      <h2>{{ page_title }}</h2>
       {% if show_error %}<div class="alert alert-error">{{ "csb.auth.error.message"|trans }}</div>{% endif %}
       <p>{{ "csb.auth.start.intro"|trans }}</p>
       <p>{{ "csb.auth.ceremony.intro"|trans }}</p>

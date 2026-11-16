@@ -1,5 +1,5 @@
 {% extends "pg/common/components/layout.html" %}
-{% block page_title %}{{ "candidate_list.title_single"|trans }}{% endblock %}
+{% set page_title = "candidate_list.title_single"|trans %}
 {% block candidate_lists_nav_class %}active{% endblock %}
 {% block page_sub_title %}
   {% let election = "election"|election_value %}

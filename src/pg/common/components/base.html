@@ -5,7 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="{{ "common.description"|trans }}" />
     <meta name="keywords" content="{{ "common.keywords"|trans }}" />
-    <title>{{ "common.title"|trans }}</title>
+    <title>
+      {%- if browser_title is defined -%}
+        {{ browser_title }}
+      {%- else if overlay_title is defined -%}
+        {{ overlay_title }}
+      {%- else -%}
+        {{ page_title }}
+      {%- endif %} - {{ "common.app_name"|trans }}
+      {% if let Some(election) = "election"|optional_election_value %}{{ election.label() }}{% endif %}
+    </title>
     <link rel="icon" href="/static/favicon.svg" />
     <link rel="stylesheet" href="{{ filters::asset_path("/index.css") }}" />
     {% if Context::livereload_enabled() %}<script src="/livereload/poll.js"></script>{% endif %}

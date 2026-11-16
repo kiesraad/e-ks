@@ -6,9 +6,7 @@
   {{ breadcrumb(political_group.overview_path() , political_group.overview_title_key()) }}
   {{ breadcrumb(political_group.group_path() , political_group.csb_appellation(), is_translatable=false) }}
 {% endblock %}
-{% block page_title %}
-  {{ political_group.csb_appellation() }}
-{% endblock %}
+{% set page_title = political_group.csb_appellation() %}
 {% block back_navigation %}{{ macros::back_link(political_group.overview_path() , political_group.overview_title_key()|trans|lower) }}{% endblock %}
 {% block header_action %}{{ header::header_actions(political_group, include_all_restorations=political_group.mode.is_examination() ) }}{% endblock %}
 {% block content %}

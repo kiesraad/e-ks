@@ -1,3 +1,4 @@
+app_name: Kandidaatstelling
 candidate_lists_complete: Ingevulde gegevens zijn compleet
 candidates: Kandidaten
 date_field:
@@ -40,6 +41,7 @@ maintenance:
   message: De applicatie is tijdelijk niet beschikbaar omdat een benodigde dienst niet bereikbaar is. Uw opgeslagen werk is niet verloren. Probeer het over enkele minuten opnieuw.
   retry: Opnieuw proberen
   title: Tijdelijk niet beschikbaar
+overview: Overzicht
 page_names:
   candidate_list: kandidatenlijst
   candidate_lists: kandidatenlijsten

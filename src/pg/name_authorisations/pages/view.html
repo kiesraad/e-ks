@@ -1,5 +1,5 @@
 {% extends "pg/common/components/layout.html" %}
-{% block page_title %}{{ "common.general_information"|trans }}{% endblock %}
+{% set page_title = "common.general_information"|trans %}
 {% block back_navigation %}{{ macros::back_link("/", "common.page_names.home"|trans) }}{% endblock %}
 {% block content %}
   <div class="steps">

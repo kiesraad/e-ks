@@ -1,5 +1,5 @@
 {% extends "pg/common/components/layout.html" %}
-{% block page_title %}{{ "not_found.title"|trans }}{% endblock %}
+{% set page_title = "not_found.title"|trans %}
 {% block content %}
   <h2>
     <pre>{{ path }}</pre>

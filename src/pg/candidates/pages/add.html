@@ -1,5 +1,5 @@
 {% extends "pg/common/components/overlay.html" %}
-{% block overlay_title %}{{ "candidate_list.add_candidate"|trans }}{% endblock %}
+{% set overlay_title = "candidate_list.add_candidate"|trans %}
 {% block overlay_content %}
   <div class="form overlay-content">
     {% if persons.is_empty() %}

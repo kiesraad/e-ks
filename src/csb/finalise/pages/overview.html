@@ -2,7 +2,7 @@
 {% block breadcrumbs %}
   {{ breadcrumb(crate::csb::finalise::CsbFinalisePath, "csb.finalise.title") }}
 {% endblock %}
-{% block page_title %}{{ "csb.finalise.title"|trans }}{% endblock %}
+{% set page_title = "csb.finalise.title"|trans %}
 {% block back_navigation %}{{ macros::back_link(crate::csb::index::CsbIndexPath, "common.page_names.home"|trans|lower) }}{% endblock %}
 {% block content %}
   <div class="examination-panels">

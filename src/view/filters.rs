@@ -198,6 +198,16 @@ pub fn election_value(
 }
 
 #[askama::filter_fn]
+pub fn optional_election_value(
+    value_name: &str,
+    values: &dyn askama::Values,
+) -> askama::Result<Option<ElectionConfig>> {
+    Ok(askama::get_value::<ElectionConfig>(values, value_name)
+        .ok()
+        .copied())
+}
+
+#[askama::filter_fn]
 pub fn integer_value(value_name: &str, values: &dyn askama::Values) -> askama::Result<usize> {
     let value = askama::get_value::<usize>(values, value_name)?;
 

@@ -5,9 +5,7 @@
   {{ breadcrumb(crate::csb::pre_submission::CsbPreSubmissionOverviewPath, "csb.pre_submission.title") }}
   {{ breadcrumb(group.path() , group.appellation, is_translatable=false) }}
 {% endblock %}
-{% block page_title %}
-  {{ group.appellation }}
-{% endblock %}
+{% set page_title = group.appellation %}
 {% block page_sub_title %}
   <span class="subtitle">{{ "csb.pre_submission.group_explanation"|trans }}</span>
 {% endblock %}

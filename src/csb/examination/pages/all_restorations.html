@@ -7,9 +7,7 @@
   {{ breadcrumb(political_group.group_path() , political_group.csb_appellation(), is_translatable=false) }}
   {{ breadcrumb(political_group.all_restorations_path() , "csb.all_restorations.title") }}
 {% endblock %}
-{% block page_title %}
-  {{ "csb.all_restorations.title"|trans }}
-{% endblock %}
+{% set page_title = "csb.all_restorations.title"|trans %}
 {% block page_sub_title %}
   <span class="subtitle">{{ "csb.all_restorations.explanation"|trans }}</span>
 {% endblock %}

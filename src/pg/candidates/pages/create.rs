@@ -110,6 +110,20 @@ mod tests {
         assert!(body.contains(&list.create_candidate_path().to_string()));
         assert!(body.contains("name=\"csrf_token\""));
 
+        // The tab title comes from the child template's `overlay_title`, followed by the election.
+        let title = body
+            .split_once("<title>")
+            .and_then(|(_, rest)| rest.split_once("</title>"))
+            .map(|(title, _)| title.split_whitespace().collect::<Vec<_>>().join(" "))
+            .expect("page has a <title>");
+        assert_eq!(
+            title,
+            format!(
+                "Add candidate - Kandidaatstelling {}",
+                store.election.label()
+            )
+        );
+
         Ok(())
     }
 

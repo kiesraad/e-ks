@@ -1,9 +1,10 @@
 {% extends "pg/common/components/base.html" %}
+{% set page_title = "auth.unavailable.title"|trans %}
 {% block body %}
   {% include "pg/common/components/public_header.html" %}
   <main>
     <div class="container auth-container">
-      <h2>{{ "auth.unavailable.title"|trans }}</h2>
+      <h2>{{ page_title }}</h2>
       {# Shown when the auth-service cannot reach the TVS at all (no RD metadata
          loaded). Transient: invite the user to try again shortly. #}
       <p>{{ "auth.unavailable.message"|trans }}</p>

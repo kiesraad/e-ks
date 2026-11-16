@@ -1,9 +1,10 @@
 {% extends "pg/common/components/base.html" %}
+{% set page_title = title %}
 {% block body %}
   {% include "pg/common/components/public_header.html" %}
   <main>
     <div class="container auth-container">
-      <h2>{{ title }}</h2>
+      <h2>{{ page_title }}</h2>
       <p>{{ message }}</p>
       <p>
         <a href="/" class="button">{{ "common.to_home"|trans }}</a>

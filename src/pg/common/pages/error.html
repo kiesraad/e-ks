@@ -1,6 +1,6 @@
 {% extends "pg/common/components/layout.html" %}
 {% import "pg/common/components/macros.html" as macros %}
-{% block page_title %}{{ page.title }}{% endblock %}
+{% set page_title = page.title %}
 {% block content %}
   {{ macros::error_card(page.message, page.status_code, "/") }}
 {% endblock %}

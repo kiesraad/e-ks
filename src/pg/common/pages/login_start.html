@@ -1,4 +1,5 @@
 {% extends "pg/common/components/base.html" %}
+{% set page_title = "auth.start.title"|trans %}
 {% block body %}
   <div class="login-split">
     <aside class="login-intro">
@@ -7,7 +8,7 @@
       <p class="text-balance">{{ "auth.start.app_description"|trans }}</p>
     </aside>
     <main class="auth-container">
-      <h2>{{ "auth.start.title"|trans }}</h2>
+      <h2>{{ page_title }}</h2>
       {% if login_cancelled %}
         <div class="alert alert-warning">{{ "auth.cancelled.message"|trans }}</div>
       {% endif %}

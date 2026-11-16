@@ -1,5 +1,5 @@
 {% extends "pg/common/components/overlay.html" %}
-{% block overlay_title %}{{ "candidate_list.actions.delete_list"|trans }}{% endblock %}
+{% set overlay_title = "candidate_list.actions.delete_list"|trans %}
 {% set close_action = candidate_list.view_path() %}
 {% block overlay_form %}
   <fieldset>

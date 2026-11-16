@@ -72,7 +72,7 @@
     <div class="header-content">
       <div>
         {% block back_navigation %}{% endblock %}
-        <h1>{% block page_title %}{{ "common.title"|trans }}{% endblock %}</h1>
+        <h1>{% block page_heading %}{{ page_title }}{% endblock %}</h1>
         {% block page_sub_title %}{% endblock %}
       </div>
       {% block header_action %}{% endblock %}
@@ -84,8 +84,7 @@
     </div>
   </main>
   <footer>
-    {% let election = "election"|election_value %}
-    <span>{{ "common.title"|trans }} {{ election.code() }} {{ election.domain_title().unwrap_or_default() }}</span>
+    <span>{{ "common.title"|trans }} {{ ("election"|election_value).label() }}</span>
     <span>
       {{ "common.version"|trans }} <strong>{{ env!("CARGO_PKG_VERSION") }}</strong>
       {% if let Some(server) = "server_name"|optional_str_value %}· <strong>{{ server }}</strong>{% endif %}

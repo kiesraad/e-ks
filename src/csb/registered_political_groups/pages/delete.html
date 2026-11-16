@@ -1,5 +1,5 @@
 {% extends "csb/components/overlay.html" %}
-{% block overlay_title %}{{ "action.delete"|trans }} {{ group.appellation }}{% endblock %}
+{% set overlay_title = "{} {}"|format("action.delete"|trans, group.appellation) %}
 {% block overlay_form %}
   <fieldset>
     <p>{{ "csb.group.confirm_delete"|trans(group.appellation.as_str() ) }}</p>

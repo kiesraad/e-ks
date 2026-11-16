@@ -1,5 +1,5 @@
 {% extends "pg/common/components/overlay.html" %}
-{% block overlay_title %}{{ "political_group.edit_substitute_submitter"|trans }}{% endblock %}
+{% set overlay_title = "political_group.edit_substitute_submitter"|trans %}
 {% set close_action = ListSubmitter::view_path() %}
 {% block overlay_steps %}
   {% include "pg/substitute_list_submitters/components/update_steps.html" %}

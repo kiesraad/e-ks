@@ -9,7 +9,8 @@
   {{ breadcrumb(political_group.candidate_list_path(list_id) , "candidate_list.title_single") }}
   {{ breadcrumb(political_group.candidate_path(list_id, candidate.id) , candidate.name.display() , is_translatable=false) }}
 {% endblock %}
-{% block page_title %}
+{% set page_title = candidate.name.display() %}
+{% block page_heading %}
   {% if political_group.mode.is_recovery() %}
     {% if let Some(recovery_position) = recovery_position %}
       {{ paper_corrected::position_number(recovery_position, "candidate-number") }}
@@ -18,10 +19,10 @@
     {{ paper_corrected::position_badge(position, "candidate-number") }}
   {% endif %}
   {% if political_group.mode.is_recovery() && is_scrapped %}
-    <s class="imported-value">{{ candidate.name.display() }}</s>
+    <s class="imported-value">{{ page_title }}</s>
     <span class="restoration-tag restoration-tag-scrapped">{{ "csb.recovery.scrapped"|trans }}</span>
   {% else %}
-    {{ candidate.name.display() }}
+    {{ page_title }}
   {% endif %}
 {% endblock %}
 {% block page_sub_title %}
