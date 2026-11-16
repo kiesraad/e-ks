@@ -34,6 +34,8 @@ impl OmissionStatusForm {
 #[derive(Deserialize)]
 #[serde(rename_all = "kebab-case")]
 enum OmissionStatusFormValue {
+    /// Clicking the selected button again withdraws the decision.
+    Pending,
     Recovered,
     NotRecovered,
 }
@@ -53,6 +55,7 @@ pub async fn set_status(
     let data = store.snapshot();
     let omission = data.get_omission(omission_id)?;
     let status = match form.status {
+        OmissionStatusFormValue::Pending => OmissionStatus::Pending,
         OmissionStatusFormValue::Recovered => OmissionStatus::Recovered,
         OmissionStatusFormValue::NotRecovered => OmissionStatus::NotRecovered,
     };
@@ -232,6 +235,38 @@ mod tests {
             .unwrap();
         assert!(location.contains(&format!("/csb/recovery/{stream_id}/omissions")));
         assert!(location.ends_with(&format!("&highlight={}", omission.id)));
+    }
+
+    #[tokio::test]
+    async fn pending_withdraws_the_decision() {
+        let store = CsbStore::new_for_test();
+        let stream_id = store.stream_id;
+        let omission = sample_omission(OmissionCategory::Appellation);
+        omission.create(&store).await.unwrap();
+
+        for value in [
+            OmissionStatusFormValue::Recovered,
+            OmissionStatusFormValue::Pending,
+        ] {
+            let omission = store.snapshot().get_omission(omission.id).unwrap().clone();
+            set_status(
+                CsbSetOmissionStatusPath {
+                    stream_id,
+                    omission_id: omission.id,
+                },
+                CsbContext::new_test(),
+                store.clone(),
+                Query(QueryParamState::default()),
+                form(value),
+            )
+            .await
+            .unwrap();
+        }
+
+        assert_eq!(
+            store.snapshot().get_omission(omission.id).unwrap().status,
+            OmissionStatus::Pending
+        );
     }
 
     #[tokio::test]

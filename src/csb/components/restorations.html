@@ -46,13 +46,15 @@
     {% endif %}
     <button type="submit"
             name="status"
-            value="recovered"
+            value="{% if omission.status.is_recovered() %}pending{% else %}recovered{% endif %}"
+            aria-pressed="{{ omission.status.is_recovered() }}"
             class="button {{ size }} {% if omission.status.is_recovered() %}selected{% else %}secondary{% endif %}">
       {{ "csb.recovery.recovered"|trans }}
     </button>
     <button type="submit"
             name="status"
-            value="not-recovered"
+            value="{% if omission.status.is_not_recovered() %}pending{% else %}not-recovered{% endif %}"
+            aria-pressed="{{ omission.status.is_not_recovered() }}"
             class="button {{ size }} {% if omission.status.is_not_recovered() %}primary-destructive selected{% else %}secondary{% endif %}">
       {{ "csb.recovery.not_recovered"|trans }}
     </button>
