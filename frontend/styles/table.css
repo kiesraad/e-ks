@@ -95,3 +95,21 @@ table {
     }
   }
 }
+
+/* Keep striping less specific than hover, highlight, and drag states. */
+:where(#persons-table tbody, #candidate-table) tr {
+  &:nth-child(even of :where(:not([hidden]))) {
+    background-color: var(--gray-50);
+  }
+
+  &:nth-child(odd of :where(:not([hidden]))) {
+    background-color: var(--gray-25);
+  }
+}
+
+:is(#persons-table, #candidate-table) .help[role="tooltip"] {
+  /* shift the box left while keeping the pointer centered on the row icon. */
+  --tooltip-arrow-right: calc(var(--space-6) - var(--arrow));
+  right: calc(3.5rem + 0.75rem - var(--space-6));
+  white-space: pre-line;
+}
