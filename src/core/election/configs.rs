@@ -160,6 +160,14 @@ impl ElectionConfig {
         }
     }
 
+    /// Human-readable election label for titles and footers, e.g. `EK27`, `PS27 Groningen`.
+    pub fn label(&self) -> String {
+        match self.domain_title() {
+            Some(domain) => format!("{} {domain}", self.code()),
+            None => self.code().to_string(),
+        }
+    }
+
     /// The election code as a download filename slug, e.g. `ek27`, `ps27prov1`.
     pub fn filename_slug(&self) -> String {
         let mut slug = self.code().to_lowercase();

@@ -13,10 +13,7 @@
       {%- else -%}
         {{ page_title }}
       {%- endif %} - {{ "common.app_name"|trans }}
-      {% if let Some(election) = "election"|optional_election_value %}
-        {{ election.code() }}
-        {% if let Some(domain) = election.domain_title() %}{{ domain }}{% endif %}
-      {% endif %}
+      {% if let Some(election) = "election"|optional_election_value %}{{ election.label() }}{% endif %}
     </title>
     <link rel="icon" href="/static/favicon.svg" />
     <link rel="stylesheet" href="{{ filters::asset_path("/index.css") }}" />
