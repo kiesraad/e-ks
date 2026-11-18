@@ -19,13 +19,17 @@ export class CandidateListsOverviewPage {
     this.headingCandidateRegister = this.page.getByRole("heading", {
       name: "Adresboek",
     });
-    this.linkFinalize = this.page.getByRole("link", {
-      name: "Printen en inleveren",
-      exact: true,
-    });
+    this.linkFinalize = this.page
+      .getByRole("link", {
+        name: "Printen en inleveren",
+        exact: true,
+      })
+      // There's a button at the bottom and a link in the nav bar that link to the same page.
+      // Essentially does not matter which of the two we pick.
+      .first();
   }
 
-  async getDistrictLocator(districtName: string) {
+  getDistrictLocator(districtName: string) {
     return this.page.getByRole("listitem", { name: districtName });
   }
 }

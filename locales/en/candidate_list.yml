@@ -33,7 +33,7 @@ fields:
   electoral_districts: Electoral districts
   position: Position
 finalise_nav:
-  action: Go to finalise
+  action: Print and submit
   question: Have all candidates and candidate list(s) been added?
 form:
   copy_candidates_from_previous: Copy candidates from the last created list
