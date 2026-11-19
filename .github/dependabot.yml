@@ -1,4 +1,10 @@
 version: 2
+# One pull request for all image updates, from Dockerfiles and compose files
+# in every directory.
+multi-ecosystem-groups:
+  docker-images:
+    schedule:
+      interval: "weekly"
 updates:
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -31,13 +37,13 @@ updates:
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
   - package-ecosystem: "docker"
     directories: ["/playwright/docker", "/deploy", "/development"]
-    schedule:
-      interval: "weekly"
+    patterns: ["*"]
+    multi-ecosystem-group: "docker-images"
     cooldown:
       default-days: 7
   - package-ecosystem: "docker-compose"
     directories: ["/", "/playwright"]
-    schedule:
-      interval: "weekly"
+    patterns: ["*"]
+    multi-ecosystem-group: "docker-images"
     cooldown:
       default-days: 7
