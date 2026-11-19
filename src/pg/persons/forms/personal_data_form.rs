@@ -66,7 +66,7 @@ impl From<PersonalData> for PersonalDataFieldsForm {
                 .unwrap_or_default(),
             date_of_birth: personal_data
                 .date_of_birth
-                .map(|d| d.format(DEFAULT_DATE_FORMAT).to_string())
+                .map(|d| d.strftime(DEFAULT_DATE_FORMAT).to_string())
                 .unwrap_or_default(),
             bsn: personal_data
                 .bsn
@@ -261,7 +261,7 @@ mod tests {
             updated
                 .personal_data
                 .date_of_birth
-                .map(|d| d.format(DEFAULT_DATE_FORMAT).to_string()),
+                .map(|d| d.strftime(DEFAULT_DATE_FORMAT).to_string()),
             Some("01-02-2020".to_string())
         );
         assert_eq!(

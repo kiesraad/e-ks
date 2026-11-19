@@ -2,7 +2,7 @@
 //! text lives in the `templates/candidate-list-publication.md` Markdown
 //! template.
 
-use chrono::NaiveDate;
+use jiff::civil::Date;
 use textris_pdf::build::Textris;
 
 use super::{
@@ -20,7 +20,7 @@ use crate::{
 #[derive(Debug)]
 pub struct CandidateListPublication {
     pub election_name: String,
-    pub election_date: NaiveDate,
+    pub election_date: Date,
     /// Per district, the lists in list number order.
     pub valid_lists: Vec<DistrictLists<NumberedList>>,
     /// The configured location of the public session

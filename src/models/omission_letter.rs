@@ -3,8 +3,8 @@
 //! numbered official model, but rendered in the same house style; Dutch-only,
 //! with the text in the `templates/omission-letter.md` Markdown template.
 
-use chrono::NaiveDate;
 use eks_utils::slugify_teletex;
+use jiff::civil::Date;
 use textris_pdf::build::Textris;
 
 use super::{
@@ -23,7 +23,7 @@ pub struct OmissionLetter {
     pub location: String,
     /// Date of the session the omissions were found in ("vergadering van
     /// heden"); the letter writes its dates out in full (`16 september 2025`).
-    pub date: NaiveDate,
+    pub date: Date,
     /// The list submitter the letter is addressed to.
     pub addressee: Person,
     pub appellation: String,
@@ -38,7 +38,7 @@ pub struct OmissionLetter {
     /// One section per set of districts. Empty: the letter reports that no
     /// omissions were found.
     pub omission_groups: Vec<DistrictOmissions>,
-    pub recovery_deadline_date: NaiveDate,
+    pub recovery_deadline_date: Date,
     pub recovery_deadline_time: String,
     /// Where recovered documents are handed in, as printed after "op".
     pub recovery_address: String,

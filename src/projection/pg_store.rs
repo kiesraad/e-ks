@@ -6,7 +6,7 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
-use chrono::Utc;
+use jiff::Timestamp;
 use tracing::warn;
 
 use crate::{
@@ -155,7 +155,7 @@ impl PgStore {
 
         let data = self.projection.snapshot();
         let events = &data.events;
-        let now = Utc::now();
+        let now = Timestamp::now();
 
         if !is_session && events_total > 0 && events.len() >= events_total {
             return Err(self.limit_hit(
@@ -316,7 +316,7 @@ impl PgStore {
 
 #[cfg(test)]
 mod tests {
-    use chrono::TimeDelta;
+    use jiff::SignedDuration;
 
     use super::*;
     use crate::{
@@ -353,9 +353,9 @@ mod tests {
     }
 
     /// A store holding `count` events that all happened `age` ago.
-    fn store_with_events(limits: RateLimits, count: usize, age: TimeDelta) -> PgStore {
+    fn store_with_events(limits: RateLimits, count: usize, age: SignedDuration) -> PgStore {
         let store = PgStore::new_for_test();
-        let created_at = Utc::now() - age;
+        let created_at = Timestamp::now() - age;
 
         for event_id in 1..=count {
             store.write().apply(StoreEvent::new_at(
@@ -387,8 +387,8 @@ mod tests {
     /// capped can still log in and look at its data.
     #[tokio::test]
     async fn absolute_event_cap_stops_data_writes_but_not_sessions_or_reads() {
-        let limits = RateLimits::new_for_test(0, 0, 3, TimeDelta::minutes(1));
-        let store = store_with_events(limits, 3, TimeDelta::days(30));
+        let limits = RateLimits::new_for_test(0, 0, 3, SignedDuration::from_mins(1));
+        let store = store_with_events(limits, 3, SignedDuration::from_hours(24 * 30));
 
         let err = store
             .update(data_event())
@@ -416,8 +416,8 @@ mod tests {
     /// Below the cap, writes go through.
     #[tokio::test]
     async fn absolute_event_cap_allows_writes_below_the_maximum() {
-        let limits = RateLimits::new_for_test(0, 0, 4, TimeDelta::minutes(1));
-        let store = store_with_events(limits, 3, TimeDelta::days(30));
+        let limits = RateLimits::new_for_test(0, 0, 4, SignedDuration::from_mins(1));
+        let store = store_with_events(limits, 3, SignedDuration::from_hours(24 * 30));
 
         store.update(data_event()).await.expect("below the cap");
     }
@@ -425,9 +425,9 @@ mod tests {
     /// The sliding window counts every event, and only the recent ones.
     #[tokio::test]
     async fn event_window_limit_blocks_a_burst_and_expires() {
-        let limits = RateLimits::new_for_test(0, 2, 0, TimeDelta::minutes(1));
+        let limits = RateLimits::new_for_test(0, 2, 0, SignedDuration::from_mins(1));
 
-        let recent = store_with_events(limits, 2, TimeDelta::seconds(30));
+        let recent = store_with_events(limits, 2, SignedDuration::from_secs(30));
         let err = recent
             .update(data_event())
             .await
@@ -435,12 +435,12 @@ mod tests {
         assert!(
             matches!(
                 err,
-                AppError::TooManyEvents { max: 2, window } if window == TimeDelta::minutes(1)
+                AppError::TooManyEvents { max: 2, window } if window == SignedDuration::from_mins(1)
             ),
             "got {err:?}"
         );
 
-        let expired = store_with_events(limits, 2, TimeDelta::seconds(61));
+        let expired = store_with_events(limits, 2, SignedDuration::from_secs(61));
         expired
             .update(data_event())
             .await
@@ -451,8 +451,8 @@ mod tests {
     /// changes keep working while it is in force.
     #[tokio::test]
     async fn download_limit_blocks_only_downloads() {
-        let limits = RateLimits::new_for_test(2, 0, 0, TimeDelta::minutes(1));
-        let store = store_with_events(limits, 0, TimeDelta::zero());
+        let limits = RateLimits::new_for_test(2, 0, 0, SignedDuration::from_mins(1));
+        let store = store_with_events(limits, 0, SignedDuration::ZERO);
 
         store.update(download_event()).await.expect("first");
         store.update(download_event()).await.expect("second");
@@ -489,8 +489,8 @@ mod tests {
     #[tracing_test::traced_test]
     #[tokio::test]
     async fn a_limit_hit_logs_a_monitoring_marker() {
-        let limits = RateLimits::new_for_test(0, 1, 0, TimeDelta::minutes(1));
-        let store = store_with_events(limits, 1, TimeDelta::seconds(1));
+        let limits = RateLimits::new_for_test(0, 1, 0, SignedDuration::from_mins(1));
+        let store = store_with_events(limits, 1, SignedDuration::from_secs(1));
 
         store.update(data_event()).await.expect_err("limit hit");
 
@@ -501,7 +501,7 @@ mod tests {
     /// A store built by the middleware carries the configured limits.
     #[tokio::test]
     async fn with_limits_overrides_the_defaults() {
-        let limits = RateLimits::new_for_test(0, 1, 0, TimeDelta::minutes(1));
+        let limits = RateLimits::new_for_test(0, 1, 0, SignedDuration::from_mins(1));
         let store = PgStore::new_for_test().with_limits(limits);
 
         store.update(data_event()).await.expect("first");

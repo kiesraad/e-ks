@@ -10,7 +10,7 @@ use axum_extra::{
     extract::{CookieJar, cookie::Cookie},
     routing::TypedPath,
 };
-use chrono::Utc;
+use jiff::Timestamp;
 use serde::{Serialize, de::DeserializeOwned};
 
 use super::{csb_access::PublicListener, maintenance::handle_db_error};
@@ -92,7 +92,7 @@ pub async fn session_middleware(
     // behalf (the expiry warning, the end of a BRP sweep): those must not
     // keep an idle session alive.
     if !SessionExpiryPath::is_activity_free(&request) && !is_brp_status_poll(&request) {
-        session.last_activity = Utc::now();
+        session.last_activity = Timestamp::now();
         state.sessions.touch(&session).await;
     }
 
@@ -397,7 +397,7 @@ mod tests {
             .with_state(state.clone());
 
         let mut session = Session::new_test();
-        session.last_activity = session.created_at + chrono::Duration::seconds(1);
+        session.last_activity = session.created_at + jiff::SignedDuration::from_secs(1);
         let token = session.token_string();
         state.sessions.insert(session).await;
         let cookie_value = format!("{SESSION_COOKIE_NAME}={token}");
@@ -507,7 +507,7 @@ mod tests {
     /// cookie header value.
     async fn insert_idle_session(state: &AppState, idle_minutes: i64) -> String {
         let mut session = Session::new_test();
-        session.last_activity = Utc::now() - chrono::Duration::minutes(idle_minutes);
+        session.last_activity = Timestamp::now() - jiff::SignedDuration::from_mins(idle_minutes);
         let token = session.token_string();
         state.sessions.insert(session).await;
         format!("{SESSION_COOKIE_NAME}={token}")

@@ -325,7 +325,7 @@ impl ResponseChain<'_, '_> {
     ) -> Result<Claims, Rejection> {
         // The descriptor was captured before the back-channel await; it can
         // expire while the RD is answering. Check again before using its keys.
-        if self.rd.is_expired_at(chrono::Utc::now()) {
+        if self.rd.is_expired_at(jiff::Timestamp::now()) {
             warn!("[ACS] RD metadata expired during artifact resolution");
             return Err(Rejection::Unanswered(AuthFailure::Unavailable));
         }
@@ -584,7 +584,7 @@ mod tests {
         },
         types::{EndpointUrl, EntityId, ServiceUuid},
     };
-    use chrono::{Duration, Utc};
+    use jiff::{SignedDuration, Timestamp};
     use secrecy::ExposeSecret;
     use std::path::PathBuf;
 
@@ -905,8 +905,8 @@ mod tests {
     // -----------------------------------------------------------------------
 
     /// A SAML timestamp at `offset` from now.
-    fn ts(offset: Duration) -> String {
-        (Utc::now() + offset).to_rfc3339()
+    fn ts(offset: SignedDuration) -> String {
+        (Timestamp::now() + offset).to_string()
     }
 
     /// How the RD answered: the Response Status, and with it whether the
@@ -1020,10 +1020,10 @@ mod tests {
     /// The Assertion a successful login carries: every §7.6.3 check passes for
     /// the DV [`state_with_rd`] configures.
     fn assertion_xml(wire: &Wire, dv_keys: &KeySet) -> String {
-        let issued = ts(Duration::zero());
-        let scd_expiry = ts(Duration::minutes(2));
-        let not_before = ts(-Duration::minutes(5));
-        let not_on_or_after = ts(Duration::minutes(5));
+        let issued = ts(SignedDuration::ZERO);
+        let scd_expiry = ts(SignedDuration::from_mins(2));
+        let not_before = ts(-SignedDuration::from_mins(5));
+        let not_on_or_after = ts(SignedDuration::from_mins(5));
         let in_response_to = wire.assertion_in_response_to;
         let audience = wire.audience;
         let encrypted_id = encrypted_acting_subject(dv_keys);
@@ -1067,7 +1067,7 @@ mod tests {
     /// The RD's SOAP ArtifactResponse for `wire`, signed over the whole
     /// envelope element as the RD signs it (eID §7.6.1).
     fn soap_artifact_response(wire: &Wire, dv_keys: &KeySet) -> String {
-        let issued = ts(Duration::zero());
+        let issued = ts(SignedDuration::ZERO);
         let status = status_xml(&wire.outcome);
         // eID §7.6.2: an Assertion is present only on Success.
         let assertion = match wire.outcome {

@@ -41,10 +41,10 @@ pub struct IdpMetadata {
     pub cache_duration: Option<Duration>,
     /// The published hard expiry (`validUntil`), retained so runtime users stop
     /// trusting the descriptor even when a refresh fails.
-    pub valid_until: Option<chrono::DateTime<chrono::Utc>>,
+    pub valid_until: Option<jiff::Timestamp>,
     /// When this descriptor was obtained (fetch time, or the cache file's write
     /// time); anchors the bounded trust lifetime.
-    pub retrieved_at: chrono::DateTime<chrono::Utc>,
+    pub retrieved_at: jiff::Timestamp,
 }
 
 /// Trust lifetime for a descriptor without a usable `cacheDuration`.
@@ -61,20 +61,20 @@ impl IdpMetadata {
     /// When this descriptor stops being trusted: the earlier of `validUntil`
     /// (plus clock skew) and `retrieved_at` plus the clamped `cacheDuration`.
     /// Always bounded, so refresh failures cannot keep it trusted forever.
-    pub(crate) fn trust_deadline(&self) -> chrono::DateTime<chrono::Utc> {
+    pub(crate) fn trust_deadline(&self) -> jiff::Timestamp {
         let lifetime = self
             .cache_duration
             .unwrap_or(DEFAULT_CACHE_AGE)
             .clamp(MIN_CACHE_AGE, MAX_CACHE_AGE);
         let by_retrieval =
-            self.retrieved_at + chrono::Duration::from_std(lifetime).unwrap_or_default();
+            self.retrieved_at + jiff::SignedDuration::try_from(lifetime).unwrap_or_default();
         let by_valid_until = self
             .valid_until
-            .map(|until| until + chrono::Duration::seconds(CLOCK_SKEW_SECONDS));
+            .map(|until| until + jiff::SignedDuration::from_secs(CLOCK_SKEW_SECONDS));
         by_valid_until.map_or(by_retrieval, |v| v.min(by_retrieval))
     }
 
-    pub(crate) fn is_expired_at(&self, now: chrono::DateTime<chrono::Utc>) -> bool {
+    pub(crate) fn is_expired_at(&self, now: jiff::Timestamp) -> bool {
         now > self.trust_deadline()
     }
 }
@@ -96,7 +96,7 @@ impl IdpMetadata {
             signing_keys: Vec::new(),
             cache_duration: None,
             valid_until: None,
-            retrieved_at: chrono::Utc::now(),
+            retrieved_at: jiff::Timestamp::now(),
         }
     }
 }
@@ -401,7 +401,7 @@ pub fn parse_idp_metadata(xml: &str, trust: &RdTrust) -> Result<IdpMetadata> {
         signing_keys,
         cache_duration,
         valid_until,
-        retrieved_at: chrono::Utc::now(),
+        retrieved_at: jiff::Timestamp::now(),
     })
 }
 
@@ -457,27 +457,27 @@ fn verified_signing_keys(
 /// eID §8.2/§8.5: do not use metadata past its hard expiry. If `validUntil` is
 /// present and has passed (subject to clock skew), reject the document so an
 /// expired descriptor, including a stale on-disk cache, is never trusted.
-fn check_metadata_expiry(
-    doc: &Document,
-    root: NodeId,
-) -> Result<Option<chrono::DateTime<chrono::Utc>>> {
+fn check_metadata_expiry(doc: &Document, root: NodeId) -> Result<Option<jiff::Timestamp>> {
     let valid_until = doc.get_attribute(root, "validUntil");
     let mut parsed = None;
     if let Some(s) = valid_until {
         // This runs before the metadata signature is verified, so `s` is
         // attacker-influenced whenever the HTTPS fetch (or the on-disk cache) is
-        // subverted. `checked_add_signed`, not `+`: chrono panics when a
-        // timestamp near the edge of the representable range is shifted.
-        let until = s.parse::<chrono::DateTime<chrono::Utc>>().ok();
+        // subverted. `checked_add`, not `+`: jiff panics when a timestamp
+        // near the edge of the representable range is shifted.
+        let until = s.parse::<jiff::Timestamp>().ok();
         parsed = until;
         let expires_at = until
-            .and_then(|t| t.checked_add_signed(chrono::Duration::seconds(CLOCK_SKEW_SECONDS)))
+            .and_then(|t| {
+                t.checked_add(jiff::SignedDuration::from_secs(CLOCK_SKEW_SECONDS))
+                    .ok()
+            })
             .ok_or_else(|| {
                 AuthError::Config(format!(
                     "metadata has an unusable validUntil timestamp: {s}"
                 ))
             })?;
-        if chrono::Utc::now() > expires_at {
+        if jiff::Timestamp::now() > expires_at {
             return Err(AuthError::Config(format!(
                 "metadata has expired: validUntil {s} is in the past"
             )));
@@ -628,8 +628,8 @@ pub async fn load_cached_idp_metadata(certs_dir: &Path, trust: &RdTrust) -> Opti
         );
         return None;
     };
-    let now = chrono::Utc::now();
-    metadata.retrieved_at = now - chrono::Duration::from_std(age).unwrap_or_default();
+    let now = jiff::Timestamp::now();
+    metadata.retrieved_at = now - jiff::SignedDuration::try_from(age).unwrap_or_default();
     if metadata.is_expired_at(now) {
         warn!(
             "[metadata] Ignoring cached metadata at {}: written {}s ago, past its trust lifetime (cacheDuration {:?})",
@@ -796,9 +796,9 @@ mod tests {
             metadata.valid_until,
             Some("2999-01-01T00:00:00Z".parse().unwrap())
         );
-        assert!(!metadata.is_expired_at(chrono::Utc::now()));
+        assert!(!metadata.is_expired_at(jiff::Timestamp::now()));
         assert!(metadata.is_expired_at("3000-01-01T00:00:00Z".parse().unwrap()));
-        assert!(!IdpMetadata::for_tests().is_expired_at(chrono::Utc::now()));
+        assert!(!IdpMetadata::for_tests().is_expired_at(jiff::Timestamp::now()));
     }
 
     #[test]
@@ -812,11 +812,13 @@ mod tests {
     fn metadata_valid_until_at_the_edge_of_the_range_is_rejected_not_panicked_on() {
         // `check_metadata_expiry` runs before the signature is verified, so a
         // subverted HTTPS fetch (or a poisoned disk cache) controls `validUntil`.
-        // chrono panics when a timestamp at the edge of its range is shifted by
+        // jiff panics when a timestamp at the edge of its range is shifted by
         // the skew allowance, so it must be refused up front.
         let entity_id = "urn:nl-eid-gdi:1.0:RD:00000004000000149000:entities:9002";
-        let signed =
-            signed_rd_metadata_attrs(entity_id, r#" validUntil="+262142-12-31T23:59:59Z""#);
+        let signed = signed_rd_metadata_attrs(
+            entity_id,
+            &format!(r#" validUntil="{}""#, jiff::Timestamp::MAX),
+        );
         let err = parse_idp_metadata(&signed, &test_trust(entity_id)).unwrap_err();
         assert!(
             matches!(&err, AuthError::Config(m) if m.contains("unusable validUntil")),
@@ -1047,25 +1049,25 @@ mod tests {
 
     #[test]
     fn trust_deadline_is_bounded_without_valid_until() {
-        let now = chrono::Utc::now();
+        let now = jiff::Timestamp::now();
         let mut metadata = IdpMetadata::for_tests();
         metadata.retrieved_at = now;
         assert!(!metadata.is_expired_at(now));
-        assert!(!metadata.is_expired_at(now + chrono::Duration::hours(23)));
-        assert!(metadata.is_expired_at(now + chrono::Duration::hours(25)));
+        assert!(!metadata.is_expired_at(now + jiff::SignedDuration::from_hours(23)));
+        assert!(metadata.is_expired_at(now + jiff::SignedDuration::from_hours(25)));
 
         metadata.cache_duration = Some(Duration::from_secs(2 * 60 * 60));
-        assert!(metadata.is_expired_at(now + chrono::Duration::hours(3)));
+        assert!(metadata.is_expired_at(now + jiff::SignedDuration::from_hours(3)));
 
         // Clamped to [1h, 7d] whatever the RD says.
         metadata.cache_duration = Some(Duration::from_secs(1));
-        assert!(!metadata.is_expired_at(now + chrono::Duration::minutes(59)));
+        assert!(!metadata.is_expired_at(now + jiff::SignedDuration::from_mins(59)));
         metadata.cache_duration = Some(Duration::from_secs(365 * 24 * 60 * 60));
-        assert!(metadata.is_expired_at(now + chrono::Duration::days(8)));
+        assert!(metadata.is_expired_at(now + jiff::SignedDuration::from_hours(8 * 24)));
 
         // validUntil still wins when it is sooner.
-        metadata.valid_until = Some(now + chrono::Duration::minutes(5));
-        assert!(metadata.is_expired_at(now + chrono::Duration::minutes(6)));
+        metadata.valid_until = Some(now + jiff::SignedDuration::from_mins(5));
+        assert!(metadata.is_expired_at(now + jiff::SignedDuration::from_mins(6)));
     }
 
     #[test]

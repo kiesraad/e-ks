@@ -6,8 +6,8 @@
 //! in the same house style; Dutch-only, with the text in the
 //! `templates/brp-overview.md` Markdown template.
 
-use chrono::NaiveDate;
 use eks_utils::slugify_teletex;
+use jiff::civil::Date;
 use textris_pdf::build::Textris;
 
 use super::{
@@ -25,7 +25,7 @@ pub struct BrpOverview {
     /// Election code stamped into the filename, e.g. `ek27`.
     pub election_code: String,
     /// Date the overview was drawn up.
-    pub date: NaiveDate,
+    pub date: Date,
     /// Whether every candidate was checked; when not, the overview warns that
     /// it may be incomplete.
     pub complete: bool,

@@ -1,5 +1,5 @@
 use axum_extra::routing::TypedPath;
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 
 use crate::{
     Event, HasCsbUser, Locale, QueryParamState, StreamId,
@@ -20,7 +20,7 @@ pub struct CsbAuditLogEntry {
     pub user: String,
     /// The item the event is about.
     pub subject: Option<SubjectLink>,
-    pub created_at: DateTime<Utc>,
+    pub created_at: Timestamp,
 }
 
 impl CsbAuditLogEntry {
@@ -101,7 +101,7 @@ mod tests {
     #[test]
     fn from_main_event_preserves_timestamp() {
         let sid = stream_id();
-        let timestamp = chrono::DateTime::from_timestamp(1_700_000_000, 0).unwrap();
+        let timestamp = jiff::Timestamp::from_second(1_700_000_000).unwrap();
         let event = StoreEvent::new_at(2, CsbMainAction::Login.by(CsbUser::Developer), timestamp);
 
         let entry =
@@ -135,7 +135,7 @@ mod tests {
     #[test]
     fn from_event_preserves_timestamp() {
         let sid = stream_id();
-        let timestamp = chrono::DateTime::from_timestamp(1_700_000_000, 0).unwrap();
+        let timestamp = jiff::Timestamp::from_second(1_700_000_000).unwrap();
         let event = StoreEvent::new_at(
             6,
             CsbAction::SetFinished(false).by(CsbUser::new_test()),

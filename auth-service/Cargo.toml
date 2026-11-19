@@ -42,7 +42,7 @@ axum-extra = { workspace = true, features = ["typed-routing"] }
 tokio = { workspace = true }
 askama = { workspace = true }
 uuid = { workspace = true }
-chrono = { workspace = true }
+jiff = { workspace = true }
 parking_lot = { workspace = true }
 secrecy = { workspace = true }
 sha2 = { workspace = true }

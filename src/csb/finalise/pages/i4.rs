@@ -142,10 +142,7 @@ mod tests {
             .update(CsbMainAction::UpdateHearingDetails(
                 HearingModel::I4,
                 HearingDetails {
-                    date_time: chrono::NaiveDate::from_ymd_opt(2027, 4, 9)
-                        .expect("valid date")
-                        .and_hms_opt(10, 15, 0)
-                        .expect("valid time"),
+                    date_time: jiff::civil::date(2027, 4, 9).at(10, 15, 0, 0),
                     chair: "Vera Voorzitter".to_string(),
                     members: vec!["Jan Klaassen".to_string()],
                 },
@@ -156,10 +153,7 @@ mod tests {
 
         assert_eq!(
             model.public_session.date_time,
-            chrono::NaiveDate::from_ymd_opt(2027, 4, 9)
-                .unwrap()
-                .and_hms_opt(10, 15, 0)
-                .unwrap()
+            jiff::civil::date(2027, 4, 9).at(10, 15, 0, 0)
         );
         assert_eq!(model.public_session.chair, "Vera Voorzitter");
         assert_eq!(model.public_session.members, vec!["Jan Klaassen"]);

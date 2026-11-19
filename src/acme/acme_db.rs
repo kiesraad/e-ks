@@ -1,13 +1,14 @@
 //! Postgres persistence for ACME challenge tokens.
 //! Requires the manually applied `deploy/schema.sql`.
 
-use chrono::{DateTime, Duration, Utc};
+use jiff::{SignedDuration, Timestamp};
+use jiff_sqlx::ToSqlx;
 
 use crate::AppError;
 
 /// Expiry cutoff for challenge rows; an hour covers CA retries.
-fn cutoff() -> DateTime<Utc> {
-    Utc::now() - Duration::hours(1)
+fn cutoff() -> Timestamp {
+    Timestamp::now() - SignedDuration::from_hours(1)
 }
 
 /// Record a challenge token, sweeping expired rows first.
@@ -17,7 +18,7 @@ pub async fn put_challenge(
     key_authorization: &str,
 ) -> Result<(), AppError> {
     sqlx::query("DELETE FROM acme_challenges WHERE created_at < $1")
-        .bind(cutoff())
+        .bind(cutoff().to_sqlx())
         .execute(pool)
         .await?;
 
@@ -30,7 +31,7 @@ pub async fn put_challenge(
     )
     .bind(token)
     .bind(key_authorization)
-    .bind(Utc::now())
+    .bind(Timestamp::now().to_sqlx())
     .execute(pool)
     .await?;
 
@@ -43,7 +44,7 @@ pub async fn find_challenge(pool: &sqlx::PgPool, token: &str) -> Result<Option<S
            WHERE token = $1 AND created_at >= $2"#,
     )
     .bind(token)
-    .bind(cutoff())
+    .bind(cutoff().to_sqlx())
     .fetch_optional(pool)
     .await?;
 
@@ -104,7 +105,7 @@ mod tests {
         )
         .bind("stale")
         .bind("stale.thumbprint")
-        .bind(Utc::now() - Duration::hours(2))
+        .bind((Timestamp::now() - SignedDuration::from_hours(2)).to_sqlx())
         .execute(&pool)
         .await
         .unwrap();

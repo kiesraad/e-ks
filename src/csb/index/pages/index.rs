@@ -1,6 +1,6 @@
 use askama::Template;
 use axum::response::{IntoResponse, Response};
-use chrono::NaiveDate;
+use jiff::civil::Date;
 
 use crate::{
     AppError, Context, CsbContext, ElectionConfig, HtmlTemplate, csb::index::CsbIndexPath, filters,
@@ -17,7 +17,7 @@ struct CsbIndexTemplate {
 
 /// The phase whose window covers `today`, by the closing dates shown on the
 /// phase cards.
-fn current_phase(election: &ElectionConfig, today: NaiveDate) -> u8 {
+fn current_phase(election: &ElectionConfig, today: Date) -> u8 {
     if today <= election.nomination_day_date() {
         1
     } else if today <= election.document_review_date() {
@@ -30,7 +30,10 @@ fn current_phase(election: &ElectionConfig, today: NaiveDate) -> u8 {
 }
 
 pub async fn index(_: CsbIndexPath, context: CsbContext) -> Result<Response, AppError> {
-    let current_phase = current_phase(&context.election, chrono::Utc::now().date_naive());
+    let current_phase = current_phase(
+        &context.election,
+        crate::structs::common::UtcDateTime::now().date(),
+    );
     Ok(HtmlTemplate(CsbIndexTemplate { current_phase }, context).into_response())
 }
 
@@ -113,8 +116,8 @@ mod tests {
     #[test]
     fn current_phase_follows_the_election_dates() {
         let election = ElectionConfig::EK27;
-        let day_before = |date: NaiveDate| date.pred_opt().unwrap();
-        let day_after = |date: NaiveDate| date.succ_opt().unwrap();
+        let day_before = |date: Date| date.yesterday().unwrap();
+        let day_after = |date: Date| date.tomorrow().unwrap();
 
         assert_eq!(
             current_phase(&election, day_before(election.nomination_day_date())),

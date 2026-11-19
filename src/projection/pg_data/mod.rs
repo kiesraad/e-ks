@@ -389,7 +389,7 @@ mod tests {
         },
         test_utils::{sample_candidate_list, sample_name_authorisation, sample_person},
     };
-    use chrono::{Duration, Utc};
+    use jiff::{SignedDuration, Timestamp};
     use std::collections::BTreeSet;
 
     /// A `PgStoreData` containing a single sample person.
@@ -443,7 +443,7 @@ mod tests {
             .representative
             .clone();
 
-        let event_time = Utc::now() - Duration::seconds(20);
+        let event_time = Timestamp::now() - SignedDuration::from_secs(20);
         data.apply(StoreEvent::new_at(
             1,
             PgEvent::UpdatePersonAddress {
@@ -465,7 +465,7 @@ mod tests {
         let mut data = data_with_person(person_id);
         let representative = sample_representative();
 
-        let event_time = Utc::now() - Duration::seconds(10);
+        let event_time = Timestamp::now() - SignedDuration::from_secs(10);
         data.apply(StoreEvent::new_at(
             1,
             PgEvent::UpdatePersonRepresentative {
@@ -491,7 +491,7 @@ mod tests {
         let list_id = CandidateListId::new();
         let list = sample_candidate_list(list_id);
 
-        let created_at = Utc::now() - Duration::seconds(60);
+        let created_at = Timestamp::now() - SignedDuration::from_secs(60);
         data.apply(StoreEvent::new_at(
             1,
             PgEvent::CreateCandidateList(Box::new(list.clone())),
@@ -499,7 +499,7 @@ mod tests {
         ));
 
         let person_id = PersonId::new();
-        let added_at = Utc::now() - Duration::seconds(30);
+        let added_at = Timestamp::now() - SignedDuration::from_secs(30);
         data.apply(StoreEvent::new_at(
             2,
             PgEvent::AddCandidateToCandidateList { list_id, person_id },
@@ -509,7 +509,7 @@ mod tests {
         let updated = data.candidate_lists.get(&list_id).expect("list exists");
         assert_eq!(updated.candidates, vec![person_id]);
 
-        let ignored_at = Utc::now() - Duration::seconds(5);
+        let ignored_at = Timestamp::now() - SignedDuration::from_secs(5);
         data.apply(StoreEvent::new_at(
             3,
             PgEvent::AddCandidateToCandidateList { list_id, person_id },
@@ -524,7 +524,7 @@ mod tests {
     fn apply_delete_person_updates_only_candidate_lists_with_that_candidate() {
         let mut data = PgStoreData::default();
         let person_id = PersonId::new();
-        let base_time = Utc::now();
+        let base_time = Timestamp::now();
 
         let list_id_with = CandidateListId::new();
         let mut list_with = sample_candidate_list(list_id_with);
@@ -536,15 +536,15 @@ mod tests {
         data.apply(StoreEvent::new_at(
             1,
             PgEvent::CreateCandidateList(Box::new(list_with)),
-            base_time - Duration::seconds(50),
+            base_time - SignedDuration::from_secs(50),
         ));
         data.apply(StoreEvent::new_at(
             2,
             PgEvent::CreateCandidateList(Box::new(list_without)),
-            base_time - Duration::seconds(40),
+            base_time - SignedDuration::from_secs(40),
         ));
 
-        let removed_at = base_time - Duration::seconds(10);
+        let removed_at = base_time - SignedDuration::from_secs(10);
         data.apply(StoreEvent::new_at(
             3,
             PgEvent::DeletePerson { person_id },
@@ -570,7 +570,7 @@ mod tests {
         let list_id = CandidateListId::new();
         let person_id = PersonId::new();
         let other_person_id = PersonId::new();
-        let base_time = Utc::now();
+        let base_time = Timestamp::now();
 
         let mut list = sample_candidate_list(list_id);
         list.candidates = vec![person_id, other_person_id];
@@ -578,10 +578,10 @@ mod tests {
         data.apply(StoreEvent::new_at(
             1,
             PgEvent::CreateCandidateList(Box::new(list)),
-            base_time - Duration::seconds(45),
+            base_time - SignedDuration::from_secs(45),
         ));
 
-        let removed_at = base_time - Duration::seconds(5);
+        let removed_at = base_time - SignedDuration::from_secs(5);
         data.apply(StoreEvent::new_at(
             2,
             PgEvent::RemoveCandidateFromCandidateList { list_id, person_id },
@@ -596,7 +596,7 @@ mod tests {
     fn apply_update_candidate_list_districts_replaces_districts() {
         let mut data = PgStoreData::default();
         let list_id = CandidateListId::new();
-        let base_time = Utc::now();
+        let base_time = Timestamp::now();
 
         let mut list = sample_candidate_list(list_id);
         list.electoral_districts = BTreeSet::from([ElectoralDistrict::Utrecht]);
@@ -604,10 +604,10 @@ mod tests {
         data.apply(StoreEvent::new_at(
             1,
             PgEvent::CreateCandidateList(Box::new(list)),
-            base_time - Duration::seconds(50),
+            base_time - SignedDuration::from_secs(50),
         ));
 
-        let updated_at = base_time - Duration::seconds(15);
+        let updated_at = base_time - SignedDuration::from_secs(15);
         let districts = BTreeSet::from([
             ElectoralDistrict::NoordHolland,
             ElectoralDistrict::ZuidHolland,
@@ -631,7 +631,7 @@ mod tests {
         let list_id = CandidateListId::new();
         let person_id = PersonId::new();
         let other_person_id = PersonId::new();
-        let base_time = Utc::now();
+        let base_time = Timestamp::now();
 
         let mut list = sample_candidate_list(list_id);
         list.candidates = vec![person_id, other_person_id];
@@ -639,10 +639,10 @@ mod tests {
         data.apply(StoreEvent::new_at(
             1,
             PgEvent::CreateCandidateList(Box::new(list)),
-            base_time - Duration::seconds(40),
+            base_time - SignedDuration::from_secs(40),
         ));
 
-        let updated_at = base_time - Duration::seconds(10);
+        let updated_at = base_time - SignedDuration::from_secs(10);
         let new_order = vec![other_person_id, person_id];
         data.apply(StoreEvent::new_at(
             2,
@@ -807,7 +807,8 @@ mod tests {
             ElectionConfig, Province, Scope, StreamId, structs::persons::PersonId,
             test_utils::sample_person,
         };
-        use chrono::Utc;
+        use jiff::Timestamp;
+        use jiff_sqlx::ToSqlx;
         use sqlx::PgPool;
 
         fn test_master() -> crate::crypto::MasterKey {
@@ -909,7 +910,7 @@ mod tests {
             .bind(store.stream_id.uuid())
             .bind(&election_id)
             .bind(2_i64)
-            .bind(Utc::now())
+            .bind(Timestamp::now().to_sqlx())
             .bind(invalid_hash)
             .bind(invalid_payload)
             .execute(&pool)
@@ -1066,7 +1067,7 @@ mod tests {
             .bind(committee.uuid())
             .bind(&election_id)
             .bind(1_i64)
-            .bind(Utc::now())
+            .bind(Timestamp::now().to_sqlx())
             .bind(&hash)
             .bind(vec![0u8; 8])
             .execute(&pool)
@@ -1115,7 +1116,7 @@ mod tests {
             .await?;
 
             let old_cipher = StreamKey::generate().cipher();
-            let created_at = Utc::now();
+            let created_at = Timestamp::now();
             let event = PgEvent::CreatePerson(Box::new(sample_person(PersonId::new())));
             let payload = old_cipher.encrypt(&event, &event_aad(1, created_at, &GENESIS_HASH))?;
             let hash = chain_hash(&GENESIS_HASH, 1, created_at, &payload);
@@ -1126,7 +1127,7 @@ mod tests {
             .bind(group_id.uuid())
             .bind(&election_id)
             .bind(1_i64)
-            .bind(created_at)
+            .bind(created_at.to_sqlx())
             .bind(hash.as_slice())
             .bind(&payload)
             .execute(&pool)

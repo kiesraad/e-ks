@@ -168,7 +168,7 @@ impl AuthServiceState {
             .rd_metadata
             .read()
             .as_ref()
-            .filter(|metadata| !metadata.is_expired_at(chrono::Utc::now()))
+            .filter(|metadata| !metadata.is_expired_at(jiff::Timestamp::now()))
             .cloned()
     }
 
@@ -367,15 +367,15 @@ mod tests {
                 Some(descriptor),
             )
         };
-        let now = chrono::Utc::now();
+        let now = jiff::Timestamp::now();
 
         assert!(
-            state_with(now + chrono::Duration::minutes(5))
+            state_with(now + jiff::SignedDuration::from_mins(5))
                 .rd_metadata()
                 .is_some()
         );
         assert!(
-            state_with(now - chrono::Duration::minutes(5))
+            state_with(now - jiff::SignedDuration::from_mins(5))
                 .rd_metadata()
                 .is_none()
         );

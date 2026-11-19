@@ -48,8 +48,7 @@ ignore = [
     { id = "RUSTSEC-2026-0547", reason = "zip 8.6 pulled transitively by docx-rs (via textris-pdf); affects legacy decompression with the legacy-zip feature, which is disabled in our dependency graph. Revisit if zip features change or docx-rs moves to zip >= 9." },
     { id = "RUSTSEC-2026-0548", reason = "zip 8.6 pulled transitively by docx-rs (via textris-pdf); affects ZipStreamReader / read_zipfile_from_stream header consistency, which docx-rs does not use. Its reader uses ZipArchive instead. Revisit when docx-rs moves to zip >= 9.0.5." },
     { id = "RUSTSEC-2026-0374", reason = "basic-toml (unmaintained) pulled transitively by askama_derive via the `config` feature, which we need for askama.toml. Only used at compile time by the proc-macro to parse our own askama.toml, so it never runs in the binary. Revisit when askama-rs/askama#594 is resolved." },
-    { id = "RUSTSEC-2026-0543", reason = "chrono is unmaintained, accepted temporarily pending migration to a maintained alternative." },
-    { id = "RUSTSEC-2026-0555", reason = "chrono-tz is unmaintained, accepted temporarily pending migration to a maintained alternative." },
+    { id = "RUSTSEC-2026-0543", reason = "chrono (unmaintained) is no longer a direct dependency, we use jiff. It is still pulled transitively by eml-nl (date types in its API) and by tsp-ltv (via bergshamra-keys, XML-DSig/XML-Enc). Revisit when eml-nl and bergshamra move off chrono." },
 ]
 
 [sources]

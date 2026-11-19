@@ -5,7 +5,7 @@
 //! body. See [`chain_hash`] for the exact construction and the project README
 //! ("Event hash chain") for the rationale.
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -21,7 +21,7 @@ pub const GENESIS_HASH: EventHash = [0u8; 32];
 #[cfg(feature = "database")]
 pub(crate) struct EncryptedEvent {
     pub event_id: usize,
-    pub created_at: DateTime<Utc>,
+    pub created_at: Timestamp,
     pub hash: EventHash,
     pub payload: Vec<u8>,
 }
@@ -50,7 +50,7 @@ pub struct StoreEvent<E> {
     /// Domain-specific event payload.
     pub payload: E,
     /// Timestamp recorded when the event was created.
-    pub created_at: DateTime<Utc>,
+    pub created_at: Timestamp,
     /// Chain hash of this event: `SHA256(prev_hash ‖ event_id ‖ created_at ‖ body)`,
     /// where `body` is the persisted representation of the payload (the AES-GCM
     /// blob for the file/database backends, the plain encoding for the in-memory
@@ -66,11 +66,11 @@ impl<E: Event> StoreEvent<E> {
     /// real chain hash via [`chain_hash`]. It exists for tests and ad-hoc
     /// projections where the hash is irrelevant.
     pub fn new(event_id: usize, payload: E) -> Self {
-        Self::new_at(event_id, payload, Utc::now())
+        Self::new_at(event_id, payload, Timestamp::now())
     }
 
     /// Like [`StoreEvent::new`] but with an explicit timestamp.
-    pub fn new_at(event_id: usize, payload: E, created_at: DateTime<Utc>) -> Self {
+    pub fn new_at(event_id: usize, payload: E, created_at: Timestamp) -> Self {
         Self {
             event_id,
             payload,
@@ -87,14 +87,10 @@ impl<E: Event> StoreEvent<E> {
 /// chain (`prev_hash`), so a ciphertext cannot be replayed at a different
 /// offset without the tag check failing.
 #[cfg(feature = "database")]
-pub(crate) fn event_aad(
-    event_id: usize,
-    created_at: DateTime<Utc>,
-    prev_hash: &EventHash,
-) -> Vec<u8> {
+pub(crate) fn event_aad(event_id: usize, created_at: Timestamp, prev_hash: &EventHash) -> Vec<u8> {
     let mut aad = Vec::with_capacity(8 + 8 + 32);
     aad.extend_from_slice(&(event_id as u64).to_le_bytes());
-    aad.extend_from_slice(&created_at.timestamp_micros().to_le_bytes());
+    aad.extend_from_slice(&created_at.as_microsecond().to_le_bytes());
     aad.extend_from_slice(prev_hash);
     aad
 }
@@ -110,13 +106,13 @@ pub(crate) fn event_aad(
 pub(crate) fn chain_hash(
     prev_hash: &EventHash,
     event_id: usize,
-    created_at: DateTime<Utc>,
+    created_at: Timestamp,
     body: &[u8],
 ) -> EventHash {
     let mut hasher = Sha256::new();
     hasher.update(prev_hash);
     hasher.update((event_id as u64).to_le_bytes());
-    hasher.update(created_at.timestamp_micros().to_le_bytes());
+    hasher.update(created_at.as_microsecond().to_le_bytes());
     hasher.update(body);
 
     let digest = hasher.finalize();
@@ -131,9 +127,9 @@ mod tests {
 
     #[test]
     fn new_sets_timestamp_and_fields() {
-        let before = Utc::now();
+        let before = Timestamp::now();
         let event = StoreEvent::new(3, 37);
-        let after = Utc::now();
+        let after = Timestamp::now();
 
         assert_eq!(event.event_id, 3);
         assert_eq!(event.payload, 37);
@@ -144,7 +140,7 @@ mod tests {
 
     #[test]
     fn new_at_uses_provided_timestamp() {
-        let timestamp = DateTime::from_timestamp(1_700_000_000, 0).unwrap();
+        let timestamp = Timestamp::from_second(1_700_000_000).unwrap();
         let event = StoreEvent::new_at(7, 37, timestamp);
 
         assert_eq!(event.event_id, 7);
@@ -154,14 +150,19 @@ mod tests {
 
     #[test]
     fn chain_hash_depends_on_every_input() {
-        let ts = DateTime::from_timestamp(1_700_000_000, 0).unwrap();
+        let ts = Timestamp::from_second(1_700_000_000).unwrap();
         let base = chain_hash(&GENESIS_HASH, 1, ts, b"body");
 
         assert_ne!(base, chain_hash(&[1u8; 32], 1, ts, b"body"));
         assert_ne!(base, chain_hash(&GENESIS_HASH, 2, ts, b"body"));
         assert_ne!(
             base,
-            chain_hash(&GENESIS_HASH, 1, ts + chrono::Duration::seconds(1), b"body")
+            chain_hash(
+                &GENESIS_HASH,
+                1,
+                ts + jiff::SignedDuration::from_secs(1),
+                b"body"
+            )
         );
         assert_ne!(base, chain_hash(&GENESIS_HASH, 1, ts, b"body!"));
         // Deterministic.
@@ -172,8 +173,8 @@ mod tests {
     fn chain_hash_only_uses_microsecond_precision() {
         // created_at sub-microsecond digits don't survive a round-trip through
         // Postgres timestamptz, so they must not affect the hash.
-        let micros = DateTime::from_timestamp_micros(1_700_000_000_123_456).unwrap();
-        let with_nanos = micros + chrono::Duration::nanoseconds(789);
+        let micros = Timestamp::from_microsecond(1_700_000_000_123_456).unwrap();
+        let with_nanos = micros + jiff::SignedDuration::from_nanos(789);
         assert_eq!(
             chain_hash(&GENESIS_HASH, 1, micros, b"body"),
             chain_hash(&GENESIS_HASH, 1, with_nanos, b"body"),
@@ -183,7 +184,7 @@ mod tests {
     #[cfg(feature = "database")]
     #[test]
     fn event_aad_is_stable_and_distinct() {
-        let ts = DateTime::from_timestamp(1_700_000_000, 0).unwrap();
+        let ts = Timestamp::from_second(1_700_000_000).unwrap();
         assert_eq!(
             event_aad(1, ts, &GENESIS_HASH),
             event_aad(1, ts, &GENESIS_HASH)

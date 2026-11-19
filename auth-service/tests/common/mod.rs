@@ -19,7 +19,7 @@ use auth_service::{
     },
     types::{EndpointUrl, EntityId, MessageId},
 };
-use chrono::{Duration, Utc};
+use jiff::{SignedDuration, Timestamp};
 use std::path::PathBuf;
 
 // ---------------------------------------------------------------------------
@@ -68,9 +68,9 @@ pub fn load_key(name: &str) -> KeyPair {
 }
 
 /// A SAML timestamp (`%Y-%m-%dT%H:%M:%SZ`) at `offset` from now.
-pub fn ts(offset: Duration) -> String {
-    (Utc::now() + offset)
-        .format("%Y-%m-%dT%H:%M:%SZ")
+pub fn ts(offset: SignedDuration) -> String {
+    (Timestamp::now() + offset)
+        .strftime("%Y-%m-%dT%H:%M:%SZ")
         .to_string()
 }
 
@@ -96,10 +96,10 @@ pub fn soap_envelope(body: &str) -> String {
 /// A full, valid `Response` + `Assertion` for `name_id` (every check passes for
 /// our DV). Namespaces are inherited from the enclosing ArtifactResponse.
 pub fn response(id_suffix: &str, name_id: &str) -> String {
-    let issued = ts(Duration::zero());
-    let nb = ts(-Duration::minutes(5));
-    let noa = ts(Duration::minutes(5));
-    let scd = ts(Duration::minutes(2));
+    let issued = ts(SignedDuration::ZERO);
+    let nb = ts(-SignedDuration::from_mins(5));
+    let noa = ts(SignedDuration::from_mins(5));
+    let scd = ts(SignedDuration::from_mins(2));
     format!(
         r#"<samlp:Response ID="_resp{id_suffix}" Version="2.0" IssueInstant="{issued}" Destination="{ACS}"><saml:Issuer>{RD}</saml:Issuer><samlp:Status><samlp:StatusCode Value="{SUCCESS}"/></samlp:Status><saml:Assertion ID="_a{id_suffix}" Version="2.0" IssueInstant="{issued}"><saml:Issuer>{RD}</saml:Issuer><saml:Subject><saml:NameID Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient">{name_id}</saml:NameID><saml:SubjectConfirmation Method="{BEARER}"><saml:SubjectConfirmationData NotOnOrAfter="{scd}" Recipient="{ACS}"/></saml:SubjectConfirmation></saml:Subject><saml:Conditions NotBefore="{nb}" NotOnOrAfter="{noa}"><saml:AudienceRestriction><saml:Audience>{DV}</saml:Audience></saml:AudienceRestriction></saml:Conditions><saml:AuthnStatement AuthnInstant="{issued}"><saml:AuthnContext><saml:AuthnContextClassRef>http://eidas.europa.eu/LoA/substantial</saml:AuthnContextClassRef></saml:AuthnContext></saml:AuthnStatement></saml:Assertion></samlp:Response>"#
     )

@@ -414,7 +414,7 @@ mod tests {
             (
                 AppError::TooManyDownloads {
                     max: 20,
-                    window: chrono::TimeDelta::hours(1),
+                    window: jiff::SignedDuration::from_hours(1),
                 },
                 Locale::En,
                 "Too many downloads",
@@ -427,7 +427,7 @@ mod tests {
             (
                 AppError::TooManyEvents {
                     max: 20,
-                    window: chrono::TimeDelta::hours(1),
+                    window: jiff::SignedDuration::from_hours(1),
                 },
                 Locale::Nl,
                 "Te veel wijzigingen",

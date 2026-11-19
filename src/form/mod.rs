@@ -67,7 +67,7 @@ impl IntoValidationError for uuid::Error {
     }
 }
 
-impl IntoValidationError for chrono::ParseError {
+impl IntoValidationError for jiff::Error {
     fn into_validation_error(self) -> ValidationError {
         ValidationError::InvalidValue
     }

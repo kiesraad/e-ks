@@ -21,7 +21,7 @@ use auth_service::{
     },
     types::{EndpointUrl, EntityId, MessageId, ServiceUuid},
 };
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 
 // Literal values from the captured messages, so each test configures the DV the
 // RD actually addressed.
@@ -70,15 +70,15 @@ fn load(name: &str) -> String {
 /// two-minute windows still bracket the present. Only attribute values that
 /// parse as a timestamp are touched.
 fn shift_timestamps(xml: &str) -> String {
-    let now = Utc::now();
-    let mut anchor: Option<DateTime<Utc>> = None;
+    let now = Timestamp::now();
+    let mut anchor: Option<Timestamp> = None;
     let mut out = String::with_capacity(xml.len());
 
     for (i, part) in xml.split('"').enumerate() {
         if i > 0 {
             out.push('"');
         }
-        match part.parse::<DateTime<Utc>>() {
+        match part.parse::<Timestamp>() {
             Ok(instant) => {
                 let base = *anchor.get_or_insert(instant);
                 let shifted = now + (instant - base);
@@ -88,7 +88,7 @@ fn shift_timestamps(xml: &str) -> String {
                 } else {
                     "%Y-%m-%dT%H:%M:%SZ"
                 };
-                out.push_str(&shifted.format(format).to_string());
+                out.push_str(&shifted.strftime(format).to_string());
             }
             Err(_) => out.push_str(part),
         }

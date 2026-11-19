@@ -56,7 +56,7 @@ pub async fn login_start(Query(query): Query<QueryParamState>) -> impl IntoRespo
     HtmlTemplate(
         LoginStartTemplate {
             session_expired: query.is_session_expired(),
-            idle_minutes: session_idle_timeout().num_minutes().to_string(),
+            idle_minutes: session_idle_timeout().as_mins().to_string(),
             login_cancelled: query.is_login_cancelled(),
         },
         LocaleValues {

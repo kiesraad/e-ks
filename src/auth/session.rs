@@ -1,6 +1,6 @@
 //! Session model and token generation.
 
-use chrono::{DateTime, Duration, Utc};
+use jiff::{SignedDuration, Timestamp};
 use rand::{RngExt, distr::Alphanumeric};
 use secrecy::{ExposeSecret, SecretString};
 use serde::Serialize;
@@ -26,18 +26,18 @@ const SESSION_ABSOLUTE_TIMEOUT_SECS: i64 = 8 * 60 * 60; // 8 hours
 const SESSION_EXPIRY_WARNING_LEAD_SECS: i64 = 60; // 1 minute
 
 /// Idle timeout after which a session is considered expired.
-pub fn session_idle_timeout() -> Duration {
-    Duration::seconds(SESSION_IDLE_TIMEOUT_SECS)
+pub fn session_idle_timeout() -> SignedDuration {
+    SignedDuration::from_secs(SESSION_IDLE_TIMEOUT_SECS)
 }
 
 /// Absolute lifetime cap, checked regardless of activity.
-pub fn session_absolute_timeout() -> Duration {
-    Duration::seconds(SESSION_ABSOLUTE_TIMEOUT_SECS)
+pub fn session_absolute_timeout() -> SignedDuration {
+    SignedDuration::from_secs(SESSION_ABSOLUTE_TIMEOUT_SECS)
 }
 
 /// Lead time of the expiry warning shown in the browser.
-pub fn session_expiry_warning_lead() -> Duration {
-    Duration::seconds(SESSION_EXPIRY_WARNING_LEAD_SECS)
+pub fn session_expiry_warning_lead() -> SignedDuration {
+    SignedDuration::from_secs(SESSION_EXPIRY_WARNING_LEAD_SECS)
 }
 
 /// When a session runs out, as the browser needs it: rendered into every
@@ -67,7 +67,7 @@ impl SessionExpiry {
     }
 
     fn warning_lead_secs() -> u64 {
-        u64::try_from(session_expiry_warning_lead().num_seconds()).unwrap_or_default()
+        u64::try_from(session_expiry_warning_lead().as_secs()).unwrap_or_default()
     }
 
     /// `true` while the remaining time is within the warning lead.
@@ -124,9 +124,9 @@ pub struct Session {
     /// request
     pub(crate) csrf_token: TokenValue,
     /// Creation time, for the absolute-lifetime cap.
-    pub created_at: DateTime<Utc>,
+    pub created_at: Timestamp,
     /// Timestamp of the last activity for idle-timeout validation.
-    pub last_activity: DateTime<Utc>,
+    pub last_activity: Timestamp,
     /// Truncated SHA-256 of the creating `User-Agent`; when set, the middleware
     /// rejects requests whose UA differs. `None` leaves the session unpinned.
     pub user_agent_hash: Option<String>,
@@ -162,7 +162,7 @@ impl Session {
     /// identity is required up front.
     fn new(user: SessionUser, locale: Locale) -> Self {
         let raw_token = generate_session_token();
-        let now = Utc::now();
+        let now = Timestamp::now();
         Self {
             token_hash: hash_token(raw_token.expose()),
             raw_token: Some(raw_token),
@@ -259,7 +259,7 @@ impl Session {
 
     /// True once past the idle timeout or the absolute lifetime cap.
     pub fn is_expired(&self) -> bool {
-        self.expiry_at(Utc::now()).expires_in_secs == 0
+        self.expiry_at(Timestamp::now()).expires_in_secs == 0
     }
 
     /// Whether no request has used the session since login: the session
@@ -270,15 +270,15 @@ impl Session {
 
     /// The remaining lifetime as seen from `now`, for the browser-side warning.
     pub fn expiry(&self) -> SessionExpiry {
-        self.expiry_at(Utc::now())
+        self.expiry_at(Timestamp::now())
     }
 
-    fn expiry_at(&self, now: DateTime<Utc>) -> SessionExpiry {
+    fn expiry_at(&self, now: Timestamp) -> SessionExpiry {
         let idle_deadline = self.last_activity + session_idle_timeout();
         let absolute_deadline = self.created_at + session_absolute_timeout();
         let deadline = idle_deadline.min(absolute_deadline);
         // A deadline in the past clamps to zero: the session is expired.
-        let expires_in_secs = u64::try_from((deadline - now).num_seconds()).unwrap_or_default();
+        let expires_in_secs = u64::try_from((deadline - now).as_secs()).unwrap_or_default();
         SessionExpiry {
             expires_in_secs,
             warning_lead_secs: SessionExpiry::warning_lead_secs(),
@@ -387,7 +387,7 @@ mod tests {
     fn a_session_is_unused_until_touched() {
         let mut session = Session::new_test();
         assert!(session.is_unused());
-        session.last_activity = session.created_at + Duration::seconds(1);
+        session.last_activity = session.created_at + SignedDuration::from_secs(1);
         assert!(!session.is_unused());
     }
 
@@ -452,7 +452,8 @@ mod tests {
     #[test]
     fn session_expires_after_idle_timeout() {
         let mut session = Session::new_test();
-        session.last_activity = Utc::now() - session_idle_timeout() - Duration::seconds(1);
+        session.last_activity =
+            Timestamp::now() - session_idle_timeout() - SignedDuration::from_secs(1);
 
         assert!(session.is_expired());
     }
@@ -461,8 +462,9 @@ mod tests {
     #[test]
     fn session_expires_after_absolute_timeout() {
         let mut session = Session::new_test();
-        session.last_activity = Utc::now(); // not idle
-        session.created_at = Utc::now() - session_absolute_timeout() - Duration::seconds(1);
+        session.last_activity = Timestamp::now(); // not idle
+        session.created_at =
+            Timestamp::now() - session_absolute_timeout() - SignedDuration::from_secs(1);
 
         assert!(session.is_expired());
     }
@@ -471,8 +473,8 @@ mod tests {
     /// and the warning leads it by one minute.
     #[test]
     fn timeouts_follow_the_digid_checklist() {
-        assert_eq!(session_idle_timeout(), Duration::minutes(15));
-        assert_eq!(session_expiry_warning_lead(), Duration::minutes(1));
+        assert_eq!(session_idle_timeout(), SignedDuration::from_mins(15));
+        assert_eq!(session_expiry_warning_lead(), SignedDuration::from_mins(1));
         assert!(session_expiry_warning_lead() < session_idle_timeout());
     }
 
@@ -495,7 +497,8 @@ mod tests {
     #[test]
     fn expiry_is_due_for_warning_within_the_lead() {
         let mut session = Session::new_test();
-        session.last_activity = Utc::now() - session_idle_timeout() + Duration::seconds(45);
+        session.last_activity =
+            Timestamp::now() - session_idle_timeout() + SignedDuration::from_secs(45);
 
         let expiry = session.expiry();
 
@@ -510,8 +513,9 @@ mod tests {
     #[test]
     fn expiry_follows_the_absolute_cap_when_it_comes_first() {
         let mut session = Session::new_test();
-        session.created_at = Utc::now() - session_absolute_timeout() + Duration::minutes(5);
-        session.last_activity = Utc::now();
+        session.created_at =
+            Timestamp::now() - session_absolute_timeout() + SignedDuration::from_mins(5);
+        session.last_activity = Timestamp::now();
 
         let expiry = session.expiry();
 
@@ -525,7 +529,8 @@ mod tests {
     #[test]
     fn expiry_of_expired_session_is_zero() {
         let mut session = Session::new_test();
-        session.last_activity = Utc::now() - session_idle_timeout() - Duration::hours(1);
+        session.last_activity =
+            Timestamp::now() - session_idle_timeout() - SignedDuration::from_hours(1);
 
         assert_eq!(session.expiry(), SessionExpiry::expired());
     }

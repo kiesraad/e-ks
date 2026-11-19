@@ -1,4 +1,3 @@
-use chrono::NaiveDate;
 use uuid::Uuid;
 
 use crate::{
@@ -366,7 +365,7 @@ async fn fixture_brp_check(store: &CsbStore) -> Result<(), AppError> {
             1 => vec![BrpFindingKind::BsnUnknown.into()],
             2 => vec![
                 BrpFindingKind::Deceased {
-                    date_of_death: NaiveDate::from_ymd_opt(2025, 11, 3),
+                    date_of_death: Some(jiff::civil::date(2025, 11, 3)),
                 }
                 .into(),
             ],

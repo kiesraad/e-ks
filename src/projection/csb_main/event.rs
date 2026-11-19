@@ -220,10 +220,7 @@ mod tests {
     #[test]
     fn hearing_details_update_reports_the_changed_fields() {
         let details = HearingDetails {
-            date_time: chrono::NaiveDate::from_ymd_opt(2027, 3, 1)
-                .unwrap()
-                .and_hms_opt(10, 0, 0)
-                .unwrap(),
+            date_time: jiff::civil::date(2027, 3, 1).at(10, 0, 0, 0),
             chair: "Jansen".to_string(),
             members: vec!["Bos".to_string()],
         };

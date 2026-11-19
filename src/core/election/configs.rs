@@ -1,4 +1,4 @@
-use chrono::{Datelike, NaiveDate, NaiveDateTime, NaiveTime};
+use jiff::civil::{Date, DateTime, Time};
 use std::collections::BTreeSet;
 
 use crate::{
@@ -9,22 +9,16 @@ use crate::{
     },
 };
 
-const fn date(year: i32, month: u32, day: u32) -> NaiveDate {
-    match NaiveDate::from_ymd_opt(year, month, day) {
-        Some(date) => date,
-        None => panic!("invalid constant date"),
-    }
+const fn date(year: i16, month: i8, day: i8) -> Date {
+    Date::constant(year, month, day)
 }
 
-const fn time(hour: u32, minute: u32) -> NaiveTime {
-    match NaiveTime::from_hms_opt(hour, minute, 0) {
-        Some(time) => time,
-        None => panic!("invalid constant time"),
-    }
+const fn time(hour: i8, minute: i8) -> Time {
+    Time::constant(hour, minute, 0, 0)
 }
 
-const fn at(date: NaiveDate, hour: u32, minute: u32) -> NaiveDateTime {
-    NaiveDateTime::new(date, time(hour, minute))
+const fn at(date: Date, hour: i8, minute: i8) -> DateTime {
+    DateTime::from_parts(date, time(hour, minute))
 }
 
 super::define_elections! {
@@ -319,7 +313,7 @@ mod tests {
     fn const_helpers_build_the_expected_values() {
         assert_eq!(
             at(date(2027, 4, 29), 11, 0).to_string(),
-            "2027-04-29 11:00:00"
+            "2027-04-29T11:00:00"
         );
     }
 

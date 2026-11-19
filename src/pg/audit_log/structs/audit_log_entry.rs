@@ -1,5 +1,5 @@
 use axum_extra::routing::TypedPath;
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 
 use crate::{
     Event, Locale, PgEvent, QueryParamState,
@@ -15,7 +15,7 @@ pub struct AuditLogEntry {
     pub details: String,
     /// The item the event is about.
     pub subject: Option<SubjectLink>,
-    pub created_at: DateTime<Utc>,
+    pub created_at: Timestamp,
 }
 
 impl AuditLogEntry {
@@ -222,7 +222,7 @@ mod tests {
 
     #[test]
     fn preserves_event_timestamp() {
-        let timestamp = chrono::DateTime::from_timestamp(1_700_000_000, 0).unwrap();
+        let timestamp = jiff::Timestamp::from_second(1_700_000_000).unwrap();
         let event = StoreEvent::new_at(
             1,
             PgEvent::DeletePerson {

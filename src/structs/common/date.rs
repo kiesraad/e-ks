@@ -1,9 +1,12 @@
-use chrono::NaiveDate;
+use jiff::civil::Date;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::{str::FromStr, sync::LazyLock};
 
-use crate::{ElectionConfig, constants::DEFAULT_DATE_FORMAT, form::ValidationError};
+use crate::{
+    ElectionConfig, constants::DEFAULT_DATE_FORMAT, form::ValidationError,
+    structs::common::UtcDateTime,
+};
 
 pub static DATE_FORMAT_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^\d{1,2}-\d{1,2}-\d{4}$").expect("valid date regex"));
@@ -17,10 +20,10 @@ static US_DATE_FORMAT_REGEX: LazyLock<Regex> =
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, Hash)]
 #[serde(transparent)]
-pub struct DateOfBirth(NaiveDate);
+pub struct DateOfBirth(Date);
 
 impl std::ops::Deref for DateOfBirth {
-    type Target = chrono::NaiveDate;
+    type Target = jiff::civil::Date;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -48,24 +51,23 @@ impl FromStr for DateOfBirth {
             return Err(ValidationError::InvalidDateFormat);
         };
 
-        let naive_date =
-            NaiveDate::parse_from_str(value, format).map_err(|_| ValidationError::InvalidValue)?;
+        let date = Date::strptime(format, value).map_err(|_| ValidationError::InvalidValue)?;
 
-        if naive_date > chrono::Utc::now().date_naive() {
+        if date > UtcDateTime::now().date() {
             return Err(ValidationError::DateInFuture);
         }
 
-        Ok(DateOfBirth(naive_date))
+        Ok(DateOfBirth(date))
     }
 }
 
-impl From<NaiveDate> for DateOfBirth {
-    fn from(value: NaiveDate) -> Self {
+impl From<Date> for DateOfBirth {
+    fn from(value: Date) -> Self {
         Self(value)
     }
 }
 
-impl From<DateOfBirth> for NaiveDate {
+impl From<DateOfBirth> for Date {
     fn from(value: DateOfBirth) -> Self {
         value.0
     }
@@ -76,10 +78,11 @@ impl DateOfBirth {
     pub const WARN_AGE: u32 = 110;
 
     pub fn is_very_old(&self) -> bool {
-        chrono::Utc::now()
-            .date_naive()
-            .years_since(self.0)
-            .is_some_and(|y| y >= Self::WARN_AGE)
+        let today = UtcDateTime::now().date();
+        // Whole years: a birthday later this year does not count yet.
+        self.0
+            .until((jiff::Unit::Year, today))
+            .is_ok_and(|age| i64::from(age.get_years()) >= i64::from(Self::WARN_AGE))
     }
 
     pub fn is_too_young(&self, election: &ElectionConfig) -> bool {
@@ -88,7 +91,7 @@ impl DateOfBirth {
 
     pub fn format_option(date: &Option<Self>) -> String {
         date.as_ref()
-            .map(|date| date.0.format(DEFAULT_DATE_FORMAT).to_string())
+            .map(|date| date.0.strftime(DEFAULT_DATE_FORMAT).to_string())
             .unwrap_or("-".to_string())
     }
 }
@@ -173,16 +176,12 @@ mod tests {
     #[test]
     fn format_option_test() {
         assert_eq!(
-            DateOfBirth::format_option(&Some(DateOfBirth(
-                NaiveDate::from_ymd_opt(2000, 2, 3).unwrap()
-            ))),
+            DateOfBirth::format_option(&Some(DateOfBirth(jiff::civil::date(2000, 2, 3)))),
             "03-02-2000".to_string()
         );
 
         assert_eq!(
-            DateOfBirth::format_option(&Some(DateOfBirth(
-                NaiveDate::from_ymd_opt(2000, 12, 13).unwrap()
-            ))),
+            DateOfBirth::format_option(&Some(DateOfBirth(jiff::civil::date(2000, 12, 13)))),
             "13-12-2000".to_string()
         );
     }

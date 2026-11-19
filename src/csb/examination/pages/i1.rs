@@ -1,5 +1,4 @@
 use axum::{extract::State, response::Response};
-use chrono::Local;
 
 use crate::{
     AppError, AppRequestState, CsbMainStore,
@@ -26,7 +25,7 @@ async fn i1_model<S: AppRequestState>(main_store: CsbMainStore, state: &S) -> Re
     let session = main_store
         .get_hearing_details(HearingModel::I1)
         .unwrap_or_else(|| HearingDetails {
-            date_time: Local::now().naive_local(),
+            date_time: HearingDetails::local_now(),
             ..configured_session.into()
         });
 
@@ -144,8 +143,8 @@ mod tests {
         let model = i1_model(CsbMainStore::new_for_test(), &state).await?;
 
         let configured = ElectionConfig::EK27.public_session();
-        let since = Local::now().naive_local() - model.session.date_time;
-        assert!(since.num_seconds() < 5);
+        let since = HearingDetails::local_now().duration_since(model.session.date_time);
+        assert!(since.as_secs() < 5);
         assert_eq!(model.session.chair, configured.chair);
         assert_eq!(model.session.members.len(), configured.members.len());
 
@@ -160,10 +159,7 @@ mod tests {
             .update(CsbMainAction::UpdateHearingDetails(
                 HearingModel::I1,
                 HearingDetails {
-                    date_time: chrono::NaiveDate::from_ymd_opt(1999, 12, 31)
-                        .expect("valid date")
-                        .and_hms_opt(12, 34, 0)
-                        .expect("valid time"),
+                    date_time: jiff::civil::date(1999, 12, 31).at(12, 34, 0, 0),
                     chair: "Vera Voorzitter".to_string(),
                     members: vec!["Jan Klaassen".to_string(), "Malle Babbe".to_string()],
                 },
@@ -174,10 +170,7 @@ mod tests {
 
         assert_eq!(
             model.session.date_time,
-            chrono::NaiveDate::from_ymd_opt(1999, 12, 31)
-                .unwrap()
-                .and_hms_opt(12, 34, 0)
-                .unwrap()
+            jiff::civil::date(1999, 12, 31).at(12, 34, 0, 0)
         );
         assert_eq!(model.session.chair, "Vera Voorzitter");
         assert_eq!(model.session.members, vec!["Jan Klaassen", "Malle Babbe"]);

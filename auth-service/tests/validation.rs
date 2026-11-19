@@ -23,7 +23,7 @@ use auth_service::{
     },
     types::{EndpointUrl, EntityId, MessageId},
 };
-use chrono::Duration;
+use jiff::SignedDuration;
 
 mod common;
 use common::{
@@ -59,7 +59,7 @@ fn signed_artifact_response_soap(signing_key: &KeyPair) -> String {
     // Model real TVS: namespaces are declared once on the ArtifactResponse root,
     // and the inner Response/Assertion inherit them without redeclaring. (Strip
     // the Assertion's own xmlns:saml so it, too, inherits.)
-    let now = ts(Duration::zero());
+    let now = ts(SignedDuration::ZERO);
     // The outer RD Assertion carries the eID LoA (the eIDAS Substantial URL the
     // RD emits, per §10.3) and our claims.
     let outer = AssertionBuilder {
@@ -74,7 +74,7 @@ fn signed_artifact_response_soap(signing_key: &KeyPair) -> String {
     let advice = format!(
         r#"<saml:Advice><saml:Assertion ID="_inner" Version="2.0" IssueInstant="{now}"><saml:Issuer>urn:test:eidas-ad</saml:Issuer><saml:Subject><saml:SubjectConfirmation Method="{bearer}"><saml:SubjectConfirmationData NotOnOrAfter="{scd}" Recipient="https://pp2.toegang.overheid.nl/foam/saml/acs" InResponseTo="_tvs-internal-id"/></saml:SubjectConfirmation></saml:Subject><saml:AuthnStatement AuthnInstant="{now}"><saml:AuthnContext><saml:AuthnContextClassRef>http://eidas.europa.eu/LoA/substantial</saml:AuthnContextClassRef></saml:AuthnContext></saml:AuthnStatement></saml:Assertion></saml:Advice>"#,
         bearer = SUBJECT_CONFIRMATION_BEARER,
-        scd = ts(Duration::minutes(2)),
+        scd = ts(SignedDuration::from_mins(2)),
     );
     let assertion = outer.replace("</saml:Assertion>", &format!("{advice}</saml:Assertion>"));
     let response = format!(
@@ -132,9 +132,9 @@ impl Default for AssertionBuilder {
             name_id: Some("user-123".into()),
             subject_method: SUBJECT_CONFIRMATION_BEARER.into(),
             scd_recipient: ACS_URL.into(),
-            scd_not_on_or_after: ts(Duration::minutes(2)),
-            conditions_not_before: ts(-Duration::minutes(5)),
-            conditions_not_on_or_after: ts(Duration::minutes(5)),
+            scd_not_on_or_after: ts(SignedDuration::from_mins(2)),
+            conditions_not_before: ts(-SignedDuration::from_mins(5)),
+            conditions_not_on_or_after: ts(SignedDuration::from_mins(5)),
             audiences: vec![DV_ENTITY_ID.into()],
             authn_class_ref: Some(
                 "urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport".into(),
@@ -199,7 +199,7 @@ impl AssertionBuilder {
 </saml:AuthnStatement>
 <saml:AttributeStatement>{service_uuid_attr}{extra}</saml:AttributeStatement>
 </saml:Assertion>"#,
-            now = ts(Duration::zero()),
+            now = ts(SignedDuration::ZERO),
             issuer = self.issuer,
             method = self.subject_method,
             scd_noa = self.scd_not_on_or_after,
@@ -249,7 +249,7 @@ fn validate_with_loa(xml: &str) -> common::AssertionResult {
 fn response_success_with_assertion() {
     let xml = format!(
         r#"<samlp:Response xmlns:samlp="{NS_SAMLP}" Version="2.0" IssueInstant="{now}"><samlp:Status><samlp:StatusCode Value="{STATUS_SUCCESS}"/></samlp:Status><saml:Assertion xmlns:saml="{NS_SAML}" ID="_a1">data</saml:Assertion></samlp:Response>"#,
-        now = ts(Duration::zero())
+        now = ts(SignedDuration::ZERO)
     );
     let r = validate_response(&xml);
     assert!(r.valid, "errors: {:?}", r.errors);
@@ -613,7 +613,7 @@ fn assertion_subject_confirmation_not_before_rejected() {
         r#"<saml:SubjectConfirmationData NotOnOrAfter="#,
         &format!(
             r#"<saml:SubjectConfirmationData NotBefore="{}" NotOnOrAfter="#,
-            ts(-Duration::minutes(1))
+            ts(-SignedDuration::from_mins(1))
         ),
     );
     let errs = validate(&xml).errors;
@@ -683,7 +683,7 @@ fn assertion_empty_expected_recipient_skips_check() {
 #[test]
 fn assertion_subject_confirmation_expired() {
     let xml = AssertionBuilder {
-        scd_not_on_or_after: ts(-Duration::hours(1)),
+        scd_not_on_or_after: ts(-SignedDuration::from_hours(1)),
         ..Default::default()
     }
     .build();
@@ -699,7 +699,7 @@ fn assertion_subject_confirmation_expired() {
 #[test]
 fn assertion_subject_confirmation_valid_time() {
     let xml = AssertionBuilder {
-        scd_not_on_or_after: ts(Duration::minutes(2)),
+        scd_not_on_or_after: ts(SignedDuration::from_mins(2)),
         ..Default::default()
     }
     .build();
@@ -929,9 +929,10 @@ fn assertion_audience_multiple_including_dv() {
 /// far-future value must not pass (nothing else would ever expire it).
 #[test]
 fn assertion_issue_instant_required_and_future_bounded() {
-    let missing = AssertionBuilder::default()
-        .build()
-        .replace(&format!(r#" IssueInstant="{}""#, ts(Duration::zero())), "");
+    let missing = AssertionBuilder::default().build().replace(
+        &format!(r#" IssueInstant="{}""#, ts(SignedDuration::ZERO)),
+        "",
+    );
     let errs = validate(&missing).errors;
     assert!(
         errs.iter()
@@ -942,11 +943,11 @@ fn assertion_issue_instant_required_and_future_bounded() {
     let future = AssertionBuilder::default().build().replace(
         &format!(
             r#"ID="_a1" Version="2.0" IssueInstant="{}""#,
-            ts(Duration::zero())
+            ts(SignedDuration::ZERO)
         ),
         &format!(
             r#"ID="_a1" Version="2.0" IssueInstant="{}""#,
-            ts(Duration::hours(2))
+            ts(SignedDuration::from_hours(2))
         ),
     );
     let errs = validate(&future).errors;
@@ -959,7 +960,7 @@ fn assertion_requires_authn_statement_with_instant() {
     let no_instant = AssertionBuilder::default().build().replace(
         &format!(
             r#"<saml:AuthnStatement AuthnInstant="{}">"#,
-            ts(Duration::zero())
+            ts(SignedDuration::ZERO)
         ),
         "<saml:AuthnStatement>",
     );
@@ -983,7 +984,7 @@ fn assertion_requires_authn_statement_with_instant() {
 #[test]
 fn assertion_conditions_not_yet_valid() {
     let xml = AssertionBuilder {
-        conditions_not_before: ts(Duration::hours(1)),
+        conditions_not_before: ts(SignedDuration::from_hours(1)),
         ..Default::default()
     }
     .build();
@@ -998,7 +999,7 @@ fn assertion_conditions_not_yet_valid() {
 #[test]
 fn assertion_conditions_expired() {
     let xml = AssertionBuilder {
-        conditions_not_on_or_after: ts(-Duration::hours(1)),
+        conditions_not_on_or_after: ts(-SignedDuration::from_hours(1)),
         ..Default::default()
     }
     .build();
@@ -1015,7 +1016,7 @@ fn assertion_conditions_expired() {
 fn assertion_conditions_not_before_within_skew() {
     // NotBefore is 10 seconds in the future, skew is 30 seconds, so valid.
     let xml = AssertionBuilder {
-        conditions_not_before: ts(Duration::seconds(10)),
+        conditions_not_before: ts(SignedDuration::from_secs(10)),
         ..Default::default()
     }
     .build();
@@ -1031,7 +1032,7 @@ fn assertion_conditions_not_before_within_skew() {
 fn assertion_conditions_not_on_or_after_within_skew() {
     // NotOnOrAfter is 10 seconds in the past, skew is 30 seconds, so still valid.
     let xml = AssertionBuilder {
-        conditions_not_on_or_after: ts(-Duration::seconds(10)),
+        conditions_not_on_or_after: ts(-SignedDuration::from_secs(10)),
         ..Default::default()
     }
     .build();
@@ -1046,8 +1047,8 @@ fn assertion_conditions_not_on_or_after_within_skew() {
 #[test]
 fn assertion_conditions_both_violations() {
     let xml = AssertionBuilder {
-        conditions_not_before: ts(Duration::hours(2)),
-        conditions_not_on_or_after: ts(-Duration::hours(2)),
+        conditions_not_before: ts(SignedDuration::from_hours(2)),
+        conditions_not_on_or_after: ts(-SignedDuration::from_hours(2)),
         ..Default::default()
     }
     .build();
@@ -1270,9 +1271,9 @@ fn assertion_collects_all_errors() {
     let xml = AssertionBuilder {
         subject_method: "urn:wrong".into(),
         scd_recipient: "https://evil.example.com".into(),
-        scd_not_on_or_after: ts(-Duration::hours(1)),
-        conditions_not_before: ts(Duration::hours(1)),
-        conditions_not_on_or_after: ts(-Duration::hours(1)),
+        scd_not_on_or_after: ts(-SignedDuration::from_hours(1)),
+        conditions_not_before: ts(SignedDuration::from_hours(1)),
+        conditions_not_on_or_after: ts(-SignedDuration::from_hours(1)),
         audiences: vec!["urn:other".into()],
         ..Default::default()
     }
@@ -1414,7 +1415,7 @@ fn response_error_status_rejected() {
 fn artifact_response_success_without_response_is_rejected() {
     let soap = soap_wrap(&format!(
         r#"<samlp:ArtifactResponse xmlns:samlp="{NS_SAMLP}" xmlns:saml="{NS_SAML}" ID="_ar1" Version="2.0" IssueInstant="{now}"><saml:Issuer>{RD_ENTITY_ID}</saml:Issuer><samlp:Status><samlp:StatusCode Value="{STATUS_SUCCESS}"/></samlp:Status></samlp:ArtifactResponse>"#,
-        now = ts(Duration::zero())
+        now = ts(SignedDuration::ZERO)
     ));
     let art = validate_artifact_response(&soap, &[], None);
     assert!(
@@ -1432,11 +1433,11 @@ fn artifact_response_success_without_response_is_rejected() {
 fn artifact_response_with_two_responses_is_rejected() {
     let inner = format!(
         r#"<samlp:Response ID="_r{{n}}" Version="2.0" IssueInstant="{now}"><samlp:Status><samlp:StatusCode Value="{STATUS_SUCCESS}"/></samlp:Status></samlp:Response>"#,
-        now = ts(Duration::zero())
+        now = ts(SignedDuration::ZERO)
     );
     let soap = soap_wrap(&format!(
         r#"<samlp:ArtifactResponse xmlns:samlp="{NS_SAMLP}" xmlns:saml="{NS_SAML}" ID="_ar1" Version="2.0" IssueInstant="{now}"><saml:Issuer>{RD_ENTITY_ID}</saml:Issuer><samlp:Status><samlp:StatusCode Value="{STATUS_SUCCESS}"/></samlp:Status>{first}{second}</samlp:ArtifactResponse>"#,
-        now = ts(Duration::zero()),
+        now = ts(SignedDuration::ZERO),
         first = inner.replace("{n}", "1"),
         second = inner.replace("{n}", "2"),
     ));

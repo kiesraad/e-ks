@@ -281,7 +281,7 @@ pub async fn run_session_sweeper(sessions: SessionStore) {
 mod tests {
     use super::*;
     use crate::auth::session::session_idle_timeout;
-    use chrono::{Duration, Utc};
+    use jiff::{SignedDuration, Timestamp};
 
     /// Returns an existing session by token.
     #[tokio::test]
@@ -308,7 +308,7 @@ mod tests {
         let token = session.token_string();
         store.insert(session.clone()).await;
 
-        session.last_activity = Utc::now() + Duration::minutes(5);
+        session.last_activity = Timestamp::now() + SignedDuration::from_mins(5);
         store.touch(&session).await;
         let refreshed = store.get(&token).await.expect("load").expect("present");
         assert_eq!(refreshed.last_activity, session.last_activity);
@@ -323,7 +323,8 @@ mod tests {
     async fn get_removes_expired_sessions() {
         let store = SessionStore::default();
         let mut session = Session::new_test();
-        session.last_activity = Utc::now() - session_idle_timeout() - Duration::seconds(1);
+        session.last_activity =
+            Timestamp::now() - session_idle_timeout() - SignedDuration::from_secs(1);
         let token = session.token_string();
         store.insert(session).await;
 
@@ -337,7 +338,8 @@ mod tests {
     async fn cleanup_expired_removes_stale_sessions() {
         let store = SessionStore::default();
         let mut expired = Session::new_test();
-        expired.last_activity = Utc::now() - session_idle_timeout() - Duration::seconds(1);
+        expired.last_activity =
+            Timestamp::now() - session_idle_timeout() - SignedDuration::from_secs(1);
         let active = Session::new_test();
         let expired_token = expired.token_string();
         let active_token = active.token_string();
@@ -411,13 +413,13 @@ mod tests {
 
         // A touch must not reset created_at, even carrying a bogus one.
         let mut touched = loaded;
-        touched.last_activity = Utc::now();
-        touched.created_at = created_at + Duration::hours(1);
+        touched.last_activity = Timestamp::now();
+        touched.created_at = created_at + SignedDuration::from_hours(1);
         store.insert(touched).await;
         let reloaded = store.get(&token).await?.expect("still present");
         // Tolerance: Postgres TIMESTAMPTZ truncates the Rust DateTime's nanoseconds.
         assert!(
-            (reloaded.created_at - created_at).abs() < Duration::milliseconds(1),
+            (reloaded.created_at - created_at).abs() < SignedDuration::from_millis(1),
             "created_at must be fixed across touches (got {}, expected ~{created_at})",
             reloaded.created_at,
         );

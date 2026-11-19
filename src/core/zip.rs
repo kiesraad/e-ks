@@ -1,7 +1,7 @@
 use async_zip::{
     Compression, ZipDateTime, ZipDateTimeBuilder, ZipEntryBuilder, tokio::write::ZipFileWriter,
 };
-use chrono::{DateTime, Datelike, Timelike, Utc};
+use jiff::Timestamp;
 use tokio::io::AsyncWrite;
 
 use crate::{AppError, constants::DEFAULT_TIMEZONE};
@@ -19,7 +19,7 @@ impl<W: AsyncWrite + Unpin> ZipResponseWriter<W> {
     pub fn new(writer: W) -> Self {
         Self {
             inner: ZipFileWriter::with_tokio(writer),
-            modified: zip_date_time(Utc::now()),
+            modified: zip_date_time(Timestamp::now()),
         }
     }
 
@@ -44,16 +44,19 @@ impl<W: AsyncWrite + Unpin> ZipResponseWriter<W> {
 }
 
 /// `now` in Dutch local time; ZIP timestamps carry no time zone
-fn zip_date_time(now: DateTime<Utc>) -> ZipDateTime {
-    let local = now.with_timezone(DEFAULT_TIMEZONE);
+fn zip_date_time(now: Timestamp) -> ZipDateTime {
+    let local = now.to_zoned_datetime(DEFAULT_TIMEZONE.clone());
+
+    // Month, day and time fields are never negative.
+    let field = |value: i8| u32::from(value.unsigned_abs());
 
     ZipDateTimeBuilder::new()
-        .year(local.year())
-        .month(local.month())
-        .day(local.day())
-        .hour(local.hour())
-        .minute(local.minute())
-        .second(local.second())
+        .year(i32::from(local.year()))
+        .month(field(local.month()))
+        .day(field(local.day()))
+        .hour(field(local.hour()))
+        .minute(field(local.minute()))
+        .second(field(local.second()))
         .build()
 }
 
@@ -61,12 +64,11 @@ fn zip_date_time(now: DateTime<Utc>) -> ZipDateTime {
 mod tests {
     use super::*;
     use async_zip::base::read1::seek::ZipArchiveReader;
-    use chrono::TimeZone;
     use futures_lite::io::Cursor;
 
     #[test]
     fn zip_date_time_is_dutch_local_time() {
-        let date = zip_date_time(Utc.with_ymd_and_hms(2027, 3, 18, 23, 30, 10).unwrap());
+        let date = zip_date_time("2027-03-18T23:30:10Z".parse().unwrap());
 
         assert_eq!(
             (date.year(), date.month(), date.day()),
