@@ -4,6 +4,9 @@
 {% block candidate_lists_nav_class %}active{% endblock %}
 {% block back_navigation %}{{ macros::back_link("/", "common.page_names.home"|trans) }}{% endblock %}
 {% block content %}
+  {% if blank_with_different_first_candidates %}
+    <div class="alert alert-error alert-full">{{ "candidate_list.blank_with_different_first_candidates_warning"|trans }}</div>
+  {% endif %}
   <section class="candidate-lists">
     <div class="candidates">
       <a href="{{ Person::list_path() }}" class="card card-persons">

@@ -14,6 +14,7 @@ actions:
 add_all: Alle kandidaten toevoegen
 add_candidate: Kandidaat toevoegen
 add_list_note: "Bij de {} is het mogelijk om in verschillende kieskringen met verschillende kandidatenlijsten mee te doen."
+blank_with_different_first_candidates_warning: Blanco lijsten mogen niet verschillende lijsttrekkers hebben. Zorg er voor dat bij iedere lijst dezelfde kandidaat op de eerste plek staat.
 candidate_count: "<strong>{}</strong> / {} kandidaten"
 candidate_list_description:
   add_candidate: Voeg kandidaten toe

@@ -14,6 +14,7 @@ actions:
 add_all: Add all candidates
 add_candidate: Add candidate
 add_list_note: "For the {} it is possible to create different lists for different electoral districts."
+blank_with_different_first_candidates_warning: Blank lists must not have different lead candidates. Make sure the same candidate is in first position on every list.
 candidate_count: "<strong>{}</strong> / {} candidates"
 candidate_list_description:
   add_candidate: Add candidates
