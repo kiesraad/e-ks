@@ -1,4 +1,4 @@
-use jiff::civil::{Date, DateTime, Time};
+use jiff::civil::{date, time};
 use std::collections::BTreeSet;
 
 use crate::{
@@ -8,18 +8,6 @@ use crate::{
         election::{Province, PublicSession, WaterCouncil},
     },
 };
-
-const fn date(year: i16, month: i8, day: i8) -> Date {
-    Date::constant(year, month, day)
-}
-
-const fn time(hour: i8, minute: i8) -> Time {
-    Time::constant(hour, minute, 0, 0)
-}
-
-const fn at(date: Date, hour: i8, minute: i8) -> DateTime {
-    DateTime::from_parts(date, time(hour, minute))
-}
 
 super::define_elections! {
     EK27 {
@@ -37,13 +25,13 @@ super::define_elections! {
         document_review_date: const { date(2027, 4, 21) },
         omission_period_start_date: const { date(2027, 4, 22) },
         omission_period_end_date: const { date(2027, 4, 26) },
-        omission_period_end_time: const { time(17, 0) },
+        omission_period_end_time: const { time(17, 0, 0, 0) },
         public_session: PublicSession {
             location: "'s-Gravenhage",
             street_name: "Muzenstraat",
             house_number: 85,
             postal_code: "2511 WB",
-            datetime: const { at(date(2027, 4, 29), 11, 0) },
+            datetime: const { date(2027, 4, 29).at(11, 0, 0, 0) },
             chair: "",
             members: &["", "", "", "", ""],
         },
@@ -78,13 +66,13 @@ super::define_elections! {
         document_review_date: const { date(2027, 2, 2) },
         omission_period_start_date: const { date(2027, 2, 3) },
         omission_period_end_date: const { date(2027, 2, 4) },
-        omission_period_end_time: const { time(17, 0) },
+        omission_period_end_time: const { time(17, 0, 0, 0) },
         public_session: PublicSession {
             location: "'s-Gravenhage",
             street_name: "Muzenstraat",
             house_number: 85,
             postal_code: "2511 WB",
-            datetime: const { at(date(2027, 2, 5), 17, 0) },
+            datetime: const { date(2027, 2, 5).at(17, 0, 0, 0) },
             chair: "",
             members: &["", "", "", "", ""],
         },
@@ -128,13 +116,13 @@ super::define_elections! {
         document_review_date: const { date(2027, 2, 2) },
         omission_period_start_date: const { date(2027, 2, 3) },
         omission_period_end_date: const { date(2027, 2, 4) },
-        omission_period_end_time: const { time(17, 0) },
+        omission_period_end_time: const { time(17, 0, 0, 0) },
         public_session: PublicSession {
             location: "'s-Gravenhage",
             street_name: "Muzenstraat",
             house_number: 85,
             postal_code: "2511 WB",
-            datetime: const { at(date(2027, 2, 5), 17, 0) },
+            datetime: const { date(2027, 2, 5).at(17, 0, 0, 0) },
             chair: "",
             members: &["", "", "", "", ""],
         },
@@ -312,7 +300,7 @@ mod tests {
     #[test]
     fn const_helpers_build_the_expected_values() {
         assert_eq!(
-            at(date(2027, 4, 29), 11, 0).to_string(),
+            date(2027, 4, 29).at(11, 0, 0, 0).to_string(),
             "2027-04-29T11:00:00"
         );
     }
