@@ -17,12 +17,12 @@ use common::{
 };
 
 use auth_service::saml::crypto::sign;
-use chrono::Duration;
+use jiff::SignedDuration;
 
 #[test]
 fn sibling_wrapping_xsw() {
     let rd_key = load_key("rd-signing-1");
-    let now = ts(Duration::zero());
+    let now = ts(SignedDuration::ZERO);
 
     // 1. Genuine ArtifactResponse, signed by the real RD key (reference -> _art1,
     //    enveloped). This is what an attacker can capture (or, for metadata/SLO, is
@@ -78,7 +78,7 @@ fn sibling_wrapping_xsw() {
 #[test]
 fn baseline_genuine_artifact_response_is_accepted() {
     let rd_key = load_key("rd-signing-1");
-    let now = ts(Duration::zero());
+    let now = ts(SignedDuration::ZERO);
     let genuine_inner_body = response("1", "GENUINE-USER");
     let sig = sig_template("_art1", &rd_key.cert_base64);
     let genuine = format!(

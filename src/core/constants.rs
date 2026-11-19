@@ -2,7 +2,7 @@
 
 use std::{num::NonZeroU64, time::Duration};
 
-use chrono_tz::{Europe, Tz};
+use jiff::tz::TimeZone;
 
 /// Default date format
 pub const DEFAULT_DATE_FORMAT: &str = "%d-%m-%Y";
@@ -16,7 +16,8 @@ pub const DEFAULT_DATE_TIME_FORMAT: &str = "%d-%m-%Y %H:%M";
 /// Default datetime format with seconds
 pub const DATE_TIME_SECONDS_FORMAT: &str = "%d-%m-%Y %H:%M:%S";
 
-pub const DEFAULT_TIMEZONE: &Tz = &Europe::Amsterdam;
+/// Compiled into the binary, so it does not depend on the host's tzdata.
+pub static DEFAULT_TIMEZONE: TimeZone = jiff::tz::get!("Europe/Amsterdam");
 
 /// A committee user active within `CSB_ALERT_HOURS` is reported at most once
 /// per peer address in this interval, not on every request.

@@ -89,7 +89,7 @@ fn omission_letter_model(
         recovery_deadline_date: election.omission_period_end_date(),
         recovery_deadline_time: election
             .omission_period_end_time()
-            .format("%H:%M")
+            .strftime("%H:%M")
             .to_string(),
         recovery_address: format!(
             "het secretariaat van het centraal stembureau, {} {}, {} te {}",

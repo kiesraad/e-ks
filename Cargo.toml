@@ -61,14 +61,13 @@ serde_urlencoded = "0.7"
 thiserror = "2"
 
 # blessed.rs
-chrono = { version = "0.4.44", default-features = false, features = ["alloc", "std", "serde"] }
 parking_lot = "0.13.0"
 rand = "0.10.1"
 sha2 = { version = "0.11.0", default-features = false, features = ["alloc"] }
 aes-gcm = "0.11.0"
 subtle = { version = "2.6.1", default-features = false }
 p256 = { version = "0.14.0", default-features = false, features = ["ecdsa", "pkcs8", "std"] } # the P-256 curve behind the listed ecdsa crate
-sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "postgres", "chrono", "uuid", "macros", "migrate"] }
+sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "postgres", "uuid", "macros", "migrate"] }
 uuid = { version = "1.23.2", features = ["serde", "v4", "v5", "v8"] }
 url = "2.5.8"
 reqwest = { version = "0.13.4", default-features = false, features = ["json", "stream"] }
@@ -76,7 +75,8 @@ reqwest = { version = "0.13.4", default-features = false, features = ["json", "s
 # well maintained + many downloads
 askama = { version = "0.16.0", default-features = false, features = ["config", "derive", "std"] } # 48M downloads (Dirkjan Ochtman)
 async_zip = { version = "0.0.19", features = ["tokio", "deflate"] } # 6M downloads (Harry Majored)
-chrono-tz = "0.10.4" # 154M downloads (Dirkjan Ochtman)
+jiff = { version = "1.0.1", default-features = false, features = ["std", "serde"] } # 292M downloads (Andrew Gallant)
+jiff-sqlx = { version = "1.0.0", features = ["postgres"] } # 783K downloads (Andrew Gallant), the sqlx integration from the jiff repository
 ipnet = "2.12.2" # 610M downloads (Kris Price), already pulled in by reqwest
 csv = "1.4.0" # 245M downloads (Andrew Gallant)
 phf = { version = "0.14.0", default-features = false } # 539M downloads (Steven Fackler)
@@ -135,7 +135,7 @@ dev-features = []
 # Talk to the online TVS mock service, never enable for a real deployment.
 tvs-mock = ["auth-service/tvs-mock"]
 # Enable database-backed storage via Postgres / SQLx.
-database = ["dep:sqlx"]
+database = ["dep:sqlx", "dep:jiff-sqlx"]
 # Run database migrations on startup.
 migrations = ["database"]
 # Load fixture data on startup (dev/test).
@@ -169,8 +169,6 @@ axum-server = { workspace = true, optional = true }
 bagatel = { workspace = true }
 base64 = { workspace = true }
 bytes = { workspace = true }
-chrono = { workspace = true, features = ["now"] }
-chrono-tz = { workspace = true }
 config = { workspace = true }
 ipnet = { workspace = true }
 ciborium = { workspace = true }
@@ -181,6 +179,8 @@ hkdf = { workspace = true }
 http-body-util = { workspace = true }
 hyper-util = { workspace = true }
 instant-acme = { workspace = true, optional = true }
+jiff = { workspace = true, features = ["static"] }
+jiff-sqlx = { workspace = true, optional = true }
 memory-serve = { workspace = true, optional = true }
 p256 = { workspace = true }
 parking_lot = { workspace = true }

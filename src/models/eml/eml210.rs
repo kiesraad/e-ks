@@ -17,12 +17,12 @@ use eml_nl::{
 use crate::{
     AppError, ElectionConfig, PgStoreData,
     core::ModelLocale,
-    models::eml::{agent, candidate_identifier, contact},
+    models::eml::{agent, candidate_identifier, contact, xs_date, xs_date_time},
     store::StoreData,
     structs::{
         candidate_lists::{CandidateList, CandidateListId, FullCandidateList},
         candidates::Candidate,
-        common::BsnOrNoneConfirmed,
+        common::{BsnOrNoneConfirmed, UtcDateTime},
         list_submitters::ListSubmitter,
         political_groups::PoliticalGroup,
     },
@@ -40,7 +40,8 @@ impl TryInto<eml_nl::documents::nomination::NominationCandidate> for &Candidate 
                 .personal_data
                 .date_of_birth
                 .as_ref()
-                .map(|n| StringValue::from_value((**n).into())),
+                .map(|n| xs_date(**n).map(StringValue::from_value))
+                .transpose()?,
             gender: Some(StringValue::from_value((&self.person.personal_data).into())),
             gender_annex: None,
             qualifying_address: (&self.person.personal_data).try_into()?,
@@ -127,7 +128,7 @@ pub fn eml210(
     let nominated = nominated_proposers(data)?;
     let list_data = list_data(&list, locale)?;
 
-    let now = chrono::Utc::now();
+    let now = UtcDateTime::now();
     let nomination = Nomination::builder()
         .transaction_id(
             u64::try_from(data.last_event_id()).map_err(|_| AppError::InternalServerError)?,
@@ -139,8 +140,8 @@ pub fn eml210(
                         .with_name("De politieke partij"),
                 ),
         )
-        .issue_date(now.date_naive())
-        .creation_date_time(now)
+        .issue_date(xs_date(now.date())?)
+        .creation_date_time(xs_date_time(*now)?)
         .election_identifier(
             ElectionIdentifierBuilder::try_from(*election)?.build_for_nomination()?,
         )

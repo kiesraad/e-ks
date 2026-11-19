@@ -93,15 +93,15 @@ mod tests {
             sample_person_with,
         },
     };
-    use chrono::{TimeZone, Utc};
     use std::cmp::Ordering;
     use uuid::Uuid;
 
-    fn timestamp(day: u32) -> crate::structs::common::UtcDateTime {
+    fn timestamp(day: i8) -> crate::structs::common::UtcDateTime {
         crate::structs::common::UtcDateTime::from(
-            Utc.with_ymd_and_hms(2026, 1, day, 0, 0, 0)
-                .single()
-                .unwrap(),
+            jiff::civil::date(2026, 1, day)
+                .to_zoned_datetime(jiff::tz::TimeZone::UTC)
+                .unwrap()
+                .timestamp(),
         )
     }
 

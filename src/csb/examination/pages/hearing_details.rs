@@ -235,7 +235,7 @@ mod tests {
         assert_eq!(
             hearing_details
                 .date_time
-                .format("%Y-%m-%d %H:%M")
+                .strftime("%Y-%m-%d %H:%M")
                 .to_string(),
             "1999-12-31 12:34"
         );

@@ -53,9 +53,8 @@ fn next_refresh_interval(metadata: &IdpMetadata) -> Duration {
         .cache_duration
         .unwrap_or(MAX_METADATA_REFRESH_INTERVAL)
         .clamp(MIN_METADATA_REFRESH_INTERVAL, MAX_METADATA_REFRESH_INTERVAL);
-    let remaining = (metadata.trust_deadline() - chrono::Utc::now())
-        .to_std()
-        .unwrap_or_default();
+    let remaining =
+        Duration::try_from(metadata.trust_deadline() - jiff::Timestamp::now()).unwrap_or_default();
     cache_delay
         .min(remaining / 2)
         .max(METADATA_RECOVERY_RETRY_INTERVAL)
@@ -79,7 +78,7 @@ async fn metadata_refresh_loop(weak: Weak<Inner>) {
     loop {
         let delay = match weak.upgrade() {
             Some(inner) => match inner.rd_metadata.read().as_deref() {
-                Some(metadata) if !metadata.is_expired_at(chrono::Utc::now()) => {
+                Some(metadata) if !metadata.is_expired_at(jiff::Timestamp::now()) => {
                     next_refresh_interval(metadata)
                 }
                 _ => METADATA_RECOVERY_RETRY_INTERVAL,
@@ -182,7 +181,7 @@ mod tests {
 
     #[test]
     fn refresh_precedes_hard_expiry_even_when_the_cache_hint_is_longer() {
-        let now = chrono::Utc::now();
+        let now = jiff::Timestamp::now();
         let mut metadata = IdpMetadata::for_tests();
         // No cacheDuration: a 24h trust lifetime, refreshed halfway through.
         assert!(next_refresh_interval(&metadata) <= MAX_METADATA_REFRESH_INTERVAL / 2);
@@ -191,7 +190,7 @@ mod tests {
             next_refresh_interval(&metadata),
             MIN_METADATA_REFRESH_INTERVAL
         );
-        metadata.valid_until = Some(now + chrono::Duration::minutes(4));
+        metadata.valid_until = Some(now + jiff::SignedDuration::from_mins(4));
         assert!(next_refresh_interval(&metadata) <= Duration::from_secs(135));
         metadata.valid_until = Some(now);
         assert_eq!(
@@ -201,7 +200,7 @@ mod tests {
         // Refreshes have been failing: retried sooner as the deadline nears.
         metadata.valid_until = None;
         metadata.cache_duration = Some(Duration::from_secs(24 * 60 * 60));
-        metadata.retrieved_at = now - chrono::Duration::hours(23);
+        metadata.retrieved_at = now - jiff::SignedDuration::from_hours(23);
         assert!(next_refresh_interval(&metadata) <= Duration::from_secs(30 * 60));
     }
 }

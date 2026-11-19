@@ -80,7 +80,7 @@ mod tests {
         http::{StatusCode, header},
         response::IntoResponse,
     };
-    use chrono::Duration;
+    use jiff::SignedDuration;
 
     #[tokio::test]
     async fn update_person_renders_existing_person() -> Result<(), AppError> {
@@ -184,7 +184,7 @@ mod tests {
         let context = Context::new_test_without_db();
         let mut person = sample_person(person_id);
         person.personal_data.date_of_birth = Some(DateOfBirth::from(
-            context.election.eligible_date_of_birth() + Duration::days(1),
+            context.election.eligible_date_of_birth() + SignedDuration::from_hours(24),
         ));
 
         person.create(&store).await?;

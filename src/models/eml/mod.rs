@@ -3,7 +3,6 @@ pub(crate) mod eml210;
 pub(crate) mod eml230b;
 pub(crate) mod eml230c;
 
-use chrono::Datelike;
 use eks_utils::slugify_teletex;
 use eml_nl::{
     common::{
@@ -12,7 +11,10 @@ use eml_nl::{
         PersonName, PersonNameStructure, QualifyingAddress, QualifyingAddressLocality,
     },
     documents::ElectionIdentifierBuilder,
-    utils::{CandidateId, ElectionCategory, ElectionDomainId, ElectionId, ElectionSubcategory},
+    utils::{
+        CandidateId, ElectionCategory, ElectionDomainId, ElectionId, ElectionSubcategory, XsDate,
+        XsDateTime,
+    },
 };
 
 use crate::{
@@ -23,6 +25,25 @@ use crate::{
         persons::{Person, PersonalData, Representative},
     },
 };
+
+/// `eml-nl` models dates with chrono types, which this crate does not depend
+/// on, so a date crosses over by its year, month and day.
+pub(crate) fn xs_date(date: jiff::civil::Date) -> Result<XsDate, AppError> {
+    XsDate::from_date(
+        i32::from(date.year()),
+        u32::from(date.month().unsigned_abs()),
+        u32::from(date.day().unsigned_abs()),
+    )
+    .ok_or(AppError::InternalServerError)
+}
+
+/// As [`xs_date`], for a moment: it crosses over as its RFC 3339 text.
+pub(crate) fn xs_date_time(moment: jiff::Timestamp) -> Result<XsDateTime, AppError> {
+    moment
+        .to_string()
+        .parse()
+        .map_err(|_| AppError::InternalServerError)
+}
 
 impl From<&FullName> for PersonNameStructure {
     fn from(val: &FullName) -> Self {
@@ -230,8 +251,8 @@ impl TryFrom<ElectionConfig> for ElectionIdentifierBuilder {
             .name(value.full_formal_title(ModelLocale::Nl))
             .category(category)
             .subcategory(&value)
-            .election_date(value.election_date())
-            .nomination_date(value.nomination_day_date());
+            .election_date(xs_date(value.election_date())?)
+            .nomination_date(xs_date(value.nomination_day_date())?);
 
         if let Some(domain_title) = value.domain_title() {
             // PS elections don't include the domain id for some reason

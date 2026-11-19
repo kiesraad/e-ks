@@ -2,10 +2,10 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct UtcDateTime(chrono::DateTime<chrono::Utc>);
+pub struct UtcDateTime(jiff::Timestamp);
 
 impl std::ops::Deref for UtcDateTime {
-    type Target = chrono::DateTime<chrono::Utc>;
+    type Target = jiff::Timestamp;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -20,17 +20,17 @@ impl std::fmt::Display for UtcDateTime {
 
 impl Default for UtcDateTime {
     fn default() -> Self {
-        Self(chrono::Utc::now())
+        Self(jiff::Timestamp::now())
     }
 }
 
-impl From<chrono::DateTime<chrono::Utc>> for UtcDateTime {
-    fn from(value: chrono::DateTime<chrono::Utc>) -> Self {
+impl From<jiff::Timestamp> for UtcDateTime {
+    fn from(value: jiff::Timestamp) -> Self {
         Self(value)
     }
 }
 
-impl From<UtcDateTime> for chrono::DateTime<chrono::Utc> {
+impl From<UtcDateTime> for jiff::Timestamp {
     fn from(value: UtcDateTime) -> Self {
         value.0
     }
@@ -39,5 +39,10 @@ impl From<UtcDateTime> for chrono::DateTime<chrono::Utc> {
 impl UtcDateTime {
     pub fn now() -> Self {
         Self::default()
+    }
+
+    /// The calendar date of this moment in UTC.
+    pub fn date(&self) -> jiff::civil::Date {
+        jiff::tz::Offset::UTC.to_datetime(self.0).date()
     }
 }

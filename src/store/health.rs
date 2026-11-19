@@ -3,7 +3,7 @@
 
 use std::{sync::Arc, time::Duration};
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use parking_lot::RwLock;
 use tokio::sync::Notify;
 
@@ -17,7 +17,7 @@ pub enum HealthState {
     /// The database is unreachable or its schema is broken/incomplete.
     Unavailable {
         /// When the outage was first observed.
-        since: DateTime<Utc>,
+        since: Timestamp,
         /// The most recent error message, for diagnostics.
         last_error: String,
     },
@@ -66,7 +66,7 @@ impl DbHealth {
             HealthState::Healthy => {
                 tracing::warn!("database unavailable: {error}; serving maintenance page");
                 *state = HealthState::Unavailable {
-                    since: Utc::now(),
+                    since: Timestamp::now(),
                     last_error: error.to_string(),
                 };
             }

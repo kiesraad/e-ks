@@ -139,13 +139,13 @@ mod tests {
             in_response_to,
             destination,
             status,
-            Some(&now_offset(chrono::Duration::zero())),
+            Some(&now_offset(jiff::SignedDuration::ZERO)),
         )
     }
 
-    fn now_offset(offset: chrono::Duration) -> String {
-        (chrono::Utc::now() + offset)
-            .format("%Y-%m-%dT%H:%M:%SZ")
+    fn now_offset(offset: jiff::SignedDuration) -> String {
+        (jiff::Timestamp::now() + offset)
+            .strftime("%Y-%m-%dT%H:%M:%SZ")
             .to_string()
     }
 
@@ -293,8 +293,8 @@ mod tests {
         // Without a freshness bound a captured LogoutResponse would stay
         // structurally valid indefinitely.
         for (offset, expected) in [
-            (-chrono::Duration::hours(1), "stale"),
-            (chrono::Duration::hours(1), "in the future"),
+            (-jiff::SignedDuration::from_hours(1), "stale"),
+            (jiff::SignedDuration::from_hours(1), "in the future"),
         ] {
             let xml = logout_response_with_instant(
                 "LogoutResponse",

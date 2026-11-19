@@ -258,7 +258,7 @@ fn cells(value: &AuditValue, ctx: &RenderContext) -> Vec<Cell> {
         AuditValue::Missing => Vec::new(),
         AuditValue::Text(text) => single(text.clone()),
         AuditValue::Bool(value) => single(bool_label(*value, ctx.locale)),
-        AuditValue::Date(date) => single(date.format(DEFAULT_DATE_FORMAT).to_string()),
+        AuditValue::Date(date) => single(date.strftime(DEFAULT_DATE_FORMAT).to_string()),
         AuditValue::Enum(value) => single(value.label(ctx.locale)),
         AuditValue::Entity(entity) => {
             let text = if entity.description.is_empty() {
@@ -311,10 +311,7 @@ mod tests {
         assert_eq!(cells(&AuditValue::Bool(true), &ctx), vec![plain("Ja")]);
         assert_eq!(cells(&AuditValue::Bool(false), &ctx), vec![plain("Nee")]);
         assert_eq!(
-            cells(
-                &AuditValue::Date(chrono::NaiveDate::from_ymd_opt(1990, 2, 1).unwrap()),
-                &ctx
-            ),
+            cells(&AuditValue::Date(jiff::civil::date(1990, 2, 1)), &ctx),
             vec![plain("01-02-1990")]
         );
         assert_eq!(

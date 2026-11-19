@@ -20,9 +20,13 @@ use eml_nl::{
 
 use crate::{
     AppError, CsbStream, ElectionConfig, ElectoralDistrict,
-    models::{csb_model_inputs, eml::candidate_identifier, established_lists::EstablishedLists},
+    models::{
+        csb_model_inputs,
+        eml::{candidate_identifier, xs_date, xs_date_time},
+        established_lists::EstablishedLists,
+    },
     projection::WithCorrections,
-    structs::{list_designation::ListDesignation, persons::Person},
+    structs::{common::UtcDateTime, list_designation::ListDesignation, persons::Person},
 };
 
 /// The contests of `election`: a single `geen` contest when it has only one
@@ -133,7 +137,7 @@ pub(super) fn candidate_lists_document(
     lists_type: CandidateListsType,
     contests: Vec<CandidateListsContest>,
 ) -> Result<Vec<u8>, AppError> {
-    let now = chrono::Utc::now();
+    let now = UtcDateTime::now();
     let candidate_lists = CandidateLists::builder()
         .lists_type(lists_type)
         .transaction_id(1)
@@ -141,8 +145,8 @@ pub(super) fn candidate_lists_document(
             AuthorityIdentifier::new(AuthorityId::new("CSB")?)
                 .with_name(managing_authority_name(election)),
         ))
-        .issue_date(now.date_naive())
-        .creation_date_time(now)
+        .issue_date(xs_date(now.date())?)
+        .creation_date_time(xs_date_time(*now)?)
         .election_identifier(
             ElectionIdentifierBuilder::try_from(*election)?.build_for_candidate_lists()?,
         )
@@ -193,7 +197,7 @@ pub(super) fn public_candidate_details(
         .qualifying_address(QualifyingAddress::try_from(&person.personal_data)?);
 
     if let Some(date_of_birth) = person.personal_data.date_of_birth.as_ref() {
-        builder = builder.date_of_birth(**date_of_birth);
+        builder = builder.date_of_birth(xs_date(**date_of_birth)?);
     }
 
     Ok(builder)

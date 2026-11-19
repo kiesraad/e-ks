@@ -1,4 +1,4 @@
-use chrono::NaiveDate;
+use jiff::civil::Date;
 use textris_pdf::build::Textris;
 
 use crate::{
@@ -15,7 +15,7 @@ use crate::{
 #[derive(Debug)]
 pub struct CandidateListPerDistrict {
     pub election_name: String,
-    pub election_date: NaiveDate,
+    pub election_date: Date,
     pub electoral_district: String,
     pub lists: Vec<NumberedList>,
     /// File name without extension, shared with the district's EML 230b, e.g.

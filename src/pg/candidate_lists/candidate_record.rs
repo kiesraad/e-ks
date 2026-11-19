@@ -178,7 +178,7 @@ impl From<Person> for CandidateRecordCsv {
             },
             geboortedatum: candidate_personal_data
                 .date_of_birth
-                .map(|d| d.format(DEFAULT_DATE_FORMAT))
+                .map(|d| d.strftime(DEFAULT_DATE_FORMAT))
                 .to_string_or_default(),
             geslacht: match candidate_personal_data.gender {
                 Some(gender) => gender.abbreviation(AnyLocale::Nl).to_string(),
@@ -305,7 +305,7 @@ mod tests {
             person
                 .personal_data
                 .date_of_birth
-                .map(|d| d.format(DEFAULT_DATE_FORMAT).to_string()),
+                .map(|d| d.strftime(DEFAULT_DATE_FORMAT).to_string()),
             Some("20-10-2000".to_string())
         );
         assert_eq!(

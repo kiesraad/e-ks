@@ -223,7 +223,7 @@ mod tests {
 
     /// A §7.7.2-valid LogoutResponse for our SLS answering `in_response_to`.
     fn logout_response(in_response_to: &str, signature: &str) -> String {
-        let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ");
+        let now = jiff::Timestamp::now().strftime("%Y-%m-%dT%H:%M:%SZ");
         format!(
             r#"<samlp:LogoutResponse xmlns:samlp="{NS_SAMLP}" xmlns:saml="{NS_SAML}" ID="{RESPONSE_ID}" Version="2.0" IssueInstant="{now}" Destination="{SLS}" InResponseTo="{in_response_to}"><saml:Issuer>{RD}</saml:Issuer>{signature}<samlp:Status><samlp:StatusCode Value="{STATUS_SUCCESS}"/></samlp:Status></samlp:LogoutResponse>"#
         )

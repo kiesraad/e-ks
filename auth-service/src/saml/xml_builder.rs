@@ -191,7 +191,9 @@ pub fn wrap_in_soap_envelope(body_xml: &str) -> Result<String> {
 
 /// The current UTC time formatted as a SAML `IssueInstant` (`YYYY-MM-DDThh:mm:ssZ`).
 pub fn now_utc() -> String {
-    chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string()
+    jiff::Timestamp::now()
+        .strftime("%Y-%m-%dT%H:%M:%SZ")
+        .to_string()
 }
 
 #[cfg(test)]
@@ -404,6 +406,6 @@ mod tests {
         let ts = now_utc();
         assert!(ts.ends_with('Z'));
         assert!(ts.contains('T'));
-        assert!(ts.parse::<chrono::DateTime<chrono::Utc>>().is_ok());
+        assert!(ts.parse::<jiff::Timestamp>().is_ok());
     }
 }

@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 #[cfg(feature = "database")]
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 
 #[cfg(feature = "database")]
 use crate::crypto::EventCipher;
@@ -129,7 +129,7 @@ where
         &self,
         event_id: usize,
         payload: D::Event,
-        created_at: DateTime<Utc>,
+        created_at: Timestamp,
         hash: EventHash,
     ) {
         self.apply_event(StoreEvent {

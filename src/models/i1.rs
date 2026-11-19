@@ -3,7 +3,7 @@
 //! per list, it does not reproduce the candidate lists themselves. The
 //! document text lives in the `templates/i1.md` Markdown template.
 
-use chrono::NaiveDate;
+use jiff::civil::Date;
 use textris_pdf::build::Textris;
 
 use super::{
@@ -17,7 +17,7 @@ use crate::{AppError, core::ModelLocale, structs::csb::HearingDetails};
 #[derive(Debug)]
 pub struct I1 {
     pub election_name: String,
-    pub election_date: NaiveDate,
+    pub election_date: Date,
     /// The configured location of the session
     pub session_location: String,
     /// The session in which the central voting bureau examined the lists.

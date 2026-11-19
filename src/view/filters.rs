@@ -1,6 +1,9 @@
 //! Askama template filters for, among others, display, translation, and validation errors.
 //! Used to keep the formatting logic out of the templates.
-use chrono::{DateTime, Datelike, NaiveDate, NaiveTime, Utc};
+use jiff::{
+    Timestamp,
+    civil::{Date, Time},
+};
 
 use crate::{
     ElectionConfig, ElectoralDistrict, Locale, SessionExpiry,
@@ -25,26 +28,26 @@ pub fn display<T: std::fmt::Display>(
 }
 
 /// Format a UTC timestamp in the default timezone with the given format.
-fn format_local(value: &DateTime<Utc>, format: &str) -> String {
+fn format_local(value: &Timestamp, format: &str) -> String {
     value
-        .with_timezone(DEFAULT_TIMEZONE)
-        .format(format)
+        .to_zoned_datetime(DEFAULT_TIMEZONE.clone())
+        .strftime(format)
         .to_string()
 }
 
 /// Format a date in the default date format (`31-12-2027`)
 #[askama::filter_fn]
-pub fn date(value: NaiveDate, _: &dyn askama::Values) -> askama::Result<String> {
-    Ok(value.format(DEFAULT_DATE_FORMAT).to_string())
+pub fn date(value: Date, _: &dyn askama::Values) -> askama::Result<String> {
+    Ok(value.strftime(DEFAULT_DATE_FORMAT).to_string())
 }
 
 /// Format a time in the default time format (`17:00`)
 #[askama::filter_fn]
-pub fn time(value: NaiveTime, _: &dyn askama::Values) -> askama::Result<String> {
-    Ok(value.format(DEFAULT_TIME_FORMAT).to_string())
+pub fn time(value: Time, _: &dyn askama::Values) -> askama::Result<String> {
+    Ok(value.strftime(DEFAULT_TIME_FORMAT).to_string())
 }
 
-fn month(date: NaiveDate, locale: AnyLocale) -> &'static str {
+fn month(date: Date, locale: AnyLocale) -> &'static str {
     let months: [&str; 12] = match locale {
         AnyLocale::En => [
             "January",
@@ -89,12 +92,12 @@ fn month(date: NaiveDate, locale: AnyLocale) -> &'static str {
             "december",
         ],
     };
-    months[date.month0() as usize]
+    months[usize::from(date.month().unsigned_abs() - 1)]
 }
 
 /// Format a date with the month written out in the template's locale (`27 oktober 2027`)
 #[askama::filter_fn]
-pub fn long_date(value: NaiveDate, values: &dyn askama::Values) -> askama::Result<String> {
+pub fn long_date(value: Date, values: &dyn askama::Values) -> askama::Result<String> {
     let locale = template_locale(values)?;
 
     Ok(format!(
@@ -105,7 +108,7 @@ pub fn long_date(value: NaiveDate, values: &dyn askama::Values) -> askama::Resul
     ))
 }
 
-fn weekday(date: NaiveDate, locale: AnyLocale) -> &'static str {
+fn weekday(date: Date, locale: AnyLocale) -> &'static str {
     let weekdays: [&str; 7] = match locale {
         AnyLocale::En => [
             "Monday",
@@ -135,12 +138,12 @@ fn weekday(date: NaiveDate, locale: AnyLocale) -> &'static str {
             "zondag",
         ],
     };
-    weekdays[date.weekday().num_days_from_monday() as usize]
+    weekdays[usize::from(date.weekday().to_monday_zero_offset().unsigned_abs())]
 }
 
 /// Format a date with the month and week day written out in the template's locale (`dinsdag 27 oktober 2027`)
 #[askama::filter_fn]
-pub fn extra_long_date(value: NaiveDate, values: &dyn askama::Values) -> askama::Result<String> {
+pub fn extra_long_date(value: Date, values: &dyn askama::Values) -> askama::Result<String> {
     let locale = template_locale(values)?;
 
     Ok(format!(
@@ -164,12 +167,12 @@ fn template_locale(values: &dyn askama::Values) -> askama::Result<AnyLocale> {
 }
 
 #[askama::filter_fn]
-pub fn datetime(value: &DateTime<Utc>, _: &dyn askama::Values) -> askama::Result<String> {
+pub fn datetime(value: &Timestamp, _: &dyn askama::Values) -> askama::Result<String> {
     Ok(format_local(value, DEFAULT_DATE_TIME_FORMAT))
 }
 
 #[askama::filter_fn]
-pub fn datetime_seconds(value: &DateTime<Utc>, _: &dyn askama::Values) -> askama::Result<String> {
+pub fn datetime_seconds(value: &Timestamp, _: &dyn askama::Values) -> askama::Result<String> {
     Ok(format_local(value, DATE_TIME_SECONDS_FORMAT))
 }
 
@@ -360,8 +363,8 @@ pub fn abbreviate_str(s: &str, _: &dyn askama::Values) -> askama::Result<String>
 mod tests {
     use super::*;
 
-    fn long(locale: impl std::any::Any, year: i32, month: u32, day: u32) -> String {
-        let date = NaiveDate::from_ymd_opt(year, month, day).unwrap();
+    fn long(locale: impl std::any::Any, year: i16, month: i8, day: i8) -> String {
+        let date = jiff::civil::date(year, month, day);
         let values = ("locale", &locale as &dyn std::any::Any);
         long_date::default().execute(date, &values).unwrap()
     }
@@ -377,8 +380,8 @@ mod tests {
         assert_eq!(long(Locale::Nl, 2027, 12, 31), "31 december 2027");
     }
 
-    fn full(locale: impl std::any::Any, year: i32, month: u32, day: u32) -> String {
-        let date = NaiveDate::from_ymd_opt(year, month, day).unwrap();
+    fn full(locale: impl std::any::Any, year: i16, month: i8, day: i8) -> String {
+        let date = jiff::civil::date(year, month, day);
         let values = ("locale", &locale as &dyn std::any::Any);
         extra_long_date::default().execute(date, &values).unwrap()
     }

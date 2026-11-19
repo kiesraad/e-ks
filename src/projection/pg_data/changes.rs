@@ -339,9 +339,7 @@ mod tests {
         );
         assert_eq!(
             change_at(&changes, key(FieldKey::DateOfBirth)).kind,
-            ChangeKind::Added(AuditValue::Date(
-                chrono::NaiveDate::from_ymd_opt(1990, 2, 1).unwrap()
-            ))
+            ChangeKind::Added(AuditValue::Date(jiff::civil::date(1990, 2, 1)))
         );
         assert_eq!(
             change_at(&changes, key(FieldKey::Address).with(FieldKey::KnownInBag)).kind,

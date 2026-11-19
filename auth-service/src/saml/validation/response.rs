@@ -136,12 +136,12 @@ impl Validator<'_, '_> {
 mod tests {
     use super::*;
     use crate::saml::{constants::NS_SAMLP, xml_parser::parse};
-    use chrono::Utc;
+    use jiff::Timestamp;
 
     /// A SAML timestamp `offset` from now, for the mandatory `@IssueInstant`.
-    fn ts(offset: chrono::Duration) -> String {
-        (Utc::now() + offset)
-            .format("%Y-%m-%dT%H:%M:%SZ")
+    fn ts(offset: jiff::SignedDuration) -> String {
+        (Timestamp::now() + offset)
+            .strftime("%Y-%m-%dT%H:%M:%SZ")
             .to_string()
     }
 
@@ -170,7 +170,7 @@ mod tests {
     fn validate_response_success_with_assertion() {
         let xml = format!(
             r#"<samlp:Response xmlns:samlp="{NS_SAMLP}" Version="2.0" IssueInstant="{now}"><samlp:Status><samlp:StatusCode Value="{STATUS_SUCCESS}"/></samlp:Status><saml:Assertion xmlns:saml="{NS_SAML}" ID="_a1">data</saml:Assertion></samlp:Response>"#,
-            now = ts(chrono::Duration::zero())
+            now = ts(jiff::SignedDuration::ZERO)
         );
         let (valid, errors, assertion_xml) = run(&xml, None, None);
         assert!(valid, "Errors: {errors:?}");
@@ -241,7 +241,7 @@ mod tests {
     fn validate_response_checks_destination_and_issuer() {
         let xml = format!(
             r#"<samlp:Response xmlns:samlp="{NS_SAMLP}" Version="2.0" IssueInstant="{now}" Destination="https://dv.test/acs"><saml:Issuer xmlns:saml="{NS_SAML}">urn:rd</saml:Issuer><samlp:Status><samlp:StatusCode Value="{STATUS_SUCCESS}"/></samlp:Status><saml:Assertion xmlns:saml="{NS_SAML}" ID="_a1">x</saml:Assertion></samlp:Response>"#,
-            now = ts(chrono::Duration::zero())
+            now = ts(jiff::SignedDuration::ZERO)
         );
 
         // Matching destination + issuer: accepted.
@@ -264,7 +264,7 @@ mod tests {
         // violation, not something to extract claims from.
         let xml = format!(
             r#"<samlp:Response xmlns:samlp="{NS_SAMLP}" Version="2.0" IssueInstant="{now}"><samlp:Status><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Responder"/></samlp:Status><saml:Assertion xmlns:saml="{NS_SAML}" ID="_a1">data</saml:Assertion></samlp:Response>"#,
-            now = ts(chrono::Duration::zero())
+            now = ts(jiff::SignedDuration::ZERO)
         );
         let (valid, errors, _) = run(&xml, None, None);
         assert!(!valid);
@@ -285,7 +285,7 @@ mod tests {
         // failure.
         let xml = format!(
             r#"<samlp:Response xmlns:samlp="{NS_SAMLP}" Version="2.0" IssueInstant="{now}"><samlp:Status><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Responder"><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:AuthnFailed"/></samlp:StatusCode><samlp:StatusMessage>Authentication cancelled</samlp:StatusMessage></samlp:Status></samlp:Response>"#,
-            now = ts(chrono::Duration::zero())
+            now = ts(jiff::SignedDuration::ZERO)
         );
         let (_valid, errors, assertion) = run(&xml, None, None);
         assert!(assertion.is_none());
@@ -303,7 +303,7 @@ mod tests {
         // first, so an attacker must not be able to append a second one.
         let xml = format!(
             r#"<samlp:Response xmlns:samlp="{NS_SAMLP}" Version="2.0" IssueInstant="{now}"><samlp:Status><samlp:StatusCode Value="{STATUS_SUCCESS}"/></samlp:Status><saml:Assertion xmlns:saml="{NS_SAML}" ID="_a1">first</saml:Assertion><saml:Assertion xmlns:saml="{NS_SAML}" ID="_a2">second</saml:Assertion></samlp:Response>"#,
-            now = ts(chrono::Duration::zero())
+            now = ts(jiff::SignedDuration::ZERO)
         );
         let (valid, errors, _) = run(&xml, None, None);
         assert!(!valid);
@@ -333,8 +333,8 @@ mod tests {
     #[test]
     fn validate_response_rejects_stale_and_future_issue_instant() {
         for (offset, expected) in [
-            (-chrono::Duration::hours(1), "stale"),
-            (chrono::Duration::hours(1), "in the future"),
+            (-jiff::SignedDuration::from_hours(1), "stale"),
+            (jiff::SignedDuration::from_hours(1), "in the future"),
         ] {
             let xml = format!(
                 r#"<samlp:Response xmlns:samlp="{NS_SAMLP}" Version="2.0" IssueInstant="{now}"><samlp:Status><samlp:StatusCode Value="{STATUS_SUCCESS}"/></samlp:Status><saml:Assertion xmlns:saml="{NS_SAML}" ID="_a1">data</saml:Assertion></samlp:Response>"#,

@@ -48,7 +48,7 @@ mod tests {
         middleware,
     };
     use axum_extra::routing::{RouterExt, TypedPath};
-    use chrono::{Duration, Utc};
+    use jiff::{SignedDuration, Timestamp};
     use tower::ServiceExt;
 
     use super::*;
@@ -71,7 +71,7 @@ mod tests {
             .with_state(state.clone());
 
         let mut session = Session::new_test();
-        session.last_activity = Utc::now() - Duration::minutes(10);
+        session.last_activity = Timestamp::now() - SignedDuration::from_mins(10);
         let token = session.token_string();
         let csrf = session.csrf_token().to_string();
         state.sessions.insert(session).await;

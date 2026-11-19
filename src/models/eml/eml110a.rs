@@ -12,7 +12,11 @@ use eml_nl::{
     utils::{ElectionCategory, RegionCategory, VotingMethod},
 };
 
-use crate::{AppError, ElectionConfig, structs::csb::RegisteredPoliticalGroup};
+use crate::{
+    AppError, ElectionConfig,
+    models::eml::{xs_date, xs_date_time},
+    structs::{common::UtcDateTime, csb::RegisteredPoliticalGroup},
+};
 
 impl ElectionConfig {
     fn build_election_tree(&self) -> ElectionTree {
@@ -81,11 +85,11 @@ pub fn eml110a(
         ContestIdentifier::alle()
     };
 
-    let now = chrono::Utc::now();
+    let now = UtcDateTime::now();
     let definition = ElectionDefinition::builder()
         .transaction_id(1)
-        .issue_date(now.date_naive())
-        .creation_date_time(now)
+        .issue_date(xs_date(now.date())?)
+        .creation_date_time(xs_date_time(*now)?)
         .election_identifier(
             ElectionIdentifierBuilder::try_from(*election)?.build_for_definition()?,
         )

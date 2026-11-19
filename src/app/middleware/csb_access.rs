@@ -27,7 +27,7 @@ use axum::{
     middleware::Next,
     response::{IntoResponse, Response},
 };
-use chrono::Utc;
+use jiff::Timestamp;
 use parking_lot::Mutex;
 use tracing::warn;
 
@@ -85,7 +85,7 @@ pub(super) fn report_alert_hours_activity(state: &AppState, session: &Session, r
         return;
     };
 
-    let now = Utc::now().with_timezone(DEFAULT_TIMEZONE);
+    let now = Timestamp::now().to_zoned_datetime(DEFAULT_TIMEZONE.clone());
     if !hours.contains(now.time()) {
         return;
     }
@@ -101,7 +101,7 @@ pub(super) fn report_alert_hours_activity(state: &AppState, session: &Session, r
         ip = %peer_ip_label(peer_ip(request)),
         method = %request.method(),
         path = %request.uri().path(),
-        local_time = %now.format("%H:%M"),
+        local_time = %now.strftime("%H:%M"),
         "CSB user active within the alert hours"
     );
 }
@@ -143,7 +143,7 @@ impl<K: Hash + Eq> AlertThrottle<K> {
 mod tests {
     use super::*;
     use axum::{Router, body::Body, http::Request, middleware, routing::get};
-    use chrono::TimeDelta;
+    use jiff::SignedDuration;
     use tower::ServiceExt;
     use tracing_test::traced_test;
 
@@ -231,16 +231,18 @@ mod tests {
 
     /// A two-hour window around now, or the two hours starting after it.
     fn hours_relative_to_now(containing_now: bool) -> CsbAlertHours {
-        let now = Utc::now().with_timezone(DEFAULT_TIMEZONE).time();
+        let now = Timestamp::now()
+            .to_zoned_datetime(DEFAULT_TIMEZONE.clone())
+            .time();
         let offset = if containing_now {
-            TimeDelta::hours(-1)
+            SignedDuration::from_hours(-1)
         } else {
-            TimeDelta::hours(1)
+            SignedDuration::from_hours(1)
         };
-        // `overflowing_add_signed` wraps around midnight and drops the day.
+        // `wrapping_add` wraps around midnight and drops the day.
         CsbAlertHours {
-            start: now.overflowing_add_signed(offset).0,
-            end: now.overflowing_add_signed(offset + TimeDelta::hours(2)).0,
+            start: now.wrapping_add(offset),
+            end: now.wrapping_add(offset + SignedDuration::from_hours(2)),
         }
     }
 

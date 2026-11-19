@@ -594,7 +594,7 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::TimeDelta;
+    use jiff::SignedDuration;
 
     /// The variables with no default outside `dev-features` and `tvs-mock`,
     /// so a test about any other setting passes with the features off.
@@ -987,8 +987,8 @@ mod tests {
         assert!(allow_list.allows("10.1.2.3".parse().unwrap()));
         assert!(!allow_list.allows("203.0.113.8".parse().unwrap()));
         let hours = config.csb_alert_hours.expect("hours");
-        assert!(hours.contains(chrono::NaiveTime::from_hms_opt(2, 0, 0).unwrap()));
-        assert!(!hours.contains(chrono::NaiveTime::from_hms_opt(12, 0, 0).unwrap()));
+        assert!(hours.contains(jiff::civil::time(2, 0, 0, 0)));
+        assert!(!hours.contains(jiff::civil::time(12, 0, 0, 0)));
     }
 
     /// An allow list without a dedicated listener would gate nothing, so it
@@ -1096,9 +1096,15 @@ mod tests {
         .expect("config");
 
         assert_eq!(config.rate_limits.downloads.max, 3);
-        assert_eq!(config.rate_limits.downloads.window, TimeDelta::seconds(60));
+        assert_eq!(
+            config.rate_limits.downloads.window,
+            SignedDuration::from_secs(60)
+        );
         assert_eq!(config.rate_limits.events.max, 7);
-        assert_eq!(config.rate_limits.events.window, TimeDelta::seconds(120));
+        assert_eq!(
+            config.rate_limits.events.window,
+            SignedDuration::from_secs(120)
+        );
         assert_eq!(config.rate_limits.events_total, 9);
     }
 

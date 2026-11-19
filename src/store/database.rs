@@ -1,7 +1,8 @@
 //! Database-backed persistence for the event store.
 
 use super::{EncryptedEvent, EventHash};
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
+use jiff_sqlx::ToSqlx;
 use serde::{Serialize, de::DeserializeOwned};
 
 use super::{
@@ -20,7 +21,9 @@ impl<'r> sqlx::FromRow<'r, sqlx::postgres::PgRow> for StoreEvent<Vec<u8>> {
 
         let event_id: i64 = row.try_get("event_id")?;
         let payload: Vec<u8> = row.try_get("payload")?;
-        let created_at: DateTime<Utc> = row.try_get("created_at")?;
+        let created_at = row
+            .try_get::<jiff_sqlx::Timestamp, _>("created_at")?
+            .to_jiff();
         let hash_bytes: Vec<u8> = row.try_get("hash")?;
         let hash: EventHash = hash_bytes.as_slice().try_into().map_err(|_| {
             sqlx::Error::Decode(
@@ -251,8 +254,8 @@ pub async fn stream_metadata_by_scope(
         uuid::Uuid,
         String,
         i64,
-        Option<DateTime<Utc>>,
-        Option<DateTime<Utc>>,
+        Option<jiff_sqlx::Timestamp>,
+        Option<jiff_sqlx::Timestamp>,
     );
 
     let rows: Vec<MetaRow> = sqlx::query_as(
@@ -275,8 +278,8 @@ pub async fn stream_metadata_by_scope(
                 stream_id: StreamId(id),
                 election,
                 event_count: last_id as usize,
-                created_at,
-                last_event_at,
+                created_at: created_at.map(jiff_sqlx::Timestamp::to_jiff),
+                last_event_at: last_event_at.map(jiff_sqlx::Timestamp::to_jiff),
             })
         })
         .collect())
@@ -394,7 +397,7 @@ where
     }
 
     let next_id = last_id + 1;
-    let created_at = Utc::now();
+    let created_at = Timestamp::now();
     let prev_hash = replay.chain_tip;
 
     let hash = match insert_event(
@@ -489,7 +492,7 @@ async fn insert_event<D, E: Serialize>(
     store: &Store<D>,
     cipher: &EventCipher,
     event_id: usize,
-    created_at: DateTime<Utc>,
+    created_at: Timestamp,
     payload: &E,
     prev_hash: &EventHash,
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
@@ -509,7 +512,7 @@ where
     .bind(store.stream_id.uuid())
     .bind(&election_id)
     .bind(event_id as i64)
-    .bind(created_at)
+    .bind(created_at.to_sqlx())
     .bind(hash.as_slice())
     .bind(encrypted_payload)
     .execute(&mut **tx)

@@ -2,7 +2,7 @@
 //! This model is Dutch-only; the document text lives in the `templates/i4.md`
 //! Markdown template.
 
-use chrono::NaiveDate;
+use jiff::civil::Date;
 use textris_pdf::build::Textris;
 
 use super::{
@@ -17,7 +17,7 @@ use crate::{
 #[derive(Debug, Default)]
 pub struct I4 {
     pub election_name: String,
-    pub election_date: NaiveDate,
+    pub election_date: Date,
     /// The configured location of the public session
     pub session_location: String,
     pub public_session: HearingDetails,

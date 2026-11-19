@@ -4,8 +4,8 @@
 
 use std::{net::IpAddr, str::FromStr};
 
-use chrono::NaiveTime;
 use ipnet::IpNet;
+use jiff::civil::Time;
 
 /// Peer addresses allowed to reach the CSB section (`CSB_IP_ALLOW_LIST`):
 /// single addresses and CIDR ranges, IPv4 or IPv6.
@@ -77,15 +77,15 @@ fn parse_entry(entry: &str) -> Result<IpNet, String> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CsbAlertHours {
     /// Start of the window, inclusive.
-    pub start: NaiveTime,
+    pub start: Time,
     /// End of the window, exclusive; before `start` when it wraps midnight.
-    pub end: NaiveTime,
+    pub end: Time,
 }
 
 impl CsbAlertHours {
     /// Whether `time` falls in the window, wrapping past midnight when the
     /// end lies before the start.
-    pub fn contains(&self, time: NaiveTime) -> bool {
+    pub fn contains(&self, time: Time) -> bool {
         if self.start < self.end {
             self.start <= time && time < self.end
         } else {
@@ -102,7 +102,7 @@ impl FromStr for CsbAlertHours {
         let malformed =
             || format!("{raw:?} is not a time range of the form HH:MM-HH:MM (e.g. 22:00-06:00)");
         let (start, end) = raw.trim().split_once('-').ok_or_else(malformed)?;
-        let parse = |s: &str| NaiveTime::parse_from_str(s.trim(), "%H:%M").map_err(|_| malformed());
+        let parse = |s: &str| Time::strptime("%H:%M", s.trim()).map_err(|_| malformed());
         let (start, end) = (parse(start)?, parse(end)?);
         if start == end {
             return Err(format!("{raw:?} starts and ends at the same time"));
@@ -119,8 +119,8 @@ mod tests {
         s.parse().expect("ip")
     }
 
-    fn time(s: &str) -> NaiveTime {
-        NaiveTime::parse_from_str(s, "%H:%M").expect("time")
+    fn time(s: &str) -> Time {
+        Time::strptime("%H:%M", s).expect("time")
     }
 
     #[test]
