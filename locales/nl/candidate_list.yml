@@ -33,7 +33,7 @@ fields:
   electoral_districts: Kieskringen
   position: Positie
 finalise_nav:
-  action: Ga naar afronden
+  action: Printen en inleveren
   question: Zijn alle kandidaten en kandidatenlijst(en) toegevoegd?
 form:
   copy_candidates_from_previous: Kopieer kandidaten van de laatst aangemaakte lijst
