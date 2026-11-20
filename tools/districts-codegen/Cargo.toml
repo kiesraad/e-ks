@@ -7,7 +7,7 @@ publish.workspace = true
 description = "Generates the districts and domains enums from MasterElectionTree.xml for the eks build script"
 
 [dependencies]
-eks-utils = { path = "../utils" }
+eks-utils = { workspace = true }
 eml-nl = { workspace = true }
 prettyplease = { workspace = true }
 proc-macro2 = { workspace = true }
