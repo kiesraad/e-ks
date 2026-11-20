@@ -9,6 +9,7 @@ all-features = true
 
 [licenses]
 version = 2
+unused-allowed-license = "deny"
 private = { ignore = true }
 allow = [
     "MIT",
@@ -35,8 +36,60 @@ deny = [
     { crate = "ring", use-instead = "aws-lc-sys" },
 ]
 multiple-versions = "allow"
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[bans.build]
+allow-build-scripts = [
+    "anyhow",
+    "aws-lc-rs",
+    "aws-lc-sys",
+    "binrw",
+    "binrw_derive",
+    "chrono-tz",
+    "cookie",
+    "crc32fast",
+    "crossbeam-utils",
+    "cryptoki-sys",
+    "curve25519-dalek",
+    "encoding_rs",
+    "fs-err",
+    "generic-array",
+    "getrandom",
+    "httparse",
+    "icu_normalizer_data",
+    "icu_properties_data",
+    "libc",
+    "libm",
+    "mime_guess",
+    "multer",
+    "num-bigint-dig",
+    "num-traits",
+    "oid-registry",
+    "parking_lot_core",
+    "prettyplease",
+    "proc-macro2",
+    "quote",
+    "rustls",
+    "rustversion",
+    "serde",
+    "serde_core",
+    "serde_json",
+    "thiserror",
+    "zerocopy",
+    "zmij",
+    "zstd-safe",
+    "zstd-sys",
+]
+
+[bans.workspace-dependencies]
+duplicates = "deny"
+unused = "deny"
 
 [advisories]
+yanked = "deny"
+unmaintained = "all"
+unused-ignored-advisory = "deny"
 ignore = [
     { id = "RUSTSEC-2023-0071", reason = "rsa 0.9 pulled transitively by bergshamra-crypto (XML-DSig/XML-Enc); no patched release available upstream (rsa 0.10 is still a release candidate). The only private-key operation is RSA-OAEP unwrapping of an EncryptedID, which is reached only after the RD signature on the ArtifactResponse has been verified, so a chosen-ciphertext timing oracle is not reachable. Revisit when bergshamra publishes a release on a constant-time rsa." },
     { id = "RUSTSEC-2026-0367", reason = "zip 8.6 pulled transitively by docx-rs (via textris-pdf); only affects ZipArchive::extract / ZipStreamReader::extract, which docx-rs does not call. Revisit when docx-rs moves to zip >= 9." },
@@ -53,4 +106,6 @@ ignore = [
 ]
 
 [sources]
+unknown-registry = "deny"
+unknown-git = "deny"
 allow-git = []
