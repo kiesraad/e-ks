@@ -32,43 +32,38 @@ impl PotentialProblems {
     }
 
     pub fn person_fix_path(&self, person: &Person) -> String {
-        let finalise = FinalisePath {}.to_string();
         match self {
             PotentialProblems::IncompleteAddress { .. } | PotentialProblems::UnknownAddress => {
                 person
                     .update_address_path()
-                    .with_query_params(QueryParamState::redirect_to(finalise))
+                    .with_query_params(QueryParamState::redirect_to(FinalisePath.to_string()))
                     .to_string()
             }
             PotentialProblems::NoRepresentative | PotentialProblems::RepresentativeProblem(_) => {
                 person
                     .update_representative_path()
-                    .with_query_params(QueryParamState::redirect_to(finalise))
+                    .with_query_params(QueryParamState::redirect_to(FinalisePath.to_string()))
                     .to_string()
             }
-            _ => person
-                .update_path()
-                .with_query_params(QueryParamState::redirect_to(finalise))
-                .to_string(),
+            _ => person.update_path_from(FinalisePath).to_string(),
         }
     }
 
     pub fn general_fix_path(&self) -> String {
-        let finalise = FinalisePath {}.to_string();
         match self {
             PotentialProblems::NoAuthorisedAgent | PotentialProblems::NoLegalName => {
                 NameAuthorisation::list_path().to_string()
             }
-            PotentialProblems::NoListSubmitter => ListSubmitter::update_path()
-                .with_query_params(QueryParamState::redirect_to(finalise))
-                .to_string(),
+            PotentialProblems::NoListSubmitter => {
+                ListSubmitter::update_path_from(FinalisePath).to_string()
+            }
             PotentialProblems::NoCandidateList
             | PotentialProblems::BlankWithDifferentFirstCandidates => {
                 CandidateList::list_path().to_string()
             }
 
             PotentialProblems::TooFewAuthorizedNames { .. } => NameAuthorisation::create_path()
-                .with_query_params(QueryParamState::redirect_to(finalise))
+                .with_query_params(QueryParamState::redirect_to(FinalisePath.to_string()))
                 .to_string(),
             PotentialProblems::TooManyAuthorizedNames { .. } => {
                 NameAuthorisation::list_path().to_string()
@@ -80,11 +75,10 @@ impl PotentialProblems {
 
 impl EntityInfoProblems {
     pub fn fix_path(&self) -> String {
-        let finalise = FinalisePath {}.to_string();
         match self {
             EntityInfoProblems::AnyProblem(InfoProblems::NoSubstituteSubmitter) => {
                 ListSubmitter::substitute_create_path()
-                    .with_query_params(QueryParamState::redirect_to(finalise))
+                    .with_query_params(QueryParamState::redirect_to(FinalisePath.to_string()))
                     .to_string()
             }
             EntityInfoProblems::AnyProblem(InfoProblems::NoListDesignation) => {
@@ -96,21 +90,18 @@ impl EntityInfoProblems {
             EntityInfoProblems::AnyProblem(..) => PgIndexPath.to_string(),
 
             EntityInfoProblems::SubstituteSubmitter { submitter, .. } => submitter
-                .substitute_update_path()
-                .with_query_params(QueryParamState::redirect_to(finalise))
+                .substitute_update_path_from(FinalisePath)
                 .to_string(),
-            EntityInfoProblems::Submitter { .. } => ListSubmitter::update_path()
-                .with_query_params(QueryParamState::redirect_to(finalise))
-                .to_string(),
-            EntityInfoProblems::Person { person, .. } => person
-                .update_path()
-                .with_query_params(QueryParamState::redirect_to(finalise))
-                .to_string(),
+            EntityInfoProblems::Submitter { .. } => {
+                ListSubmitter::update_path_from(FinalisePath).to_string()
+            }
+            EntityInfoProblems::Person { person, .. } => {
+                person.update_path_from(FinalisePath).to_string()
+            }
             EntityInfoProblems::NameAuthorisation {
                 name_authorisation, ..
             } => name_authorisation
-                .update_path()
-                .with_query_params(QueryParamState::redirect_to(finalise))
+                .update_path_from(FinalisePath)
                 .to_string(),
         }
     }
@@ -121,12 +112,77 @@ mod tests {
     use crate::{
         structs::{
             common::{EmptyAddressProblems, Severity},
+            list_submitters::ListSubmitterId,
+            name_authorisations::NameAuthorisationId,
             persons::PersonId,
         },
-        test_utils::sample_person,
+        test_utils::{sample_list_submitter, sample_name_authorisation, sample_person},
     };
 
     use super::*;
+
+    #[test]
+    fn entity_info_fix_paths_lead_to_the_expected_destinations() {
+        use EntityInfoProblems::{
+            AnyProblem, NameAuthorisation, Person, Submitter, SubstituteSubmitter,
+        };
+
+        fn from_finalise(path: impl axum_extra::routing::TypedPath) -> String {
+            path.with_query_params(QueryParamState::redirect_to("/finalise".into()))
+                .to_string()
+        }
+
+        let substitute = sample_list_submitter(ListSubmitterId::new());
+        let person = sample_person(PersonId::new());
+        let name_authorisation = sample_name_authorisation(NameAuthorisationId::new());
+        for (expected, problem) in [
+            (
+                from_finalise(ListSubmitter::substitute_create_path()),
+                AnyProblem(InfoProblems::NoSubstituteSubmitter),
+            ),
+            (
+                ListDesignation::update_path().to_string(),
+                AnyProblem(InfoProblems::NoListDesignation),
+            ),
+            (
+                PoliticalGroup::update_path().to_string(),
+                AnyProblem(InfoProblems::NoPreviousElectionResults),
+            ),
+            (
+                PgIndexPath.to_string(),
+                AnyProblem(InfoProblems::NoInitials),
+            ),
+            (
+                from_finalise(ListSubmitter::update_path()),
+                Submitter {
+                    problem: InfoProblems::NoLastName,
+                },
+            ),
+            (
+                from_finalise(substitute.substitute_update_path()),
+                SubstituteSubmitter {
+                    submitter: substitute,
+                    problem: InfoProblems::NoInitials,
+                },
+            ),
+            (
+                from_finalise(person.update_path()),
+                Person {
+                    person: Box::new(person),
+                    problem: InfoProblems::VeryOldDateOfBirth,
+                },
+            ),
+            (
+                from_finalise(name_authorisation.update_path()),
+                NameAuthorisation {
+                    name_authorisation,
+                    problem: InfoProblems::NoInitials,
+                },
+            ),
+        ] {
+            assert_eq!(problem.fix_path(), expected, "{problem:?}");
+        }
+    }
 
     #[test]
     fn person_fix_path_points_at_the_form_that_holds_the_field() {

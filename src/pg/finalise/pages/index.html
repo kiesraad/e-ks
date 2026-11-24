@@ -56,7 +56,7 @@
                       {% for problem in &agent_pp.problems %}
                         <li class="tag link">
                           <a class="{{ problem.severity().class() }}"
-                             href="{{ agent_pp.entity.update_path() }}">{{ problem.translate(locale) }}</a>
+                             href="{{ agent_pp.entity.update_path_from(FinalisePath {}) }}">{{ problem.translate(locale) }}</a>
                         </li>
                       {% endfor %}
                     </ul>
