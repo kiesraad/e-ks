@@ -25,7 +25,7 @@ jobs:
 
       - id: deny
         continue-on-error: true
-        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25
+        uses: EmbarkStudios/cargo-deny-action@70f81531115945ba6eb6b941ec9d39d063438eb9
         with:
           arguments: --workspace --all-features --locked
           command: check advisories
