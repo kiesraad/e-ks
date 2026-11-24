@@ -42,7 +42,7 @@ sha2 = { workspace = true }
 tracing = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true, optional = true }
 eks = { path = "..", default-features = false, optional = true }
-eks-locales = { path = "../tools/locales" }
+eks-locales = { workspace = true }
 
 [lints]
 workspace = true

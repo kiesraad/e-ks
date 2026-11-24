@@ -101,6 +101,10 @@ bagatel = "0.8.5"
 # kiesraad
 eml-nl = "0.8.1"
 
+# workspace crates
+eks-locales = { path = "tools/locales" }
+eks-utils = { path = "tools/utils" }
+
 # dev-dependencies
 futures-lite = { version = "2.1.0", default-features = false, features = ["std"] }
 http-body-util = "0.1"
@@ -176,7 +180,7 @@ ipnet = { workspace = true }
 ciborium = { workspace = true }
 csv = { workspace = true }
 eml-nl = { workspace = true }
-eks-utils = { path = "tools/utils" }
+eks-utils = { workspace = true }
 hkdf = { workspace = true }
 http-body-util = { workspace = true }
 hyper-util = { workspace = true }
@@ -214,11 +218,11 @@ x509-parser = { workspace = true, optional = true }
 
 [build-dependencies]
 eks-districts-codegen = { path = "tools/districts-codegen" }
-eks-locales = { path = "tools/locales" }
+eks-locales = { workspace = true }
 memory-serve = { workspace = true, optional = true }
 
 [dev-dependencies]
-eks-locales = { path = "tools/locales" }
+eks-locales = { workspace = true }
 futures-lite = { workspace = true }
 tower = { workspace = true }
 tracing-test = { workspace = true }
