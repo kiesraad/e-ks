@@ -61,6 +61,11 @@ impl Person {
         UpdatePersonPath { person_id: self.id }
     }
 
+    pub fn update_path_from(&self, from: impl std::fmt::Display) -> impl TypedPath {
+        self.update_path()
+            .with_query_params(QueryParamState::redirect_to(from.to_string()))
+    }
+
     pub fn delete_path(&self) -> impl TypedPath {
         DeletePersonPath { person_id: self.id }
     }

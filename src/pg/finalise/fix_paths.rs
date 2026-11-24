@@ -32,43 +32,38 @@ impl PotentialProblems {
     }
 
     pub fn person_fix_path(&self, person: &Person) -> String {
-        let finalise = FinalisePath {}.to_string();
         match self {
             PotentialProblems::IncompleteAddress { .. } | PotentialProblems::UnknownAddress => {
                 person
                     .update_address_path()
-                    .with_query_params(QueryParamState::redirect_to(finalise))
+                    .with_query_params(QueryParamState::redirect_to(FinalisePath.to_string()))
                     .to_string()
             }
             PotentialProblems::NoRepresentative | PotentialProblems::RepresentativeProblem(_) => {
                 person
                     .update_representative_path()
-                    .with_query_params(QueryParamState::redirect_to(finalise))
+                    .with_query_params(QueryParamState::redirect_to(FinalisePath.to_string()))
                     .to_string()
             }
-            _ => person
-                .update_path()
-                .with_query_params(QueryParamState::redirect_to(finalise))
-                .to_string(),
+            _ => person.update_path_from(FinalisePath).to_string(),
         }
     }
 
     pub fn general_fix_path(&self) -> String {
-        let finalise = FinalisePath {}.to_string();
         match self {
             PotentialProblems::NoAuthorisedAgent | PotentialProblems::NoLegalName => {
                 NameAuthorisation::list_path().to_string()
             }
-            PotentialProblems::NoListSubmitter => ListSubmitter::update_path()
-                .with_query_params(QueryParamState::redirect_to(finalise))
-                .to_string(),
+            PotentialProblems::NoListSubmitter => {
+                ListSubmitter::update_path_from(FinalisePath).to_string()
+            }
             PotentialProblems::NoCandidateList
             | PotentialProblems::BlankWithDifferentFirstCandidates => {
                 CandidateList::list_path().to_string()
             }
 
             PotentialProblems::TooFewAuthorizedNames { .. } => NameAuthorisation::create_path()
-                .with_query_params(QueryParamState::redirect_to(finalise))
+                .with_query_params(QueryParamState::redirect_to(FinalisePath.to_string()))
                 .to_string(),
             PotentialProblems::TooManyAuthorizedNames { .. } => {
                 NameAuthorisation::list_path().to_string()
@@ -80,11 +75,10 @@ impl PotentialProblems {
 
 impl EntityInfoProblems {
     pub fn fix_path(&self) -> String {
-        let finalise = FinalisePath {}.to_string();
         match self {
             EntityInfoProblems::AnyProblem(InfoProblems::NoSubstituteSubmitter) => {
                 ListSubmitter::substitute_create_path()
-                    .with_query_params(QueryParamState::redirect_to(finalise))
+                    .with_query_params(QueryParamState::redirect_to(FinalisePath.to_string()))
                     .to_string()
             }
             EntityInfoProblems::AnyProblem(InfoProblems::NoListDesignation) => {
@@ -96,21 +90,18 @@ impl EntityInfoProblems {
             EntityInfoProblems::AnyProblem(..) => PgIndexPath.to_string(),
 
             EntityInfoProblems::SubstituteSubmitter { submitter, .. } => submitter
-                .substitute_update_path()
-                .with_query_params(QueryParamState::redirect_to(finalise))
+                .substitute_update_path_from(FinalisePath)
                 .to_string(),
-            EntityInfoProblems::Submitter { .. } => ListSubmitter::update_path()
-                .with_query_params(QueryParamState::redirect_to(finalise))
-                .to_string(),
-            EntityInfoProblems::Person { person, .. } => person
-                .update_path()
-                .with_query_params(QueryParamState::redirect_to(finalise))
-                .to_string(),
+            EntityInfoProblems::Submitter { .. } => {
+                ListSubmitter::update_path_from(FinalisePath).to_string()
+            }
+            EntityInfoProblems::Person { person, .. } => {
+                person.update_path_from(FinalisePath).to_string()
+            }
             EntityInfoProblems::NameAuthorisation {
                 name_authorisation, ..
             } => name_authorisation
-                .update_path()
-                .with_query_params(QueryParamState::redirect_to(finalise))
+                .update_path_from(FinalisePath)
                 .to_string(),
         }
     }

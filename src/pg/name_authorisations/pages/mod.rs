@@ -3,7 +3,7 @@ use axum_extra::routing::{RouterExt, TypedPath};
 use serde::Deserialize;
 
 use crate::{
-    AppError, AppRequestState,
+    AppError, AppRequestState, QueryParamState,
     structs::name_authorisations::{NameAuthorisation, NameAuthorisationId},
 };
 
@@ -51,6 +51,11 @@ impl NameAuthorisation {
         NameAuthorisationUpdatePath {
             authorisation_id: self.id,
         }
+    }
+
+    pub fn update_path_from(&self, from: impl std::fmt::Display) -> impl TypedPath {
+        self.update_path()
+            .with_query_params(QueryParamState::redirect_to(from.to_string()))
     }
 
     pub fn delete_path(&self) -> impl TypedPath {
