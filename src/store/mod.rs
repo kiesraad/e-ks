@@ -30,7 +30,7 @@ pub(crate) use event::event_aad;
 #[cfg(feature = "database")]
 use std::sync::Arc;
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 #[cfg(feature = "database")]
 use serde::de::DeserializeOwned;
 
@@ -47,8 +47,8 @@ pub struct StreamMeta {
     pub election: ElectionConfig,
     /// Number of events, i.e. the last event id (events are appended `1..=n`).
     pub event_count: usize,
-    pub created_at: Option<DateTime<Utc>>,
-    pub last_event_at: Option<DateTime<Utc>>,
+    pub created_at: Option<Timestamp>,
+    pub last_event_at: Option<Timestamp>,
 }
 
 /// `Clone` backs copy-on-write: a write while a [`Store::snapshot`] is alive
@@ -252,8 +252,8 @@ mod tests {
         }
     }
 
-    fn created_at() -> DateTime<Utc> {
-        DateTime::from_timestamp(1_700_000_000, 0).expect("valid timestamp")
+    fn created_at() -> Timestamp {
+        Timestamp::from_second(1_700_000_000).expect("valid timestamp")
     }
 
     /// Encrypt and chain one event as a backend stores it.

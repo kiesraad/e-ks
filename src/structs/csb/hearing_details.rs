@@ -1,9 +1,9 @@
 use std::str::FromStr;
 
-use chrono::{Local, NaiveDateTime};
+use jiff::{Timestamp, civil::DateTime};
 use serde::{Deserialize, Serialize, Serializer};
 
-use crate::{core::election::PublicSession, form::ValidationError};
+use crate::{constants::DEFAULT_TIMEZONE, core::election::PublicSession, form::ValidationError};
 
 const I1: &str = "i1";
 const I4: &str = "i4";
@@ -73,7 +73,7 @@ impl<'de> Deserialize<'de> for HearingModel {
 /// about the session; see [`HearingModel`] for the two hearings this covers.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct HearingDetails {
-    pub date_time: NaiveDateTime,
+    pub date_time: DateTime,
     pub chair: String,
     pub members: Vec<String>,
 }
@@ -95,10 +95,20 @@ impl From<PublicSession> for HearingDetails {
     }
 }
 
+impl HearingDetails {
+    /// The current wall-clock time in the Netherlands, the moment a hearing
+    /// defaults to.
+    pub fn local_now() -> DateTime {
+        Timestamp::now()
+            .to_zoned_datetime(DEFAULT_TIMEZONE.clone())
+            .datetime()
+    }
+}
+
 impl Default for HearingDetails {
     fn default() -> Self {
         Self {
-            date_time: Local::now().naive_local(),
+            date_time: Self::local_now(),
             chair: String::new(),
             members: Vec::new(),
         }
@@ -112,13 +122,11 @@ mod tests {
     #[test]
     fn default_hearing_details_gets_current_time() {
         let hearing_details = HearingDetails::default();
-        let now = Local::now().naive_local();
+        let now = HearingDetails::local_now();
 
         assert!(
             // Give a little leeway
-            now.signed_duration_since(hearing_details.date_time)
-                .num_milliseconds()
-                < 20
+            now.duration_since(hearing_details.date_time).as_millis() < 20
         );
     }
 

@@ -4,19 +4,20 @@
 #![cfg(feature = "database")]
 
 use auth_service::PENDING_REQUEST_TTL;
-use chrono::{DateTime, Duration, Utc};
+use jiff::{SignedDuration, Timestamp};
+use jiff_sqlx::ToSqlx;
 
 use crate::AppError;
 
 /// Expiry cutoff: `now - PENDING_REQUEST_TTL` (eID §7.5, 15-minute artifact window).
-fn cutoff() -> DateTime<Utc> {
-    Utc::now() - Duration::seconds(PENDING_REQUEST_TTL.as_secs() as i64)
+fn cutoff() -> Timestamp {
+    Timestamp::now() - SignedDuration::from_secs(PENDING_REQUEST_TTL.as_secs() as i64)
 }
 
 /// Record an outgoing AuthnRequest ID, sweeping expired entries first.
 pub async fn register(pool: &sqlx::PgPool, id: &str) -> Result<(), AppError> {
     sqlx::query("DELETE FROM pending_requests WHERE created_at < $1")
-        .bind(cutoff())
+        .bind(cutoff().to_sqlx())
         .execute(pool)
         .await?;
 
@@ -25,7 +26,7 @@ pub async fn register(pool: &sqlx::PgPool, id: &str) -> Result<(), AppError> {
            ON CONFLICT (id) DO UPDATE SET created_at = EXCLUDED.created_at"#,
     )
     .bind(id)
-    .bind(Utc::now())
+    .bind(Timestamp::now().to_sqlx())
     .execute(pool)
     .await?;
 
@@ -41,7 +42,7 @@ pub async fn consume_if_pending(pool: &sqlx::PgPool, id: &str) -> Result<bool, A
            RETURNING id"#,
     )
     .bind(id)
-    .bind(cutoff())
+    .bind(cutoff().to_sqlx())
     .fetch_optional(pool)
     .await?;
 

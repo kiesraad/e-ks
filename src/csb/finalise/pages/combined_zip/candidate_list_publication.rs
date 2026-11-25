@@ -123,10 +123,7 @@ mod tests {
                 ("Drenthe", vec![(2, "Overal")]),
             ]
         );
-        assert_eq!(
-            model.election_date,
-            chrono::NaiveDate::from_ymd_opt(2027, 5, 24).unwrap()
-        );
+        assert_eq!(model.election_date, jiff::civil::date(2027, 5, 24));
 
         Ok(())
     }

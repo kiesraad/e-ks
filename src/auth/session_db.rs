@@ -6,7 +6,8 @@
 #![cfg(feature = "database")]
 use std::str::FromStr;
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
+use jiff_sqlx::ToSqlx;
 use tracing::warn;
 
 use crate::{
@@ -22,8 +23,8 @@ struct SessionRow {
     token: String,
     identity: serde_json::Value,
     locale: String,
-    last_activity: DateTime<Utc>,
-    created_at: DateTime<Utc>,
+    last_activity: jiff_sqlx::Timestamp,
+    created_at: jiff_sqlx::Timestamp,
     user_agent_hash: Option<String>,
     csrf_token: String,
 }
@@ -47,8 +48,8 @@ pub async fn upsert(pool: &sqlx::PgPool, session: &Session) -> Result<(), AppErr
     .bind(session.token_hash())
     .bind(serde_json::to_value(&session.user)?)
     .bind(session.locale.as_str())
-    .bind(session.last_activity)
-    .bind(session.created_at)
+    .bind(session.last_activity.to_sqlx())
+    .bind(session.created_at.to_sqlx())
     .bind(&session.user_agent_hash)
     .bind(&session.csrf_token().0)
     .execute(pool)
@@ -102,8 +103,8 @@ fn session_from_row(row: SessionRow) -> Option<Session> {
         token_hash: row.token,
         raw_token: None, // never carried by a reloaded session
         csrf_token: TokenValue(row.csrf_token),
-        created_at: row.created_at,
-        last_activity: row.last_activity,
+        created_at: row.created_at.to_jiff(),
+        last_activity: row.last_activity.to_jiff(),
         user_agent_hash: row.user_agent_hash,
         user,
         locale: Locale::from_str(&row.locale).unwrap_or_default(),
@@ -187,11 +188,11 @@ fn require_updated(result: sqlx::postgres::PgQueryResult) -> Result<(), AppError
 pub async fn touch(
     pool: &sqlx::PgPool,
     token_hash: &str,
-    last_activity: DateTime<Utc>,
+    last_activity: Timestamp,
 ) -> Result<(), AppError> {
     sqlx::query("UPDATE sessions SET last_activity = GREATEST(last_activity, $2) WHERE token = $1")
         .bind(token_hash)
-        .bind(last_activity)
+        .bind(last_activity.to_sqlx())
         .execute(pool)
         .await?;
     Ok(())
@@ -253,12 +254,12 @@ pub async fn delete_other_sessions_of(
 /// Delete all sessions that have passed either the idle timeout or the absolute
 /// lifetime cap (mirrors [`Session::is_expired`]).
 pub async fn cleanup_expired(pool: &sqlx::PgPool) -> Result<(), AppError> {
-    let now = Utc::now();
+    let now = Timestamp::now();
     let idle_cutoff = now - session_idle_timeout();
     let absolute_cutoff = now - session_absolute_timeout();
     sqlx::query("DELETE FROM sessions WHERE last_activity < $1 OR created_at < $2")
-        .bind(idle_cutoff)
-        .bind(absolute_cutoff)
+        .bind(idle_cutoff.to_sqlx())
+        .bind(absolute_cutoff.to_sqlx())
         .execute(pool)
         .await?;
     Ok(())
@@ -274,8 +275,8 @@ mod tests {
             token: "token-hash-abc".to_string(),
             identity,
             locale: Locale::default().as_str().to_string(),
-            last_activity: Utc::now(),
-            created_at: Utc::now(),
+            last_activity: Timestamp::now().to_sqlx(),
+            created_at: Timestamp::now().to_sqlx(),
             user_agent_hash: Some("ua-hash".to_string()),
             csrf_token: "csrf-token-abc".to_string(),
         }

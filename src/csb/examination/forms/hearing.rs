@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use chrono::{NaiveDate, NaiveTime};
+use jiff::civil::{Date, Time};
 use serde::Deserialize;
 use validate::Validate;
 
@@ -33,7 +33,7 @@ impl From<HearingDetailsFormTarget> for HearingDetails {
             })
             .collect();
 
-        let date_time = value.date_of_hearing.and_time(*value.time_of_hearing);
+        let date_time = value.date_of_hearing.to_datetime(*value.time_of_hearing);
 
         Self {
             date_time,
@@ -55,11 +55,11 @@ impl From<HearingDetails> for HearingDetailsForm {
 }
 
 #[derive(Default, Clone)]
-struct DateOfHearing(NaiveDate);
+struct DateOfHearing(Date);
 
 impl DateOfHearing {
     fn format(&self) -> String {
-        self.0.format(DEFAULT_DATE_FORMAT).to_string()
+        self.0.strftime(DEFAULT_DATE_FORMAT).to_string()
     }
 }
 
@@ -71,15 +71,15 @@ impl FromStr for DateOfHearing {
             return Err(ValidationError::InvalidValue);
         }
 
-        let naive_date = NaiveDate::parse_from_str(value, DEFAULT_DATE_FORMAT)
+        let date = Date::strptime(DEFAULT_DATE_FORMAT, value)
             .map_err(|_| ValidationError::InvalidValue)?;
 
-        Ok(Self(naive_date))
+        Ok(Self(date))
     }
 }
 
 impl std::ops::Deref for DateOfHearing {
-    type Target = chrono::NaiveDate;
+    type Target = jiff::civil::Date;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -87,11 +87,11 @@ impl std::ops::Deref for DateOfHearing {
 }
 
 #[derive(Default, Clone)]
-struct TimeOfHearing(NaiveTime);
+struct TimeOfHearing(Time);
 
 impl TimeOfHearing {
     fn format(&self) -> String {
-        self.0.format(DEFAULT_TIME_FORMAT).to_string()
+        self.0.strftime(DEFAULT_TIME_FORMAT).to_string()
     }
 }
 
@@ -99,14 +99,14 @@ impl FromStr for TimeOfHearing {
     type Err = ValidationError;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        NaiveTime::parse_from_str(value, DEFAULT_TIME_FORMAT)
+        Time::strptime(DEFAULT_TIME_FORMAT, value)
             .map_err(|_| ValidationError::InvalidValue)
             .map(Self)
     }
 }
 
 impl std::ops::Deref for TimeOfHearing {
-    type Target = chrono::NaiveTime;
+    type Target = jiff::civil::Time;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -247,7 +247,7 @@ mod tests {
         assert_eq!(
             hearing_details
                 .date_time
-                .format("%Y-%m-%d %H:%M")
+                .strftime("%Y-%m-%d %H:%M")
                 .to_string(),
             "1999-12-31 12:34"
         );
@@ -314,10 +314,7 @@ mod tests {
     #[test]
     fn from_hearing_details_formats_date_and_time_and_fills_signers() {
         let hearing_details = HearingDetails {
-            date_time: NaiveDate::from_ymd_opt(1999, 12, 31)
-                .unwrap()
-                .and_hms_opt(12, 34, 0)
-                .unwrap(),
+            date_time: jiff::civil::date(1999, 12, 31).at(12, 34, 0, 0),
             chair: "Vera Voorzitter".to_string(),
             members: vec!["Jan Klaassen".to_string(), "Malle Babbe".to_string()],
         };

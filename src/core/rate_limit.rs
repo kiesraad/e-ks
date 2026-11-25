@@ -4,7 +4,7 @@
 //! [`PgStore::update`](crate::PgStore::update), so there is no extra state and
 //! the counts survive restarts.
 
-use chrono::{DateTime, TimeDelta, Utc};
+use jiff::{SignedDuration, Timestamp};
 
 /// Downloads per window; one download renders a PDF per candidate.
 const DEFAULT_MAX_DOWNLOADS: usize = 60;
@@ -20,11 +20,8 @@ const DEFAULT_WINDOW_SECS: u64 = 3_600;
 
 /// The sliding window as a duration, saturating rather than panicking on an
 /// absurdly large number of seconds.
-fn window_from_secs(secs: u64) -> TimeDelta {
-    i64::try_from(secs)
-        .ok()
-        .and_then(TimeDelta::try_seconds)
-        .unwrap_or(TimeDelta::MAX)
+fn window_from_secs(secs: u64) -> SignedDuration {
+    i64::try_from(secs).map_or(SignedDuration::MAX, SignedDuration::from_secs)
 }
 
 /// A "no more than `max` within `window`" limit over a sliding window.
@@ -33,7 +30,7 @@ pub struct RateLimit {
     /// Maximum number of occurrences within the window. `0` disables the limit.
     pub max: usize,
     /// Length of the sliding window.
-    pub window: TimeDelta,
+    pub window: SignedDuration,
 }
 
 impl RateLimit {
@@ -45,9 +42,8 @@ impl RateLimit {
 
     /// Start of the window ending at `now`. An absurdly long window saturates
     /// to "since forever" rather than panicking.
-    pub fn window_start(&self, now: DateTime<Utc>) -> DateTime<Utc> {
-        now.checked_sub_signed(self.window)
-            .unwrap_or(DateTime::<Utc>::MIN_UTC)
+    pub fn window_start(&self, now: Timestamp) -> Timestamp {
+        now.checked_sub(self.window).unwrap_or(Timestamp::MIN)
     }
 
     /// This limit with the configured `max` and window laid over it where set.
@@ -93,7 +89,7 @@ impl RateLimits {
         max_downloads: usize,
         max_events: usize,
         events_total: usize,
-        window: TimeDelta,
+        window: SignedDuration,
     ) -> Self {
         Self {
             downloads: RateLimit {
@@ -116,7 +112,7 @@ mod tests {
     fn limit(max: usize) -> RateLimit {
         RateLimit {
             max,
-            window: TimeDelta::minutes(1),
+            window: SignedDuration::from_mins(1),
         }
     }
 
@@ -132,15 +128,18 @@ mod tests {
     /// saturates instead of panicking.
     #[test]
     fn window_start_saturates() {
-        let now = Utc::now();
+        let now = Timestamp::now();
 
-        assert_eq!(limit(1).window_start(now), now - TimeDelta::seconds(60));
+        assert_eq!(
+            limit(1).window_start(now),
+            now - SignedDuration::from_secs(60)
+        );
 
         let absurd = RateLimit {
             max: 1,
             window: window_from_secs(u64::MAX),
         };
-        assert_eq!(absurd.window_start(now), DateTime::<Utc>::MIN_UTC);
+        assert_eq!(absurd.window_start(now), Timestamp::MIN);
     }
 
     /// `with` keeps whatever is not set.
@@ -148,10 +147,10 @@ mod tests {
     fn with_lays_settings_over_the_limit() {
         let configured = limit(5).with(Some(9), None);
         assert_eq!(configured.max, 9);
-        assert_eq!(configured.window, TimeDelta::minutes(1));
+        assert_eq!(configured.window, SignedDuration::from_mins(1));
 
         let configured = limit(5).with(None, Some(90));
         assert_eq!(configured.max, 5);
-        assert_eq!(configured.window, TimeDelta::seconds(90));
+        assert_eq!(configured.window, SignedDuration::from_secs(90));
     }
 }

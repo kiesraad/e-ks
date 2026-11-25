@@ -9,7 +9,7 @@ use crate::{
     },
     types::EntityId,
 };
-use chrono::{DateTime, Duration, Utc};
+use jiff::{SignedDuration, Timestamp};
 
 /// Context threaded through every validation step: the parsed document, one
 /// wall-clock reference with the eID §9.5 clock-skew allowance, and the error
@@ -19,8 +19,8 @@ use chrono::{DateTime, Duration, Utc};
 /// the caller treats the result as valid only when no error was recorded.
 pub(super) struct Validator<'a, 'input> {
     pub doc: &'a Document<'input>,
-    pub now: DateTime<Utc>,
-    pub skew: Duration,
+    pub now: Timestamp,
+    pub skew: SignedDuration,
     pub errors: &'a mut Vec<String>,
 }
 
@@ -28,8 +28,8 @@ impl<'a, 'input> Validator<'a, 'input> {
     pub fn new(doc: &'a Document<'input>, errors: &'a mut Vec<String>) -> Self {
         Self {
             doc,
-            now: Utc::now(),
-            skew: Duration::seconds(CLOCK_SKEW_SECONDS),
+            now: Timestamp::now(),
+            skew: SignedDuration::from_secs(CLOCK_SKEW_SECONDS),
             errors,
         }
     }
@@ -107,11 +107,11 @@ impl<'a, 'input> Validator<'a, 'input> {
             self.error(format!("{label} is missing (required, cardinality 1)"));
             return;
         };
-        let Ok(t) = s.parse::<DateTime<Utc>>() else {
+        let Ok(t) = s.parse::<Timestamp>() else {
             self.error(format!("{label} has an invalid timestamp: {s}"));
             return;
         };
-        let max_age = Duration::seconds(MESSAGE_FRESHNESS_SECONDS);
+        let max_age = SignedDuration::from_secs(MESSAGE_FRESHNESS_SECONDS);
         let Some(stale_after) = self.shifted(t, max_age + self.skew, label, s) else {
             return;
         };
@@ -128,19 +128,19 @@ impl<'a, 'input> Validator<'a, 'input> {
     /// `t` shifted by `delta`, or `None` (with an error recorded) when the shift
     /// is not representable.
     ///
-    /// chrono's `+`/`-` on a `DateTime` **panic** on overflow, and every instant
+    /// jiff's `+`/`-` on a `Timestamp` **panic** on overflow, and every instant
     /// the validators shift is a wire value: a timestamp near the edge of the
-    /// representable range (chrono parses years up to +262142) would take the
+    /// representable range (jiff parses years up to 9999) would take the
     /// process down. An instant that cannot absorb a 30-second skew allowance is
     /// nonsense anyway, so it is rejected rather than reasoned about.
     fn shifted(
         &mut self,
-        t: DateTime<Utc>,
-        delta: Duration,
+        t: Timestamp,
+        delta: SignedDuration,
         label: &str,
         raw: &str,
-    ) -> Option<DateTime<Utc>> {
-        let shifted = t.checked_add_signed(delta);
+    ) -> Option<Timestamp> {
+        let shifted = t.checked_add(delta).ok();
         if shifted.is_none() {
             self.error(format!(
                 "{label} timestamp is outside the usable range: {raw}"
@@ -181,12 +181,12 @@ impl<'a, 'input> Validator<'a, 'input> {
         val: Option<&'v str>,
         attr: &str,
         label: &str,
-    ) -> Option<(DateTime<Utc>, &'v str)> {
+    ) -> Option<(Timestamp, &'v str)> {
         let Some(s) = val else {
             self.error(format!("{label} is missing the required {attr}"));
             return None;
         };
-        match s.parse::<DateTime<Utc>>() {
+        match s.parse::<Timestamp>() {
             Ok(t) => Some((t, s)),
             Err(_) => {
                 self.error(format!("{label} has an invalid {attr} timestamp: {s}"));
@@ -320,8 +320,8 @@ mod tests {
 
     #[test]
     fn check_not_on_or_after_valid() {
-        let future = (Utc::now() + Duration::hours(1))
-            .format("%Y-%m-%dT%H:%M:%SZ")
+        let future = (Timestamp::now() + SignedDuration::from_hours(1))
+            .strftime("%Y-%m-%dT%H:%M:%SZ")
             .to_string();
         let errors = time_check_errors(|v| v.check_not_on_or_after(Some(&future), "Test"));
         assert!(errors.is_empty());
@@ -329,8 +329,8 @@ mod tests {
 
     #[test]
     fn check_not_on_or_after_expired() {
-        let past = (Utc::now() - Duration::hours(1))
-            .format("%Y-%m-%dT%H:%M:%SZ")
+        let past = (Timestamp::now() - SignedDuration::from_hours(1))
+            .strftime("%Y-%m-%dT%H:%M:%SZ")
             .to_string();
         let errors = time_check_errors(|v| v.check_not_on_or_after(Some(&past), "Test"));
         assert_eq!(errors.len(), 1);
@@ -339,15 +339,16 @@ mod tests {
 
     #[test]
     fn check_freshness_bounds_both_directions_and_requires_presence() {
-        let at = |offset: Duration| {
-            (Utc::now() + offset)
-                .format("%Y-%m-%dT%H:%M:%SZ")
+        let at = |offset: SignedDuration| {
+            (Timestamp::now() + offset)
+                .strftime("%Y-%m-%dT%H:%M:%SZ")
                 .to_string()
         };
 
         // A recent instant is fresh.
-        let errors =
-            time_check_errors(|v| v.check_freshness(Some(&at(-Duration::seconds(10))), "Msg"));
+        let errors = time_check_errors(|v| {
+            v.check_freshness(Some(&at(-SignedDuration::from_secs(10))), "Msg")
+        });
         assert!(errors.is_empty(), "fresh instant: {errors:?}");
 
         // eID cardinality 1: an absent instant fails closed.
@@ -358,21 +359,25 @@ mod tests {
         );
 
         // Older than the freshness window plus skew is stale.
-        let errors =
-            time_check_errors(|v| v.check_freshness(Some(&at(-Duration::seconds(400))), "Msg"));
+        let errors = time_check_errors(|v| {
+            v.check_freshness(Some(&at(-SignedDuration::from_secs(400))), "Msg")
+        });
         assert!(errors.iter().any(|e| e.contains("stale")), "{errors:?}");
 
         // Further in the future than skew allows is rejected too: without this a
         // far-future instant would never age out.
-        let errors = time_check_errors(|v| v.check_freshness(Some(&at(Duration::hours(1))), "Msg"));
+        let errors = time_check_errors(|v| {
+            v.check_freshness(Some(&at(SignedDuration::from_hours(1))), "Msg")
+        });
         assert!(
             errors.iter().any(|e| e.contains("in the future")),
             "{errors:?}"
         );
 
         // Inside the skew allowance a slightly-future instant is still accepted.
-        let errors =
-            time_check_errors(|v| v.check_freshness(Some(&at(Duration::seconds(5))), "Msg"));
+        let errors = time_check_errors(|v| {
+            v.check_freshness(Some(&at(SignedDuration::from_secs(5))), "Msg")
+        });
         assert!(errors.is_empty(), "within skew: {errors:?}");
 
         // An unparseable instant fails closed.
@@ -382,9 +387,9 @@ mod tests {
 
     #[test]
     fn check_not_before_requires_presence_and_rejects_future() {
-        let at = |offset: Duration| {
-            (Utc::now() + offset)
-                .format("%Y-%m-%dT%H:%M:%SZ")
+        let at = |offset: SignedDuration| {
+            (Timestamp::now() + offset)
+                .strftime("%Y-%m-%dT%H:%M:%SZ")
                 .to_string()
         };
 
@@ -395,8 +400,9 @@ mod tests {
             "{errors:?}"
         );
 
-        let errors =
-            time_check_errors(|v| v.check_not_before(Some(&at(Duration::hours(1))), "Test"));
+        let errors = time_check_errors(|v| {
+            v.check_not_before(Some(&at(SignedDuration::from_hours(1))), "Test")
+        });
         assert!(
             errors.iter().any(|e| e.contains("not yet valid")),
             "{errors:?}"
@@ -405,8 +411,9 @@ mod tests {
         let errors = time_check_errors(|v| v.check_not_before(Some("nonsense"), "Test"));
         assert!(errors.iter().any(|e| e.contains("invalid NotBefore")));
 
-        let errors =
-            time_check_errors(|v| v.check_not_before(Some(&at(-Duration::minutes(5))), "Test"));
+        let errors = time_check_errors(|v| {
+            v.check_not_before(Some(&at(-SignedDuration::from_mins(5))), "Test")
+        });
         assert!(errors.is_empty(), "past NotBefore: {errors:?}");
     }
 
@@ -422,20 +429,17 @@ mod tests {
         assert!(errors.iter().any(|e| e.contains("invalid NotOnOrAfter")));
     }
 
-    /// The largest instant chrono can parse. Shifting it by the skew allowance
-    /// overflows, and chrono's `+` panics on overflow, so every timestamp check
-    /// must reject it instead of arithmetic-ing on it.
-    const MAX_PARSEABLE_INSTANT: &str = "+262142-12-31T23:59:59Z";
-    /// The smallest instant chrono can parse: the same hazard, subtracting skew.
-    const MIN_PARSEABLE_INSTANT: &str = "-262143-01-01T00:00:00Z";
-
     #[test]
     fn timestamps_at_the_edge_of_the_range_are_rejected_not_panicked_on() {
         // A hostile `@IssueInstant` / `@NotBefore` / `@NotOnOrAfter` at the edge
-        // of chrono's range must be refused, never take the process down.
-        for raw in [MAX_PARSEABLE_INSTANT, MIN_PARSEABLE_INSTANT] {
+        // of jiff's range must be refused, never take the process down: shifting
+        // it by the skew allowance overflows, and jiff's `+` panics on overflow,
+        // so every timestamp check must reject it instead of doing arithmetic
+        // on it.
+        for raw in [Timestamp::MAX.to_string(), Timestamp::MIN.to_string()] {
+            let raw = raw.as_str();
             assert!(
-                raw.parse::<DateTime<Utc>>().is_ok(),
+                raw.parse::<Timestamp>().is_ok(),
                 "{raw} must actually parse, or this test proves nothing"
             );
 

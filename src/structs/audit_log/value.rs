@@ -6,7 +6,7 @@
 
 use std::collections::BTreeSet;
 
-use chrono::{NaiveDate, NaiveDateTime};
+use jiff::civil::{Date, DateTime};
 
 use crate::{
     ElectoralDistrict, Locale, StreamId,
@@ -29,7 +29,7 @@ pub enum AuditValue {
     /// file names, counts.
     Text(String),
     Bool(bool),
-    Date(NaiveDate),
+    Date(Date),
     /// A closed choice, translated at render time.
     Enum(EnumValue),
     /// A reference to another stored entity, with the description it had at
@@ -198,7 +198,7 @@ impl AuditLeaf for usize {
 
 impl AuditLeaf for DateOfBirth {
     fn audit_value(&self) -> AuditValue {
-        AuditValue::Date(NaiveDate::from(self.clone()))
+        AuditValue::Date(Date::from(self.clone()))
     }
 }
 
@@ -232,9 +232,9 @@ impl AuditLeaf for BrpStatus {
     }
 }
 
-impl AuditLeaf for NaiveDateTime {
+impl AuditLeaf for DateTime {
     fn audit_value(&self) -> AuditValue {
-        AuditValue::text(self.format(DEFAULT_DATE_TIME_FORMAT))
+        AuditValue::text(self.strftime(DEFAULT_DATE_TIME_FORMAT))
     }
 }
 

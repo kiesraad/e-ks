@@ -83,7 +83,7 @@ pub(in crate::csb) fn brp_overview_model(
         election_name: election.formal_title(ModelLocale::Nl),
         appellation: data.pg(WithCorrections::All).get_appellation(),
         election_code: election.filename_slug(),
-        date: chrono::Utc::now().date_naive(),
+        date: crate::structs::common::UtcDateTime::now().date(),
         complete: state.is_checked(),
         candidates_without_brp_errors,
         candidates_with_brp_errors,

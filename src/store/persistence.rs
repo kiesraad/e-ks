@@ -1,6 +1,6 @@
 //! Persistence backends for the event store.
 
-use chrono::Utc;
+use jiff::Timestamp;
 use serde::{Serialize, de::DeserializeOwned};
 use std::sync::Arc;
 
@@ -360,7 +360,7 @@ where
                 let mut data = self.data.write();
                 super::check_expected_event_id(expected, data.last_event_id())?;
                 let event_id = data.last_event_id() + 1;
-                let created_at = Utc::now();
+                let created_at = Timestamp::now();
                 let prev_hash = data.last_event_hash();
                 // Nothing is persisted, so the chain hash is over the plain encoding.
                 let body = encoding::encode(&event)?;
@@ -478,7 +478,7 @@ mod tests {
                     store.write().apply(StoreEvent {
                         event_id: 2,
                         payload: 20,
-                        created_at: Utc::now(),
+                        created_at: Timestamp::now(),
                         hash: super::super::GENESIS_HASH,
                     });
                 }

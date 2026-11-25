@@ -135,19 +135,18 @@ fn model_data(
     }
 }
 
-fn date(year: i32, month: u32, day: u32) -> chrono::NaiveDate {
-    chrono::NaiveDate::from_ymd_opt(year, month, day).expect("valid example date")
+fn date(year: i16, month: i8, day: i8) -> jiff::civil::Date {
+    jiff::civil::date(year, month, day)
 }
 
-fn date_time(date: chrono::NaiveDate, hour: u32, minute: u32) -> chrono::NaiveDateTime {
-    date.and_hms_opt(hour, minute, 0)
-        .expect("valid example time")
+fn date_time(date: jiff::civil::Date, hour: i8, minute: i8) -> jiff::civil::DateTime {
+    date.at(hour, minute, 0, 0)
 }
 
 fn candidate(
     last_name: &str,
     initials: &str,
-    dob: chrono::NaiveDate,
+    dob: jiff::civil::Date,
     locality: &str,
     position: usize,
 ) -> Candidate {

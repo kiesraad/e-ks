@@ -1,27 +1,27 @@
-use chrono::NaiveDateTime;
+use jiff::civil::DateTime;
 use serde::{Serialize, Serializer, ser::SerializeStruct};
 
 use crate::core::constants::{DEFAULT_DATE_FORMAT, DEFAULT_TIME_FORMAT};
 
-/// The derived `Default` uses the Unix epoch as datetime.
+/// The derived `Default` uses midnight at the start of year 0 as datetime.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct PublicSession {
     pub location: &'static str,
     pub street_name: &'static str,
     pub house_number: usize,
     pub postal_code: &'static str,
-    pub datetime: NaiveDateTime,
+    pub datetime: DateTime,
     pub chair: &'static str,
     pub members: &'static [&'static str],
 }
 
 impl PublicSession {
     pub fn formatted_date(&self) -> String {
-        self.datetime.format(DEFAULT_DATE_FORMAT).to_string()
+        self.datetime.strftime(DEFAULT_DATE_FORMAT).to_string()
     }
 
     pub fn formatted_time(&self) -> String {
-        self.datetime.format(DEFAULT_TIME_FORMAT).to_string()
+        self.datetime.strftime(DEFAULT_TIME_FORMAT).to_string()
     }
 }
 

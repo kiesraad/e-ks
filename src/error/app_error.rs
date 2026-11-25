@@ -3,7 +3,7 @@ use axum::extract::{
     rejection::{JsonRejection, PathRejection, QueryRejection},
 };
 use axum_extra::extract::FormRejection;
-use chrono::TimeDelta;
+use jiff::SignedDuration;
 use std::{
     convert::Infallible,
     fmt::{Display, Formatter},
@@ -98,14 +98,14 @@ pub enum AppError {
     /// The download rate limit was reached; clears once the window passes.
     TooManyDownloads {
         max: usize,
-        window: TimeDelta,
+        window: SignedDuration,
     },
 
     /// The events-per-window rate limit was reached; clears once the window
     /// passes.
     TooManyEvents {
         max: usize,
-        window: TimeDelta,
+        window: SignedDuration,
     },
 
     /// The absolute cap on the number of events in one stream is reached, so
@@ -151,12 +151,12 @@ impl Display for AppError {
             AppError::TooManyDownloads { max, window } => write!(
                 f,
                 "Rate limit reached: at most {max} downloads per {} seconds",
-                window.num_seconds()
+                window.as_secs()
             ),
             AppError::TooManyEvents { max, window } => write!(
                 f,
                 "Rate limit reached: at most {max} changes per {} seconds",
-                window.num_seconds()
+                window.as_secs()
             ),
             AppError::EventLimitReached { max } => write!(
                 f,

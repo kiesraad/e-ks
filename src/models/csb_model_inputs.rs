@@ -768,7 +768,7 @@ mod tests {
 
     fn utc(value: &str) -> UtcDateTime {
         value
-            .parse::<chrono::DateTime<chrono::Utc>>()
+            .parse::<jiff::Timestamp>()
             .expect("rfc3339 timestamp")
             .into()
     }

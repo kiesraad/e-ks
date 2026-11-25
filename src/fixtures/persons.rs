@@ -1,7 +1,7 @@
 use std::{io, str::FromStr};
 
-use chrono::NaiveDate;
 use csv::{ReaderBuilder, Trim};
+use jiff::civil::Date;
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -100,7 +100,7 @@ impl PersonRecord {
                 "V" => Some(Gender::Female),
                 _ => None,
             },
-            date_of_birth: NaiveDate::parse_from_str(&self.geboortedatum, "%Y%m%d")
+            date_of_birth: Date::strptime("%Y%m%d", &self.geboortedatum)
                 .ok()
                 .map(DateOfBirth::from),
             bsn: Self::parse_value::<BsnOrNoneConfirmed>(&self.burgerservicenummer, "bsn").ok(),

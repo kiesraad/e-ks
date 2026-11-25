@@ -4,8 +4,8 @@
 
 use std::num::NonZeroU64;
 
-use chrono::NaiveDate;
 use eml_nl::utils::AffiliationType;
+use jiff::civil::Date;
 use textris_pdf::build::Textris;
 
 use super::{
@@ -19,7 +19,7 @@ use crate::{AppError, ElectoralDistrict, core::ModelLocale};
 #[derive(Debug)]
 pub struct CandidateListOverview {
     pub election_name: String,
-    pub election_date: NaiveDate,
+    pub election_date: Date,
     pub electoral_districts: Vec<ElectoralDistrict>,
     pub groups: Vec<OverviewGroup>,
 }
@@ -98,7 +98,7 @@ mod tests {
     fn group_without_appellation_renders() {
         let overview = CandidateListOverview {
             election_name: "Eerste Kamer".to_string(),
-            election_date: NaiveDate::from_ymd_opt(2027, 1, 1).unwrap(),
+            election_date: jiff::civil::date(2027, 1, 1),
             electoral_districts: vec![Groningen],
             groups: vec![OverviewGroup {
                 number: 1,

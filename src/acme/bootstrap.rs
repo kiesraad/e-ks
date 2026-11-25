@@ -61,7 +61,7 @@ fn self_signed_placeholder(domain: &str) -> Result<(String, String), AppError> {
 
     let cert_pem = cert.pem();
     debug_assert!(
-        renewal_due(cert_not_after(cert_pem.as_bytes())?, chrono::Utc::now()),
+        renewal_due(cert_not_after(cert_pem.as_bytes())?, jiff::Timestamp::now()),
         "placeholder must trigger an immediate renewal"
     );
 
@@ -113,7 +113,7 @@ mod tests {
         server::server_config_from_pem(&cert, &key).expect("valid cert/key pair");
         assert!(renewal_due(
             cert_not_after(&cert).unwrap(),
-            chrono::Utc::now()
+            jiff::Timestamp::now()
         ));
 
         tokio::fs::remove_dir_all(&dir).await.unwrap();

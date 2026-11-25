@@ -102,7 +102,7 @@ impl CsbStoreData {
                     }
                     PersonCorrection::DateOfBirth(date_of_birth) => (
                         CandidateCorrectionField::DateOfBirth,
-                        date_of_birth.format(DEFAULT_DATE_FORMAT).to_string(),
+                        date_of_birth.strftime(DEFAULT_DATE_FORMAT).to_string(),
                     ),
                     PersonCorrection::PlaceOfResidence(place_of_residence) => (
                         CandidateCorrectionField::PlaceOfResidence,

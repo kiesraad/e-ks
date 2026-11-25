@@ -1,4 +1,4 @@
-use chrono::NaiveDate;
+use jiff::civil::Date;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -89,7 +89,7 @@ pub enum BrpValue {
     LastNamePrefix(LastNamePrefix),
     LastName(LastName),
     Gender(Gender),
-    DateOfBirth(NaiveDate),
+    DateOfBirth(Date),
     PlaceOfResidence(PlaceOfResidence),
 }
 
@@ -117,7 +117,7 @@ impl BrpValue {
             // than the BRP's own code.
             Self::Gender(Gender::Male) => trans!("common.gender.male", locale),
             Self::Gender(Gender::Female) => trans!("common.gender.female", locale),
-            Self::DateOfBirth(date) => date.format(DEFAULT_DATE_FORMAT).to_string(),
+            Self::DateOfBirth(date) => date.strftime(DEFAULT_DATE_FORMAT).to_string(),
             Self::PlaceOfResidence(place) => place.to_string(),
         }
     }
@@ -256,7 +256,7 @@ pub enum BrpFindingKind {
     PersonalDetailsNotUnique,
     /// The BRP records a date of death for this candidate. `None` when it
     /// records the death without a full date.
-    Deceased { date_of_death: Option<NaiveDate> },
+    Deceased { date_of_death: Option<Date> },
     /// The BRP records no Dutch nationality for this candidate.
     NotDutch,
     /// The BRP records this candidate as excluded from the right to vote.
@@ -381,7 +381,7 @@ impl BrpFindingKind {
                 trans!(
                     "csb.brp.finding.deceased",
                     locale,
-                    date.format(DEFAULT_DATE_FORMAT).to_string()
+                    date.strftime(DEFAULT_DATE_FORMAT).to_string()
                 )
             }
             Self::Deceased {

@@ -117,7 +117,7 @@ impl PersonalData {
 mod tests {
     use super::*;
     use crate::PgStore;
-    use chrono::{Duration, NaiveDate};
+    use jiff::SignedDuration;
 
     fn complete_personal_data() -> PersonalData {
         PersonalData {
@@ -178,7 +178,7 @@ mod tests {
     #[test]
     fn very_old_date_of_birth_produces_warning() {
         let mut data = complete_personal_data();
-        data.date_of_birth = Some(NaiveDate::from_ymd_opt(1900, 1, 1).unwrap().into());
+        data.date_of_birth = Some(jiff::civil::date(1900, 1, 1).into());
         assert!(
             data.get_problems(ElectionConfig::EK27)
                 .info_problems
@@ -191,7 +191,7 @@ mod tests {
         let store = PgStore::new_for_test();
         let eligible_dob = store.election.eligible_date_of_birth();
         let mut data = complete_personal_data();
-        data.date_of_birth = Some((eligible_dob + Duration::days(1)).into());
+        data.date_of_birth = Some((eligible_dob + SignedDuration::from_hours(24)).into());
         assert!(
             data.get_problems(ElectionConfig::EK27)
                 .potential_problems

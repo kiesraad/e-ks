@@ -1,6 +1,6 @@
 use std::{str::FromStr, sync::Arc, time::Duration};
 
-use chrono::NaiveDate;
+use jiff::civil::Date;
 use reqwest::{Certificate, Client, Identity};
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
@@ -307,7 +307,7 @@ impl BrpClient {
         if last_name.trim().is_empty() {
             return Ok(None);
         }
-        let date_of_birth = date_of_birth.format(BRP_DATE_FORMAT).to_string();
+        let date_of_birth = date_of_birth.strftime(BRP_DATE_FORMAT).to_string();
         let prefix = person
             .name
             .last_name_prefix
@@ -675,8 +675,8 @@ fn eligibility_findings(brp_person: &BrpPerson) -> Vec<BrpFindingKind> {
     findings
 }
 
-fn parse_brp_date(raw: &str) -> Option<NaiveDate> {
-    NaiveDate::parse_from_str(raw.trim(), BRP_DATE_FORMAT).ok()
+fn parse_brp_date(raw: &str) -> Option<Date> {
+    Date::strptime(BRP_DATE_FORMAT, raw.trim()).ok()
 }
 
 /// The answer to either query type: both carry the persons found under
@@ -1286,7 +1286,7 @@ mod tests {
             findings_for_record(&person, deceased)
                 .await
                 .contains(&BrpFindingKind::Deceased {
-                    date_of_death: NaiveDate::from_ymd_opt(2026, 1, 31)
+                    date_of_death: Some(jiff::civil::date(2026, 1, 31))
                 })
         );
 

@@ -31,7 +31,7 @@ pub async fn gen_documents(
 #[cfg(test)]
 mod tests {
     use crate::store::StoreData;
-    use chrono::TimeDelta;
+    use jiff::SignedDuration;
 
     use super::*;
 
@@ -304,7 +304,7 @@ mod tests {
     async fn gen_documents_is_rate_limited() -> Result<(), AppError> {
         let (store, _, context) =
             setup_documents_test_state(1, 1, true, true, ElectionConfig::EK27).await?;
-        let limits = crate::RateLimits::new_for_test(1, 0, 0, TimeDelta::minutes(1));
+        let limits = crate::RateLimits::new_for_test(1, 0, 0, SignedDuration::from_mins(1));
         let store = store.with_limits(limits);
         // captured once: the first download appends an event, so the second
         // call reuses a link that is already one event behind

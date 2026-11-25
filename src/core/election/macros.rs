@@ -108,7 +108,7 @@ macro_rules! define_elections {
             }
 
 
-            pub fn nomination_day_date(&self) -> NaiveDate {
+            pub fn nomination_day_date(&self) -> jiff::civil::Date {
                 #[allow(unused)]
                 match self {
                     $(
@@ -117,7 +117,7 @@ macro_rules! define_elections {
                 }
             }
 
-            pub fn election_date(&self) -> NaiveDate {
+            pub fn election_date(&self) -> jiff::civil::Date {
                 #[allow(unused)]
                 match self {
                     $(
@@ -126,7 +126,7 @@ macro_rules! define_elections {
                 }
             }
 
-            pub fn eligible_date_of_birth(&self) -> NaiveDate {
+            pub fn eligible_date_of_birth(&self) -> jiff::civil::Date {
                 #[allow(unused)]
                 match self {
                     $(
@@ -166,7 +166,7 @@ macro_rules! define_elections {
                 }
             }
 
-            pub fn presubmission_end_date(&self) -> NaiveDate {
+            pub fn presubmission_end_date(&self) -> jiff::civil::Date {
                 #[allow(unused)]
                 match self {
                     $(
@@ -175,7 +175,7 @@ macro_rules! define_elections {
                 }
             }
 
-            pub fn document_review_date(&self) -> NaiveDate {
+            pub fn document_review_date(&self) -> jiff::civil::Date {
                 #[allow(unused)]
                 match self {
                     $(
@@ -185,7 +185,7 @@ macro_rules! define_elections {
             }
 
             /// The first day omissions can be recovered, the day after the omission letter is sent.
-            pub fn omission_period_start_date(&self) -> NaiveDate {
+            pub fn omission_period_start_date(&self) -> jiff::civil::Date {
                 #[allow(unused)]
                 match self {
                     $(
@@ -194,7 +194,7 @@ macro_rules! define_elections {
                 }
             }
 
-            pub fn omission_period_end_date(&self) -> NaiveDate {
+            pub fn omission_period_end_date(&self) -> jiff::civil::Date {
                 #[allow(unused)]
                 match self {
                     $(
@@ -204,7 +204,7 @@ macro_rules! define_elections {
             }
 
             /// The time on [`Self::omission_period_end_date`] the recovery period closes.
-            pub fn omission_period_end_time(&self) -> NaiveTime {
+            pub fn omission_period_end_time(&self) -> jiff::civil::Time {
                 #[allow(unused)]
                 match self {
                     $(

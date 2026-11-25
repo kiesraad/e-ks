@@ -13,7 +13,7 @@ use common::{
 };
 
 use auth_service::{keys::KeyPair, saml::crypto::sign};
-use chrono::Duration;
+use jiff::SignedDuration;
 
 const GENUINE: &str = "GENUINE-USER";
 const ATTACKER: &str = "ATTACKER-CHOSEN-VICTIM";
@@ -24,7 +24,7 @@ const ATTACKER: &str = "ATTACKER-CHOSEN-VICTIM";
 /// after the Status, so a case can add ID attributes or sibling elements before
 /// the RD signs (a signed document) or after (a tampered one).
 fn artifact_response(art_attrs: &str, extra_body: &str, name_id: &str) -> String {
-    let now = ts(Duration::zero());
+    let now = ts(SignedDuration::ZERO);
     let body = response("1", name_id);
     let sig = sig_template("_art1", &load_key("rd-signing-1").cert_base64);
     format!(
@@ -174,7 +174,7 @@ fn identity_text_inside_a_child_element_is_not_read_as_the_identity() {
     let rd_key = load_key("rd-signing-1");
     // Signed *with* the nested shape, so the digest is valid and the only thing
     // that can reject it is the extraction rule itself.
-    let now = ts(Duration::zero());
+    let now = ts(SignedDuration::ZERO);
     let body = response("1", GENUINE);
     let sig = sig_template("_art1", &rd_key.cert_base64);
     let nested_issuer = format!(
@@ -303,7 +303,7 @@ fn signature_nested_in_advice_before_the_enveloping_one_is_rejected() {
 #[test]
 fn namespaces_declared_on_the_envelope_still_verify() {
     let rd_key = load_key("rd-signing-1");
-    let now = ts(Duration::zero());
+    let now = ts(SignedDuration::ZERO);
     let body = response("1", GENUINE);
     let sig = sig_template("_art1", &rd_key.cert_base64);
 
@@ -328,7 +328,7 @@ fn namespaces_declared_on_the_envelope_still_verify() {
 #[test]
 fn namespace_reconstruction_does_not_rescue_a_tampered_document() {
     let rd_key = load_key("rd-signing-1");
-    let now = ts(Duration::zero());
+    let now = ts(SignedDuration::ZERO);
     let body = response("1", GENUINE);
     let sig = sig_template("_art1", &rd_key.cert_base64);
     let envelope = format!(

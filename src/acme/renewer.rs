@@ -4,11 +4,11 @@
 use std::{path::Path, sync::Arc, time::Duration};
 
 use axum_server::tls_rustls::RustlsConfig;
-use chrono::{DateTime, Utc};
 use instant_acme::{
     Account, AuthorizationStatus, CertificateIdentifier, ChallengeType, Identifier, NewOrder,
     Order, OrderStatus, RetryPolicy,
 };
+use jiff::Timestamp;
 use rustls::pki_types::{CertificateDer, pem::PemObject};
 use tokio::io::AsyncWriteExt;
 
@@ -21,7 +21,7 @@ use crate::{
 /// Renew when NotAfter is this close; Let's Encrypt certificates last 90 days.
 const RENEW_BEFORE_DAYS: i64 = 30;
 /// Daily renewal check time (UTC hour).
-const CHECK_HOUR_UTC: u32 = 2;
+const CHECK_HOUR_UTC: i8 = 2;
 /// Failure backoff (seconds); the last value repeats.
 const BACKOFF_SECS: [u64; 4] = [60, 300, 900, 3600];
 
@@ -55,8 +55,9 @@ pub async fn run_acme_renewer(
         match renewal.renew_if_due().await {
             Ok(()) => {
                 consecutive_failures = 0;
-                let now = Utc::now();
-                let wait = (next_check_at(now) - now).to_std().unwrap_or_default();
+                let now = Timestamp::now();
+                let wait =
+                    std::time::Duration::try_from(next_check_at(now) - now).unwrap_or_default();
                 tokio::time::sleep(wait).await;
             }
             Err(err) => {
@@ -84,7 +85,7 @@ impl Renewal<'_> {
             .await
             .map_err(AppError::IoError)?;
         let not_after = cert_not_after(&cert_pem)?;
-        if !renewal_due(not_after, Utc::now()) {
+        if !renewal_due(not_after, Timestamp::now()) {
             return Ok(());
         }
 
@@ -238,7 +239,7 @@ impl Renewal<'_> {
 }
 
 /// NotAfter of the first (end-entity) certificate in a PEM bundle.
-pub(super) fn cert_not_after(cert_pem: &[u8]) -> Result<DateTime<Utc>, AppError> {
+pub(super) fn cert_not_after(cert_pem: &[u8]) -> Result<Timestamp, AppError> {
     let cert = CertificateDer::pem_slice_iter(cert_pem)
         .next()
         .ok_or_else(|| {
@@ -248,26 +249,24 @@ pub(super) fn cert_not_after(cert_pem: &[u8]) -> Result<DateTime<Utc>, AppError>
     let (_, parsed) = x509_parser::parse_x509_certificate(cert.as_ref())
         .map_err(|e| AppError::ConfigLoadError(format!("invalid TLS certificate: {e}")))?;
 
-    DateTime::from_timestamp(parsed.validity().not_after.timestamp(), 0).ok_or_else(|| {
-        AppError::ConfigLoadError("TLS certificate NotAfter out of range".to_string())
-    })
+    Timestamp::from_second(parsed.validity().not_after.timestamp())
+        .map_err(|_| AppError::ConfigLoadError("TLS certificate NotAfter out of range".to_string()))
 }
 
-pub(super) fn renewal_due(not_after: DateTime<Utc>, now: DateTime<Utc>) -> bool {
-    not_after - now < chrono::Duration::days(RENEW_BEFORE_DAYS)
+pub(super) fn renewal_due(not_after: Timestamp, now: Timestamp) -> bool {
+    not_after - now < jiff::SignedDuration::from_hours(24 * RENEW_BEFORE_DAYS)
 }
 
 /// Next daily check moment at [`CHECK_HOUR_UTC`].
-pub(super) fn next_check_at(now: DateTime<Utc>) -> DateTime<Utc> {
-    let today = now
-        .date_naive()
-        .and_hms_opt(CHECK_HOUR_UTC, 0, 0)
-        .expect("valid check time")
-        .and_utc();
+pub(super) fn next_check_at(now: Timestamp) -> Timestamp {
+    let utc = jiff::tz::Offset::UTC;
+    let today = utc
+        .to_timestamp(utc.to_datetime(now).date().at(CHECK_HOUR_UTC, 0, 0, 0))
+        .expect("the check hour on the current UTC date is a valid moment");
     if today > now {
         today
     } else {
-        today + chrono::Duration::days(1)
+        today + jiff::SignedDuration::from_hours(24)
     }
 }
 
@@ -427,7 +426,7 @@ mod tests {
     #[test]
     fn cert_not_after_parses_fixture_cert() {
         let not_after = cert_not_after(FIXTURE_CERT).expect("fixture cert parses");
-        assert!(not_after > DateTime::from_timestamp(1_500_000_000, 0).unwrap());
+        assert!(not_after > Timestamp::from_second(1_500_000_000).unwrap());
     }
 
     #[test]
@@ -438,8 +437,8 @@ mod tests {
 
     #[test]
     fn renewal_due_boundaries() {
-        let now = Utc::now();
-        let day = chrono::Duration::days(1);
+        let now = Timestamp::now();
+        let day = jiff::SignedDuration::from_hours(24);
 
         assert!(!renewal_due(now + day * 31, now));
         assert!(renewal_due(now + day * 29, now));
@@ -449,19 +448,19 @@ mod tests {
     #[test]
     fn next_check_at_boundaries() {
         let at = |h, m| {
-            DateTime::parse_from_rfc3339(&format!("2026-07-28T{h:02}:{m:02}:00Z"))
+            format!("2026-07-28T{h:02}:{m:02}:00Z")
+                .parse::<Timestamp>()
                 .unwrap()
-                .to_utc()
         };
 
         assert_eq!(next_check_at(at(1, 30)), at(2, 0));
         assert_eq!(
             next_check_at(at(2, 0)),
-            at(2, 0) + chrono::Duration::days(1)
+            at(2, 0) + jiff::SignedDuration::from_hours(24)
         );
         assert_eq!(
             next_check_at(at(14, 45)),
-            at(2, 0) + chrono::Duration::days(1)
+            at(2, 0) + jiff::SignedDuration::from_hours(24)
         );
     }
 

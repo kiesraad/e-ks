@@ -5,7 +5,7 @@
 //!
 //! Type-checked example values live in `super::examples`.
 
-use chrono::NaiveDate;
+use jiff::civil::Date;
 use tracing::error;
 
 use crate::{
@@ -65,7 +65,7 @@ pub struct Candidate {
     /// Initials as printed on the model, e.g., optionally including the gender
     /// and first name
     pub initials: String,
-    pub date_of_birth: NaiveDate,
+    pub date_of_birth: Date,
     pub locality: String,
     pub position: usize,
 }
@@ -344,10 +344,7 @@ mod tests {
         assert_eq!(ordered.len(), 2);
         assert_eq!(ordered[0].last_name, "Beta");
         assert_eq!(ordered[1].last_name, "Alpha");
-        assert_eq!(
-            ordered[0].date_of_birth,
-            chrono::NaiveDate::from_ymd_opt(1990, 2, 1).unwrap()
-        );
+        assert_eq!(ordered[0].date_of_birth, jiff::civil::date(1990, 2, 1));
         assert_eq!(ordered[0].locality, "Juinen");
 
         Ok(())
