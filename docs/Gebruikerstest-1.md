@@ -24,8 +24,8 @@ Via [deze](https://github.com/user-attachments/files/24496355/Usability-Testing-
 
 
 ## Algemene vragen
-- Met welke voorkennis en programmatuur maak je een lijst normaal gesproken aan. Heb je al eerder een lijst elders aangemaakt voordat je OSV opstarte? 
-- Hoeveel sessie(ongeveer) voordat je de lijsten hebt ingelevert? - Wat waren de redenen geweest dat je de sessie niet in één keer kon afmaken?
+- Met welke voorkennis en programmatuur maak je een lijst normaal gesproken aan. Heb je al eerder een lijst elders aangemaakt voordat je OSV opstartte? 
+- Hoeveel sessie(ongeveer) voordat je de lijsten hebt ingeleverd? - Wat waren de redenen geweest dat je de sessie niet in één keer kon afmaken?
 - Hoeveel tijd koste het voorheen (ongeveer) om met OSV een partij en lijst aan te melden? Wat vond je goed werken bij OSV? Of wat juist niet. 
 
 # Taken

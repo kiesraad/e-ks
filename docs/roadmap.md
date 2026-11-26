@@ -11,7 +11,7 @@ sizing in repo van de epics: S, M, L, XL (M = twee weken met het hele team)
 - (sprint 2) Algemene lijstgegevens verwerken 
 - (sprint 3) e-KS wordt klaar gemaakt voor de eerste gebruikerstest
 - (sprint 4) Kandidatenlijst uitprinten, instemmingsverklaring uitprinten 
-- (sprint 5) Machtingsverklaring uitprinten
+- (sprint 5) Machtigingsverklaring uitprinten
 - (sprint 6) Ondersteuningsverklaringen fase 1
 - (sprint 7) Verkiezingsconfiguratie maken (naam, kieskringen, datums, etc.)
 - (sprint 8) Audit log & CSV. export/import functionaliteit kandidaten 
@@ -33,7 +33,7 @@ sizing in repo van de epics: S, M, L, XL (M = twee weken met het hele team)
 - Goedkeuring/afkeuren/schrappen door CSB
 - Productiehosting omgeving
 - Resultaten zitting verwerken
-- Defintieve kandidatenlijsten opstellen en uitprinten (model I4)
+- Definitieve kandidatenlijsten opstellen en uitprinten (model I4)
 - EML (kandidatenlijsten, totaallijst en verkiezingsdefinitie)
 
 ### Later (niet voor Eerste kamer relevant)
@@ -46,7 +46,7 @@ sizing in repo van de epics: S, M, L, XL (M = twee weken met het hele team)
 - Meldingen inrichten
 - To do lijst voor politieke partijen
 - Betalingsbewijs waarborgsom
-- Verklaring voorgenomen vestiging (relevant bij Provenciale Staten, Waterschappen (algemeen bestuur) en Gemeenteraad). Zie art. H7.
+- Verklaring voorgenomen vestiging (relevant bij Provinciale Staten, Waterschappen (algemeen bestuur) en Gemeenteraad). Zie art. H7.
 - Registratie partijen fase 1
 - Instemmingsverklaring afgeven (nice to have: inlog DigiD)
   
@@ -69,9 +69,9 @@ sizing in repo van de epics: S, M, L, XL (M = twee weken met het hele team)
 - Volgorde van epics / sprints aangepast
 
 ## 10-12-2025 Iris en Marlon
-- CI/CD pipeline opzetten, intiële CI/CD pipeline is klaar, was een dag werk. Er is veel overgenomen van Abacus
+- CI/CD pipeline opzetten, initiële CI/CD pipeline is klaar, was een dag werk. Er is veel overgenomen van Abacus
 - Inloggen BES eilanden uitzoekissue van maken, we verwachten niet dat het een Epic is
-- Machtingverklaring afgeven, opgenomen in een andere Epic (Algemene lijstgegevens verwerken )
+- Machtigingverklaring afgeven, opgenomen in een andere Epic (Algemene lijstgegevens verwerken )
 - Blanco lijsten aanmaken: uitzoek issue van maken
 
 
