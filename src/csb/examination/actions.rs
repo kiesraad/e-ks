@@ -47,7 +47,8 @@ impl Omission {
     /// electoral district, or a candidate list. The projection splits the part
     /// off while the omission covers other parts, so those keep waiting for
     /// their own decision, and reads parts decided the same way as one
-    /// omission again (see [`CsbAction::SetOmissionPartStatus`]).
+    /// omission again (see [`CsbAction::SetOmissionPartStatus`]). A part the
+    /// omission does not cover (any more) is a [`AppError::Conflict`].
     pub async fn set_part_status(
         &self,
         store: &CsbStore,
@@ -59,10 +60,10 @@ impl Omission {
                 "an irreparable omission cannot be assessed".to_string(),
             ));
         }
+        // The page that posted this is older than the store: an earlier
+        // decision moved the part to another omission.
         if !self.covers(&store.election, part) {
-            return Err(AppError::UserError(format!(
-                "the omission was not reported for {part:?}"
-            )));
+            return Err(AppError::Conflict);
         }
 
         // A legacy omission covers all districts as none; spell them out, so

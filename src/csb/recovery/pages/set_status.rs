@@ -466,7 +466,7 @@ mod tests {
         )
         .await;
 
-        assert!(result.is_err());
+        assert!(matches!(result, Err(AppError::Conflict)));
         assert_eq!(store.snapshot().get_omission_count(), 1);
         assert_eq!(
             store.snapshot().get_omission(omission.id).unwrap().status,
@@ -969,7 +969,7 @@ mod tests {
         )
         .await;
 
-        assert!(result.is_err());
+        assert!(matches!(result, Err(AppError::Conflict)));
         assert_eq!(store.snapshot().get_omission_count(), 1);
     }
 
@@ -1001,7 +1001,7 @@ mod tests {
         )
         .await;
 
-        assert!(result.is_err());
+        assert!(matches!(result, Err(AppError::Conflict)));
         assert_eq!(store.snapshot().get_omission_count(), 1);
     }
 
