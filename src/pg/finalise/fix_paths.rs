@@ -62,7 +62,8 @@ impl PotentialProblems {
                 CandidateList::list_path().to_string()
             }
 
-            PotentialProblems::TooFewAuthorizedNames { .. } => NameAuthorisation::create_path()
+            PotentialProblems::NoAuthorisedName
+            | PotentialProblems::TooFewAuthorizedNames { .. } => NameAuthorisation::create_path()
                 .with_query_params(QueryParamState::redirect_to(FinalisePath.to_string()))
                 .to_string(),
             PotentialProblems::TooManyAuthorizedNames { .. } => {

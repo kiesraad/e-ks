@@ -14,6 +14,7 @@ legend:
   warning_help: "The documents can be printed, but this may result in an omission."
 no_appellation: Appellation missing
 no_authorised_agent: No authorised agent
+no_authorised_name: No statutory name
 no_bsn: BSN missing
 no_candidate_list: No candidate list
 no_candidates: No candidates

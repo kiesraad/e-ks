@@ -363,10 +363,7 @@ mod tests {
         let (problems, _) = AllProblems::find_general_problems(&store.snapshot());
 
         assert_eq!(problems.general.len(), 1);
-        assert_eq!(
-            problems.general[0],
-            PotentialProblems::TooFewAuthorizedNames { count: 1 }
-        );
+        assert_eq!(problems.general[0], PotentialProblems::NoAuthorisedName);
 
         Ok(())
     }

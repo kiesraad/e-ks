@@ -103,6 +103,7 @@ pub enum PotentialProblems {
     NoAppellation,
     NoAuthorisedAgent,
     NoListSubmitter,
+    NoAuthorisedName,
     TooManyAuthorizedNames {
         count: usize,
     },
@@ -213,6 +214,7 @@ impl PotentialProblems {
             PotentialProblems::NoAppellation => trans!("problems.no_appellation", *locale),
             PotentialProblems::NoListSubmitter => trans!("problems.no_list_submitter", *locale),
             PotentialProblems::NoAuthorisedAgent => trans!("problems.no_authorised_agent", *locale),
+            PotentialProblems::NoAuthorisedName => trans!("problems.no_authorised_name", *locale),
             PotentialProblems::TooManyAuthorizedNames { count } => {
                 too_many_authorized_names(*count, locale)
             }
@@ -276,6 +278,7 @@ impl PotentialProblems {
             PotentialProblems::NoAppellation => Severity::Error,
             PotentialProblems::NoListSubmitter => Severity::Error,
             PotentialProblems::NoAuthorisedAgent => Severity::Warn,
+            PotentialProblems::NoAuthorisedName => Severity::Warn,
             PotentialProblems::TooManyAuthorizedNames { .. } => Severity::Error,
             PotentialProblems::TooFewAuthorizedNames { .. } => Severity::Warn,
 

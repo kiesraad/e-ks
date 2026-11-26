@@ -46,7 +46,7 @@ impl NameAuthorisation {
                 })
             }
             ListDesignationKind::Standalone if name_authorisation_count < 1 => {
-                Some(PotentialProblems::TooFewAuthorizedNames { count: 1 })
+                Some(PotentialProblems::NoAuthorisedName)
             }
             ListDesignationKind::Combined if name_authorisation_count < 2 => {
                 Some(PotentialProblems::TooFewAuthorizedNames {
