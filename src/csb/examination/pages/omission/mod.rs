@@ -51,9 +51,7 @@ impl OmissionTarget {
         }
     }
 
-    /// A blank list has no appellation, so it cannot get appellation omissions.
-    /// The overview stays reachable: a paper correction can blank a list after
-    /// its omissions were added.
+    /// An omission needs something to be about: the projection drops the rest.
     fn ensure_can_add(&self, data: &CsbStoreData) -> Result<(), AppError> {
         let is_blank = data
             .pg(WithCorrections::All)
@@ -62,13 +60,22 @@ impl OmissionTarget {
         if self.omission_type == OmissionType::Appellation && is_blank {
             return Err(AppError::GenericNotFound);
         }
-        if self.omission_type == OmissionType::Candidate {
-            let person = PersonId::from(self.reference);
-            if data.pg(WithCorrections::All).get_person(person).is_err()
-                && data.pg(WithCorrections::None).get_person(person).is_err()
-            {
-                return Err(AppError::GenericNotFound);
+        let corrected = data.pg(WithCorrections::All);
+        match self.omission_type {
+            OmissionType::Candidate => {
+                let person = corrected.get_person(PersonId::from(self.reference))?.id;
+                let listed = corrected
+                    .get_candidate_lists()
+                    .iter()
+                    .any(|list| list.candidates.contains(&person));
+                if !listed {
+                    return Err(AppError::GenericNotFound);
+                }
             }
+            OmissionType::CandidateList => {
+                corrected.get_candidate_list(CandidateListId::from(self.reference))?;
+            }
+            OmissionType::Appellation | OmissionType::DeclarationsOfSupport => {}
         }
         Ok(())
     }
@@ -179,9 +186,6 @@ impl OmissionTarget {
                         trans!("political_group.appellation_combined", locale)
                     }
                     Some(ListDesignationKind::Blank) => {
-                        // the user can still get to the add/overview omission page via
-                        // all restorations. Users shouldn't apply paper corrections
-                        // after adding omissions, but we cannot guarantee this.
                         trans!("political_group.appellation_any", locale)
                     }
                 }
@@ -296,12 +300,23 @@ pub async fn add_omission_submit(
     target.ensure_can_add(&store.snapshot())?;
 
     // For candidate list and declarations-of-support omissions at least one district must be selected
+    let available_districts = views::available_electoral_districts(&store.snapshot());
     let districts = match selected_or_only_available(
         target.omission_type.needs_districts(),
         &form.electoral_districts,
-        || views::available_electoral_districts(&store.snapshot()),
+        || available_districts.clone(),
         "electoral_districts",
-    ) {
+    )
+    .and_then(|districts| {
+        if districts.iter().all(|d| available_districts.contains(d)) {
+            Ok(districts)
+        } else {
+            Err(vec![(
+                "electoral_districts".to_string(),
+                ValidationError::InvalidValue,
+            )])
+        }
+    }) {
         Ok(districts) => districts,
         Err(errors) => {
             let form = FormData::new_with_errors(form, errors);
@@ -954,21 +969,83 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn add_candidate_list_omission_rejects_an_unknown_list() {
+    async fn add_omission_for_something_deleted_is_not_found() {
         let store = CsbStore::new_for_test();
+        // A person who is on no list is not a candidate.
+        let unlisted = PersonId::new();
+        store.add_person(crate::test_utils::sample_person(unlisted));
+        store.add_candidate_list(sample_candidate_list(CandidateListId::new()));
+        for (omission_type, reference) in [
+            (
+                OmissionType::CandidateList,
+                Uuid::from(CandidateListId::new()),
+            ),
+            (OmissionType::Candidate, Uuid::from(PersonId::new())),
+            (OmissionType::Candidate, Uuid::from(unlisted)),
+        ] {
+            let path = || CsbAddOmissionPath {
+                stream_id: store.stream_id,
+                omission_type,
+                reference,
+            };
+            let rendered = add_omission(
+                path(),
+                CsbContext::new_test(),
+                store.clone(),
+                Query(QueryParamState::default()),
+                Query(OmissionListQuery::default()),
+            )
+            .await;
+            assert!(matches!(rendered, Err(AppError::GenericNotFound)));
+
+            let submitted = add_omission_submit(
+                path(),
+                CsbContext::new_test(),
+                store.clone(),
+                Query(QueryParamState::default()),
+                Query(OmissionListQuery::default()),
+                Form(sample_form()),
+            )
+            .await;
+            assert!(matches!(submitted, Err(AppError::GenericNotFound)));
+        }
+        assert_eq!(store.snapshot().get_omission_count(), 0);
+    }
+
+    #[tokio::test]
+    async fn add_declarations_of_support_omission_rejects_a_district_without_a_list() {
+        let store = CsbStore::new_for_test();
+        store.add_candidate_list_in(&[ElectoralDistrict::Groningen, ElectoralDistrict::Fryslan]);
         let form = OmissionForm {
-            candidate_lists: vec![CandidateListId::new()],
+            electoral_districts: vec![ElectoralDistrict::Groningen, ElectoralDistrict::Utrecht],
             ..sample_form()
         };
 
         let response = submit_add_omission(
             store.clone(),
-            OmissionType::CandidateList,
-            CandidateListId::new(),
+            OmissionType::DeclarationsOfSupport,
+            store.stream_id,
             None,
             form,
         )
         .await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(store.snapshot().get_omission_count(), 0);
+    }
+
+    #[tokio::test]
+    async fn add_candidate_list_omission_rejects_an_unknown_list() {
+        let store = CsbStore::new_for_test();
+        let list = CandidateListId::new();
+        store.add_candidate_list(sample_candidate_list(list));
+        let form = OmissionForm {
+            candidate_lists: vec![CandidateListId::new()],
+            ..sample_form()
+        };
+
+        let response =
+            submit_add_omission(store.clone(), OmissionType::CandidateList, list, None, form).await;
 
         // The form is re-rendered instead of saving an omission that would
         // break the models and letters of the whole political group.
@@ -1010,6 +1087,8 @@ mod tests {
     async fn add_candidate_list_omission_without_list_selection_rerenders_form() {
         let store = CsbStore::new_for_test();
         let list = CandidateListId::new();
+        store.add_candidate_list(sample_candidate_list(list));
+        store.add_candidate_list(sample_candidate_list(CandidateListId::new()));
         // No candidate list selected and no auto-fill possible: should re-render with an error
         let response = submit_add_omission(
             store.clone(),

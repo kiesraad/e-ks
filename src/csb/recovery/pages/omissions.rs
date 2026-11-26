@@ -129,6 +129,8 @@ mod tests {
         use crate::ElectoralDistrict;
 
         let store = CsbStore::new_for_test();
+
+        store.add_candidate_list_in(store.election.electoral_districts());
         let stream_id = store.stream_id;
 
         Omission::new(
@@ -180,6 +182,8 @@ mod tests {
         use crate::{ElectoralDistrict, structs::csb::OmissionPart};
 
         let store = CsbStore::new_for_test();
+
+        store.add_candidate_list_in(store.election.electoral_districts());
         let stream_id = store.stream_id;
         let omission = Omission::new(
             OmissionCategory::DeclarationsOfSupport(vec![
@@ -243,6 +247,8 @@ mod tests {
         use crate::ElectoralDistrict;
 
         let store = CsbStore::new_for_test();
+
+        store.add_candidate_list_in(store.election.electoral_districts());
         let stream_id = store.stream_id;
         for district in [ElectoralDistrict::Groningen, ElectoralDistrict::Utrecht] {
             let mut omission =

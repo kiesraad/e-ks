@@ -1235,7 +1235,10 @@ mod tests {
             EK,
             sample_political_group_named("De Geconstateerde Partij"),
             vec![],
-            vec![],
+            vec![CandidateList {
+                electoral_districts: EK.electoral_districts().iter().copied().collect(),
+                ..Default::default()
+            }],
         )
         .await;
         create_omission(&store, OmissionCategory::Appellation, "Eerste verzuim").await;

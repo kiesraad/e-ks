@@ -1,5 +1,6 @@
 mod event;
 mod getters;
+mod integrity;
 mod scrapped;
 
 pub use event::{CsbAction, CsbEvent};
@@ -120,6 +121,7 @@ impl StoreData for CsbStoreData {
             CsbAction::SetBrpStatus(value) => self.brp_validation_status = value,
         }
 
+        self.drop_dangling_omissions(event_time);
         self.refresh_scrapped();
     }
 
@@ -159,8 +161,9 @@ impl CsbStoreData {
     }
 
     /// Derive the fully corrected projection from the paper corrected one.
-    /// A delta for a candidate deleted on paper has nothing to apply to.
     fn refresh_corrected(&mut self) {
+        self.drop_moot_corrections();
+
         let mut data = PgStoreData::clone(&self.paper_corrected_data);
         if let Some(appellation) = &self.csb_corrected_appellation {
             data.political_group.appellation = Some(appellation.clone());
@@ -425,6 +428,24 @@ fn candidates_changed_by(event: &PgEvent) -> Vec<PersonId> {
 }
 
 #[cfg(test)]
+impl CsbAction {
+    /// The import of a group with one list in `districts`.
+    pub fn import_for_test_in(districts: &[ElectoralDistrict]) -> Self {
+        let list = crate::structs::candidate_lists::CandidateList {
+            electoral_districts: districts.iter().copied().collect(),
+            ..Default::default()
+        };
+        CsbAction::Import {
+            hash: [42; 32],
+            source_stream_id: crate::StreamId::new(),
+            snapshot: Box::new(PgStoreData::from_events([PgEvent::CreateCandidateList(
+                Box::new(list),
+            )])),
+        }
+    }
+}
+
+#[cfg(test)]
 impl crate::CsbStream {
     pub fn new_for_test() -> Self {
         Self::new_for_test_with_election(crate::ElectionConfig::EK27)
@@ -452,6 +473,20 @@ impl crate::CsbStream {
             .candidate_lists
             .insert(list.id, list);
         data.refresh_derived();
+    }
+
+    /// Test setter adding a list in `districts`.
+    pub fn add_candidate_list_in(
+        &self,
+        districts: &[ElectoralDistrict],
+    ) -> crate::structs::candidate_lists::CandidateListId {
+        let list = crate::structs::candidate_lists::CandidateList {
+            electoral_districts: districts.iter().copied().collect(),
+            ..Default::default()
+        };
+        let id = list.id;
+        self.add_candidate_list(list);
+        id
     }
 
     /// Test setter writing only the corrected projection, mirroring a list
@@ -654,6 +689,10 @@ mod tests {
             ElectoralDistrict::Fryslan,
         ]);
         let events = [
+            CsbAction::import_for_test_in(&[
+                ElectoralDistrict::Groningen,
+                ElectoralDistrict::Fryslan,
+            ]),
             CsbAction::CreateOmission(omission.clone()),
             CsbAction::SetOmissionPartStatus {
                 omission_id: omission.id,
@@ -670,7 +709,7 @@ mod tests {
             OmissionCategory::DeclarationsOfSupport(vec![ElectoralDistrict::Fryslan])
         );
         assert_eq!(remaining.status, OmissionStatus::Pending);
-        let split = &data.omissions[&split_off_id(omission.id, 2)];
+        let split = &data.omissions[&split_off_id(omission.id, 3)];
         assert_eq!(
             split.category,
             OmissionCategory::DeclarationsOfSupport(vec![ElectoralDistrict::Groningen])
@@ -692,6 +731,10 @@ mod tests {
         let groningen = declarations_of_support(vec![ElectoralDistrict::Groningen]);
         let fryslan = declarations_of_support(vec![ElectoralDistrict::Fryslan]);
         let data = replay(&[
+            CsbAction::import_for_test_in(&[
+                ElectoralDistrict::Groningen,
+                ElectoralDistrict::Fryslan,
+            ]),
             CsbAction::CreateOmission(fryslan.clone()),
             CsbAction::CreateOmission(groningen.clone()),
             CsbAction::SetOmissionStatus {
@@ -722,6 +765,10 @@ mod tests {
     fn a_part_decision_for_an_uncovered_district_changes_nothing() {
         let omission = declarations_of_support(vec![ElectoralDistrict::Groningen]);
         let data = replay(&[
+            CsbAction::import_for_test_in(&[
+                ElectoralDistrict::Groningen,
+                ElectoralDistrict::Utrecht,
+            ]),
             CsbAction::CreateOmission(omission.clone()),
             CsbAction::SetOmissionPartStatus {
                 omission_id: omission.id,

@@ -21,8 +21,6 @@ pub struct AllOmissions {
 pub struct CandidateOmissions {
     pub omissions: Vec<OmissionRow>,
     pub person: Person,
-    /// No longer on the corrected list; `person` is the imported data.
-    pub removed: bool,
 }
 
 impl CsbStoreData {
@@ -93,18 +91,11 @@ impl CsbStoreData {
             .into_iter()
             .map(|(person_id, mut omissions)| {
                 omissions.sort_by_cached_key(|omission| self.title_order(omission, election));
-                // a candidate deleted on paper keeps their omissions, shown from the imported data
-                let (person, removed) =
-                    match self.pg(WithCorrections::All).get_person(person_id).ok() {
-                        Some(current) => (current.clone(), false),
-                        None => (
-                            self.pg(WithCorrections::None)
-                                .get_person(person_id)
-                                .map_err(|_| AppError::InternalServerError)?
-                                .clone(),
-                            true,
-                        ),
-                    };
+                let person = self
+                    .pg(WithCorrections::All)
+                    .get_person(person_id)
+                    .map_err(|_| AppError::InternalServerError)?
+                    .clone();
                 Ok(CandidateOmissions {
                     omissions: OmissionRow::rows(omissions, political_group, |omission| {
                         omission
@@ -113,7 +104,6 @@ impl CsbStoreData {
                             .and_then(|list| candidate_path(political_group, &person_id, list))
                     }),
                     person,
-                    removed,
                 })
             })
             .collect::<Result<Vec<_>, AppError>>()
@@ -135,14 +125,12 @@ impl AllOmissions {
                 c_recoverable.push(CandidateOmissions {
                     omissions: o_recoverable,
                     person: candidate.person.clone(),
-                    removed: candidate.removed,
                 });
             }
             if !o_irrecoverable.is_empty() {
                 c_irrecoverable.push(CandidateOmissions {
                     omissions: o_irrecoverable,
                     person: candidate.person,
-                    removed: candidate.removed,
                 });
             }
         }
@@ -242,11 +230,21 @@ fn candidate_path(
 mod tests {
     use crate::{
         CsbStore, StreamId,
-        structs::csb::{OmissionType, sample_omission},
+        structs::{
+            candidate_lists::CandidateList,
+            csb::{OmissionType, sample_omission},
+        },
         test_utils::{sample_candidate_list, sample_person},
     };
 
     use super::*;
+
+    fn list_with(list_id: CandidateListId, person: PersonId) -> CandidateList {
+        CandidateList {
+            candidates: vec![person],
+            ..sample_candidate_list(list_id)
+        }
+    }
 
     fn redirect_param(stream_id: StreamId) -> String {
         format!("&redirect_to=%2Fcsb%2Fexamination%2F{stream_id}%2Fomissions")
@@ -334,7 +332,7 @@ mod tests {
         store.add_person(sample_person(person_id));
 
         let list_id = CandidateListId::new();
-        store.add_candidate_list(sample_candidate_list(list_id));
+        store.add_candidate_list(list_with(list_id, person_id));
 
         Omission::new(
             OmissionCategory::Candidate {
@@ -358,16 +356,14 @@ mod tests {
         assert_eq!(all_omissions.candidates[0].omissions.len(), 1)
     }
 
-    /// A candidate deleted on paper keeps their omissions in the overview,
-    /// shown from the imported data, instead of failing the page.
     #[tokio::test]
-    async fn omissions_of_a_candidate_deleted_on_paper_are_kept() {
+    async fn omissions_of_a_candidate_deleted_on_paper_are_gone() {
         let store = CsbStore::new_for_test();
 
         let person_id = PersonId::new();
         store.add_person(sample_person(person_id));
         let list_id = CandidateListId::new();
-        store.add_candidate_list(sample_candidate_list(list_id));
+        store.add_candidate_list(list_with(list_id, person_id));
 
         Omission::new(
             OmissionCategory::Candidate {
@@ -394,9 +390,8 @@ mod tests {
             .get_all_omissions(&CsbPoliticalGroup::new_from_csb_store(&store))
             .expect("Couldn't retrieve all omissions");
 
-        assert_eq!(all_omissions.candidates.len(), 1);
-        assert!(all_omissions.candidates[0].removed);
-        assert_eq!(all_omissions.candidates[0].person.id, person_id);
+        assert!(all_omissions.is_empty());
+        assert_eq!(data.get_omission_count(), 0);
     }
 
     #[tokio::test]
@@ -408,7 +403,7 @@ mod tests {
         store.add_person(sample_person(person_id));
 
         let list_id = CandidateListId::new();
-        store.add_candidate_list(sample_candidate_list(list_id));
+        store.add_candidate_list(list_with(list_id, person_id));
         for _ in 0..omission_count {
             Omission::new(
                 OmissionCategory::Candidate {
@@ -475,17 +470,14 @@ mod tests {
                         ("/rec/c0", true),
                     ]),
                     person: sample_people[0].clone(),
-                    removed: false,
                 },
                 CandidateOmissions {
                     omissions: sample_omissions_with_paths(vec![("/rec/c1", true)]),
                     person: sample_people[1].clone(),
-                    removed: false,
                 },
                 CandidateOmissions {
                     omissions: sample_omissions_with_paths(vec![("/irr/c2", false)]),
                     person: sample_people[2].clone(),
-                    removed: false,
                 },
             ],
         };

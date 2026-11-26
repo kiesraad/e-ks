@@ -718,6 +718,8 @@ mod tests {
         use crate::ElectoralDistrict;
 
         let store = CsbStore::new_for_test();
+
+        store.add_candidate_list_in(store.election.electoral_districts());
         let stream_id = store.stream_id;
         store.set_political_group(sample_political_group());
         Omission::new(
@@ -871,6 +873,7 @@ mod tests {
     async fn a_seated_group_still_shows_its_recorded_declarations_of_support_omissions() {
         let main_store = main_store_registering_sample_group(3).await;
         let store = CsbStore::new_for_test();
+        store.add_candidate_list_in(store.election.electoral_districts());
         store.set_political_group(sample_political_group());
         Omission::new(
             OmissionCategory::DeclarationsOfSupport(vec![ElectoralDistrict::Groningen]),
@@ -1151,17 +1154,22 @@ mod tests {
         assert!(card.contains(r#"title="Warnings""#), "{card}");
     }
 
-    /// A paper correction can blank a list after appellation omissions were
-    /// added; those stay visible, but no new ones can be added.
+    /// Blanking a list drops its appellation omissions.
     #[tokio::test]
-    async fn appellation_omission_bar_shows_existing_omissions_of_a_blank_list() {
+    async fn appellation_omission_bar_is_hidden_for_a_blank_list() {
         let store = CsbStore::new_for_test();
-        let mut pg = sample_political_group();
-        pg.list_designation = Some(ListDesignation::Blank);
-        store.set_political_group(pg);
+        store.set_political_group(sample_political_group());
         store
             .update(CsbAction::CreateOmission(sample_omission(
                 OmissionCategory::Appellation,
+            )))
+            .await
+            .unwrap();
+        let mut pg = sample_political_group();
+        pg.list_designation = Some(ListDesignation::Blank);
+        store
+            .update(CsbAction::PaperCorrectedUpdate(Box::new(
+                crate::PgEvent::UpdatePoliticalGroup(pg),
             )))
             .await
             .unwrap();
@@ -1178,11 +1186,9 @@ mod tests {
         .into_response();
         let body = response_body_string(response).await;
 
-        assert!(body.contains("Omissions appellation</h2>"));
-        assert!(body.contains("test title"));
-        // The overview is linked, the add dialog is not.
-        assert!(body.contains(&format!("/omission/appellation/{stream_id}/overview")));
-        assert!(!body.contains(&format!("/omission/appellation/{stream_id}\"")));
+        assert!(!body.contains("Omissions appellation</h2>"));
+        assert!(!body.contains("test title"));
+        assert!(!body.contains(&format!("/omission/appellation/{stream_id}")));
     }
 
     #[tokio::test]

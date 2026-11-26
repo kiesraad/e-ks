@@ -431,7 +431,13 @@ mod tests {
             crate::ElectoralDistrict::Groningen,
             crate::ElectoralDistrict::Fryslan,
         ]));
-        let before = state_with(vec![CsbAction::CreateOmission(omission.clone())]);
+        let before = state_with(vec![
+            CsbAction::import_for_test_in(&[
+                crate::ElectoralDistrict::Groningen,
+                crate::ElectoralDistrict::Fryslan,
+            ]),
+            CsbAction::CreateOmission(omission.clone()),
+        ]);
 
         let action = CsbAction::SetOmissionPartStatus {
             omission_id: omission.id,

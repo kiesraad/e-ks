@@ -44,6 +44,13 @@ impl PersonCorrectionDelta {
         self.corrections.remove(&correction.kind());
     }
 
+    /// Keep the corrections that change `person`; `false` when none do.
+    pub fn retain_changes(&mut self, person: &Person) -> bool {
+        self.corrections
+            .retain(|_, correction| correction.changes(person));
+        !self.corrections.is_empty()
+    }
+
     pub fn apply(&self, person: &mut Person) {
         self.corrections
             .values()
