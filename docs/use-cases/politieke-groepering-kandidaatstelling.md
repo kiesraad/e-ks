@@ -38,7 +38,7 @@ __Niveau:__ Gebruikersdoel, zee, 🌊
 
 __Hoofdscenario:__
 
-1. De gebruiker selecteert dat ze meedoen met een op zichzelfstaande geregistreerde naam.
+1. De gebruiker selecteert dat ze meedoen met een opzichzelfstaande geregistreerde naam.
 2. De gebruiker vult in dat er bij de vorige verkiezing 16 of meer zetels zijn behaald en mag hierdoor maximaal 80 kandidaten op de lijst plaatsen **art. R 4 (voor Eerste Kamerverkiezing)** 
 3. De gebruiker vult de aanduiding van de politieke groepering in. **art. R (voor Eerste Kamerverkiezing)** 
 4. De gebruiker vult de volledige statutaire naam en de gegevens van de gemachtigde in.
@@ -50,7 +50,7 @@ __Uitbreidingen__:
 1a. [De politieke groepering kiest ervoor om de lijst samen in te leveren](#de-politieke-groepering-kiest-ervoor-om-de-lijst-samen-in-te-leveren)  
 1b. De politieke groepering doet mee met een blanco lijst.  
   1b1. De politieke groepering hoeft geen gemachtigde te selecteren  
-2a. De politieke groering vult in dat ze minder dan 16 zetels hebben behaald en mogen daardoor maximaal 50 kandidaten op de lijst plaatsen  
+2a. De politieke groepering vult in dat ze minder dan 16 zetels hebben behaald en mogen daardoor maximaal 50 kandidaten op de lijst plaatsen  
 
 ### Open punten
 
@@ -75,7 +75,7 @@ Optioneel vervolg: door naar stap 1
 __Uitbreidingen__:
 
 - 1a. Politieke groepering selecteert een bestaande lijst als sjabloon
-- 3a. Poltieke groepering vult de lijst en past de volgorde van de kandidaten aan
+- 3a. Politieke groepering vult de lijst en past de volgorde van de kandidaten aan
 
 ## Politieke groepering machtigt de lijstinleveraar (zee) - Nice to have (Fase 2)
 
@@ -121,7 +121,7 @@ __Hoofdscenario:__
 2. De lijstinleveraar stelt vast dat de gemachtigde, lijstinleveraar, verkiezing, aanduiding en kieskringen correct zijn ingevuld.
 3. De lijstinleveraar bevestigt dat alles compleet is.
 4. De applicatie valideert dat alle benodigde gegevens correct zijn ingevuld.
-5. De applicatie genereert de benodigde documenten. (LINK naar pagina met alle benodigden documenten per verkiezing)
+5. De applicatie genereert de benodigde documenten. (LINK naar pagina met alle benodigde documenten per verkiezing)
 6. De lijstinleveraar downloadt de benodigde documenten in pdf.
 7. De lijstinleveraar print de benodigde documenten uit.
 
@@ -177,5 +177,5 @@ __Hoofdscenario:__
 1. De politieke groepering geeft aan dat ze meedoen met een samengevoegde aanduiding
 2. De politieke groepering vult één samengevoegde aanduiding in
 3. De politieke groepering vult voor elke partij een gemachtigde in
-4. De poltieke groepering vult alle statutaire namen in
+4. De politieke groepering vult alle statutaire namen in
 

@@ -19,7 +19,7 @@ Bij een verkiezing voor de Eerste Kamer kiezen de leden van de Provinciale State
 Bij een verkiezing voor de Provinciale Staten kiezen de kiesgerechtigde inwoners van de provincie met de Nederlandse nationaliteit de leden van Provinciale Staten.
 
 - 12 centrale stembureaus: provincies
-- 1 kieskring voor (Drente, Flevoland, Groningen, Overijssel, Friesland, Utrecht, Zeeland): Art. E 1, tweede lid, biedt mogelijkheid om provincie onder te verdelen in meerdere kieskringen.
+- 1 kieskring voor (Drenthe, Flevoland, Groningen, Overijssel, Friesland, Utrecht, Zeeland): Art. E 1, tweede lid, biedt mogelijkheid om provincie onder te verdelen in meerdere kieskringen.
 - Meerdere kieskringen voor
     - Gelderland: 2 kieskringen (Arnhem, Nijmegen)
     - Noord-Brabant: 2 kieskringen (Den Bosch, Tilburg)

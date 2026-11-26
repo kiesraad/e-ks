@@ -33,7 +33,7 @@ Condities die waar moeten zijn voor de use case en die gecontroleerd worden (bij
 ### Hoofdscenario
 Het hoofdscenario is het meest eenvoudige succes-scenario. Idealiter is het niet langer dan 5-9 stappen.
 
-De stappen in het hoofscenario (en in uitbreidingen) worden als eenduidige acties beschreven. Dus geen passieve zinnen. En geen acties met meerdere mogelijke uitkomsten. (Dus niet "de applicatie controleert of..." maar "de applicatie stelt vast dat...")
+De stappen in het hoofdscenario (en in uitbreidingen) worden als eenduidige acties beschreven. Dus geen passieve zinnen. En geen acties met meerdere mogelijke uitkomsten. (Dus niet "de applicatie controleert of..." maar "de applicatie stelt vast dat...")
 
 ### Uitbreidingen
 De uitbreidingen zijn alternatieve successcenario's of foutscenario's (scenario's waarin de actor hun doel niet bereikt).
@@ -41,7 +41,7 @@ De uitbreidingen zijn alternatieve successcenario's of foutscenario's (scenario'
 De notatie voor uitbreidingen is:
 
 - De situatie krijgt het nummer van de stap waar het een alternatief op is en een letter (bijv. "4a."). De beschrijving van de situatie eindigt met een dubbele punt.
-- Elke stap binnnen een uitbreiding krijgt de aanduiding van de uitbreiding en een nummber (bijv. "4a1.", "4a2.", etc.). De beschrijving van de stap eindigt met een punt.
+- Elke stap binnen een uitbreiding krijgt de aanduiding van de uitbreiding en een nummer (bijv. "4a1.", "4a2.", etc.). De beschrijving van de stap eindigt met een punt.
 
 Binnen uitbreidingen kunnen ook weer uitbreidingen voorkomen. Als dat te onoverzichtelijk wordt, is het beter die in hun eigen use case uit te werken.
 
