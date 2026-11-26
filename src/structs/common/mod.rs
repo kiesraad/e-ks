@@ -5,6 +5,7 @@ mod constrained_string;
 mod countries;
 mod country_code;
 mod date;
+mod file_name;
 mod form_action;
 mod gender;
 mod house_number;
@@ -25,10 +26,13 @@ pub use address::{Address, DutchAddress, InternationalAddress};
 pub use appellation::Appellation;
 pub use bsn::{BSN_NONE_CONFIRMATION, Bsn, BsnOrNoneConfirmed};
 pub(crate) use constrained_string::constrained_strings;
-pub use constrained_string::{FirstName, LegalName, StateOrProvince, StreetName};
+pub use constrained_string::{
+    AuditLogSearch, CommitteeMemberName, FirstName, LegalName, StateOrProvince, StreetName,
+};
 pub use countries::COUNTRY_CODES;
 pub use country_code::{CountryCode, RVIG_COUNTRY_CODES_URL};
 pub use date::{DATE_FORMAT_REGEX, DateOfBirth};
+pub use file_name::FileName;
 pub use form_action::FormAction;
 pub use gender::Gender;
 pub use house_number::HouseNumber;

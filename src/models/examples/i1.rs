@@ -12,8 +12,11 @@ use crate::{
 fn i1_session() -> HearingDetails {
     HearingDetails {
         date_time: super::date_time(super::date(2027, 4, 5), 16, 0),
-        chair: "M.C. Voorzitter".to_string(),
-        members: strings(&["A. Lid", "B. Lid", "C. Lid", "D. Lid", "E. Lid", "F. Lid"]),
+        chair: "M.C. Voorzitter".parse().expect("name"),
+        members: ["A. Lid", "B. Lid", "C. Lid", "D. Lid", "E. Lid", "F. Lid"]
+            .iter()
+            .map(|name| name.parse().expect("name"))
+            .collect(),
     }
 }
 

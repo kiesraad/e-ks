@@ -1,5 +1,4 @@
 mod csrf;
-mod file_form;
 mod form_data;
 mod id_newtype;
 mod merge_errors;
@@ -8,7 +7,6 @@ mod switch_election;
 mod validation_error;
 
 pub use csrf::{TokenValue, csrf_token_matches, generate_csrf_token};
-pub use file_form::FileForm;
 pub use form_data::FormData;
 pub use merge_errors::MergeErrors;
 pub use string_validators::{

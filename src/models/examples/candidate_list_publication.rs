@@ -74,7 +74,7 @@ pub fn candidate_list_publication_example_1() -> CandidateListPublication {
         session_location: "'s-Gravenhage".to_string(),
         public_session: HearingDetails {
             date_time: super::date_time(super::date(2027, 5, 3), 17, 0),
-            chair: "M.C. Voorzitter".to_string(),
+            chair: "M.C. Voorzitter".parse().expect("name"),
             members: Vec::new(),
         },
     }

@@ -3,7 +3,10 @@ use std::str::FromStr;
 use jiff::{Timestamp, civil::DateTime};
 use serde::{Deserialize, Serialize, Serializer};
 
-use crate::{constants::DEFAULT_TIMEZONE, core::election::PublicSession, form::ValidationError};
+use crate::{
+    constants::DEFAULT_TIMEZONE, core::election::PublicSession, form::ValidationError,
+    structs::common::CommitteeMemberName,
+};
 
 const I1: &str = "i1";
 const I4: &str = "i4";
@@ -74,8 +77,8 @@ impl<'de> Deserialize<'de> for HearingModel {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct HearingDetails {
     pub date_time: DateTime,
-    pub chair: String,
-    pub members: Vec<String>,
+    pub chair: CommitteeMemberName,
+    pub members: Vec<CommitteeMemberName>,
 }
 
 crate::structs::audit_log::audit_fields!(HearingDetails {
@@ -84,13 +87,19 @@ crate::structs::audit_log::audit_fields!(HearingDetails {
     members: leaf(Members),
 });
 
-/// The moment and signatories the election configuration gives the session
+/// The moment and signatories the election configuration gives the session.
+/// A configured name that is blank (or not a valid name) becomes an empty
+/// one, which leaves room to sign by hand.
 impl From<PublicSession> for HearingDetails {
     fn from(session: PublicSession) -> Self {
         Self {
             date_time: session.datetime,
-            chair: session.chair.to_string(),
-            members: session.members.iter().map(ToString::to_string).collect(),
+            chair: session.chair.parse().unwrap_or_default(),
+            members: session
+                .members
+                .iter()
+                .map(|member| member.parse().unwrap_or_default())
+                .collect(),
         }
     }
 }
@@ -109,7 +118,7 @@ impl Default for HearingDetails {
     fn default() -> Self {
         Self {
             date_time: Self::local_now(),
-            chair: String::new(),
+            chair: CommitteeMemberName::default(),
             members: Vec::new(),
         }
     }

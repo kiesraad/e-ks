@@ -145,7 +145,7 @@ mod tests {
         let configured = ElectionConfig::EK27.public_session();
         let since = HearingDetails::local_now().duration_since(model.session.date_time);
         assert!(since.as_secs() < 5);
-        assert_eq!(model.session.chair, configured.chair);
+        assert_eq!(*model.session.chair, configured.chair);
         assert_eq!(model.session.members.len(), configured.members.len());
 
         Ok(())
@@ -160,8 +160,11 @@ mod tests {
                 HearingModel::I1,
                 HearingDetails {
                     date_time: jiff::civil::date(1999, 12, 31).at(12, 34, 0, 0),
-                    chair: "Vera Voorzitter".to_string(),
-                    members: vec!["Jan Klaassen".to_string(), "Malle Babbe".to_string()],
+                    chair: "Vera Voorzitter".parse().expect("name"),
+                    members: vec![
+                        "Jan Klaassen".parse().expect("name"),
+                        "Malle Babbe".parse().expect("name"),
+                    ],
                 },
             ))
             .await?;
@@ -172,8 +175,9 @@ mod tests {
             model.session.date_time,
             jiff::civil::date(1999, 12, 31).at(12, 34, 0, 0)
         );
-        assert_eq!(model.session.chair, "Vera Voorzitter");
-        assert_eq!(model.session.members, vec!["Jan Klaassen", "Malle Babbe"]);
+        assert_eq!(*model.session.chair, "Vera Voorzitter");
+        let members: Vec<&str> = model.session.members.iter().map(|m| m.as_str()).collect();
+        assert_eq!(members, vec!["Jan Klaassen", "Malle Babbe"]);
         // The location keeps coming from the election configuration.
         assert_eq!(
             model.session_location,

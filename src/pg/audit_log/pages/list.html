@@ -11,15 +11,16 @@
         <input type="text"
                name="search"
                placeholder="{{ "audit_log.filter.search_placeholder"|trans }}"
-               value="{{ filter.search.as_deref().unwrap_or_default() }}"
+               value="{{ filter.data.search }}"
                class="form-control"
                aria-label="{{ "audit_log.filter.search"|trans }}" />
         {% include "pg/common/components/audit_log_event_type_filter.html" %}
         <button type="submit" class="button">{{ "audit_log.filter.apply"|trans }}</button>
-        {% if filter.is_active() %}
+        {% if filter.data.is_active() %}
           <a href="{{ audit_log_path }}" class="button secondary">{{ "audit_log.filter.reset"|trans }}</a>
         {% endif %}
       </fieldset>
+      {% for error in filter|error("search") %}<span class="error">{{ error }}</span>{% endfor %}
     </form>
   </section>
   {% if entries.is_empty() %}
@@ -58,7 +59,7 @@
       </table>
     </section>
     {% if pagination.total_pages > 1 %}
-      {% set suffix = filter.as_query_suffix() %}
+      {% set suffix = filter.data.as_query_suffix() %}
       {% include "pg/common/components/pagination.html" %}
     {% endif %}
   {% endif %}

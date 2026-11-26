@@ -221,15 +221,15 @@ mod tests {
     fn hearing_details_update_reports_the_changed_fields() {
         let details = HearingDetails {
             date_time: jiff::civil::date(2027, 3, 1).at(10, 0, 0, 0),
-            chair: "Jansen".to_string(),
-            members: vec!["Bos".to_string()],
+            chair: "Jansen".parse().expect("name"),
+            members: vec!["Bos".parse().expect("name")],
         };
         let before = state_with(vec![CsbMainAction::UpdateHearingDetails(
             HearingModel::I1,
             details.clone(),
         )]);
         let updated = HearingDetails {
-            chair: "De Vries".to_string(),
+            chair: "De Vries".parse().expect("name"),
             ..details
         };
 

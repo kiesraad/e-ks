@@ -39,8 +39,11 @@ pub(crate) use constrained_strings;
 constrained_strings! {
     pub struct FirstName(max = 200, multiline = false);
     pub struct LegalName(max = 200, multiline = false);
+    pub struct CommitteeMemberName(max = 200, multiline = false);
     pub struct StreetName(max = 200, multiline = false);
     pub struct StateOrProvince(max = 200, multiline = false);
+    /// Free text the audit log entries are searched for.
+    pub struct AuditLogSearch(max = 200, multiline = false);
 }
 
 impl Problematic<()> for LegalName {

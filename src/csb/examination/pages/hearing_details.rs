@@ -230,7 +230,7 @@ mod tests {
         let hearing_details = store
             .get_hearing_details(HearingModel::I1)
             .expect("stored hearing details");
-        assert_eq!(hearing_details.chair, "Vera Voorzitter");
+        assert_eq!(*hearing_details.chair, "Vera Voorzitter");
         assert_eq!(hearing_details.members.len(), 2);
         assert_eq!(
             hearing_details
