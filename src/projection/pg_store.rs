@@ -98,8 +98,8 @@ impl PgStore {
     }
 
     /// Persist an event on the write target and apply it to the projection.
-    /// On the own stream the write is refused with [`AppError::Conflict`] when
-    /// another request appended since this handle last saw the stream.
+    /// Refused with [`AppError::Conflict`] when another request changed the
+    /// data since this handle last saw it.
     pub async fn update(&self, event: PgEvent) -> Result<(), AppError> {
         match &self.target {
             WriteTarget::Own => {
@@ -111,9 +111,17 @@ impl PgStore {
                 Ok(())
             }
             WriteTarget::PaperCorrections { store: csb_store } => {
-                csb_store
-                    .update(CsbAction::PaperCorrectedUpdate(Box::new(event)))
+                // Only land on the paper corrected data the handler saw.
+                let seen = self.projection.snapshot().last_event_id();
+                let recorded = csb_store
+                    .update_when(|data| {
+                        (data.paper_corrected_data.last_event_id() == seen)
+                            .then(|| CsbAction::PaperCorrectedUpdate(Box::new(event.clone())))
+                    })
                     .await?;
+                if !recorded {
+                    return Err(AppError::Conflict);
+                }
 
                 // Refresh the snapshot so reads later in this request observe
                 // the correction.
@@ -481,6 +489,25 @@ mod tests {
         for _ in 0..5 {
             store.update(download_event()).await?;
         }
+
+        Ok(())
+    }
+
+    /// Only another paper correction makes a paper-corrections handle stale.
+    #[tokio::test]
+    async fn a_stale_paper_correction_is_refused() -> Result<(), AppError> {
+        let csb_store = crate::CsbStore::new_for_test();
+        csb_store.update(CsbAction::import_for_test_in(&[])).await?;
+        let ours = csb_store.paper_corrections();
+        let theirs = csb_store.paper_corrections();
+
+        csb_store.update(CsbAction::SetFinished(true)).await?;
+        ours.update(data_event()).await?;
+        ours.update(data_event()).await?;
+
+        let err = theirs.update(data_event()).await.unwrap_err();
+        assert!(matches!(err, AppError::Conflict), "got {err:?}");
+        assert_eq!(csb_store.snapshot().last_event_id(), 4);
 
         Ok(())
     }

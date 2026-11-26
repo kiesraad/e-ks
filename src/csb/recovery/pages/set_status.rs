@@ -135,6 +135,7 @@ mod tests {
         districts: Vec<Vec<ElectoralDistrict>>,
     ) -> (PersonId, Vec<CandidateListId>, Omission) {
         let person = PersonId::new();
+        store.add_person(crate::test_utils::sample_person(person));
         let lists: Vec<CandidateListId> = districts
             .into_iter()
             .map(|districts| {
@@ -330,6 +331,7 @@ mod tests {
     #[tokio::test]
     async fn a_district_decision_splits_a_multi_district_omission() {
         let store = CsbStore::new_for_test();
+        store.add_candidate_list_in(store.election.electoral_districts());
         let stream_id = store.stream_id;
         let omission = declarations_of_support(vec![
             ElectoralDistrict::Groningen,
@@ -406,6 +408,7 @@ mod tests {
     #[tokio::test]
     async fn the_last_district_is_decided_on_the_omission_itself() {
         let store = CsbStore::new_for_test();
+        store.add_candidate_list_in(store.election.electoral_districts());
         let stream_id = store.stream_id;
         let omission = declarations_of_support(vec![ElectoralDistrict::Groningen]);
         omission.create(&store).await.unwrap();
@@ -444,6 +447,7 @@ mod tests {
     #[tokio::test]
     async fn rejects_a_district_the_omission_was_not_reported_for() {
         let store = CsbStore::new_for_test();
+        store.add_candidate_list_in(store.election.electoral_districts());
         let stream_id = store.stream_id;
         let omission = declarations_of_support(vec![
             ElectoralDistrict::Groningen,
@@ -477,6 +481,7 @@ mod tests {
     #[tokio::test]
     async fn each_district_of_a_split_omission_keeps_its_own_decision() {
         let store = CsbStore::new_for_test();
+        store.add_candidate_list_in(store.election.electoral_districts());
         let omission = declarations_of_support(vec![
             ElectoralDistrict::Groningen,
             ElectoralDistrict::Fryslan,
@@ -567,6 +572,7 @@ mod tests {
     #[tokio::test]
     async fn the_last_district_decided_the_same_way_merges_the_parts_back() {
         let store = CsbStore::new_for_test();
+        store.add_candidate_list_in(store.election.electoral_districts());
         let omission = declarations_of_support(vec![
             ElectoralDistrict::Groningen,
             ElectoralDistrict::Fryslan,
@@ -612,6 +618,7 @@ mod tests {
     #[tokio::test]
     async fn changing_a_decision_moves_the_district_to_the_part_holding_it() {
         let store = CsbStore::new_for_test();
+        store.add_candidate_list_in(store.election.electoral_districts());
         declarations_of_support(vec![
             ElectoralDistrict::Groningen,
             ElectoralDistrict::Fryslan,
@@ -671,6 +678,7 @@ mod tests {
     #[tokio::test]
     async fn deciding_a_district_the_way_it_already_is_changes_nothing() {
         let store = CsbStore::new_for_test();
+        store.add_candidate_list_in(store.election.electoral_districts());
         declarations_of_support(vec![
             ElectoralDistrict::Groningen,
             ElectoralDistrict::Utrecht,
@@ -725,6 +733,7 @@ mod tests {
     #[tokio::test]
     async fn separately_reported_omissions_with_the_same_details_merge_once_decided_alike() {
         let store = CsbStore::new_for_test();
+        store.add_candidate_list_in(store.election.electoral_districts());
         let groningen = declarations_of_support(vec![ElectoralDistrict::Groningen]);
         let fryslan = declarations_of_support(vec![ElectoralDistrict::Fryslan]);
         groningen.create(&store).await.unwrap();
@@ -755,6 +764,7 @@ mod tests {
     #[tokio::test]
     async fn omissions_with_different_details_stay_apart() {
         let store = CsbStore::new_for_test();
+        store.add_candidate_list_in(store.election.electoral_districts());
         declarations_of_support(vec![ElectoralDistrict::Groningen])
             .create(&store)
             .await

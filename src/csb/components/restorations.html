@@ -1,13 +1,11 @@
-{% macro omission_panel(title, explanation, add_url, overview_url, rows, can_add=true, show_go_to_all=true) %}
+{% macro omission_panel(title, explanation, add_url, overview_url, rows, show_go_to_all=true) %}
   <div class="examination-panel">
     <div class="examination-panel-header">
       <div>
         <h2 class="h3">{{ title }}</h2>
         <p>{{ explanation }}</p>
       </div>
-      {% if can_add %}
-        <a class="button secondary icon-plus-end" href="{{ add_url }}">{{ "csb.omission.action.add"|trans }}</a>
-      {% endif %}
+      <a class="button secondary icon-plus-end" href="{{ add_url }}">{{ "csb.omission.action.add"|trans }}</a>
     </div>
     {{ omission_strip(overview_url, rows) }}
     {% if show_go_to_all %}

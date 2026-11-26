@@ -792,7 +792,10 @@ mod tests {
         let person_id = person.id;
         let list_id = CandidateListId::new();
         store.add_person(person);
-        store.add_candidate_list(sample_candidate_list(list_id));
+        store.add_candidate_list(crate::structs::candidate_lists::CandidateList {
+            candidates: vec![person_id],
+            ..sample_candidate_list(list_id)
+        });
 
         Omission::new(
             OmissionCategory::Candidate {

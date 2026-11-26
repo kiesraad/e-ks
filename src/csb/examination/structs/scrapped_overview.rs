@@ -281,16 +281,22 @@ mod tests {
     async fn a_district_without_a_list_has_nowhere_to_link_to() {
         let store = CsbStore::new_for_test();
         store.set_political_group(sample_political_group());
-        add_list(&store, &[ElectoralDistrict::Utrecht]);
-        not_recovered(
-            &store,
-            OmissionCategory::DeclarationsOfSupport(vec![ElectoralDistrict::Groningen]),
-        )
-        .await;
+        let (utrecht, _) = add_list(&store, &[ElectoralDistrict::Utrecht]);
+        // Legacy: no districts means all of them, with or without a list.
+        not_recovered(&store, OmissionCategory::DeclarationsOfSupport(Vec::new())).await;
 
         let overview = overview(&store);
 
-        assert_eq!(overview.districts.len(), 1);
-        assert!(overview.districts[0].path.is_none());
+        assert_eq!(
+            overview.districts.len(),
+            store.election.electoral_districts().len()
+        );
+        for district in &overview.districts {
+            assert_eq!(
+                district.path.is_some(),
+                district.district == ElectoralDistrict::Utrecht
+            );
+        }
+        assert!(store.snapshot().get_scrapped().is_list_scrapped(utrecht));
     }
 }

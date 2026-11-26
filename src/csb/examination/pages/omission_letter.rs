@@ -393,6 +393,7 @@ mod tests {
     #[tokio::test]
     async fn overview_lists_the_omissions_and_links_the_downloads() -> Result<(), AppError> {
         let store = store_with_group().await;
+        store.add_candidate_list_in(&[ElectoralDistrict::Groningen, ElectoralDistrict::Fryslan]);
         let stream_id = store.stream_id;
         Omission::new(
             OmissionCategory::Appellation,

@@ -431,6 +431,13 @@ to the CSB stream. The source political group's stream is never touched, and
 the finalise/document-generation routes are blocked: the documents were
 already handed in on paper.
 
+After every event the projection drops what a paper correction left dangling
+(`src/projection/csb_data/integrity.rs`): omissions are narrowed to the
+lists, candidates and districts that still exist, and committee corrections
+that no longer change anything are removed. Undoing the paper correction does
+not restore them. A paper correction is refused with a conflict when another
+one landed since the handler read the data.
+
 ## Request lifecycle
 
 A request passes through a fixed chain of middleware before it reaches a
