@@ -14,12 +14,13 @@ legend:
   warning_help: De documenten kunnen wel geprint worden maar dit levert mogelijk een verzuim op.
 no_appellation: Geregistreerde aanduiding ontbreekt
 no_authorised_agent: Geen gemachtigde
+no_authorised_name: Geen statutaire naam
 no_bsn: BSN ontbreekt
 no_candidate_list: Geen kandidatenlijst
 no_candidates: Geen kandidaten
 no_country_of_residence: Woonland ontbreekt
 no_date_of_birth: Geboortedatum ontbreekt
-no_designation_type: Lijstaanduiding ontbreekt
+no_designation_type: Type lijstaanduiding ontbreekt
 no_districts: Geen kieskringen
 no_initials: Initialen ontbreken
 no_last_name: Achternaam ontbreekt

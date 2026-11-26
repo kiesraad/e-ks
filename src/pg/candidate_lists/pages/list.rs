@@ -8,8 +8,9 @@ use crate::{
     filters,
     structs::{
         candidate_lists::CandidateListWithProblems,
-        common::{HasSeverity, Problematic, Severity},
+        common::{HasSeverity, PotentialProblems, Problematic, Severity},
         persons::Person,
+        problems::AllProblems,
     },
 };
 
@@ -20,6 +21,7 @@ struct CandidateListIndexTemplate {
     total_persons: usize,
     persons_with_problems: usize,
     person_problem_severity: &'static str,
+    blank_with_different_first_candidates: bool,
 }
 
 pub async fn list_candidate_lists(
@@ -28,8 +30,12 @@ pub async fn list_candidate_lists(
     store: PgStore,
 ) -> Result<impl IntoResponse, AppError> {
     let data = store.snapshot();
+    let summaries = CandidateListSummary::list(&data, store.election);
+    let blank_with_different_first_candidates = AllProblems::find_list_problems(&summaries, &data)
+        .general
+        .contains(&PotentialProblems::BlankWithDifferentFirstCandidates);
     let mut candidate_lists = Vec::new();
-    for summary in CandidateListSummary::list(&data, store.election) {
+    for summary in summaries {
         let problems = summary.get_problems(());
         candidate_lists.push(CandidateListWithProblems {
             data: summary,
@@ -54,6 +60,7 @@ pub async fn list_candidate_lists(
             total_persons: persons.len(),
             persons_with_problems,
             person_problem_severity,
+            blank_with_different_first_candidates,
         },
         context,
     ))

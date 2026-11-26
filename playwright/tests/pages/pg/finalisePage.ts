@@ -24,7 +24,7 @@ export class FinalisePage {
       name: "Geregistreerde aanduiding",
     });
     this.linkNoLegalName = this.page.getByRole("link", {
-      name: "1 statutaire naam te weinig",
+      name: "Geen statutaire naam",
     });
     this.linkBSN = this.page.getByRole("link", {
       name: "BSN ontbreekt",
