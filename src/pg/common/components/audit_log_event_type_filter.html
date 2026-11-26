@@ -7,7 +7,7 @@
       {% for event_key in group.event_types.iter() %}
         {% let event_label_key = format!("audit_log.event.{}", event_key) %}
         <option value="{{ event_key }}"
-                {% if filter.event_type.as_deref() == Some(event_key.as_ref()) %}selected{% endif %}>
+                {% if filter.data.event_type.as_deref() == Some(event_key.as_ref()) %}selected{% endif %}>
           {{ event_label_key.as_str() |trans }}
         </option>
       {% endfor %}

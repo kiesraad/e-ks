@@ -7,6 +7,7 @@
            name="signers"
            id="signer_{{ index }}"
            value="{{ value }}" />
+    {% for error in form|error(&format!("signers.{index}")) %}<span class="error">{{ error }}</span>{% endfor %}
   </p>
 {% endmacro member_input %}
 {% block breadcrumbs %}
@@ -96,6 +97,7 @@
       <p class="form-field form-field-lg">
         <label for="chair">{{ "csb.hearing.chair_name"|trans }}</label>
         <input type="text" name="chair" id="chair" value="{{ form.data.chair }}" />
+        {% for error in form|error("chair") %}<span class="error">{{ error }}</span>{% endfor %}
       </p>
     </div>
     {% for row in form.data.signer_rows() %}

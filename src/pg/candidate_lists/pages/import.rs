@@ -6,14 +6,14 @@ use axum::{
 };
 
 use crate::{
-    AppError, Context, EventHashPrefix, HtmlTemplate, Locale, Overlay, PgStore, QueryParamState,
+    AppError, Context, EventHashPrefix, HtmlTemplate, Locale, OptionStringExt, Overlay, PgStore,
+    QueryParamState,
     candidate_lists::{
+        extractors::FileForm,
         importer::{ImportCandidateListError, import_candidate_list_csv},
         pages::CandidateListImportPath,
     },
-    filters,
-    form::FileForm,
-    redirect_success, trans,
+    filters, redirect_success, trans,
 };
 
 /// Upload (CSV import) body limit, applied via `DefaultBodyLimit` on the route.
@@ -108,7 +108,7 @@ pub async fn import_candidate_list(
         &store,
         csv_data,
         context.session.locale,
-        import_data.file_name.unwrap_or_default(),
+        import_data.file_name.to_string_or_default(),
         file_size,
     )
     .await
@@ -172,7 +172,7 @@ mod tests {
 
     use crate::{
         AppState, Locale, Session,
-        structs::candidate_lists::CandidateListId,
+        structs::{candidate_lists::CandidateListId, common::FileName},
         test_utils::{response_body_string, sample_candidate_list},
     };
 
@@ -267,7 +267,7 @@ mod tests {
             context,
             store.clone(),
             Ok(FileForm {
-                file_name: Some("invalid.csv".to_string()),
+                file_name: FileName::from_upload("invalid.csv"),
                 file_data: Some(Bytes::from(invalid_csv())),
             }),
         )
@@ -298,7 +298,7 @@ mod tests {
             context,
             store,
             Ok(FileForm {
-                file_name: Some("validation-errors.csv".to_string()),
+                file_name: FileName::from_upload("validation-errors.csv"),
                 file_data: Some(Bytes::from(csv_with_multiple_validation_errors())),
             }),
         )
@@ -345,7 +345,7 @@ mod tests {
             context,
             store,
             Ok(FileForm {
-                file_name: Some("candidates.csv".to_string()),
+                file_name: FileName::from_upload("candidates.csv"),
                 file_data: Some(Bytes::from(csv)),
             }),
         )
@@ -379,7 +379,7 @@ mod tests {
             Context::new_test_without_db(),
             store.clone(),
             Ok(FileForm {
-                file_name: Some("candidates.csv".to_string()),
+                file_name: FileName::from_upload("candidates.csv"),
                 file_data: Some(Bytes::from(csv)),
             }),
         )
@@ -480,7 +480,7 @@ mod tests {
             context,
             store,
             Ok(FileForm {
-                file_name: Some("payload.exe".to_string()),
+                file_name: FileName::from_upload("payload.exe"),
                 file_data: Some(Bytes::from("anything")),
             }),
         )

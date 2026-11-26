@@ -12,7 +12,9 @@ use syn::{Data, DeriveInput, Fields, LitStr, Type, parse_macro_input};
 ///
 /// Supported annotations:
 /// - `#[validate(target = "Type")]` on the struct.
-/// - `#[validate(parse = "Type")]` to parse via `Type::from_str`.
+/// - `#[validate(parse = "Type")]` to parse via `Type::from_str`. On a `Vec`
+///   field every non-blank element is parsed and blank ones are dropped;
+///   errors are reported per element as `field.index`.
 /// - `#[validate(optional)]` to treat empty strings as `None` (requires `parse`).
 /// - `#[validate(required)]` to reject empty strings while parsing into an
 ///   `Option` target field (requires `parse`).
@@ -263,6 +265,9 @@ fn check_field_option_conflicts(field: &syn::Field, opts: &FieldOptions) -> syn:
     if (opts.optional || opts.required) && opts.parse_ty.is_none() {
         return error("optional and required require parse");
     }
+    if (opts.optional || opts.required) && is_type_named(&field.ty, "Vec") {
+        return error("optional and required cannot be used on a Vec field");
+    }
 
     Ok(())
 }
@@ -283,7 +288,11 @@ fn build_field_validation(
         return build_flatten_validation(ident, field_name, is_type_named(ty, "Option"));
     }
 
-    if let Some(ty) = &opts.parse_ty {
+    if let Some(parse_ty) = &opts.parse_ty {
+        if is_type_named(ty, "Vec") {
+            return build_parse_vec_validation(ident, field_name, parse_ty);
+        }
+        let ty = parse_ty;
         return build_parse_validation(ident, field_name, ty, opts.optional, opts.required);
     }
 
@@ -381,6 +390,40 @@ fn build_parse_validation(
                 }
             }
         }
+    });
+
+    FieldValidation {
+        expr,
+        validated: true,
+    }
+}
+
+/// Build validation for `#[validate(parse = "...")]` on a `Vec` field (e.g.
+/// repeated `signers` inputs into `Vec<CommitteeMemberName>`): blank elements
+/// are dropped, the others parsed via `FromStr`. An error is keyed by the
+/// position of the submitted element (`signers.2`), so it can be shown at the
+/// input it belongs to.
+fn build_parse_vec_validation(ident: &syn::Ident, field_name: &str, ty: &Type) -> FieldValidation {
+    let expr = quote!({
+        let mut values = Vec::new();
+        let mut valid = true;
+        for (index, value) in self.#ident.iter().enumerate() {
+            let value = value.trim();
+            if value.is_empty() {
+                continue;
+            }
+            match <#ty as ::std::str::FromStr>::from_str(value) {
+                Ok(value) => values.push(value),
+                Err(err) => {
+                    errors.push((
+                        format!("{}.{}", #field_name, index),
+                        crate::form::IntoValidationError::into_validation_error(err)
+                    ));
+                    valid = false;
+                }
+            }
+        }
+        valid.then_some(values)
     });
 
     FieldValidation {

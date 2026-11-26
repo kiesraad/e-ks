@@ -1,6 +1,8 @@
 use askama::Template;
 use axum::{extract::State, response::IntoResponse};
 
+use validate::Validate;
+
 use crate::{
     AppError, AppRequestState, Context, CsbContext, CsbMainStore, Event, HtmlTemplate, Locale,
     Query, StreamId,
@@ -10,10 +12,14 @@ use crate::{
         structs::CsbAuditLogEntry,
     },
     filters,
+    form::FormData,
     pagination::Pagination,
     projection::CsbStream,
     store::{StoreData, StoreEvent},
-    structs::audit_log::{AuditEvent, EventTypeCategory, SubjectLinks},
+    structs::{
+        audit_log::{AuditEvent, EventTypeCategory, SubjectLinks},
+        common::AuditLogSearch,
+    },
     trans,
     utils::filter_query_suffix,
 };
@@ -107,20 +113,31 @@ pub const EVENT_TYPES_BY_CATEGORY: &[EventTypeCategory] = &[
 ];
 
 /// Filters for the CSB audit log list view.
-#[derive(Debug, Default, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Default, Clone, serde::Deserialize, serde::Serialize, Validate)]
+#[validate(target = "CsbAuditLogFilterTarget")]
 pub struct CsbAuditLogFilter {
     /// The stream can be:
-    /// - `None` to show the CSB main stream
+    /// - empty to show the CSB main stream
     /// - a UUID string to show that import stream
+    #[validate(parse = "StreamId", optional)]
     #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub stream: Option<String>,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub stream: String,
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub event_type: Option<String>,
+    #[validate(parse = "AuditLogSearch", optional)]
     #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub search: Option<String>,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub search: String,
+}
+
+/// The validated [`CsbAuditLogFilter`].
+#[derive(Default, Clone)]
+pub struct CsbAuditLogFilterTarget {
+    stream: Option<StreamId>,
+    event_type: Option<String>,
+    search: Option<AuditLogSearch>,
 }
 
 impl CsbAuditLogFilter {
@@ -129,9 +146,9 @@ impl CsbAuditLogFilter {
     }
 
     pub fn is_active(&self) -> bool {
-        self.stream.as_deref().is_some_and(|s| !s.is_empty())
+        !self.stream.is_empty()
             || self.event_type.as_deref().is_some_and(|s| !s.is_empty())
-            || self.search.as_deref().is_some_and(|s| !s.is_empty())
+            || !self.search.is_empty()
     }
 }
 
@@ -140,7 +157,7 @@ impl CsbAuditLogFilter {
 struct CsbAuditLogTemplate {
     entries: Vec<CsbAuditLogEntry>,
     pagination: crate::pagination::PaginationInfo,
-    filter: CsbAuditLogFilter,
+    filter: FormData<CsbAuditLogFilter>,
     /// Import streams available for filtering: (stream_id, label).
     import_streams: Vec<(StreamId, String)>,
     event_types_by_category: &'static [EventTypeCategory],
@@ -175,15 +192,13 @@ fn collect_entries(
     import_stores: &[CsbStream],
     pre_submission_stores: &[CsbStream],
     main_store: &CsbMainStore,
-    filter: &CsbAuditLogFilter,
+    filter: &CsbAuditLogFilterTarget,
     locale: Locale,
 ) -> Result<Vec<CsbAuditLogEntry>, AppError> {
-    let active_stream = filter.stream.as_deref().filter(|s| !s.is_empty());
     let active_event_type = filter.event_type.as_deref().filter(|s| !s.is_empty());
-    let active_search = filter.search.as_deref().filter(|s| !s.is_empty());
+    let active_search = filter.search.as_deref().map(String::as_str);
 
-    let entries = if let Some(stream_id) = active_stream {
-        let stream_id = stream_id.parse().map_err(|_| AppError::GenericNotFound)?;
+    let entries = if let Some(stream_id) = filter.stream {
         let links = CsbStreamLinks::find(import_stores, pre_submission_stores, stream_id)?;
         filter_events(
             links.data.events().iter(),
@@ -252,13 +267,20 @@ pub async fn csb_audit_log<S: AppRequestState>(
         .await?;
 
     let import_stream_labels = stream_labels(&import_stores, &pre_submission_stores, locale);
-    let all_entries = collect_entries(
-        &import_stores,
-        &pre_submission_stores,
-        &main_store,
-        &filter,
-        locale,
-    )?;
+    // An invalid filter matches nothing; the form shows what is wrong with it.
+    let (all_entries, filter) = match filter.clone().validate_create() {
+        Ok(valid) => (
+            collect_entries(
+                &import_stores,
+                &pre_submission_stores,
+                &main_store,
+                &valid,
+                locale,
+            )?,
+            FormData::new_with_data(filter),
+        ),
+        Err(form) => (Vec::new(), form),
+    };
 
     let total = all_entries.len();
     let pagination = Pagination {
@@ -277,7 +299,7 @@ pub async fn csb_audit_log<S: AppRequestState>(
         "{}{}{}",
         CsbAuditLogPath,
         pagination.url(pagination.page, pagination.per_page),
-        filter.as_query_suffix()
+        filter.data.as_query_suffix()
     );
 
     Ok(HtmlTemplate(
@@ -394,7 +416,7 @@ mod tests {
             CsbMainStore::new_for_test(),
             state,
             Query(CsbAuditLogFilter {
-                stream: Some(stream_id.to_string()),
+                stream: stream_id.to_string(),
                 event_type: Some("brp_lookup".to_string()),
                 ..Default::default()
             }),
@@ -427,7 +449,7 @@ mod tests {
             CsbMainStore::new_for_test(),
             state,
             Query(CsbAuditLogFilter {
-                stream: Some(stream_id.to_string()),
+                stream: stream_id.to_string(),
                 ..Default::default()
             }),
         )
@@ -462,7 +484,7 @@ mod tests {
             CsbMainStore::new_for_test(),
             state,
             Query(CsbAuditLogFilter {
-                stream: Some(import_stream_id.to_string()),
+                stream: import_stream_id.to_string(),
                 ..Default::default()
             }),
         )
@@ -505,7 +527,7 @@ mod tests {
             CsbMainStore::new_for_test(),
             state,
             Query(CsbAuditLogFilter {
-                stream: Some(import_stream_id.to_string()),
+                stream: import_stream_id.to_string(),
                 ..Default::default()
             }),
         )
@@ -586,7 +608,7 @@ mod tests {
             main_store,
             state,
             Query(CsbAuditLogFilter {
-                stream: Some(import_stream_id.to_string()),
+                stream: import_stream_id.to_string(),
                 ..Default::default()
             }),
         )
@@ -617,7 +639,7 @@ mod tests {
             main_store,
             state,
             Query(CsbAuditLogFilter {
-                stream: Some(import_stream_id.to_string()),
+                stream: import_stream_id.to_string(),
                 event_type: Some("set_finished".to_string()),
                 ..Default::default()
             }),
@@ -648,7 +670,7 @@ mod tests {
             main_store,
             state,
             Query(CsbAuditLogFilter {
-                search: Some("Developer".to_string()),
+                search: "Developer".to_string(),
                 ..Default::default()
             }),
         )
@@ -657,6 +679,32 @@ mod tests {
         let body = response_body_string(response).await;
         assert!(body.contains("<td>Signed in</td>"));
         assert!(!body.contains("<td>Set finished state</td>"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn an_invalid_filter_shows_an_error_and_no_entries() -> Result<(), AppError> {
+        for filter in [
+            CsbAuditLogFilter {
+                search: "a".repeat(201),
+                ..Default::default()
+            },
+            CsbAuditLogFilter {
+                stream: "not-a-stream".to_string(),
+                ..Default::default()
+            },
+        ] {
+            let main_store = CsbMainStore::new_for_test();
+            main_store.update(CsbMainAction::Login).await?;
+
+            let response = call(main_store, AppState::new_for_tests().await, Query(filter)).await?;
+
+            assert_eq!(response.status(), StatusCode::OK);
+            let body = response_body_string(response).await;
+            assert!(body.contains(r#"<span class="error">"#));
+            assert!(!body.contains("<td>Signed in</td>"));
+        }
 
         Ok(())
     }

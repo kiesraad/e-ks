@@ -7,7 +7,10 @@ use validate::Validate;
 use crate::{
     constants::{DEFAULT_DATE_FORMAT, DEFAULT_TIME_FORMAT},
     form::ValidationError,
-    structs::{common::DATE_FORMAT_REGEX, csb::HearingDetails},
+    structs::{
+        common::{CommitteeMemberName, DATE_FORMAT_REGEX},
+        csb::HearingDetails,
+    },
 };
 
 /// Number of signer inputs rendered on the form.
@@ -18,27 +21,18 @@ const SIGNERS_PER_ROW: usize = 2;
 pub struct HearingDetailsFormTarget {
     date_of_hearing: DateOfHearing,
     time_of_hearing: TimeOfHearing,
-    chair: String,
-    signers: Vec<String>,
+    chair: Option<CommitteeMemberName>,
+    signers: Vec<CommitteeMemberName>,
 }
 
 impl From<HearingDetailsFormTarget> for HearingDetails {
     fn from(value: HearingDetailsFormTarget) -> Self {
-        let members = value
-            .signers
-            .into_iter()
-            .filter_map(|m| {
-                let m = m.trim().to_string();
-                (!m.is_empty()).then_some(m)
-            })
-            .collect();
-
         let date_time = value.date_of_hearing.to_datetime(*value.time_of_hearing);
 
         Self {
             date_time,
-            chair: value.chair.trim().to_string(),
-            members,
+            chair: value.chair.unwrap_or_default(),
+            members: value.signers,
         }
     }
 }
@@ -48,8 +42,8 @@ impl From<HearingDetails> for HearingDetailsForm {
         Self {
             date_of_hearing: DateOfHearing(value.date_time.date()).format(),
             time_of_hearing: TimeOfHearing(value.date_time.time()).format(),
-            chair: value.chair,
-            signers: value.members,
+            chair: value.chair.to_string(),
+            signers: value.members.iter().map(ToString::to_string).collect(),
         }
     }
 }
@@ -123,7 +117,10 @@ pub struct HearingDetailsForm {
     #[validate(parse = "TimeOfHearing")]
     pub time_of_hearing: String,
 
+    #[validate(parse = "CommitteeMemberName", optional)]
     pub chair: String,
+
+    #[validate(parse = "CommitteeMemberName")]
     pub signers: Vec<String>,
 }
 
@@ -172,6 +169,13 @@ mod tests {
         let mut signers: Vec<String> = filled.iter().copied().map(String::from).collect();
         signers.resize(SIGNER_COUNT, String::new());
         signers
+    }
+
+    fn names(names: &[&str]) -> Vec<CommitteeMemberName> {
+        names
+            .iter()
+            .map(|name| name.parse().expect("name"))
+            .collect()
     }
 
     #[test]
@@ -251,10 +255,10 @@ mod tests {
                 .to_string(),
             "1999-12-31 12:34"
         );
-        assert_eq!(hearing_details.chair, "Vera Voorzitter");
+        assert_eq!(*hearing_details.chair, "Vera Voorzitter");
         assert_eq!(
             hearing_details.members,
-            vec!["Jan Klaassen".to_string(), "Malle Babbe".to_string()]
+            names(&["Jan Klaassen", "Malle Babbe"])
         );
     }
 
@@ -269,8 +273,43 @@ mod tests {
         let target = form.validate_create().expect("valid form");
         let hearing_details = HearingDetails::from(target);
 
-        assert_eq!(hearing_details.chair, "Vera Voorzitter");
-        assert_eq!(hearing_details.members, vec!["Jan Klaassen".to_string()]);
+        assert_eq!(*hearing_details.chair, "Vera Voorzitter");
+        assert_eq!(hearing_details.members, names(&["Jan Klaassen"]));
+    }
+
+    #[test]
+    fn validate_create_accepts_a_blank_chair() {
+        let form = HearingDetailsForm {
+            chair: "  ".to_string(),
+            ..valid_form()
+        };
+
+        let target = form.validate_create().expect("valid form");
+
+        assert_eq!(*HearingDetails::from(target).chair, "");
+    }
+
+    #[test]
+    fn validate_create_rejects_invalid_names_at_their_input() {
+        let form = HearingDetailsForm {
+            chair: "Vera\tVoorzitter".to_string(),
+            signers: signers(&["Jan Klaassen", "", &"a".repeat(201)]),
+            ..valid_form()
+        };
+
+        let Err(form_data) = form.validate_create() else {
+            panic!("expected validation errors for invalid names");
+        };
+        assert_eq!(
+            form_data.errors(),
+            vec![
+                ("chair".to_string(), ValidationError::InvalidValue),
+                (
+                    "signers.2".to_string(),
+                    ValidationError::ValueTooLong(201, 200)
+                ),
+            ]
+        );
     }
 
     #[test]
@@ -315,8 +354,8 @@ mod tests {
     fn from_hearing_details_formats_date_and_time_and_fills_signers() {
         let hearing_details = HearingDetails {
             date_time: jiff::civil::date(1999, 12, 31).at(12, 34, 0, 0),
-            chair: "Vera Voorzitter".to_string(),
-            members: vec!["Jan Klaassen".to_string(), "Malle Babbe".to_string()],
+            chair: "Vera Voorzitter".parse().expect("name"),
+            members: names(&["Jan Klaassen", "Malle Babbe"]),
         };
 
         let form = HearingDetailsForm::from(hearing_details);

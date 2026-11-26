@@ -1,13 +1,16 @@
 use askama::Template;
 use axum::response::IntoResponse;
 
+use validate::Validate;
+
 use crate::{
     AppError, Context, Event, HtmlTemplate, PgStore, Query,
     audit_log::{AuditLogEntry, PgLinks, paths::AuditLogPath},
     filters,
+    form::FormData,
     pagination::Pagination,
     store::StoreData,
-    structs::audit_log::EventTypeCategory,
+    structs::{audit_log::EventTypeCategory, common::AuditLogSearch},
     utils::filter_query_suffix,
 };
 
@@ -89,14 +92,33 @@ pub const EVENT_TYPES_BY_CATEGORY: &[EventTypeCategory] = &[
     },
 ];
 
-#[derive(Debug, Default, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Default, Clone, serde::Deserialize, serde::Serialize, Validate)]
+#[validate(target = "AuditLogFilterTarget")]
 pub struct AuditLogFilter {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub event_type: Option<String>,
+    #[validate(parse = "AuditLogSearch", optional)]
     #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub search: Option<String>,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub search: String,
+}
+
+/// The validated [`AuditLogFilter`].
+#[derive(Default, Clone)]
+pub struct AuditLogFilterTarget {
+    event_type: Option<String>,
+    search: Option<AuditLogSearch>,
+}
+
+impl AuditLogFilterTarget {
+    fn event_type(&self) -> Option<&str> {
+        self.event_type.as_deref().filter(|s| !s.is_empty())
+    }
+
+    fn search(&self) -> Option<&str> {
+        self.search.as_deref().map(String::as_str)
+    }
 }
 
 impl AuditLogFilter {
@@ -106,8 +128,7 @@ impl AuditLogFilter {
     }
 
     pub fn is_active(&self) -> bool {
-        self.event_type.as_deref().is_some_and(|s| !s.is_empty())
-            || self.search.as_deref().is_some_and(|s| !s.is_empty())
+        self.event_type.as_deref().is_some_and(|s| !s.is_empty()) || !self.search.is_empty()
     }
 }
 
@@ -116,7 +137,7 @@ impl AuditLogFilter {
 struct AuditLogTemplate {
     entries: Vec<AuditLogEntry>,
     pagination: crate::pagination::PaginationInfo,
-    filter: AuditLogFilter,
+    filter: FormData<AuditLogFilter>,
     event_types_by_category: &'static [EventTypeCategory],
     return_url: String,
 }
@@ -130,8 +151,13 @@ pub async fn audit_log(
 ) -> Result<impl IntoResponse, AppError> {
     let locale = context.session.locale;
 
-    let active_event_type = filter.event_type.as_deref().filter(|s| !s.is_empty());
-    let active_search = filter.search.as_deref().filter(|s| !s.is_empty());
+    // An invalid filter matches nothing; the form shows what is wrong with it.
+    let (valid, filter) = match filter.clone().validate_create() {
+        Ok(valid) => (Some(valid), FormData::new_with_data(filter)),
+        Err(form) => (None, form),
+    };
+    let active_event_type = valid.as_ref().and_then(AuditLogFilterTarget::event_type);
+    let active_search = valid.as_ref().and_then(AuditLogFilterTarget::search);
 
     let data = store.snapshot();
     let links = PgLinks {
@@ -144,6 +170,7 @@ pub async fn audit_log(
         .events()
         .iter()
         .rev()
+        .filter(|_| valid.is_some())
         .filter(|event| {
             active_event_type
                 .map(|et| event.payload.category() == et || event.payload.key() == et)
@@ -175,7 +202,7 @@ pub async fn audit_log(
         "{}{}{}",
         AuditLogPath,
         pagination.url(pagination.page, pagination.per_page),
-        filter.as_query_suffix()
+        filter.data.as_query_suffix()
     );
 
     Ok(HtmlTemplate(
@@ -343,7 +370,7 @@ mod tests {
             },
             Query(AuditLogFilter {
                 event_type: Some("person".to_string()),
-                search: None,
+                search: String::new(),
             }),
         )
         .await
@@ -376,7 +403,7 @@ mod tests {
             Pagination::default(),
             Query(AuditLogFilter {
                 event_type: Some("person".to_string()),
-                search: None,
+                search: String::new(),
             }),
         )
         .await
@@ -406,7 +433,7 @@ mod tests {
             Pagination::default(),
             Query(AuditLogFilter {
                 event_type: Some("delete_person".to_string()),
-                search: None,
+                search: String::new(),
             }),
         )
         .await
@@ -447,7 +474,7 @@ mod tests {
             Pagination::default(),
             Query(AuditLogFilter {
                 event_type: Some("person".to_string()),
-                search: None,
+                search: String::new(),
             }),
         )
         .await
@@ -529,7 +556,7 @@ mod tests {
         let filtered = |event_type: &str| {
             Query(AuditLogFilter {
                 event_type: Some(event_type.to_string()),
-                search: None,
+                search: String::new(),
             })
         };
 
@@ -582,7 +609,7 @@ mod tests {
             Pagination::default(),
             Query(AuditLogFilter {
                 event_type: None,
-                search: Some(name.clone()),
+                search: name.clone(),
             }),
         )
         .await
@@ -591,6 +618,33 @@ mod tests {
 
         let body = response_body_string(response).await;
         assert!(body.contains("<td>Created person</td>"));
+        assert!(!body.contains("<td>Updated political group</td>"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn an_invalid_search_shows_an_error_and_no_entries() -> Result<(), AppError> {
+        let store = PgStore::new_for_test();
+        sample_political_group().update(&store).await?;
+
+        let response = audit_log(
+            AuditLogPath {},
+            Context::new_test_without_db(),
+            store,
+            Pagination::default(),
+            Query(AuditLogFilter {
+                event_type: None,
+                search: "a".repeat(201),
+            }),
+        )
+        .await
+        .unwrap()
+        .into_response();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response_body_string(response).await;
+        assert!(body.contains(r#"<span class="error">"#));
         assert!(!body.contains("<td>Updated political group</td>"));
 
         Ok(())

@@ -143,8 +143,8 @@ mod tests {
                 HearingModel::I4,
                 HearingDetails {
                     date_time: jiff::civil::date(2027, 4, 9).at(10, 15, 0, 0),
-                    chair: "Vera Voorzitter".to_string(),
-                    members: vec!["Jan Klaassen".to_string()],
+                    chair: "Vera Voorzitter".parse().expect("name"),
+                    members: vec!["Jan Klaassen".parse().expect("name")],
                 },
             ))
             .await?;
@@ -155,8 +155,14 @@ mod tests {
             model.public_session.date_time,
             jiff::civil::date(2027, 4, 9).at(10, 15, 0, 0)
         );
-        assert_eq!(model.public_session.chair, "Vera Voorzitter");
-        assert_eq!(model.public_session.members, vec!["Jan Klaassen"]);
+        assert_eq!(*model.public_session.chair, "Vera Voorzitter");
+        let members: Vec<&str> = model
+            .public_session
+            .members
+            .iter()
+            .map(|m| m.as_str())
+            .collect();
+        assert_eq!(members, vec!["Jan Klaassen"]);
 
         Ok(())
     }
@@ -170,8 +176,8 @@ mod tests {
             .update(CsbMainAction::UpdateHearingDetails(
                 HearingModel::I1,
                 HearingDetails {
-                    chair: "Vera Voorzitter".to_string(),
-                    members: vec!["Jan Klaassen".to_string()],
+                    chair: "Vera Voorzitter".parse().expect("name"),
+                    members: vec!["Jan Klaassen".parse().expect("name")],
                     ..HearingDetails::default()
                 },
             ))
@@ -181,7 +187,7 @@ mod tests {
 
         let configured = ElectionConfig::EK27.public_session();
         assert_eq!(model.public_session.date_time, configured.datetime);
-        assert_eq!(model.public_session.chair, configured.chair);
+        assert_eq!(*model.public_session.chair, configured.chair);
 
         Ok(())
     }
