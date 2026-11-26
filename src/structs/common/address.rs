@@ -48,7 +48,7 @@ impl DutchAddress {
     /// Returns `true` when all address parts are empty or `None`.
     pub fn is_empty(&self) -> bool {
         self.street_name.is_empty_or_none()
-            && self.house_number.is_empty_or_none()
+            && self.house_number.is_none()
             && self.house_number_addition.is_empty_or_none()
             && self.postal_code.is_empty_or_none()
             && self.locality.is_empty_or_none()
@@ -100,7 +100,7 @@ impl Problematic<Severity> for DutchAddress {
             address_problems.push(EmptyAddressProblems::StreetName);
         }
 
-        if self.house_number.is_empty_or_none() {
+        if self.house_number.is_none() {
             address_problems.push(EmptyAddressProblems::HouseNumber);
         }
 
@@ -172,7 +172,7 @@ impl InternationalAddress {
     /// Returns `true` when all address parts are empty or `None`.
     pub fn is_empty(&self) -> bool {
         self.street_name.is_empty_or_none()
-            && self.house_number.is_empty_or_none()
+            && self.house_number.is_none()
             && self.house_number_addition.is_empty_or_none()
             && self.postal_code.is_empty_or_none()
             && self.locality.is_empty_or_none()
@@ -188,7 +188,7 @@ impl Problematic<Severity> for InternationalAddress {
         if self.street_name.is_empty_or_none() {
             problems.push(EmptyAddressProblems::StreetName);
         }
-        if self.house_number.is_empty_or_none() {
+        if self.house_number.is_none() {
             problems.push(EmptyAddressProblems::HouseNumber);
         }
 
@@ -505,7 +505,7 @@ mod tests {
     fn is_empty_when_all_parts_absent_or_empty() {
         let address = DutchAddress {
             street_name: Some(StreetName::default()),
-            house_number: Some(HouseNumber::default()),
+            house_number: None,
             house_number_addition: Some(HouseNumberAddition::default()),
             locality: Some(Locality::default()),
             postal_code: Some(PostalCode::default()),
@@ -662,7 +662,7 @@ mod tests {
     fn international_address_is_empty_when_all_parts_absent_or_empty() {
         let address = InternationalAddress {
             street_name: Some(StreetName::default()),
-            house_number: Some(HouseNumber::default()),
+            house_number: None,
             house_number_addition: Some(HouseNumberAddition::default()),
             locality: Some(Locality::default()),
             state_or_province: Some(StateOrProvince::default()),

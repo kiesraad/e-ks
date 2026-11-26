@@ -168,7 +168,7 @@ fn try_into_dutch_address(
 ) -> Option<crate::structs::common::DutchAddress> {
     Some(crate::structs::common::DutchAddress {
         street_name: address.street_name.clone(),
-        house_number: address.house_number.clone(),
+        house_number: address.house_number,
         house_number_addition: address.house_number_addition.clone(),
         locality: address.locality.clone(),
         postal_code: address

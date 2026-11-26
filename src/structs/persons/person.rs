@@ -373,12 +373,8 @@ mod tests {
             "9999ZZ".parse().unwrap()
         );
         assert_eq!(
-            updated
-                .address
-                .house_number
-                .as_deref()
-                .map(ToString::to_string),
-            Some("99".to_string())
+            updated.address.house_number.map(|n| n.as_number()),
+            Some(99)
         );
         assert_eq!(updated.address.house_number_addition, None);
         assert_eq!(
