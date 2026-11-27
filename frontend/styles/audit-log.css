@@ -15,7 +15,7 @@ table.audit-log {
 
 dl.event-meta {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 0.5rem 1rem;
   margin-bottom: 1.5rem;
   padding: 1rem;
@@ -44,7 +44,7 @@ table.diff-table {
   th,
   td {
     padding-block: var(--space-2);
-    overflow-wrap: break-word;
+    overflow-wrap: anywhere;
   }
 
   td.kind-col {

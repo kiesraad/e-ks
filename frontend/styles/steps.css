@@ -4,6 +4,11 @@
   gap: var(--space-8);
 }
 
+/* Let the content next to the nav shrink below its longest word. */
+.steps > * {
+  min-width: 0;
+}
+
 .steps-nav {
   top: var(--space-lg);
   position: sticky;

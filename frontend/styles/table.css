@@ -96,6 +96,56 @@ table {
   }
 }
 
+/* Text cells that stay on one line; `max-width: 0` lets the cell shrink
+   below its content, the column width comes from the th. */
+td.truncate {
+  max-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#persons-table {
+  .col-last-name {
+    width: 22%;
+  }
+
+  .col-initials {
+    width: 11%;
+  }
+
+  .col-first-name,
+  .col-residence {
+    width: 16%;
+  }
+
+  /* Room for the row icon and the chevron. */
+  .col-actions {
+    width: 6rem;
+  }
+}
+
+/* The position preview hides its header, so its cells carry the widths. */
+:is(#candidate-table, #add-candidate-table, #position-preview) {
+  .col-name {
+    width: 46%;
+  }
+
+  .col-residence {
+    width: 26%;
+  }
+}
+
+table.audit-log {
+  .col-event {
+    width: 22%;
+  }
+
+  .col-details {
+    width: 40%;
+  }
+}
+
 /* Keep striping less specific than hover, highlight, and drag states. */
 :where(#persons-table tbody, #candidate-table) tr {
   &:nth-child(even of :where(:not([hidden]))) {

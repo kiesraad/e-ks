@@ -33,8 +33,8 @@
           <tr>
             <th scope="col">{{ "audit_log.fields.event_id"|trans }}</th>
             <th scope="col">{{ "audit_log.fields.timestamp"|trans }}</th>
-            <th scope="col">{{ "audit_log.fields.event"|trans }}</th>
-            <th scope="col">{{ "audit_log.fields.details"|trans }}</th>
+            <th scope="col" class="col-event">{{ "audit_log.fields.event"|trans }}</th>
+            <th scope="col" class="col-details">{{ "audit_log.fields.details"|trans }}</th>
             <th scope="col">{{ "audit_log.fields.subject_id"|trans }}</th>
             <th></th>
           </tr>
@@ -44,8 +44,8 @@
             <tr class="clickable">
               <td>{{ entry.event_id }}</td>
               <td>{{ entry.created_at|datetime_seconds }}</td>
-              <td>{{ entry.description }}</td>
-              <td>{{ entry.details }}</td>
+              <td class="truncate">{{ entry.description }}</td>
+              <td class="truncate">{{ entry.details }}</td>
               <td class="subject-id">{% if let Some(subject) = entry.subject %}{{ subject_id::subject_id(subject) }}{% endif %}</td>
               <td>
                 <a href="{{ entry.detail_path_with_return(return_url.as_str() ) }}">

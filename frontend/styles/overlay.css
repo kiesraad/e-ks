@@ -48,7 +48,12 @@ body.overlay-open {
 
     h2,
     h3 {
+      flex: 1;
       margin: 0;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .close-overlay {

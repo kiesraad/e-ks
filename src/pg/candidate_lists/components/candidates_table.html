@@ -5,10 +5,10 @@
   <thead>
     <tr>
       <th scope="col" colspan="2">{{ "candidate_list.fields.position"|trans }}</th>
-      <th scope="col">{{ "person.fields.name"|trans }}</th>
-      <th scope="col">{{ "person.fields.place_of_residence"|trans }}</th>
+      <th scope="col" class="col-name">{{ "person.fields.name"|trans }}</th>
+      <th scope="col" class="col-residence">{{ "person.fields.place_of_residence"|trans }}</th>
       <th scope="col"
-          class="statistic {% if full_list.candidates.len() > max_candidates %}warning{% endif %}">
+          class="statistic nowrap {% if full_list.candidates.len() > max_candidates %}warning{% endif %}">
         {{ "candidate_list.candidate_count"|trans(&full_list.candidates.len().to_string(), &max_candidates.to_string())|safe }}
       </th>
     </tr>
@@ -21,11 +21,11 @@
         <td>
           <span class="badge position-badge">{{ candidate.data.position }}</span>
         </td>
-        <td>
+        <td class="truncate">
           <strong>{{ candidate.data.person.name.last_name_with_prefix_appended() }},</strong>
           {{ candidate.data.person|initials_as_printed_on_list }}
         </td>
-        <td>
+        <td class="truncate">
           {% if let Some(place_of_residence) = candidate.data.person.personal_data.place_of_residence %}
             {{ place_of_residence }}
           {% endif %}
