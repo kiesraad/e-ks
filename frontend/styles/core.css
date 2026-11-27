@@ -8,7 +8,7 @@
 
 dl {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto minmax(0, 1fr);
   color: var(--gray-500);
   font-size: var(--font-size-sm);
 

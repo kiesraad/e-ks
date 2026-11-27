@@ -30,12 +30,14 @@
             <td>
               <span class="badge position-badge">{{ c.data.position }}</span>
             </td>
-            <td>
+            <td class="truncate col-name">
               <strong>{{ c.data.person.name.last_name }},</strong>
               {{ c.data.person.name.initials|display }}
               {% if let Some(first_name) = c.data.person.name.first_name %}({{ first_name }}){% endif %}
             </td>
-            <td>{% if let Some(locality) = c.data.person.address.locality %}{{ locality }}{% endif %}</td>
+            <td class="truncate col-residence">
+              {% if let Some(locality) = c.data.person.address.locality %}{{ locality }}{% endif %}
+            </td>
           </tr>
         {% endfor %}
       </tbody>

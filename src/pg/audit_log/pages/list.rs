@@ -257,7 +257,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body_string(response).await;
         assert!(body.contains("<table"));
-        assert!(body.contains("<td>Created person</td>"));
+        assert!(body.contains("<td class=\"truncate\">Created person</td>"));
         assert!(body.contains(&person.name.display()));
 
         Ok(())
@@ -283,9 +283,11 @@ mod tests {
         .into_response();
 
         let body = response_body_string(response).await;
-        let person_pos = body.find("<td>Created person</td>").expect("person event");
+        let person_pos = body
+            .find("<td class=\"truncate\">Created person</td>")
+            .expect("person event");
         let pg_pos = body
-            .find("<td>Updated political group</td>")
+            .find("<td class=\"truncate\">Updated political group</td>")
             .expect("pg event");
         assert!(
             person_pos < pg_pos,
@@ -320,7 +322,9 @@ mod tests {
         // Should show pagination controls
         assert!(body.contains("Pagination"));
         // Count table rows - should be PER_PAGE
-        let row_count = body.matches("<td>Created person</td>").count();
+        let row_count = body
+            .matches("<td class=\"truncate\">Created person</td>")
+            .count();
         assert_eq!(row_count, PER_PAGE);
 
         Ok(())
@@ -384,8 +388,8 @@ mod tests {
         .into_response();
 
         let body = response_body_string(response).await;
-        assert!(body.contains("<td>Created person</td>"));
-        assert!(!body.contains("<td>Updated political group</td>"));
+        assert!(body.contains("<td class=\"truncate\">Created person</td>"));
+        assert!(!body.contains("<td class=\"truncate\">Updated political group</td>"));
 
         Ok(())
     }
@@ -414,8 +418,8 @@ mod tests {
         .into_response();
 
         let body = response_body_string(response).await;
-        assert!(body.contains("<td>Deleted person</td>"));
-        assert!(!body.contains("<td>Created person</td>"));
+        assert!(body.contains("<td class=\"truncate\">Deleted person</td>"));
+        assert!(!body.contains("<td class=\"truncate\">Created person</td>"));
 
         Ok(())
     }
@@ -499,11 +503,11 @@ mod tests {
         .into_response();
 
         let body = response_body_string(response).await;
-        assert!(body.contains("<td>Updated political group</td>"));
-        assert!(!body.contains("<td>Created person</td>"));
+        assert!(body.contains("<td class=\"truncate\">Updated political group</td>"));
+        assert!(!body.contains("<td class=\"truncate\">Created person</td>"));
         // The import that seeds the corrections is event #1, the correction #2.
         assert!(body.contains("<td>1</td>"));
-        assert!(body.contains("<td>Imported political group</td>"));
+        assert!(body.contains("<td class=\"truncate\">Imported political group</td>"));
         assert!(body.contains("<td>2</td>"));
 
         Ok(())
@@ -545,8 +549,8 @@ mod tests {
         .unwrap()
         .into_response();
         let body = response_body_string(response).await;
-        assert!(body.contains("<td>Imported political group</td>"));
-        assert!(!body.contains("<td>Updated political group</td>"));
+        assert!(body.contains("<td class=\"truncate\">Imported political group</td>"));
+        assert!(!body.contains("<td class=\"truncate\">Updated political group</td>"));
 
         // Filtering by an unrelated type drops the import.
         let response = audit_log(
@@ -560,8 +564,8 @@ mod tests {
         .unwrap()
         .into_response();
         let body = response_body_string(response).await;
-        assert!(!body.contains("<td>Imported political group</td>"));
-        assert!(body.contains("<td>Updated political group</td>"));
+        assert!(!body.contains("<td class=\"truncate\">Imported political group</td>"));
+        assert!(body.contains("<td class=\"truncate\">Updated political group</td>"));
 
         Ok(())
     }
@@ -590,8 +594,8 @@ mod tests {
         .into_response();
 
         let body = response_body_string(response).await;
-        assert!(body.contains("<td>Created person</td>"));
-        assert!(!body.contains("<td>Updated political group</td>"));
+        assert!(body.contains("<td class=\"truncate\">Created person</td>"));
+        assert!(!body.contains("<td class=\"truncate\">Updated political group</td>"));
 
         Ok(())
     }

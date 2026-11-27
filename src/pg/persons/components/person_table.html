@@ -2,19 +2,19 @@
 <table id="persons-table">
   <thead>
     <tr>
-      <th scope="col">
+      <th scope="col" class="col-last-name">
         <a href="{{ pagination.sort_link(PersonSort::LastName) }}">
           {{ "person.fields.last_name"|trans }}
           {{ pagination.dir_icon(PersonSort::LastName) }}
         </a>
       </th>
-      <th scope="col">
+      <th scope="col" class="col-initials">
         <a href="{{ pagination.sort_link(PersonSort::Initials) }}">
           {{ "person.fields.initials"|trans }}
           {{ pagination.dir_icon(PersonSort::Initials) }}
         </a>
       </th>
-      <th scope="col">
+      <th scope="col" class="col-first-name">
         <a href="{{ pagination.sort_link(PersonSort::FirstName) }}">
           {{ "person.fields.first_name"|trans }}
           {{ pagination.dir_icon(PersonSort::FirstName) }}
@@ -26,31 +26,31 @@
           {{ pagination.dir_icon(PersonSort::Gender) }}
         </a>
       </th>
-      <th scope="col">
+      <th scope="col" class="col-residence">
         <a href="{{ pagination.sort_link(PersonSort::PlaceOfResidence) }}">
           {{ "person.fields.place_of_residence"|trans }}
           {{ pagination.dir_icon(PersonSort::PlaceOfResidence) }}
         </a>
       </th>
-      <th scope="col">
+      <th scope="col" class="nowrap">
         <a href="{{ pagination.sort_link(PersonSort::UpdatedAt) }}">
           {{ "person.fields.updated_at"|trans }}
           {{ pagination.dir_icon(PersonSort::UpdatedAt) }}
         </a>
       </th>
-      <th scope="col"></th>
+      <th scope="col" class="col-actions"></th>
     </tr>
   </thead>
   <tbody>
     {% for person in person_pagination.persons %}
       <tr class="clickable {{ person.problems.highest_severity_class() }}"
           data-id="{{ person.data.id }}">
-        <td>{{ person.data.name.last_name_with_prefix_appended() }}</td>
-        <td>{{ person.data.name.initials|display }}</td>
-        <td>{{ person.data.name.first_name|display }}</td>
+        <td class="truncate">{{ person.data.name.last_name_with_prefix_appended() }}</td>
+        <td class="truncate">{{ person.data.name.initials|display }}</td>
+        <td class="truncate">{{ person.data.name.first_name|display }}</td>
         <td>{{ person.data.gender_key() |trans }}</td>
-        <td>{{ person.data.personal_data.place_of_residence|display }}</td>
-        <td>{{ person.data.updated_at|datetime }}</td>
+        <td class="truncate">{{ person.data.personal_data.place_of_residence|display }}</td>
+        <td class="nowrap">{{ person.data.updated_at|datetime }}</td>
         <td>
           {% let summary = person.problems.problem_summary(locale) %}
           <a href="{{ person.data.update_path() }}"

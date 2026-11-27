@@ -121,6 +121,10 @@ a {
 }
 
 /* Text wrap, transformations etc. */
+body {
+  overflow-wrap: break-word;
+}
+
 .break-word {
   overflow-wrap: break-word;
 }
